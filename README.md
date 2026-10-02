@@ -86,7 +86,7 @@ The first time you click **Schedule**, a Google sign-in page opens. The creator 
 - **Use the original export**, not a video downloaded from YouTube. 4K sources give the sharpest vertical crops; a 1080p source works but is softer once cropped.
 - Videos where the creator talks to camera give the best results, because both the moment-picking and the face-centred crop rely on speech and a visible face.
 - For non-English or mixed-language vlogs, set `WHISPER_LANGUAGE` in `.env`, or use `WHISPER_MODEL=medium` for better accuracy.
-- A 45-minute vlog takes roughly 10–30 minutes on a typical laptop, mostly transcription. The transcript is saved, so it's never transcribed twice for the same job.
+- A 45-minute vlog takes roughly 5–20 minutes on a typical laptop, mostly transcription and editing. On a computer with an NVIDIA graphics card, transcription uses it automatically. The transcript is saved, so it's never transcribed twice for the same job.
 
 ## If something goes wrong
 

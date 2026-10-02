@@ -12,6 +12,25 @@ schedule (YouTube Data API v3).
 Everything runs on the user's own computer. The people using it are **creators, not developers**:
 every error they can see must be plain English and say what to do next.
 
+## Direction: this is going to the cloud
+
+Decided October 2026: Clipline will become a hosted web app. Creators upload from any device and our
+servers do the work. The local version is the prototype. **Every change must work the same on a
+Linux cloud server as on a laptop:**
+
+- **No code paths for one kind of computer** (no Apple-only, Windows-only or GPU-brand-only engines).
+  Use portable libraries that adapt by themselves. For example, faster-whisper uses an NVIDIA GPU
+  when present and the processor otherwise.
+- **Tune speed with environment settings** (`WHISPER_DEVICE`, `WHISPER_BATCH_SIZE`, `WHISPER_THREADS`,
+  `X264_PRESET`, ...), not with `if mac:` branches. A cloud server sets them once.
+- **Keep `pipeline.py` free of web or UI concerns.** It will become the worker that processes queued
+  jobs. Pass everything it needs as arguments or settings.
+- **Treat local files as temporary.** The `jobs/` folder will become cloud storage, and in-memory `JOBS`
+  will become a database. Don't build features that assume one long-running process on one disk.
+- `start-mac.command` / `start-windows.bat` are local-development conveniences only.
+- An Apple-GPU (MLX) transcription experiment was set aside for this reason (kept outside git, in
+  `_backups/apple-gpu-transcription/`).
+
 ## Run it
 
 ```bash
@@ -69,6 +88,15 @@ Manual run: `.venv/bin/python app.py`. There is no build step and no test suite 
 8. The subtitles filter runs with `cwd=job_dir` and relative paths (`subtitles=captions_N.ass:fontsdir=fonts`)
    to avoid Windows drive-letter escaping problems. Keep it that way.
 
+9. **Transcription is batched, and the language is detected across the whole video.** `transcribe()` uses
+   faster-whisper's `BatchedInferencePipeline` (about 2× faster; `WHISPER_BATCH_SIZE=0` turns it off and
+   falls back to one-at-a-time). Batched mode guesses the language from too little audio: an English
+   vlog with car noise came out as **Welsh**. So `detect_language()` votes over 8 clips spread across
+   the video and passes the winner in, unless `WHISPER_LANGUAGE` is set (`*.en` models skip this).
+   Batched output comes in ~30-second chunks, so `sentence_segments()` rebuilds sentence-sized lines
+   from word timings. Gemini needs those to choose good start points. The model is loaded once per
+   process (`whisper_model()`), and the GPU is used automatically when present.
+
 ## Conventions
 
 - Keep it **dependency-light and single-file-per-concern**. No frontend framework, no database.
@@ -110,7 +138,8 @@ Good first automated tests to add: `clean_moments()` (overlaps, length limits, w
 
 ## Ideas / known limits
 
-- Transcription speed: `WHISPER_MODEL=small` on CPU takes about 9 min for a 40-min vlog on an M-series Mac.
+- Transcription speed: before batching, `WHISPER_MODEL=small` on CPU took about 9 min for a 40-min vlog on an
+  M-series Mac; batching roughly halves that. A GPU cloud server is much faster still.
 - Low-resolution sources (e.g. 640×360 YouTube downloads) give soft Shorts; use original exports.
 - New YouTube API projects can only upload as **private** until Google's audit is passed (see README).
 - Custom thumbnails for Shorts only work on channels YouTube has enabled them for.
