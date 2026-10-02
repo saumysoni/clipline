@@ -96,7 +96,7 @@ def remember_transcript(src, job_tr):
 
 
 # --------------------------------------------------------------------------- make Shorts
-def make_shorts(job_id, src, link, count, style):
+def make_shorts(job_id, src, link, count, style, vlog=None):
     job_dir = JOBS_DIR / job_id
     try:
         update(job_id, stage=0, pct=0, msg="Getting your vlog")
@@ -120,7 +120,15 @@ def make_shorts(job_id, src, link, count, style):
         remember_transcript(src, job_tr)
 
         update(job_id, stage=2, pct=0, msg="Finding the best moments")
-        moments = pipeline.pick_moments(tr, count, lambda p, m: update(job_id, pct=p, msg=m))
+        vlog = dict(vlog or {})
+        if vlog.get("youtube_url") and not (vlog.get("title") and vlog.get("description")):
+            try:  # the page normally fills these in already; this covers a skipped lookup
+                info = yt.fetch_video_info(vlog["youtube_url"])
+                vlog = {**info, **{k: v for k, v in vlog.items() if v}}
+                update(job_id, vlog=vlog)
+            except Exception as e:  # noqa: BLE001  (never fail a job over optional context)
+                print(f"Couldn't read the vlog's YouTube info: {e}")
+        moments = pipeline.pick_moments(tr, count, lambda p, m: update(job_id, pct=p, msg=m), context=vlog)
         update(job_id, moments_found=[{"start": m["start"], "end": m["end"]} for m in moments])
 
         pipeline.prepare_job_fonts(job_dir)
@@ -130,7 +138,7 @@ def make_shorts(job_id, src, link, count, style):
                    msg=f"Editing Short {i} of {len(moments)}")
             video, cx = pipeline.render_short(src, meta, m, tr["words"], i, style, job_dir)
             update(job_id, stage=4, msg=f"Thumbnail {i} of {len(moments)}")
-            thumb = pipeline.make_thumbnail(src, meta, m, cx, i, job_dir)
+            thumb = pipeline.make_thumbnail(src, meta, m, cx, i, job_dir, tr["words"], vlog)
             shorts.append({**m, "idx": i, "video": video, "thumb": thumb, "keep": True})
             update(job_id, shorts=shorts)
         update(job_id, stage=5, pct=100, msg="Done", status="ready", shorts=shorts)
@@ -145,6 +153,12 @@ def start():
     style = request.form.get("style", "bold")
     schedule = request.form.get("schedule", "d18")
     link = (request.form.get("link") or "").strip()
+    vlog = {
+        "youtube_url": (request.form.get("yt_url") or "").strip()[:300],
+        "title": (request.form.get("title") or "").strip()[:300],
+        "description": (request.form.get("description") or "").strip()[:5000],
+        "tags": [],
+    }
     job_id = uuid.uuid4().hex[:10]
     job_dir = JOBS_DIR / job_id
     job_dir.mkdir()
@@ -161,8 +175,8 @@ def start():
     with LOCK:
         JOBS[job_id] = {"id": job_id, "status": "working", "stage": 0, "pct": 0, "msg": "",
                         "count": count, "style": style, "schedule": schedule, "name": name,
-                        "stages": STAGES, "shorts": []}
-    threading.Thread(target=make_shorts, args=(job_id, src, link, count, style), daemon=True).start()
+                        "stages": STAGES, "shorts": [], "vlog": vlog}
+    threading.Thread(target=make_shorts, args=(job_id, src, link, count, style, vlog), daemon=True).start()
     return jsonify(id=job_id)
 
 
@@ -243,6 +257,14 @@ def schedule(job_id):
     update(job_id, upload_status="starting", uploads=[], schedule=mode)
     threading.Thread(target=do_upload, args=(job_id, items, mode), daemon=True).start()
     return jsonify(ok=True)
+
+
+@app.get("/api/vlog-info")
+def vlog_info():
+    try:
+        return jsonify(yt.fetch_video_info(request.args.get("url", "")))
+    except RuntimeError as e:
+        return jsonify(error=str(e)), 400
 
 
 @app.get("/api/config")

@@ -51,7 +51,8 @@ Manual run: `.venv/bin/python app.py`. There is no build step and no test suite 
 |---|---|
 | `app.py` | Flask server (127.0.0.1:8000). `/api/start` saves the upload and runs `make_shorts()` in a background thread; `/api/status/<id>` is polled every second by the page; `/api/schedule/<id>` uploads. Job state lives in memory (`JOBS`) and is mirrored to `jobs/<id>/job.json`. |
 | `pipeline.py` | All media work: `probe`, `load_audio`, `transcribe`, `pick_moments` / `clean_moments`, `face_center_x`, `build_ass`, `render_short`, `make_thumbnail`, plus `ffmpeg_exe()` (chooses which FFmpeg to use). |
-| `youtube_upload.py` | OAuth (desktop flow → `token.json`), `plan_times()` for the schedule, `upload_short()`. |
+| `thumbnails.py` | Collage thumbnails: `sample_frames()` → `plan()` (Gemini sees ~10 frames, returns the face frame, up to 3 items with `box_2d`, text, accent) or `plan_without_ai()` → `cut_out()` (rembg) → `compose()`. Called from `pipeline.make_thumbnail()`, which falls back to `make_simple_thumbnail()`. |
+| `youtube_upload.py` | OAuth (desktop flow → `token.json`), `plan_times()` for the schedule, `upload_short()`, and `fetch_video_info()` (title/description/tags of a vlog from its link). |
 | `static/index.html` | The whole UI: one file, vanilla JS, no build. |
 | `start-mac.command`, `start-windows.bat` | One-click launchers (venv + install + run). |
 | `jobs/<id>/` | Per-run output: `source.*`, `transcript.json`, `captions_N.ass`, `short_N.mp4`, `thumb_N.jpg`, `job.json`. Git-ignored. |
@@ -96,6 +97,21 @@ Manual run: `.venv/bin/python app.py`. There is no build step and no test suite 
    Batched output comes in ~30-second chunks, so `sentence_segments()` rebuilds sentence-sized lines
    from word timings. Gemini needs those to choose good start points. The model is loaded once per
    process (`whisper_model()`), and the GPU is used automatically when present.
+
+10. **Never download videos from YouTube.** YouTube's API policies forbid apps from downloading or storing
+    YouTube audiovisual content, even the creator's own, and breaking that risks the API access posting
+    depends on. `fetch_video_info()` reads only public text (Data API with `YOUTUBE_API_KEY`, else oEmbed =
+    title only). The video always comes from an upload or a Drive link.
+11. **Gemini calls go through `gemini_json()`** (retries busy models, skips retired ones, parses JSON). Use it
+    for any new Gemini feature instead of calling the client directly.
+12. **Thumbnails:** Gemini's `box_2d` is `[ymin, xmin, ymax, xmax]` on a 0-1000 scale. `clean_plan()` validates
+    everything Gemini returns. The face cut-out crops ~1.2 face-widths either side first and splits thin
+    bridges (erode → pick the blob under the face → dilate), so people next to the creator aren't included;
+    overlapping people can still leak in, which is why the prompt asks for frames with the creator alone.
+    "scene" items become photo cards and "object" items become stickers; a cut-out covering <4% or >92% of
+    the crop counts as failed and becomes a card. Output stays under YouTube's 2 MB thumbnail limit.
+    rembg downloads its model (~180 MB) on first use into `U2NET_HOME` (default `~/.u2net`); bake it into the
+    server image in the cloud.
 
 ## Conventions
 

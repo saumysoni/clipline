@@ -5,7 +5,12 @@ Needs client_secret.json (a free OAuth "Desktop app" client from Google Cloud, s
 The first upload opens a Google sign-in page; the creator approves once and the
 permission is saved to token.json.
 """
+import json
 import os
+import re
+import urllib.error
+import urllib.parse
+import urllib.request
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -98,3 +103,59 @@ def upload_short(youtube, video_path, title, description, tags, publish_at=None,
         except Exception as e:  # custom Shorts thumbnails are not available on every channel yet
             thumb_note = "Thumbnail not set automatically; add it in YouTube Studio. (" + str(e)[:120] + ")"
     return video_id, thumb_note
+
+
+# --------------------------------------------------------------------------- reading a vlog's info
+# Only the public text (title, description, tags) is read, through YouTube's official API.
+# Clipline never downloads the video itself from YouTube: YouTube's developer policies forbid it.
+VIDEO_ID_RE = re.compile(r"(?:v=|youtu\.be/|/shorts/|/live/|/embed/|/v/)([A-Za-z0-9_-]{11})")
+
+
+def video_id_from_url(url):
+    url = (url or "").strip()
+    if re.fullmatch(r"[A-Za-z0-9_-]{11}", url):
+        return url
+    m = VIDEO_ID_RE.search(url)
+    return m.group(1) if m else None
+
+
+def _get_json(url):
+    req = urllib.request.Request(url, headers={"User-Agent": "Clipline"})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        return json.loads(r.read().decode("utf-8"))
+
+
+def fetch_video_info(url):
+    """Title, description and tags of a public (or unlisted) YouTube video.
+
+    Uses the YouTube Data API when YOUTUBE_API_KEY is set (free key from Google Cloud);
+    otherwise YouTube's public oEmbed lookup, which only gives the title.
+    """
+    vid = video_id_from_url(url)
+    if not vid:
+        raise RuntimeError("That doesn't look like a YouTube video link.")
+    key = os.getenv("YOUTUBE_API_KEY")
+    if key:
+        q = urllib.parse.urlencode({"part": "snippet", "id": vid, "key": key})
+        try:
+            data = _get_json(f"https://www.googleapis.com/youtube/v3/videos?{q}")
+        except urllib.error.HTTPError as e:
+            raise RuntimeError("YouTube refused the request. Check YOUTUBE_API_KEY in .env "
+                               f"(and that the YouTube Data API is enabled for it). ({e.code})") from e
+        except OSError as e:
+            raise RuntimeError("Couldn't reach YouTube. Check your internet connection.") from e
+        items = data.get("items") or []
+        if not items:
+            raise RuntimeError("YouTube couldn't find that video. Is it public or unlisted, not private?")
+        sn = items[0]["snippet"]
+        return {"video_id": vid, "title": sn.get("title", ""), "description": sn.get("description", ""),
+                "tags": sn.get("tags", [])[:30], "channel": sn.get("channelTitle", ""), "complete": True}
+    q = urllib.parse.urlencode({"url": f"https://www.youtube.com/watch?v={vid}", "format": "json"})
+    try:
+        data = _get_json(f"https://www.youtube.com/oembed?{q}")
+    except urllib.error.HTTPError as e:
+        raise RuntimeError("YouTube couldn't find that video. Is it public or unlisted, not private?") from e
+    except OSError as e:
+        raise RuntimeError("Couldn't reach YouTube. Check your internet connection.") from e
+    return {"video_id": vid, "title": data.get("title", ""), "description": "", "tags": [],
+            "channel": data.get("author_name", ""), "complete": False}
