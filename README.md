@@ -12,9 +12,9 @@ Everything runs on your own computer with free tools. The only accounts you need
 ## What happens when you click "Make my Shorts"
 
 1. **Transcribe.** faster-whisper (open-source Whisper) writes down every word with exact timings. Runs on your computer.
-2. **Find moments.** Gemini reads the full transcript and picks the strongest stand-alone moments, plus a hook, title, thumbnail text, and hashtags for each.
+2. **Find moments.** Gemini reads the full transcript (plus the vlog's title and description, if you give them) and picks the strongest stand-alone moments, with a hook, title, thumbnail text and hashtags for each, written in the creator's tone.
 3. **Edit.** FFmpeg cuts each moment, crops to 9:16 centred on the face, and burns in captions in the style you chose. Output is 1080×1920, high quality (CRF 18).
-4. **Thumbnails.** A bold vertical thumbnail is drawn from a frame of each Short.
+4. **Thumbnails.** Gemini looks at frames from each Short and picks the best reaction shot plus the things worth showing (food, places, vehicles...). Clipline cuts the creator out with a bright glowing outline, adds the other things as cut-out stickers or tilted photo cards (a collage), and puts bold text on top.
 5. **Review.** You play every Short in the browser, edit titles, untick any you don't want.
 6. **Post.** The approved Shorts are uploaded to YouTube and scheduled.
 
@@ -50,6 +50,21 @@ Go to https://aistudio.google.com/apikey, sign in, and create a key.
 In the Clipline folder, copy `.env.example` to a new file named `.env` and paste the key after `GEMINI_API_KEY=`.
 (On a Mac, in Terminal: `cp .env.example .env`, then `open -e .env` to edit it.) Never commit `.env`; it's your private key.
 
+### 2b. Let Clipline read your vlog's YouTube title and description (optional)
+
+On the start page you can paste the vlog's YouTube link and Clipline fills in its title and description,
+which helps it pick better moments and write titles that sound like you. Without this step it still
+fills in the title; for the description too:
+
+1. In https://console.cloud.google.com, create a project (or use the one from step 5).
+2. **APIs & Services → Library**: enable **YouTube Data API v3**.
+3. **Credentials → Create credentials → API key**. Click the key, and under **API restrictions** choose
+   *Restrict key* → *YouTube Data API v3*.
+4. Paste it after `YOUTUBE_API_KEY=` in `.env` and restart Clipline.
+
+Clipline only reads the public text. It never downloads the video from YouTube (YouTube's rules don't
+allow apps to do that), so you still add the original video file.
+
 ### 3. Add a caption font (optional, recommended)
 
 Download **Montserrat** from Google Fonts and put `Montserrat-ExtraBold.ttf` in the `fonts` folder. Any bold font works; if you use another, change `CAPTION_FONT` in `.env` to its name.
@@ -59,7 +74,7 @@ Download **Montserrat** from Google Fonts and put `Montserrat-ExtraBold.ttf` in 
 - **Windows:** double-click `start-windows.bat`
 - **Mac:** double-click `start-mac.command` (first time: right-click, Open)
 
-The first run installs everything and downloads the speech model (around 500 MB), so give it a few minutes. Your browser then opens **http://localhost:8000**. Keep the black window open while you use it.
+The first run installs everything and downloads the speech model (around 500 MB) and, at the first thumbnail, the cut-out model (around 180 MB), so give it a few minutes. Your browser then opens **http://localhost:8000**. Keep the black window open while you use it.
 
 At this point you can already make, play, and download Shorts. Step 5 only adds automatic posting.
 
@@ -77,7 +92,7 @@ The first time you click **Schedule**, a Google sign-in page opens. The creator 
 - **Uploads stay private until your project passes YouTube's API audit.** This is YouTube's rule for new projects. During a trial, open each upload in YouTube Studio and set it to public or scheduled there (Clipline shows an "Open in Studio" link for each one). To lift the limit, apply for the free audit from the YouTube API Services page; you'll need a short privacy policy and a description of the app.
 - While the consent screen is in **Testing** mode, the sign-in expires after about a week; just sign in again when asked.
 - `token.json` gives this computer permission to post on that channel. Only keep it on a computer you trust, and delete it to disconnect. To switch to another creator's channel, delete `token.json` and sign in with their account.
-- Custom Shorts thumbnails can only be set on channels YouTube has given that feature to. If YouTube refuses, Clipline still uploads the Short and tells you to add the thumbnail in Studio (the file is in the `jobs` folder).
+- Custom Shorts thumbnails are rolling out to YouTube Partner Program channels first (since July 2026), and need a phone-verified channel. On other channels YouTube may refuse them. If YouTube refuses, Clipline still uploads the Short and tells you to add the thumbnail in Studio (the file is in the `jobs` folder).
 
 ---
 
@@ -107,8 +122,9 @@ The first time you click **Schedule**, a Google sign-in page opens. The creator 
 ## Files
 
 - `app.py`: the local web app (starts the server, runs jobs, handles posting)
-- `pipeline.py`: transcription, moment picking, editing, thumbnails
-- `youtube_upload.py`: YouTube sign-in, upload, scheduling
+- `pipeline.py`: transcription, moment picking, editing
+- `thumbnails.py`: collage thumbnails (frame picking with Gemini, cut-outs, layout)
+- `youtube_upload.py`: YouTube sign-in, upload, scheduling, and reading a vlog's title/description from its link
 - `static/index.html`: the interface
 - `jobs/`: everything Clipline makes, one folder per vlog
 - `docs/`: demo video and preview for this README

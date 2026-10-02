@@ -321,7 +321,7 @@ Return ONLY a JSON array of exactly {n} objects, best moment first, each with:
   "why": one short sentence on why this moment works,
   "hashtags": array of 3 hashtags without the # sign
 
-TRANSCRIPT
+{context}TRANSCRIPT
 {transcript}
 """
 
@@ -347,25 +347,41 @@ def gemini_error_kind(e):
     return "other"
 
 
-def pick_moments(transcript, n, progress=lambda pct, msg: None):
+def vlog_context_block(context):
+    """The creator's own title/description/tags, as extra guidance for Gemini."""
+    if not context:
+        return ""
+    parts = []
+    if context.get("title"):
+        parts.append(f"Title: {context['title'].strip()}")
+    if context.get("description"):
+        parts.append("Description:\n" + context["description"].strip()[:3000])
+    if context.get("tags"):
+        parts.append("Tags: " + ", ".join(context["tags"][:30]))
+    if not parts:
+        return ""
+    return ("ABOUT THIS VLOG (written by the creator)\n" + "\n".join(parts) + "\n\n"
+            "Use this to understand what the vlog is about, to spell names of people and places correctly "
+            "(the transcript may misspell them), and to write titles and hooks in the creator's own tone. "
+            "Never copy links, sponsor codes or timestamps from the description.\n\n")
+
+
+def gemini_json(contents, progress=lambda pct, msg: None, temperature=0.4, busy_hint=""):
+    """Ask Gemini for JSON, trying the model from .env first and then the other current models.
+
+    Gemini sometimes answers "busy" (503) or "limit reached" (429): busy models are retried in rounds
+    (waits in BUSY_WAITS), missing or limited models are skipped. `contents` may be a string or a list
+    of strings and image parts. Returns the parsed JSON (dict or list).
+    """
     from google import genai
 
     key = os.getenv("GEMINI_API_KEY")
     if not key:
         raise RuntimeError("GEMINI_API_KEY is missing. Add it to the .env file (see README).")
-    lines = [f"[{s['s']:.1f}-{s['e']:.1f}] {s['text']}" for s in transcript["segments"]]
-    prompt = PICK_PROMPT.format(
-        duration=fmt_mmss(transcript["duration"]), n=n, min_len=MIN_LEN + 5, max_len=MAX_LEN,
-        transcript="\n".join(lines),
-    )
-    progress(10, "Reading the whole transcript")
     client = genai.Client(api_key=key)
-    # Try the model from .env first, then the other current models.
-    # Gemini sometimes answers "busy" (503) or "limit reached" (429): wait and retry,
-    # then move on to the next model, instead of failing the whole job.
     wanted = os.getenv("GEMINI_MODEL") or FALLBACK_MODELS[0]
     candidates = [wanted] + [m for m in FALLBACK_MODELS if m != wanted]
-    config = {"response_mime_type": "application/json", "temperature": 0.4,
+    config = {"response_mime_type": "application/json", "temperature": temperature,
               "automatic_function_calling": {"disable": True}}
     resp, problems = None, []
     # Each round tries every model once; if they were all busy, wait a bit and go again.
@@ -376,7 +392,7 @@ def pick_moments(transcript, n, progress=lambda pct, msg: None):
         retry_later = []
         for model in candidates:
             try:
-                resp = client.models.generate_content(model=model, contents=prompt, config=config)
+                resp = client.models.generate_content(model=model, contents=contents, config=config)
                 break
             except Exception as e:  # noqa: BLE001
                 kind = gemini_error_kind(e)
@@ -396,23 +412,33 @@ def pick_moments(transcript, n, progress=lambda pct, msg: None):
         candidates = retry_later
     if resp is None:
         if "busy" in problems:
-            raise RuntimeError("Gemini is overloaded right now (this is on Google's side). Your transcript is "
-                               "saved, so just click Make my Shorts again in a few minutes with the same video; "
-                               "it will skip straight to finding moments.")
+            raise RuntimeError("Gemini is overloaded right now (this is on Google's side). " + busy_hint)
         if "limit" in problems:
-            raise RuntimeError("Gemini's free usage limit is used up for now. Try again in a while (or tomorrow) "
-                               "with the same video; the transcript is saved, so it won't be redone.")
+            raise RuntimeError("Gemini's free usage limit is used up for now. Try again in a while "
+                               "(or tomorrow). " + busy_hint)
         raise RuntimeError("None of the Gemini models are available to this API key. "
                            "Put a current Flash model name in GEMINI_MODEL in .env.")
-    progress(80, "Choosing the best moments")
     text = re.sub(r"^```(?:json)?|```$", "", (resp.text or "").strip(), flags=re.M).strip()
     try:
-        raw = json.loads(text)
+        return json.loads(text)
     except json.JSONDecodeError:
-        m = re.search(r"\[.*\]", text, flags=re.S)  # salvage a list wrapped in extra words
+        m = re.search(r"[\[{].*[\]}]", text, flags=re.S)  # salvage JSON wrapped in extra words
         if not m:
-            raise RuntimeError("Gemini's answer wasn't in the expected format. Click Make my Shorts again.")
-        raw = json.loads(m.group(0))
+            raise RuntimeError("Gemini's answer wasn't in the expected format. Please try again.")
+        return json.loads(m.group(0))
+
+
+def pick_moments(transcript, n, progress=lambda pct, msg: None, context=None):
+    lines = [f"[{s['s']:.1f}-{s['e']:.1f}] {s['text']}" for s in transcript["segments"]]
+    prompt = PICK_PROMPT.format(
+        duration=fmt_mmss(transcript["duration"]), n=n, min_len=MIN_LEN + 5, max_len=MAX_LEN,
+        transcript="\n".join(lines), context=vlog_context_block(context),
+    )
+    progress(10, "Reading the whole transcript")
+    raw = gemini_json(prompt, progress, busy_hint=(
+        "Your transcript is saved, so just click Make my Shorts again in a few minutes with the same "
+        "video; it will skip straight to finding moments."))
+    progress(80, "Choosing the best moments")
     if isinstance(raw, dict):
         raw = next((v for v in raw.values() if isinstance(v, list)), [])
     return clean_moments(raw, transcript, n)
@@ -604,7 +630,18 @@ def render_short(video_path, meta, moment, words, idx, style, job_dir):
 
 
 # --------------------------------------------------------------------------- 4. thumbnail
-def make_thumbnail(video_path, meta, moment, cx, idx, job_dir):
+def make_thumbnail(video_path, meta, moment, cx, idx, job_dir, words=None, context=None):
+    """Collage-style thumbnail (see thumbnails.py); the simple style if that fails or THUMB_STYLE=simple."""
+    if os.getenv("THUMB_STYLE", "collage").lower() != "simple":
+        try:
+            import thumbnails
+            return thumbnails.make_collage_thumbnail(video_path, moment, idx, job_dir, words, context)
+        except Exception as e:  # noqa: BLE001
+            print(f"Collage thumbnail failed ({e}); using the simple style.")
+    return make_simple_thumbnail(video_path, meta, moment, cx, idx, job_dir)
+
+
+def make_simple_thumbnail(video_path, meta, moment, cx, idx, job_dir):
     from PIL import Image, ImageDraw, ImageFont
 
     job_dir = Path(job_dir)

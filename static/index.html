@@ -42,6 +42,11 @@ h2{font-size:clamp(1.5rem,3.4vw,2.1rem);line-height:1.1}
 .drop input{position:absolute;opacity:0;width:1px;height:1px}
 .or{text-align:center;color:var(--muted);font-size:.85rem;margin:10px 0}
 input[type=text]{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--bg)}
+textarea{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--bg);font:inherit;color:inherit;resize:vertical}
+.lab small{font-weight:400;color:var(--muted,#888)}
+.inrow{display:flex;gap:8px;align-items:stretch}
+.inrow input{flex:1;min-width:0}
+.stack>*+*{margin-top:8px}
 select{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--bg)}
 .counter{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
 .ctrl{display:flex;align-items:center;border:1px solid var(--line);border-radius:14px;overflow:hidden}
@@ -129,6 +134,16 @@ ul.tasks li.done{color:var(--ink)}ul.tasks li.done .tick{background:var(--good);
         <div class="or">or</div>
         <input type="text" id="link" placeholder="Google Drive link (sharing set to 'Anyone with the link')" autocomplete="off">
         <div class="hint">Use the original export, not a YouTube download, for the sharpest Shorts.</div>
+      </div>
+      <div class="field stack">
+        <span class="lab">About this vlog <small>(optional, helps Clipline pick better moments and write titles in your voice)</small></span>
+        <div class="inrow">
+          <input type="text" id="ytUrl" placeholder="Paste the vlog's YouTube link to fill these in" autocomplete="off">
+          <button type="button" class="ghost" id="ytFill">Fill in</button>
+        </div>
+        <div class="hint" id="ytHint" aria-live="polite"></div>
+        <input type="text" id="vTitle" placeholder="Vlog title" autocomplete="off">
+        <textarea id="vDesc" rows="4" placeholder="Vlog description"></textarea>
       </div>
       <div class="field">
         <span class="lab" id="countLab">How many Shorts?</span>
@@ -244,12 +259,32 @@ $("file").onchange=e=>setFile(e.target.files[0]);
 ["dragover","dragenter"].forEach(ev=>$("drop").addEventListener(ev,e=>{e.preventDefault();$("drop").classList.add("has");}));
 $("drop").addEventListener("drop",e=>{e.preventDefault();setFile(e.dataTransfer.files[0]);});
 
+async function fillVlogInfo(){
+  const url=$("ytUrl").value.trim(); if(!url) return;
+  $("ytHint").textContent="Reading the video's details from YouTube...";
+  try{
+    const r=await fetch("/api/vlog-info?url="+encodeURIComponent(url)); const j=await r.json();
+    if(!r.ok){ $("ytHint").textContent=j.error||"Couldn't read that link."; return; }
+    if(j.title) $("vTitle").value=j.title;
+    if(j.description) $("vDesc").value=j.description;
+    $("vTitle").dataset.tags=JSON.stringify(j.tags||[]);
+    $("ytHint").textContent = j.complete ? "Filled in from YouTube. Edit anything you like."
+      : "Got the title. To fetch the description too, add a YOUTUBE_API_KEY (see README), or paste it below.";
+  }catch(e){ $("ytHint").textContent="Couldn't reach Clipline to read that link."; }
+}
+$("ytFill").onclick=fillVlogInfo;
+$("ytUrl").addEventListener("paste",()=>setTimeout(fillVlogInfo,50));
+$("ytUrl").addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); fillVlogInfo(); } });
+
 $("make").onclick=()=>{
   $("err1").textContent="";
   const f=$("file").files[0], link=$("link").value.trim();
   if(!f && !link){ $("err1").textContent="Choose your vlog file or paste a Google Drive link."; return; }
   const fd=new FormData();
   if(f) fd.append("video",f); else fd.append("link",link);
+  fd.append("yt_url",$("ytUrl").value.trim());
+  fd.append("title",$("vTitle").value.trim());
+  fd.append("description",$("vDesc").value.trim());
   fd.append("count",count);
   fd.append("style",document.querySelector("input[name=style]:checked").value);
   fd.append("schedule",$("sched").value);
