@@ -1,0 +1,116 @@
+# CLAUDE.md
+
+Guidance for Claude (and humans) working on this repo. Read this before changing code.
+
+## What Clipline is
+
+A local web app that turns one long vlog into finished vertical YouTube Shorts:
+transcribe (faster-whisper) → pick moments (Gemini) → cut, reframe to 9:16 around the face, burn in
+word-by-word captions (FFmpeg + libass) → thumbnail (Pillow) → review in the browser → upload and
+schedule (YouTube Data API v3).
+
+Everything runs on the user's own computer. The people using it are **creators, not developers**:
+every error they can see must be plain English and say what to do next.
+
+## Run it
+
+```bash
+cp .env.example .env              # then paste a Gemini key into GEMINI_API_KEY
+bash start-mac.command            # Mac (Windows: start-windows.bat)
+# → creates .venv, installs requirements.txt, runs app.py, opens http://localhost:8000
+```
+
+The start scripts reinstall packages whenever `requirements.txt` differs from
+`.venv/installed-requirements.txt`, so **changing requirements.txt is how you ship a dependency fix** to
+someone else's machine. Needs Python 3.10+ and FFmpeg/ffprobe on PATH.
+
+Manual run: `.venv/bin/python app.py`. There is no build step and no test suite yet.
+
+## Files
+
+| File | What it does |
+|---|---|
+| `app.py` | Flask server (127.0.0.1:8000). `/api/start` saves the upload and runs `make_shorts()` in a background thread; `/api/status/<id>` is polled every second by the page; `/api/schedule/<id>` uploads. Job state lives in memory (`JOBS`) and is mirrored to `jobs/<id>/job.json`. |
+| `pipeline.py` | All media work: `probe`, `load_audio`, `transcribe`, `pick_moments` / `clean_moments`, `face_center_x`, `build_ass`, `render_short`, `make_thumbnail`, plus `ffmpeg_exe()` (chooses which FFmpeg to use). |
+| `youtube_upload.py` | OAuth (desktop flow → `token.json`), `plan_times()` for the schedule, `upload_short()`. |
+| `static/index.html` | The whole UI: one file, vanilla JS, no build. |
+| `start-mac.command`, `start-windows.bat` | One-click launchers (venv + install + run). |
+| `jobs/<id>/` | Per-run output: `source.*`, `transcript.json`, `captions_N.ass`, `short_N.mp4`, `thumb_N.jpg`, `job.json`. Git-ignored. |
+| `jobs/_transcripts/<fingerprint>.json` | Transcript cache keyed by a hash of the video (size + first/last 4 MB), so re-uploading the same vlog skips transcription. |
+
+## Hard-won gotchas (don't undo these)
+
+1. **Audio is decoded with FFmpeg, not faster-whisper's own decoder.** `load_audio()` pipes 16 kHz mono
+   float32 from FFmpeg into `model.transcribe(numpy_array)`. faster-whisper's decoder uses PyAV, and
+   PyAV ≥ 15 removed the `metadata_errors` argument it passes ("open() got an unexpected keyword
+   argument 'metadata_errors'").
+2. **OpenCV is pinned below 5** (`opencv-python-headless>=4.8,<5`). OpenCV 5 dropped
+   `cv2.CascadeClassifier`, which the face finder uses. `face_center_x()` also catches any failure and
+   returns `None`, which means "crop from the centre", so face finding must never fail a job.
+3. **Not every FFmpeg can burn captions.** Some builds (recent Homebrew, Anaconda) ship without libass,
+   so the `subtitles` filter doesn't exist and FFmpeg says `No option name near 'captions_1.ass...'`.
+   `ffmpeg_exe()` uses the first FFmpeg that lists `subtitles` in `-filters`: `$FFMPEG_PATH`, PATH,
+   Homebrew paths, then the complete static binary from the `imageio-ffmpeg` package. Always call
+   `ffmpeg_exe()` and never hard-code `"ffmpeg"`. (`ffprobe` still comes from PATH.)
+4. **Captions need a real font file.** `prepare_job_fonts()` copies `fonts/*.ttf|otf` into the job folder;
+   if there are none it copies a system bold font (Arial Bold on Mac). `caption_font_name()` uses
+   `CAPTION_FONT` only if that family is actually present, otherwise the family that is. Static FFmpeg
+   builds may have no fontconfig, so a missing font can mean invisible captions.
+5. **Gemini models are retired often, and they get busy.** `FALLBACK_MODELS` lists current Flash models,
+   newest first; `.env` `GEMINI_MODEL` is tried first. `gemini_error_kind()` sorts errors into
+   busy / limit / missing / bad_key / other. Busy (5xx) models are retried in rounds (waits in
+   `BUSY_WAITS`), while missing and limited models move on to the next one. As of October 2026, the 2.5
+   models are restricted to accounts that already used them. Check
+   https://ai.google.dev/gemini-api/docs/models before changing names.
+6. **ffprobe call is version-agnostic.** `probe()` uses `-show_streams -show_format` and reads rotation
+   from `side_data_list` *or* the old `tags.rotate`; `stream_side_data=` in `-show_entries` breaks on
+   FFmpeg 4.x.
+7. **Sideways phone videos:** `probe()` swaps width/height when rotation is 90/270.
+8. The subtitles filter runs with `cwd=job_dir` and relative paths (`subtitles=captions_N.ass:fontsdir=fonts`)
+   to avoid Windows drive-letter escaping problems. Keep it that way.
+
+## Conventions
+
+- Keep it **dependency-light and single-file-per-concern**. No frontend framework, no database.
+- User-facing errors: raise `RuntimeError("plain sentence about what happened. What to do.")`. They are
+  shown in the UI as-is. Log technical detail with `print()` / `traceback.print_exc()` in the terminal.
+- Progress: long steps call `progress(pct, "Short message")`; the UI shows the message.
+- Settings belong in `.env` (document every new one in `.env.example` and the README), read with
+  `os.getenv(NAME, default)`.
+- Never commit secrets: `.env`, `client_secret.json`, `token.json` are git-ignored. `token.json` can post
+  to a real YouTube channel.
+- Don't commit media. `jobs/`, `_test/` and font files are ignored (fonts have their own licences).
+- After changing Python files, at minimum run: `python -m py_compile app.py pipeline.py youtube_upload.py`.
+
+## Testing without burning API quota
+
+There are no automated tests yet. These manual checks work well:
+
+- **Short clip:** `ffmpeg -ss 300 -i long.mp4 -t 90 -c copy test90.mp4` and upload that in the UI.
+- **Skip Gemini:** monkeypatch `google.genai.Client` with a fake whose `models.generate_content()`
+  returns `types.SimpleNamespace(text='[{"start": 17.5, "end": 45.8, "hook": "...", "title": "...",
+  "thumb_line1": "...", "thumb_line2": "...", "why": "...", "hashtags": ["a","b","c"]}]')`, then call
+  `pipeline.pick_moments(transcript, n)` or drive the whole app with `app.app.test_client()`.
+- **Faster renders while testing:** `X264_PRESET=veryfast` (or `ultrafast`) and `WHISPER_MODEL=base`.
+- **Look at the output:** grab frames with `ffmpeg -ss 1.2 -i jobs/<id>/short_1.mp4 -frames:v 1 f.jpg`
+  and check that the captions, yellow word highlight, hook banner and face crop are all present.
+
+Good first automated tests to add: `clean_moments()` (overlaps, length limits, word snapping),
+`build_ass()` (timing never goes backwards), `gemini_error_kind()`, `crop_filter()`, `plan_times()`.
+
+## Working together (two people)
+
+- `main` should always run. Work on a branch (`git checkout -b fix-captions`), push it, open a pull
+  request, and let the other person look before merging.
+- Pull before you start: `git pull --rebase`.
+- If you change `requirements.txt`, say so in the PR. The other person's start script will reinstall
+  automatically on the next launch.
+- Each person keeps their own `.env`, Gemini key, `client_secret.json` and `token.json`. Never share
+  these through git.
+
+## Ideas / known limits
+
+- Transcription speed: `WHISPER_MODEL=small` on CPU takes about 9 min for a 40-min vlog on an M-series Mac.
+- Low-resolution sources (e.g. 640×360 YouTube downloads) give soft Shorts; use original exports.
+- New YouTube API projects can only upload as **private** until Google's audit is passed (see README).
+- Custom thumbnails for Shorts only work on channels YouTube has enabled them for.

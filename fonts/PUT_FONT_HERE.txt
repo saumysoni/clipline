@@ -1,0 +1,1 @@
+Put a bold .ttf font here (for example Montserrat ExtraBold from Google Fonts). It's used for captions and thumbnails.

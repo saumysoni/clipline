@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Clipline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EEF0F6; --surface:#FFFFFF; --ink:#161C33; --muted:#5E6684; --line:#D9DCE8;
+  --accent:#4B32E0; --accent-ink:#FFFFFF; --soft:#E4E1FB; --cap:#FFD60A; --good:#1C8A58; --bad:#C2263A;
+  --display:"Bricolage Grotesque","Avenir Next","Segoe UI",system-ui,sans-serif;
+  --body:"Instrument Sans","Helvetica Neue","Segoe UI",system-ui,sans-serif;
+  box-sizing:border-box;
+}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#11142A;--surface:#1A1E3A;--ink:#ECEEFA;--muted:#9AA1C0;--line:#2C3157;--accent:#8C7BFF;--accent-ink:#11142A;--soft:#26245A;--good:#3FD18E;--bad:#FF7A8A}
+}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);line-height:1.5;-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:6px}
+.wrap{max-width:1120px;margin:0 auto;padding:20px 20px 40px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:24px}
+.brand{font-family:var(--display);font-weight:800;font-size:1.6rem;letter-spacing:-.02em;display:flex;align-items:center;gap:10px}
+.mark{width:18px;height:30px;border-radius:5px;background:var(--accent);position:relative}
+.mark::after{content:"";position:absolute;left:3px;right:3px;bottom:5px;height:5px;border-radius:2px;background:var(--cap)}
+.pill{display:flex;align-items:center;gap:8px;font-size:.88rem;color:var(--muted);background:var(--surface);border:1px solid var(--line);padding:6px 12px;border-radius:999px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}.dot.on{background:var(--good)}
+h1,h2{font-family:var(--display);letter-spacing:-.025em;margin:0;font-weight:800}
+h1{font-size:clamp(2rem,5vw,3rem);line-height:1.05;max-width:16ch}
+h2{font-size:clamp(1.5rem,3.4vw,2.1rem);line-height:1.1}
+.lede{color:var(--muted);max-width:56ch;margin:10px 0 0}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:24px;margin-top:24px;max-width:640px}
+.field{margin-bottom:24px}
+.lab{display:block;font-weight:600;margin-bottom:8px}
+.hint{font-size:.86rem;color:var(--muted);margin-top:6px}
+.drop{display:block;border:2px dashed var(--line);border-radius:16px;padding:22px;text-align:center;cursor:pointer;color:var(--muted)}
+.drop.has{border-style:solid;border-color:var(--accent);color:var(--ink);background:var(--soft)}
+.drop input{position:absolute;opacity:0;width:1px;height:1px}
+.or{text-align:center;color:var(--muted);font-size:.85rem;margin:10px 0}
+input[type=text]{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--bg)}
+select{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--bg)}
+.counter{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.ctrl{display:flex;align-items:center;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.ctrl button{width:46px;height:50px;border:0;background:var(--bg);font-size:1.4rem;cursor:pointer}
+.ctrl button:disabled{opacity:.35}
+.num{width:56px;text-align:center;font-family:var(--display);font-weight:800;font-size:1.6rem}
+.frames{display:flex;gap:4px}.frames span{width:13px;height:23px;border-radius:3px;background:var(--accent)}
+.styles{display:flex;gap:8px;flex-wrap:wrap}
+.styles input{position:absolute;opacity:0}
+.chip{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 12px;border-radius:14px;border:1.5px solid var(--line);min-width:96px;cursor:pointer}
+.styles input:checked+.chip{border-color:var(--accent);background:var(--soft)}
+.styles input:focus-visible+.chip{outline:3px solid var(--accent)}
+.sample{background:#2A2F4F;border-radius:8px;padding:6px 10px;font-family:var(--display);font-weight:800;font-size:.85rem;color:#fff}
+.sample b{color:var(--cap)}.sample.box b{background:var(--cap);color:#111;padding:1px 3px;border-radius:3px}
+.sample.clean{font-family:var(--body);font-weight:600}
+.chip small{font-size:.8rem;color:var(--muted)}
+.primary{display:inline-flex;align-items:center;justify-content:center;padding:15px 26px;border:0;border-radius:14px;background:var(--accent);color:var(--accent-ink);font-weight:600;font-size:1.05rem;cursor:pointer}
+.primary:disabled{opacity:.45;cursor:default}
+.ghost{padding:11px 14px;border-radius:12px;border:1px solid var(--line);background:transparent;cursor:pointer}
+.err{color:var(--bad);font-size:.92rem;margin-top:10px;min-height:1.2em}
+.bar{height:8px;border-radius:99px;background:var(--line);overflow:hidden;margin-top:10px}
+.bar i{display:block;height:100%;background:var(--accent);width:0;transition:width .3s}
+/* progress */
+.proc{max-width:760px}
+.timeline{margin:26px 0 6px;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:30px 18px 18px}
+.track{position:relative;height:56px;border-radius:10px;background:repeating-linear-gradient(90deg,var(--line) 0 3px,transparent 3px 6px)}
+.seg{position:absolute;top:0;bottom:0;border-radius:6px;background:color-mix(in srgb,var(--cap) 55%,transparent);border:2px solid var(--cap)}
+.seg i{position:absolute;top:-22px;left:50%;transform:translateX(-50%);font-style:normal;font-family:var(--display);font-weight:800;font-size:.75rem;background:var(--ink);color:var(--bg);width:20px;height:20px;border-radius:50%;display:grid;place-items:center}
+.times{display:flex;justify-content:space-between;color:var(--muted);font-size:.8rem;margin-top:8px}
+ul.tasks{list-style:none;padding:0;margin:22px 0 0}
+ul.tasks li{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);color:var(--muted)}
+.tick{width:24px;height:24px;border-radius:50%;border:2px solid var(--line);flex:none;display:grid;place-items:center;font-size:.8rem}
+ul.tasks li.active{color:var(--ink);font-weight:600}
+ul.tasks li.active .tick{border-color:var(--accent);border-top-color:transparent;animation:spin .8s linear infinite}
+ul.tasks li.done{color:var(--ink)}ul.tasks li.done .tick{background:var(--good);border-color:var(--good);color:#fff}
+.sub{font-weight:400;color:var(--muted);font-size:.88rem;margin-left:auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* results */
+.head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.reel{display:flex;gap:20px;overflow-x:auto;padding:26px 2px 20px;scroll-snap-type:x mandatory}
+.short{flex:none;width:250px;scroll-snap-align:start}
+.phone{position:relative;aspect-ratio:9/16;border-radius:22px;overflow:hidden;background:#000}
+.phone video,.phone img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.phone img{display:none}.short.thumb .phone img{display:block}.short.thumb .phone video{visibility:hidden}
+.short.off .phone{opacity:.35;filter:grayscale(1)}
+.toggle{display:flex;margin-top:12px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.toggle button{flex:1;padding:7px 0;border:0;background:transparent;cursor:pointer;font-size:.85rem;color:var(--muted)}
+.toggle button[aria-pressed=true]{background:var(--soft);color:var(--ink);font-weight:600}
+.short input.title{margin-top:12px;font-weight:600;font-size:.92rem;padding:8px 10px;background:var(--surface)}
+.from{font-size:.8rem;color:var(--muted);margin-top:8px}
+.why{font-size:.86rem;margin-top:4px}
+.row{display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:.9rem}
+.keep{display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500}
+.keep input{width:18px;height:18px;accent-color:var(--accent)}
+.row a{color:var(--muted)}
+.dock{position:sticky;bottom:0;z-index:5;margin:8px -20px 0;padding:14px 20px calc(14px + env(safe-area-inset-bottom,0px));background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);border-top:1px solid var(--line);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.dock select{width:auto;min-width:240px}
+.dock .grow{flex:1;color:var(--muted);font-size:.92rem}
+/* scheduled */
+.cal{list-style:none;padding:0;margin:24px 0;max-width:760px}
+.cal li{display:grid;grid-template-columns:110px 1fr auto;gap:14px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
+.cal .day{font-family:var(--display);font-weight:800;line-height:1.15}
+.cal .day small{display:block;font-family:var(--body);font-weight:500;color:var(--muted);font-size:.82rem}
+.cal a{color:var(--accent);font-weight:600;font-size:.9rem}
+.note{font-size:.9rem;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;max-width:760px}
+@media (max-width:640px){.cal li{grid-template-columns:90px 1fr}.cal a{grid-column:2}}
+@media (prefers-reduced-motion: reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand"><span class="mark" aria-hidden="true"></span>Clipline</div>
+    <div class="pill"><span class="dot" id="ytDot"></span><span id="ytText">Checking YouTube connection</span></div>
+  </header>
+
+  <!-- 1. Add vlog -->
+  <section id="s1">
+    <h1>One vlog in. A week of Shorts out.</h1>
+    <p class="lede">Add your vlog, choose how many Shorts you want, and Clipline finds the best moments, edits them vertical with captions and thumbnails, and posts them on your schedule after you approve them.</p>
+    <div class="panel">
+      <div class="field">
+        <span class="lab">Your vlog</span>
+        <label class="drop" id="drop"><input type="file" id="file" accept="video/*"><span id="dropText">Click to choose the video file, or drop it here</span></label>
+        <div class="or">or</div>
+        <input type="text" id="link" placeholder="Google Drive link (sharing set to 'Anyone with the link')" autocomplete="off">
+        <div class="hint">Use the original export, not a YouTube download, for the sharpest Shorts.</div>
+      </div>
+      <div class="field">
+        <span class="lab" id="countLab">How many Shorts?</span>
+        <div class="counter">
+          <div class="ctrl" role="group" aria-labelledby="countLab">
+            <button type="button" id="minus" aria-label="Fewer">−</button>
+            <output class="num" id="num" aria-live="polite">5</output>
+            <button type="button" id="plus" aria-label="More">+</button>
+          </div>
+          <div class="frames" id="frames" aria-hidden="true"></div>
+        </div>
+      </div>
+      <div class="field">
+        <span class="lab" id="styleLab">Caption style</span>
+        <div class="styles" role="radiogroup" aria-labelledby="styleLab">
+          <label><input type="radio" name="style" value="bold" checked><span class="chip"><span class="sample">THIS <b>HILL</b></span><small>Bold yellow</small></span></label>
+          <label><input type="radio" name="style" value="clean"><span class="chip"><span class="sample clean">this <b>hill</b></span><small>Clean</small></span></label>
+          <label><input type="radio" name="style" value="boxed"><span class="chip"><span class="sample box">this <b>hill</b></span><small>Boxed</small></span></label>
+        </div>
+      </div>
+      <div class="field">
+        <label class="lab" for="sched">When should they post?</label>
+        <select id="sched">
+          <option value="d18">One a day at 6:00 PM, starting tomorrow</option>
+          <option value="d12">One a day at 12:00 PM, starting tomorrow</option>
+          <option value="two">Two a day, 12:00 PM and 6:00 PM</option>
+          <option value="now">All at once, right away</option>
+        </select>
+      </div>
+      <button class="primary" id="make" type="button">Make my 5 Shorts</button>
+      <div class="bar" id="upBar" hidden><i></i></div>
+      <div class="err" id="err1" role="alert"></div>
+    </div>
+  </section>
+
+  <!-- 2. Working -->
+  <section id="s2" hidden>
+    <div class="proc">
+      <h2>Making your Shorts</h2>
+      <p class="lede" id="procLede">A 45-minute vlog usually takes 10 to 30 minutes, depending on your computer. You can leave this tab open and come back.</p>
+      <div class="timeline" id="timeline" hidden>
+        <div class="track" id="track"></div>
+        <div class="times"><span>0:00</span><span id="totalTime"></span></div>
+      </div>
+      <ul class="tasks" id="tasks"></ul>
+      <div class="err" id="err2" role="alert"></div>
+    </div>
+  </section>
+
+  <!-- 3. Review -->
+  <section id="s3" hidden>
+    <div class="head">
+      <div>
+        <h2 id="resTitle">Your Shorts are ready</h2>
+        <p class="lede">Play each one, edit titles, flip to see the thumbnail, and untick anything you don't want posted.</p>
+      </div>
+      <button class="ghost" id="newBtn" type="button">Start a new vlog</button>
+    </div>
+    <div class="reel" id="reel"></div>
+    <div class="dock">
+      <span class="grow" id="dockText"></span>
+      <select id="sched2" aria-label="Posting schedule">
+        <option value="d18">One a day at 6:00 PM</option>
+        <option value="d12">One a day at 12:00 PM</option>
+        <option value="two">Two a day, 12 PM and 6 PM</option>
+        <option value="now">All at once, right away</option>
+      </select>
+      <button class="primary" id="schedBtn" type="button">Schedule</button>
+    </div>
+    <div id="upPanel" hidden>
+      <p id="upMsg" class="lede"></p>
+      <div class="bar" style="max-width:640px"><i id="upPct"></i></div>
+    </div>
+    <div class="err" id="err3" role="alert"></div>
+  </section>
+
+  <!-- 4. Scheduled -->
+  <section id="s4" hidden>
+    <h2 id="doneTitle">Scheduled</h2>
+    <p class="lede">Each Short goes public at its time. You can change anything in YouTube Studio before then.</p>
+    <ul class="cal" id="cal"></ul>
+    <div class="note" id="doneNote">If your Google project hasn't passed YouTube's API audit yet, YouTube keeps these uploads private. Open each one in YouTube Studio to set it public or scheduled.</div>
+    <p><button class="primary" id="againBtn" type="button">Make Shorts from another vlog</button></p>
+  </section>
+</div>
+
+<script>
+(()=>{
+const $ = id => document.getElementById(id);
+const fmt = s => { s=Math.round(s); return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); };
+const esc = t => String(t).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let count = 5, jobId = null, poll = null, job = null;
+
+function show(n){ [1,2,3,4].forEach(i=>$("s"+i).hidden = i!==n); window.scrollTo(0,0); }
+
+fetch("/api/config").then(r=>r.json()).then(c=>{
+  $("ytDot").classList.toggle("on", c.youtube);
+  $("ytText").textContent = c.youtube ? "YouTube posting is set up" : "YouTube posting not set up yet";
+});
+
+// ---- form
+function renderCount(){
+  $("num").textContent = count; $("minus").disabled = count<=1; $("plus").disabled = count>=10;
+  $("frames").innerHTML = "<span></span>".repeat(count);
+  $("make").textContent = count===1 ? "Make my Short" : "Make my "+count+" Shorts";
+}
+$("minus").onclick=()=>{count=Math.max(1,count-1);renderCount();};
+$("plus").onclick=()=>{count=Math.min(10,count+1);renderCount();};
+renderCount();
+function setFile(f){ if(!f) return; const dt=new DataTransfer(); dt.items.add(f); $("file").files=dt.files;
+  $("drop").classList.add("has"); $("dropText").textContent = f.name+" ("+(f.size/1e9).toFixed(2)+" GB)"; }
+$("file").onchange=e=>setFile(e.target.files[0]);
+["dragover","dragenter"].forEach(ev=>$("drop").addEventListener(ev,e=>{e.preventDefault();$("drop").classList.add("has");}));
+$("drop").addEventListener("drop",e=>{e.preventDefault();setFile(e.dataTransfer.files[0]);});
+
+$("make").onclick=()=>{
+  $("err1").textContent="";
+  const f=$("file").files[0], link=$("link").value.trim();
+  if(!f && !link){ $("err1").textContent="Choose your vlog file or paste a Google Drive link."; return; }
+  const fd=new FormData();
+  if(f) fd.append("video",f); else fd.append("link",link);
+  fd.append("count",count);
+  fd.append("style",document.querySelector("input[name=style]:checked").value);
+  fd.append("schedule",$("sched").value);
+  $("sched2").value=$("sched").value;
+  const xhr=new XMLHttpRequest();
+  xhr.open("POST","/api/start");
+  $("make").disabled=true; $("upBar").hidden=false;
+  xhr.upload.onprogress=e=>{ if(e.lengthComputable){ $("upBar").firstElementChild.style.width=(e.loaded/e.total*100)+"%"; $("make").textContent="Sending video "+Math.round(e.loaded/e.total*100)+"%"; } };
+  xhr.onload=()=>{
+    $("make").disabled=false; $("upBar").hidden=true; renderCount();
+    let r={}; try{r=JSON.parse(xhr.responseText);}catch(e){}
+    if(xhr.status!==200){ $("err1").textContent=r.error||"Something went wrong starting the job."; return; }
+    startPolling(r.id);
+  };
+  xhr.onerror=()=>{ $("make").disabled=false; renderCount(); $("err1").textContent="Couldn't reach Clipline. Is the app window still open?"; };
+  xhr.send(fd);
+};
+
+// ---- progress
+function startPolling(id){
+  jobId=id; location.hash=id; show(2); clearInterval(poll);
+  poll=setInterval(tick,1000); tick();
+}
+async function tick(){
+  let r; try{ r=await fetch("/api/status/"+jobId); }catch(e){ return; }
+  if(r.status===404){ clearInterval(poll); location.hash=""; show(1); return; }
+  job=await r.json();
+  if(job.upload_status){ renderUpload(); return; }
+  if(job.status==="ready"){ clearInterval(poll); renderResults(); show(3); return; }
+  renderProgress();
+}
+function renderProgress(){
+  $("tasks").innerHTML = job.stages.map((s,i)=>{
+    const cls = i<job.stage ? "done" : i===job.stage ? "active" : "";
+    const sub = i===job.stage && job.msg && job.msg!==s ? '<span class="sub">'+esc(job.msg)+'</span>' : "";
+    return '<li class="'+cls+'"><span class="tick">'+(i<job.stage?"✓":"")+'</span>'+esc(s)+sub+'</li>';
+  }).join("");
+  if(job.duration){
+    $("timeline").hidden=false; $("totalTime").textContent=fmt(job.duration);
+    $("track").innerHTML=(job.moments_found||[]).map((m,i)=>'<div class="seg" style="left:'+(m.start/job.duration*100)+'%;width:'+Math.max(1.2,(m.end-m.start)/job.duration*100)+'%"><i>'+(i+1)+'</i></div>').join("");
+  }
+  $("err2").textContent = job.status==="error" ? "Stopped: "+job.error : "";
+  if(job.status==="error"){ clearInterval(poll); $("err2").insertAdjacentHTML("beforeend",' <button class="ghost" onclick="location.hash=\'\';location.reload()">Start over</button>'); }
+}
+
+// ---- review
+function renderResults(){
+  const n=job.shorts.length;
+  $("resTitle").textContent = n===1 ? "Your Short is ready" : "Your "+n+" Shorts are ready";
+  $("reel").innerHTML = job.shorts.map(s=>{
+    const v="/media/"+job.id+"/"+s.video, t="/media/"+job.id+"/"+s.thumb;
+    return '<article class="short" data-idx="'+s.idx+'">'+
+      '<div class="phone"><video src="'+v+'" poster="'+t+'" controls playsinline preload="metadata"></video><img src="'+t+'" alt="Thumbnail for '+esc(s.title)+'"></div>'+
+      '<div class="toggle" role="group" aria-label="Preview"><button type="button" aria-pressed="true" data-v="v">Short</button><button type="button" aria-pressed="false" data-v="t">Thumbnail</button></div>'+
+      '<input class="title" type="text" value="'+esc(s.title)+'" aria-label="Title for Short '+s.idx+'" maxlength="95">'+
+      '<div class="from">From '+fmt(s.start)+' to '+fmt(s.end)+' ('+Math.round(s.end-s.start)+'s)</div>'+
+      '<div class="why">'+esc(s.why)+'</div>'+
+      '<div class="row"><label class="keep"><input type="checkbox" checked> Post this</label><a href="'+v+'" download>Download</a></div>'+
+    '</article>';
+  }).join("");
+  document.querySelectorAll(".short").forEach(el=>{
+    el.querySelectorAll(".toggle button").forEach(b=>b.onclick=()=>{
+      el.querySelectorAll(".toggle button").forEach(x=>x.setAttribute("aria-pressed",x===b));
+      el.classList.toggle("thumb",b.dataset.v==="t"); if(b.dataset.v==="t") el.querySelector("video").pause();
+    });
+    el.querySelector(".keep input").onchange=e=>{ el.classList.toggle("off",!e.target.checked); dock(); };
+    el.querySelector("video").addEventListener("play",e=>document.querySelectorAll("#reel video").forEach(v=>{ if(v!==e.target) v.pause(); }));
+  });
+  dock();
+}
+function dock(){
+  const total=document.querySelectorAll(".short").length, k=document.querySelectorAll(".short .keep input:checked").length;
+  $("dockText").textContent = k ? k+" of "+total+" will be posted" : "Tick at least one Short";
+  $("schedBtn").textContent = k===1 ? "Schedule 1 Short" : "Schedule "+k+" Shorts";
+  $("schedBtn").disabled = !k;
+}
+$("schedBtn").onclick=async()=>{
+  $("err3").textContent="";
+  const shorts=[...document.querySelectorAll(".short")].map(el=>({idx:+el.dataset.idx,title:el.querySelector("input.title").value,keep:el.querySelector(".keep input").checked}));
+  const r=await fetch("/api/schedule/"+jobId,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({shorts,schedule:$("sched2").value})});
+  const j=await r.json();
+  if(!r.ok){ $("err3").textContent=j.error||"Couldn't start posting."; return; }
+  $("schedBtn").disabled=true; $("upPanel").hidden=false; $("upMsg").textContent="Connecting to YouTube";
+  clearInterval(poll); poll=setInterval(tick,1000);
+};
+function renderUpload(){
+  if($("reel").children.length===0) renderResults();
+  if($("s3").hidden && job.upload_status!=="done") show(3);
+  $("upPanel").hidden=false; $("upMsg").textContent=job.upload_msg||""; $("upPct").style.width=(job.upload_pct||0)+"%";
+  if(job.upload_status==="error"){ clearInterval(poll); $("err3").textContent="Posting stopped: "+job.upload_msg; $("schedBtn").disabled=false; }
+  if(job.upload_status==="done"){ clearInterval(poll); renderDone(); }
+}
+function renderDone(){
+  const ups=job.uploads||[];
+  $("doneTitle").textContent = ups.length===1 ? "1 Short scheduled" : ups.length+" Shorts scheduled";
+  $("cal").innerHTML = ups.map(u=>{
+    const d=u.when?new Date(u.when):null;
+    const day=d?d.toLocaleDateString(undefined,{weekday:"short"}):"Now";
+    const sub=d?d.toLocaleDateString(undefined,{month:"short",day:"numeric"})+", "+d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}):"Posting now";
+    return '<li><div class="day">'+day+'<small>'+sub+'</small></div><div>'+esc(u.title)+(u.note?'<div class="from">'+esc(u.note)+'</div>':'')+'</div>'+
+      '<a href="https://studio.youtube.com/video/'+u.video_id+'/edit" target="_blank" rel="noopener">Open in Studio</a></li>';
+  }).join("");
+  show(4);
+}
+$("newBtn").onclick=$("againBtn").onclick=()=>{ location.hash=""; location.reload(); };
+
+if(location.hash.length>1) startPolling(location.hash.slice(1));
+})();
+</script>
+</body>
+</html>
