@@ -4,6 +4,11 @@ Turn one long vlog into finished YouTube Shorts: it finds the best moments, cuts
 
 Everything runs on your own computer with free tools. The only accounts you need are a free Gemini API key and (for auto-posting) a free Google Cloud project.
 
+<p align="center">
+  <a href="docs/demo.mp4"><img src="docs/demo.gif" width="240" alt="Clipline demo: a creator's long edit turns into a stack of ready-to-post Shorts"></a>
+  <br><sub>▶ <a href="docs/demo.mp4">Watch the demo video</a> (10 s)</sub>
+</p>
+
 ## What happens when you click "Make my Shorts"
 
 1. **Transcribe.** faster-whisper (open-source Whisper) writes down every word with exact timings. Runs on your computer.
@@ -106,6 +111,7 @@ The first time you click **Schedule**, a Google sign-in page opens. The creator 
 - `youtube_upload.py`: YouTube sign-in, upload, scheduling
 - `static/index.html`: the interface
 - `jobs/`: everything Clipline makes, one folder per vlog
+- `docs/`: demo video and preview for this README
 - `CLAUDE.md`: notes for developers (and Claude): how the code fits together, known gotchas, how to test
 
 ## Working on the code
