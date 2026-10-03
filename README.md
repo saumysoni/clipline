@@ -84,20 +84,43 @@ The first run installs everything and downloads the speech model (around 500 MB)
 
 At this point you can already make, play, and download Shorts. Step 5 only adds automatic posting.
 
-### 5. Turn on automatic YouTube posting
+**Accounts.** The first screen asks you to sign in. Create an account with your email and a password (at least
+8 characters), or use **Continue with Google** once step 5 is done. Each account sees only its own vlogs, Shorts
+and YouTube channel. Vlogs made before Clipline had accounts belong to the first account created. There's no
+"forgot password" yet (it needs email sending); someone who signed up with Google can always use Google.
+
+### 5. Turn on Google sign-in and automatic YouTube posting
 
 1. Go to https://console.cloud.google.com and create a project (free, no card needed).
 2. **APIs & Services → Library**: search **YouTube Data API v3** and click **Enable**.
 3. **OAuth consent screen**: choose **External**, fill in the app name and your email. Under **Test users**, add the Gmail address of the creator's YouTube channel.
-4. **Credentials → Create credentials → OAuth client ID → Desktop app**. Download the JSON file, rename it to `client_secret.json`, and put it in the Clipline folder.
-5. Restart Clipline. The top-right badge should say "YouTube posting is set up".
+4. **Credentials → Create credentials → OAuth client ID → Web application**. Under **Authorised redirect URIs** add `http://localhost:8000/api/youtube/callback`. Download the JSON file, rename it to `client_secret.json`, and put it in the Clipline folder. (An older **Desktop app** client may also work; if Google says `redirect_uri_mismatch`, make a Web application client as above.)
+5. **Let anyone sign in: publish the app.** On the OAuth consent screen (newer consoles: **Google Auth Platform → Audience**), click **Publish app** so the status is **In production**. While it's in **Testing**, Google only lets in the Gmail addresses listed under Test users, even for Continue with Google. Publishing doesn't start a review.
+   - **Continue with Google** only asks for name and email, so anyone can use it with no warning and no limit.
+   - **Connect YouTube** asks to manage the creator's videos, a "sensitive" permission. Until Google verifies Clipline, people see a "Google hasn't verified this app" screen (they click **Advanced → Go to Clipline**), and at most **100 people** in total can connect a channel. To lift both, apply for verification under **Verification Center**: you need a home page on your own domain, a privacy policy, and a short video showing why Clipline needs YouTube access.
+6. Restart Clipline. The badge in the sidebar should say "Connect YouTube".
 
-The first time you click **Schedule**, a Google sign-in page opens. The creator signs in with her channel account and clicks Allow. Clipline saves that permission in `token.json`.
+**Connect YouTube, then post.** Click **Connect YouTube** on the start page (or the sidebar badge). If you skip it, **Upload to YouTube** under your Shorts asks you to connect first. (**Upload to Instagram** is shown but not available yet.) A small Google window opens: choose the channel's account, leave every box ticked, and click Allow. The window closes and Clipline shows "Posting to *your channel*". The connection is saved with your Clipline account, so you only connect once. The YouTube account can be a different Google account from the one you sign in to Clipline with.
+
+Then tick the Shorts you want and choose when they go out:
+- **One a day / two a day**: starting tomorrow, at 12 PM and/or 6 PM your time.
+- **Starting on a day and time I choose**: pick the first Short's date and time, and how far apart the rest are.
+- **All at once, right away**: posts them now (privacy set by `POST_NOW_PRIVACY` in `.env`).
+
+If posting stops halfway (no internet, YouTube's daily limit), press the button again: Shorts already on YouTube are marked "On YouTube" and are never posted twice.
+
+**Your scheduled Shorts.** **My scheduled Shorts** on the start page (or **On YouTube** in the sidebar) lists every Short Clipline has uploaded, with its live status on YouTube:
+- **Change time** moves a scheduled Short to another date and time.
+- **Edit Short** opens it on its review screen. Change the title, hook or moment there, then press **Update on YouTube**. A new title is just changed on YouTube. A changed video is uploaded again with the same time and the old upload is deleted, so the link to the Short changes. Clipline won't replace a Short that's already public (it would lose its views and comments).
+- A Short Clipline can't find on your channel (deleted in YouTube Studio?) shows **Not found on YouTube**. Click **Unmark it** to upload it again. Shorts on another channel are left alone.
+
+Open Clipline at `http://localhost:8000`, the address it opens by itself. Google only sends you back to the exact address registered in step 4, so `http://127.0.0.1:8000` won't work for Google sign-in. Continue with Google and Connect YouTube both use that one address. When Clipline runs on a server, register that server's address instead (for example `https://clipline.example.com/api/youtube/callback`), set `YOUTUBE_REDIRECT_URI` to the same address, and set `SECRET_KEY`, `DATABASE_PATH` and `SESSION_COOKIE_SECURE=1` in `.env`.
 
 **Things to know about posting**
 - **Uploads stay private until your project passes YouTube's API audit.** This is YouTube's rule for new projects. During a trial, open each upload in YouTube Studio and set it to public or scheduled there (Clipline shows an "Open in Studio" link for each one). To lift the limit, apply for the free audit from the YouTube API Services page; you'll need a short privacy policy and a description of the app.
-- While the consent screen is in **Testing** mode, the sign-in expires after about a week; just sign in again when asked.
-- `token.json` gives this computer permission to post on that channel. Only keep it on a computer you trust, and delete it to disconnect. To switch to another creator's channel, delete `token.json` and sign in with their account.
+- While the app is in **Testing** mode, a YouTube connection expires after about a week; just connect again when asked. Publishing the app (step 5.5) ends that.
+- Each account's YouTube connection is stored in `data/clipline.db` and can post to that channel. Keep the `data` folder private (it's git-ignored). **Disconnect** (under your Shorts) removes it and withdraws the permission at Google; **Switch channel** connects another account.
+- Clipline asks to **manage your YouTube videos**, which it needs to show your channel's name, change a scheduled time and replace an edited Short. It only ever touches the Shorts it uploaded. An old `token.json` from earlier versions isn't used any more and can be deleted.
 - Custom Shorts thumbnails are rolling out to YouTube Partner Program channels first (since July 2026), and need a phone-verified channel. On other channels YouTube may refuse them. If YouTube refuses, Clipline still uploads the Short and tells you to add the thumbnail in Studio (the file is in the `jobs` folder).
 
 ---
@@ -126,13 +149,17 @@ The first time you click **Schedule**, a Google sign-in page opens. The creator 
 | `OPENAI_API_KEY is missing` / OpenAI refused the key | Check `OPENAI_API_KEY` in `.env`, or set `AI_PROVIDER=gemini`. |
 | Your OpenAI account has no credit left | Add credit on OpenAI's billing page and try again. |
 | Upload says quota exceeded | YouTube's free daily quota is used up. Try again tomorrow. |
+| Google says `redirect_uri_mismatch` when signing in | The address isn't registered on your OAuth client. Follow README step 5.4 exactly, and open Clipline at `http://localhost:8000`. |
+| Google says "access blocked" | The app is still in Testing. Publish it (step 5.5), or add that Gmail address under **Test users**. |
+| "Google hasn't verified this app" when connecting YouTube | Expected until Google verifies Clipline (step 5.5). Click **Advanced → Go to Clipline**. |
 
 ## Files
 
-- `app.py`: the local web app (starts the server, runs jobs, handles posting)
+- `app.py`: the web app (accounts, starts the server, runs jobs, handles posting)
+- `db.py`: the accounts database (users and their YouTube connections), in `data/`
 - `pipeline.py`: transcription, moment picking, editing
 - `thumbnails.py`: collage thumbnails (frame picking with Gemini, cut-outs, layout)
-- `youtube_upload.py`: YouTube sign-in, upload, scheduling, and reading a vlog's title/description from its link
+- `youtube_upload.py`: Google sign-in, connecting YouTube, upload, scheduling, and reading a vlog's title/description from its link
 - `static/index.html`: the interface
 - `jobs/`: everything Clipline makes, one folder per vlog
 - `docs/`: demo video and preview for this README

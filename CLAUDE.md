@@ -49,10 +49,11 @@ Manual run: `.venv/bin/python app.py`. There is no build step and no test suite 
 
 | File | What it does |
 |---|---|
-| `app.py` | Flask server (127.0.0.1:8000). `/api/start` saves the upload and runs `make_shorts()` in a background thread; `/api/status/<id>` is polled every second by the page; `/api/retry/<id>/<idx>` remakes one Short and `/api/add/<id>` adds one (both run `remake_short()` in a thread, one at a time per job); `/api/hooks/<id>/<idx>` writes 3 new hook options and `/api/hook/<id>/<idx>` re-renders one Short with a chosen hook (or none), reusing its saved face position `cx`; `/api/preview/<id>` makes `preview.mp4` for choosing a scene on the video (also started when a job finishes); `/api/schedule/<id>` uploads. Job state lives in memory (`JOBS`) and is mirrored to `jobs/<id>/job.json`. |
+| `app.py` | Flask server (127.0.0.1:8000). `/api/start` saves the upload and runs `make_shorts()` in a background thread; `/api/status/<id>` is polled every second by the page; `/api/retry/<id>/<idx>` remakes one Short and `/api/add/<id>` adds one (both run `remake_short()` in a thread, one at a time per job); `/api/hooks/<id>/<idx>` writes 3 new hook options and `/api/hook/<id>/<idx>` re-renders one Short with a chosen hook (or none), reusing its saved face position `cx`; `/api/preview/<id>` makes `preview.mp4` for choosing a scene on the video (also started when a job finishes); accounts: `/api/me`, `/api/auth/signup|login|logout`, `/api/auth/google` (Continue with Google, full-page redirect); `/api/youtube/signin` → Google → `/api/youtube/callback` connects the user's YouTube (in a popup; the callback also finishes Google sign-in), `/api/youtube/me` / `/api/youtube/signout`; `/api/schedule/<id>` uploads (refused until signed in; skips Shorts already in `uploads`, so a retry never posts twice; plans times in the browser's time zone `tz`); `/api/posted` lists every upload across jobs with live YouTube state (the "On YouTube" page), `/api/reschedule/<id>/<idx>` changes a scheduled time and `/api/repost/<id>/<idx>` updates a posted Short after an edit. Job state lives in memory (`JOBS`) and is mirrored to `jobs/<id>/job.json`. |
 | `pipeline.py` | All media work: `probe`, `load_audio`, `transcribe`, `pick_moments` / `clean_moments`, `repick_moment` (Try again), `manual_moment` (creator's own times; the AI only writes the text), `make_preview` (small H.264 copy every browser can play; `-hwaccel auto` uses video hardware when present), `face_center_x`, `build_ass`, `render_short`, `make_thumbnail`, plus `ffmpeg_exe()` (chooses which FFmpeg to use). |
 | `thumbnails.py` | Collage thumbnails: `sample_frames()` → `plan()` (Gemini sees ~10 frames, returns the face frame, up to 3 items with `box_2d`, text, accent) or `plan_without_ai()` → `cut_out()` (rembg) → `compose()`. Called from `pipeline.make_thumbnail()`, which falls back to `make_simple_thumbnail()`. |
-| `youtube_upload.py` | OAuth (desktop flow → `token.json`), `plan_times()` for the schedule, `upload_short()`, and `fetch_video_info()` (title/description/tags of a vlog from its link). |
+| `db.py` | SQLite accounts database (`data/clipline.db`, `DATABASE_PATH`): `users` (email, password hash, Google `sub`, `session_version`) and `youtube_tokens` (one YouTube connection per user); `secret_key()` for the session cookie. |
+| `youtube_upload.py` | Google OAuth in the app for two purposes sharing one callback: `start_google("login"|"youtube")`, `finish_login()` (verifies the ID token) and `finish_youtube()` (checks the granted scope, saves the user's connection via `_read_token`/`_save_token`/`_drop_token(user_id)`), `account()` (signed in + channel name), `sign_out()`, `plan_times()` for the schedule (presets or a custom start + spacing, in the creator's time zone), `upload_short()`, `upload_error_message()`, and `fetch_video_info()` (title/description/tags of a vlog from its link). |
 | `static/index.html` | The whole UI: one file, vanilla JS, no build. |
 | `start-mac.command`, `start-windows.bat` | One-click launchers (venv + install + run). |
 | `jobs/<id>/` | Per-run output: `source.*`, `transcript.json`, `captions_N.ass`, `short_N.mp4`, `thumb_N.jpg`, `preview.mp4`, `job.json`. Git-ignored. |
@@ -128,17 +129,36 @@ Manual run: `.venv/bin/python app.py`. There is no build step and no test suite 
     the collage's saved `thumbwork_N/` frames and `plan.json` (no AI, no new frames).
 14. **No emoji in burned-in text.** The caption and thumbnail fonts have no emoji, so they'd show as empty boxes;
     `without_emoji()` strips them in `ass_escape()` and the thumbnail drawers. Titles/descriptions keep them.
+15. **YouTube sign-in redirects to `/api/youtube/callback` and must match the OAuth client exactly.** Locally that's
+    `http://localhost:8000/...` (not `127.0.0.1`); in the cloud set `YOUTUBE_REDIRECT_URI`. Never go back to
+    `InstalledAppFlow.run_local_server()`: it opens a browser on the server and can't work in the cloud. Scopes are
+    the single `youtube` scope (upload, channel name, reschedule, title update, delete for Replace); a saved token
+    missing it counts as signed out. Replacing an edited Short uploads the new one first, then deletes the old one,
+    and is refused once the Short is public (`yt.is_live`). Upload records store `video`, the file that went up, so
+    an edit is detected by comparing it with the Short's current `video`.
+    The waiting sign-in (state + PKCE verifier + purpose) lives in the user's session cookie, so a callback only
+    finishes a sign-in the same browser started. The channel cache `_CHANNEL` is in memory per user.
+16. **Accounts and ownership.** Every `/api` and `/media` route needs a signed-in user (`gate()` in `app.py`;
+    only names in `PUBLIC` are open), and any route with a `job_id` checks `job["owner"]` there, so a new job route
+    is protected automatically. Background threads have no request, so pass the user id in (as `do_upload` does).
+    Google sign-in ("login") asks only `openid email profile` (no cap, no warning); Connect YouTube is separate.
+    Users are matched by Google `sub`; an existing account is linked by email only if Google says the email is
+    verified, and then any password set earlier is removed and `session_version` bumped (stops pre-account
+    hijacking: someone signing up with another person's email first). POSTs from another Origin get 403.
+    Tests must set `DATABASE_PATH` and `app.JOBS_DIR` to temporary paths: a test once wrote to the real jobs.
+    The login throttle keys on `request.remote_addr`; behind a cloud proxy, use the real client IP (ProxyFix).
 
 ## Conventions
 
-- Keep it **dependency-light and single-file-per-concern**. No frontend framework, no database.
+- Keep it **dependency-light and single-file-per-concern**. No frontend framework. The only database is
+  `db.py` (SQLite from the standard library, accounts and YouTube connections); jobs are still `job.json` files.
 - User-facing errors: raise `RuntimeError("plain sentence about what happened. What to do.")`. They are
   shown in the UI as-is. Log technical detail with `print()` / `traceback.print_exc()` in the terminal.
 - Progress: long steps call `progress(pct, "Short message")`; the UI shows the message.
 - Settings belong in `.env` (document every new one in `.env.example` and the README), read with
   `os.getenv(NAME, default)`.
-- Never commit secrets: `.env`, `client_secret.json`, `token.json` are git-ignored. `token.json` can post
-  to a real YouTube channel.
+- Never commit secrets: `.env`, `client_secret.json`, `token.json` and `data/` are git-ignored. `data/clipline.db`
+  holds every user's YouTube connection (can post to real channels) and `data/secret_key` signs sign-in cookies.
 - Don't commit media. `jobs/`, `_test/` and font files are ignored (fonts have their own licences).
 - After changing Python files, at minimum run: `python -m py_compile app.py pipeline.py youtube_upload.py`.
 

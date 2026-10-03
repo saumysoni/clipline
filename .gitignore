@@ -2,6 +2,8 @@
 .env
 client_secret.json
 token.json
+# Accounts database and the session secret (holds every user's YouTube connection)
+data/
 
 # Local Python environment and caches
 .venv/
