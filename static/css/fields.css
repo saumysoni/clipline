@@ -1,0 +1,15 @@
+/* Form fields and their labels. */
+input[type=text],input[type=datetime-local],textarea,select{width:100%;padding:11px 13px;border-radius:10px;border:1px solid var(--line-2);background:var(--field);transition:border-color .15s,box-shadow .15s}
+textarea{resize:vertical;min-height:84px}
+input[type=text]::placeholder,textarea::placeholder{color:var(--faint)}
+input[type=text]:focus,input[type=datetime-local]:focus,textarea:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 1px var(--primary)}
+input.bad,input.bad:focus{border-color:var(--bad);box-shadow:0 0 0 1px var(--bad)}
+input:disabled{opacity:.5}
+select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 18px) 52%,calc(100% - 13px) 52%;background-size:5px 5px;background-repeat:no-repeat;padding-right:36px;cursor:pointer}
+.lab{display:block;font-weight:600;font-size:.9rem;margin:0 0 6px}
+.lab small,.opt{font-weight:500;color:var(--faint);font-size:.8rem}
+.fld-lab{display:block;font:700 10.5px/1.2 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-bottom:5px}
+.inrow{display:flex;gap:8px}
+.inrow input{flex:1;min-width:0}
+.stack>*+*{margin-top:12px}
+input[type=checkbox],input[type=radio]{accent-color:var(--primary)}

@@ -1,0 +1,18 @@
+  <dialog id="picker" aria-labelledby="pkTitle">
+    <div class="eyebrow">Choose on the video</div>
+    <h2 id="pkTitle" style="font-size:1.25rem;margin-top:6px">Choose a moment</h2>
+    <p class="lede">Play or drag through your vlog. Click <b>Set start</b> where the Short should begin and <b>Set end</b> where it should finish. Grey blocks are your other Shorts.</p>
+    <div class="pk-stage"><video id="pkVideo" controls playsinline preload="auto"></video><div class="pk-wait" id="pkWait" role="status"></div></div>
+    <div class="pk-track" id="pkTrack" role="presentation"></div>
+    <div class="pk-legend"><span>0:00</span><span id="pkTotal"></span></div>
+    <div class="pk-row">
+      <button type="button" class="ghost" id="pkBack" aria-label="Back 1 second">−1s</button>
+      <button type="button" class="ghost" id="pkSetStart"><span class="ms" aria-hidden="true">first_page</span>Set start</button>
+      <span id="pkSel" aria-live="polite"></span>
+      <button type="button" class="ghost" id="pkSetEnd">Set end<span class="ms" aria-hidden="true">last_page</span></button>
+      <button type="button" class="ghost" id="pkFwd" aria-label="Forward 1 second">+1s</button>
+    </div>
+    <div class="pk-row"><button type="button" class="ghost" id="pkPlaySel"><span class="ms" aria-hidden="true">play_arrow</span>Play the moment</button></div>
+    <div class="err" id="pkErr" role="alert"></div>
+    <div class="pk-actions"><button type="button" class="ghost" id="pkCancel">Cancel</button><button type="button" class="primary" id="pkUse"><span class="ms" aria-hidden="true">check</span>Use this moment</button></div>
+  </dialog>

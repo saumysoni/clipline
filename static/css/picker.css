@@ -1,0 +1,19 @@
+/* Choose on the video: the scene picker dialog. */
+dialog#picker{width:min(940px,calc(100vw - 32px));max-height:calc(100vh - 32px);border:1px solid var(--line-2);border-radius:20px;padding:22px;background:var(--glass);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);color:var(--ink);box-shadow:0 16px 48px -8px rgba(0,0,0,.6)}
+dialog#picker::backdrop{background:rgba(8,10,18,.7)}
+#picker .lede{margin:4px 0 16px;font-size:.9rem}
+.pk-stage{position:relative;background:#000;border-radius:14px;overflow:hidden;display:grid;place-items:center;min-height:200px}
+.pk-stage video{display:block;width:100%;max-height:50vh;background:#000}
+.pk-wait{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:12px;padding:20px;text-align:center;color:#fff;font-size:.92rem}
+.pk-wait .spin{width:22px;height:22px}
+.pk-wait .linkbtn{color:#fff;text-decoration:underline}
+.pk-track{position:relative;height:36px;margin:16px 0 6px;border-radius:9px;background:repeating-linear-gradient(90deg,var(--line-2) 0 2px,transparent 2px 6px);cursor:pointer}
+.pk-track .used{position:absolute;top:5px;bottom:5px;border-radius:6px;background:var(--raised);border:1px solid var(--line-2);font:700 11px var(--mono);color:var(--muted);display:grid;place-items:center;overflow:hidden}
+.pk-track .sel{position:absolute;top:0;bottom:0;border-radius:7px;background:var(--cap-soft);border:2px solid var(--cap-line)}
+.pk-track .head{position:absolute;top:-5px;bottom:-5px;width:2px;background:var(--primary);pointer-events:none}
+.pk-legend{display:flex;justify-content:space-between;font:600 12px var(--mono);color:var(--faint)}
+.pk-row{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+.pk-row .ghost{padding:9px 12px;font-size:.88rem}
+#pkSel{font:700 .95rem var(--mono);font-variant-numeric:tabular-nums;min-width:17ch;text-align:center}
+.pk-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap}
+@media (max-width:640px){ dialog#picker{width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;border-radius:0;margin:0;padding:16px} }

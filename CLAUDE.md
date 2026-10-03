@@ -9,7 +9,8 @@ transcribe (faster-whisper) → pick moments (Gemini, or OpenAI with `AI_PROVIDE
 reframe to 9:16 around the face, burn in word-by-word captions (FFmpeg + libass) → thumbnail (Pillow)
 → review in the browser → upload and schedule (YouTube Data API v3).
 
-Everything runs on the user's own computer. The people using it are **creators, not developers**:
+Today it runs on your own computer (the prototype); it is going to the cloud (below). The people using it are
+**creators, not developers**:
 every error they can see must be plain English and say what to do next.
 
 ## Direction: this is going to the cloud
@@ -23,7 +24,7 @@ Linux cloud server as on a laptop:**
   when present and the processor otherwise.
 - **Tune speed with environment settings** (`WHISPER_DEVICE`, `WHISPER_BATCH_SIZE`, `WHISPER_THREADS`,
   `X264_PRESET`, ...), not with `if mac:` branches. A cloud server sets them once.
-- **Keep `pipeline.py` free of web or UI concerns.** It will become the worker that processes queued
+- **Keep `pipeline/` free of web or UI concerns.** It will become the worker that processes queued
   jobs. Pass everything it needs as arguments or settings.
 - **Treat local files as temporary.** The `jobs/` folder will become cloud storage, and in-memory `JOBS`
   will become a database. Don't build features that assume one long-running process on one disk.
@@ -45,19 +46,63 @@ someone else's machine. Needs Python 3.10+ and FFmpeg/ffprobe on PATH.
 
 Manual run: `.venv/bin/python app.py`. There is no build step and no test suite yet.
 
-## Files
+## Where things live: one feature per file
 
-| File | What it does |
+The code is split so two people can work on different features without touching the same file.
+**A feature usually has up to three files with the same name**: the work in `pipeline/` (or
+`youtube/`), the web routes in `web/`, and the page in `static/js/` (+ `static/css/`, `static/sections/`).
+
+| Feature | Work | Web routes | Page |
+|---|---|---|---|
+| Accounts (email + Google sign-in), `gate()` | `accounts/db.py` | `web/accounts.py` | `js/account.js`, `sections/auth.html`, `css/auth.css` |
+| Connect YouTube | `youtube/signin.py`, `youtube/connection.py`, `youtube/config.py` | `web/youtube_connect.py`, `web/google_redirect.py` | `js/youtube-connect.js` |
+| Setup form (count, style, must-have moments, file, links) | `youtube/links.py` | `web/make_shorts.py` (`start`), `web/times.py` | `js/setup-form.js`, `js/must-have.js`, `js/video-file.js`, `js/links.js`, `js/start.js`, `sections/setup.html`, `css/setup.css` |
+| Vlog title/description from a YouTube link | `youtube/vlog_info.py`, `pipeline/vlog_context.py` | `web/vlog_info.py` | `js/links.js` |
+| Making Shorts (the whole run) | all of `pipeline/` | `web/make_shorts.py` | `js/progress.js`, `sections/making.html`, `css/making.css` |
+| Transcription (+ saved transcripts) | `pipeline/transcribe.py`, `pipeline/transcript_cache.py` | | |
+| Finding moments | `pipeline/moments.py` | | |
+| Editing a Short (reframe, captions, render) | `pipeline/reframe.py`, `pipeline/captions.py`, `pipeline/render.py`, `pipeline/fonts.py` | | |
+| Thumbnails | `pipeline/thumbnails/` (`make.py` → `collage.py`: `frames` → `plan` → `cutout` → `layout`; `simple.py`) | | |
+| Review cards | | `web/job_status.py`, `web/pages.py` (`/media`) | `js/review.js`, `js/review-cards.js`, `sections/review.html`, `css/review.css` |
+| Hooks | `pipeline/hooks.py` | `web/hooks.py` | `js/hooks.js`, `css/hooks.css` |
+| Try again | `pipeline/try_again.py` | `web/try_again.py` | `js/review-cards.js` |
+| Add a Short / must-have moments | `pipeline/manual_moment.py` | `web/add_short.py` | `js/review-cards.js` |
+| Choose on the video | `pipeline/preview.py` | `web/preview.py` | `js/picker.js`, `sections/picker.html`, `css/picker.css` |
+| Upload / schedule | `youtube/upload.py`, `youtube/schedule_times.py` | `web/posting.py` | `js/posting.js`, `css/posting.css` |
+| Posted list (step 4) | | | `js/posted.js`, `sections/posted.html`, `css/posted.css` |
+| On YouTube page | `youtube/manage.py` | `web/on_youtube.py` | `js/on-youtube.js`, `sections/on-youtube.html`, `css/on-youtube.css` |
+
+**Shared files** (used by many features; change with care and tell the other person):
+
+| File | What it is |
 |---|---|
-| `app.py` | Flask server (127.0.0.1:8000). `/api/start` saves the upload and runs `make_shorts()` in a background thread; `/api/status/<id>` is polled every second by the page; `/api/retry/<id>/<idx>` remakes one Short and `/api/add/<id>` adds one (both run `remake_short()` in a thread, one at a time per job); `/api/hooks/<id>/<idx>` writes 3 new hook options and `/api/hook/<id>/<idx>` re-renders one Short with a chosen hook (or none), reusing its saved face position `cx`; `/api/preview/<id>` makes `preview.mp4` for choosing a scene on the video (also started when a job finishes); accounts: `/api/me`, `/api/auth/signup|login|logout`, `/api/auth/google` (Continue with Google, full-page redirect); `/api/youtube/signin` → Google → `/api/youtube/callback` connects the user's YouTube (in a popup; the callback also finishes Google sign-in), `/api/youtube/me` / `/api/youtube/signout`; `/api/schedule/<id>` uploads (refused until signed in; skips Shorts already in `uploads`, so a retry never posts twice; plans times in the browser's time zone `tz`); `/api/posted` lists every upload across jobs with live YouTube state (the "On YouTube" page), `/api/reschedule/<id>/<idx>` changes a scheduled time and `/api/repost/<id>/<idx>` updates a posted Short after an edit. Job state lives in memory (`JOBS`) and is mirrored to `jobs/<id>/job.json`. |
-| `pipeline.py` | All media work: `probe`, `load_audio`, `transcribe`, `pick_moments` / `clean_moments`, `repick_moment` (Try again), `manual_moment` (creator's own times; the AI only writes the text), `make_preview` (small H.264 copy every browser can play; `-hwaccel auto` uses video hardware when present), `face_center_x`, `build_ass`, `render_short`, `make_thumbnail`, plus `ffmpeg_exe()` (chooses which FFmpeg to use). |
-| `thumbnails.py` | Collage thumbnails: `sample_frames()` → `plan()` (Gemini sees ~10 frames, returns the face frame, up to 3 items with `box_2d`, text, accent) or `plan_without_ai()` → `cut_out()` (rembg) → `compose()`. Called from `pipeline.make_thumbnail()`, which falls back to `make_simple_thumbnail()`. |
-| `db.py` | SQLite accounts database (`data/clipline.db`, `DATABASE_PATH`): `users` (email, password hash, Google `sub`, `session_version`) and `youtube_tokens` (one YouTube connection per user); `secret_key()` for the session cookie. |
-| `youtube_upload.py` | Google OAuth in the app for two purposes sharing one callback: `start_google("login"|"youtube")`, `finish_login()` (verifies the ID token) and `finish_youtube()` (checks the granted scope, saves the user's connection via `_read_token`/`_save_token`/`_drop_token(user_id)`), `account()` (signed in + channel name), `sign_out()`, `plan_times()` for the schedule (presets or a custom start + spacing, in the creator's time zone), `upload_short()`, `upload_error_message()`, and `fetch_video_info()` (title/description/tags of a vlog from its link). |
-| `static/index.html` | The whole UI: one file, vanilla JS, no build. |
-| `start-mac.command`, `start-windows.bat` | One-click launchers (venv + install + run). |
-| `jobs/<id>/` | Per-run output: `source.*`, `transcript.json`, `captions_N.ass`, `short_N.mp4`, `thumb_N.jpg`, `preview.mp4`, `job.json`. Git-ignored. |
-| `jobs/_transcripts/<fingerprint>.json` | Transcript cache keyed by a hash of the video (size + first/last 4 MB), so re-uploading the same vlog skips transcription. |
+| `app.py` | Starts the server: loads `.env`, imports every `web/` file (that's what registers its routes), runs Flask. |
+| `settings.py` | `ROOT` and `JOBS_DIR` (set `JOBS_DIR` in the environment to move the jobs folder, e.g. in tests or the cloud). |
+| `web/server.py` | The one Flask `app` every `web/` file adds routes to; cookie/session settings. |
+| `web/store.py` | Job state: `JOBS` (in memory) mirrored to `jobs/<id>/job.json`, `LOCK`, `update()`, `update_short()`, `load_job()`, `editable_job()`. |
+| `pipeline/ai.py` | `ai_json()`: every AI call (Gemini or OpenAI), with retries and model fallbacks. |
+| `pipeline/ffmpeg.py`, `pipeline/text.py`, `pipeline/constants.py` | FFmpeg (`ffmpeg_exe()`, `run()`, `probe()`), small text helpers, shared numbers. |
+| `pipeline/__init__.py`, `youtube/__init__.py` | Only re-export what `web/` uses, so web code can write `pipeline.render_short(...)` / `yt.upload_short(...)`. |
+| `static/index.html` | The page skeleton: lists the CSS and JS files and includes each `sections/*.html` (the `/` route fills them in). |
+| `static/js/core.js` | `$()`, `fmt()`, `esc()`, `show(step)` and the shared page state (`job`, `jobId`, `poll`, `count`). |
+| `static/css/tokens.css`, `base.css`, `buttons.css`, `fields.css`, `cards.css`, `shell.css` | The look shared by every screen. |
+
+**Rules for keeping it modular**
+
+- **A new feature gets new files.** Add the work to a new `pipeline/<feature>.py` (or `youtube/`), its routes to a new
+  `web/<feature>.py`, its page code to a new `static/js/<feature>.js` (and CSS/section if needed). Then add **one line**
+  each to `app.py` (import the web file) and `static/index.html` (the `<script>`/`<link>`/include). Those one-line
+  additions are the only shared edits, and git merges them easily.
+- Inside `pipeline/` and `youtube/`, import from the feature file directly (`from pipeline.hooks import hook_fields`),
+  never from the package `__init__` (that causes circular imports). `web/` uses the facades (`pipeline.x`, `yt.x`).
+- `web/` route functions must have unique names: `gate()` in `web/accounts.py` checks `request.endpoint` against
+  `PUBLIC`, which lists function names.
+- **The page's JS files share one global scope** and load in the order listed in `index.html` (no modules, no build).
+  Code that runs while the page loads may only use things defined in the same or an earlier file; anything called
+  later (click handlers, polling) can use any file. `account.js` must stay last: it calls `boot()`.
+- Where it lives at runtime: `jobs/<id>/` holds each run (`source.*`, `transcript.json`, `captions_N.ass`,
+  `short_N.mp4`, `thumb_N.jpg`, `thumbwork_N/`, `preview.mp4`, `job.json`); `jobs/_transcripts/` the transcript
+  cache; `data/` the accounts database and cookie secret. All git-ignored.
 
 ## Hard-won gotchas (don't undo these)
 
@@ -138,20 +183,22 @@ Manual run: `.venv/bin/python app.py`. There is no build step and no test suite 
     an edit is detected by comparing it with the Short's current `video`.
     The waiting sign-in (state + PKCE verifier + purpose) lives in the user's session cookie, so a callback only
     finishes a sign-in the same browser started. The channel cache `_CHANNEL` is in memory per user.
-16. **Accounts and ownership.** Every `/api` and `/media` route needs a signed-in user (`gate()` in `app.py`;
+16. **Accounts and ownership.** Every `/api` and `/media` route needs a signed-in user (`gate()` in `web/accounts.py`;
     only names in `PUBLIC` are open), and any route with a `job_id` checks `job["owner"]` there, so a new job route
     is protected automatically. Background threads have no request, so pass the user id in (as `do_upload` does).
     Google sign-in ("login") asks only `openid email profile` (no cap, no warning); Connect YouTube is separate.
     Users are matched by Google `sub`; an existing account is linked by email only if Google says the email is
     verified, and then any password set earlier is removed and `session_version` bumped (stops pre-account
     hijacking: someone signing up with another person's email first). POSTs from another Origin get 403.
-    Tests must set `DATABASE_PATH` and `app.JOBS_DIR` to temporary paths: a test once wrote to the real jobs.
+    Tests must set the `DATABASE_PATH` and `JOBS_DIR` environment settings to temporary paths before importing `app`:
+    a test once wrote to the real jobs.
     The login throttle keys on `request.remote_addr`; behind a cloud proxy, use the real client IP (ProxyFix).
 
 ## Conventions
 
 - Keep it **dependency-light and single-file-per-concern**. No frontend framework. The only database is
-  `db.py` (SQLite from the standard library, accounts and YouTube connections); jobs are still `job.json` files.
+  `accounts/db.py` (SQLite from the standard library, accounts and YouTube connections); jobs are still `job.json`
+  files. Both are local files for now; in the cloud they need lasting storage (a database server and file storage).
 - User-facing errors: raise `RuntimeError("plain sentence about what happened. What to do.")`. They are
   shown in the UI as-is. Log technical detail with `print()` / `traceback.print_exc()` in the terminal.
 - Progress: long steps call `progress(pct, "Short message")`; the UI shows the message.
@@ -160,7 +207,8 @@ Manual run: `.venv/bin/python app.py`. There is no build step and no test suite 
 - Never commit secrets: `.env`, `client_secret.json`, `token.json` and `data/` are git-ignored. `data/clipline.db`
   holds every user's YouTube connection (can post to real channels) and `data/secret_key` signs sign-in cookies.
 - Don't commit media. `jobs/`, `_test/` and font files are ignored (fonts have their own licences).
-- After changing Python files, at minimum run: `python -m py_compile app.py pipeline.py youtube_upload.py`.
+- After changing Python files, at minimum run: `python -m compileall -q app.py settings.py pipeline youtube accounts web`
+  and start the app once (an import error in any `web/` file stops it from starting).
 
 ## Testing without burning API quota
 
@@ -185,8 +233,10 @@ Good first automated tests to add: `clean_moments()` (overlaps, length limits, w
 - Pull before you start: `git pull --rebase`.
 - If you change `requirements.txt`, say so in the PR. The other person's start script will reinstall
   automatically on the next launch.
-- Each person keeps their own `.env`, Gemini key, `client_secret.json` and `token.json`. Never share
-  these through git.
+- Each person keeps their own `.env` (Gemini/OpenAI keys), `client_secret.json` and `data/` (accounts and YouTube
+  connections). Never share these through git.
+- Work on different features = different files (see "Where things live"). If you both need a shared file, keep the
+  change small and say so in the PR.
 
 ## Ideas / known limits
 

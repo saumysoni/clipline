@@ -141,7 +141,7 @@ Open Clipline at `http://localhost:8000`, the address it opens by itself. Google
 | Gemini model not found | Google renamed its models. Put a current Flash model name in `GEMINI_MODEL`. |
 | Drive link fails | Set sharing to "Anyone with the link", or upload the file instead. |
 | Captions use a plain font | Put the font file in `fonts` and make `CAPTION_FONT` match its name. |
-| `open() got an unexpected keyword argument 'metadata_errors'` | Fixed: Clipline now reads audio with FFmpeg. Make sure you have the latest `pipeline.py`. |
+| `open() got an unexpected keyword argument 'metadata_errors'` | Fixed: Clipline now reads audio with FFmpeg. Make sure you have the latest code (`git pull`). |
 | `module 'cv2' has no attribute 'CascadeClassifier'` | Fixed: Clipline now installs OpenCV 4. Just restart with the start script and it updates itself. |
 | Gemini is overloaded / 503 UNAVAILABLE | Google's servers are busy. Clipline retries and tries other models by itself; if it still fails, upload the same video again in a few minutes. The transcript is saved, so it won't be redone. |
 | Gemini free usage limit is used up | Wait a while (or until tomorrow) and upload the same video again; the transcript is reused. |
@@ -155,15 +155,17 @@ Open Clipline at `http://localhost:8000`, the address it opens by itself. Google
 
 ## Files
 
-- `app.py`: the web app (accounts, starts the server, runs jobs, handles posting)
-- `db.py`: the accounts database (users and their YouTube connections), in `data/`
-- `pipeline.py`: transcription, moment picking, editing
-- `thumbnails.py`: collage thumbnails (frame picking with Gemini, cut-outs, layout)
-- `youtube_upload.py`: Google sign-in, connecting YouTube, upload, scheduling, and reading a vlog's title/description from its link
-- `static/index.html`: the interface
+The code is organised by feature, one file each (see `CLAUDE.md` for the full map):
+
+- `app.py`: starts Clipline (loads settings, adds every web feature, runs the server)
+- `pipeline/`: making Shorts: transcription, finding moments, editing, captions, hooks, thumbnails
+- `youtube/`: Google sign-in, connecting YouTube, uploading, scheduling, reading a vlog's title/description
+- `accounts/`: the accounts database (users and their YouTube connections), stored in `data/`
+- `web/`: the web routes, one file per feature
+- `static/`: the interface: `index.html`, plus `sections/`, `css/` and `js/` (one file per screen or feature)
 - `jobs/`: everything Clipline makes, one folder per vlog
 - `docs/`: demo video and preview for this README
-- `CLAUDE.md`: notes for developers (and Claude): how the code fits together, known gotchas, how to test
+- `CLAUDE.md`: notes for developers (and Claude): where each feature lives, known gotchas, how to test
 
 ## Working on the code
 

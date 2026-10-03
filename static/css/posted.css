@@ -1,0 +1,10 @@
+/* Step 4, Posted: the schedule list. */
+.cal{list-style:none;padding:0;margin:0}
+.cal li{display:grid;grid-template-columns:120px 1fr auto;gap:16px;align-items:center;padding:14px 0;border-bottom:1px solid var(--line)}
+.cal li:last-child{border-bottom:0}
+.cal .day{font:700 1rem/1.2 var(--mono)}
+.cal .day small{display:block;font:500 .8rem var(--sans);color:var(--muted)}
+.cal .from{font-size:.82rem;color:var(--muted);margin-top:2px}
+.cal a{color:var(--primary-text);font-weight:600;font-size:.88rem;display:inline-flex;align-items:center;gap:4px;text-decoration:none}
+.cal a .ms{font-size:16px}
+@media (max-width:640px){ .cal li{grid-template-columns:90px 1fr}.cal a{grid-column:2} }
