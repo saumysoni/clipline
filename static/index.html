@@ -67,6 +67,17 @@ select{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--li
 .primary:disabled{opacity:.45;cursor:default}
 .ghost{padding:11px 14px;border-radius:12px;border:1px solid var(--line);background:transparent;cursor:pointer}
 .err{color:var(--bad);font-size:.92rem;margin-top:10px;min-height:1.2em}
+.hint.bad{color:var(--bad)}
+.hint .linkbtn{color:inherit;margin-left:4px}
+input.bad{border-color:var(--bad)}
+.times-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:.92rem}
+.times-row input[type=text]{width:82px;padding:9px 10px;text-align:center}
+.times-row .x{border:0;background:none;cursor:pointer;color:var(--muted);font-size:1.2rem;padding:4px 8px}
+.small-lab{display:block;font-size:.85rem;color:var(--muted);margin:8px 0 6px}
+.short.addcard .phone{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:transparent;border:2px dashed var(--line);cursor:pointer;color:var(--muted);text-align:center;padding:16px;width:100%;font:inherit}
+.short.addcard .phone b{font-family:var(--display);font-size:1.5rem;color:var(--ink)}
+.short.addcard .phone:hover{border-color:var(--accent)}
+.short.pending .phone{background:var(--soft)}
 .bar{height:8px;border-radius:99px;background:var(--line);overflow:hidden;margin-top:10px}
 .bar i{display:block;height:100%;background:var(--accent);width:0;transition:width .3s}
 /* progress */
@@ -101,7 +112,18 @@ ul.tasks li.done{color:var(--ink)}ul.tasks li.done .tick{background:var(--good);
 .row{display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:.9rem}
 .keep{display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500}
 .keep input{width:18px;height:18px;accent-color:var(--accent)}
-.row a{color:var(--muted)}
+.row a,.linkbtn{color:var(--muted)}
+.links{display:flex;gap:12px}
+.linkbtn{border:0;background:none;padding:0;cursor:pointer;text-decoration:underline;font-size:inherit}
+.linkbtn:disabled{opacity:.4;cursor:default}
+.redo{margin-top:10px}
+.redo textarea{font-size:.88rem;padding:8px 10px;background:var(--surface)}
+.redo-row{display:flex;gap:8px;margin-top:8px}
+.redo-row button{padding:8px 12px;font-size:.88rem;border-radius:10px}
+.busy{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px;text-align:center;background:color-mix(in srgb,#000 72%,transparent);color:#fff;font-weight:600;font-size:.92rem}
+.short.redoing .busy{display:flex}
+.busy .spin{width:28px;height:28px;border-radius:50%;border:3px solid #fff;border-top-color:transparent;animation:spin .8s linear infinite}
+.short .err{font-size:.85rem;margin-top:6px;min-height:0}
 .dock{position:sticky;bottom:0;z-index:5;margin:8px -20px 0;padding:14px 20px calc(14px + env(safe-area-inset-bottom,0px));background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);border-top:1px solid var(--line);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .dock select{width:auto;min-width:240px}
 .dock .grow{flex:1;color:var(--muted);font-size:.92rem}
@@ -113,6 +135,43 @@ ul.tasks li.done{color:var(--ink)}ul.tasks li.done .tick{background:var(--good);
 .cal a{color:var(--accent);font-weight:600;font-size:.9rem}
 .note{font-size:.9rem;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;max-width:760px}
 @media (max-width:640px){.cal li{grid-template-columns:90px 1fr}.cal a{grid-column:2}}
+/* choose a scene on the video */
+dialog#picker{width:min(920px,calc(100vw - 32px));max-height:calc(100vh - 32px);border:1px solid var(--line);border-radius:20px;padding:20px;background:var(--surface);color:var(--ink)}
+dialog#picker::backdrop{background:rgba(8,10,24,.7)}
+#picker h3{font-family:var(--display);font-size:1.3rem;margin:0 0 4px}
+#picker .lede{margin:0 0 14px;font-size:.92rem}
+.pk-stage{position:relative;background:#000;border-radius:12px;overflow:hidden;display:grid;place-items:center;min-height:200px}
+.pk-stage video{display:block;width:100%;max-height:52vh;background:#000}
+.pk-wait{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:12px;padding:20px;text-align:center;color:#fff;font-size:.95rem}
+.pk-wait .linkbtn{color:#fff}
+.pk-wait[hidden]{display:none}
+.pk-wait .spin{width:22px;height:22px;flex:none;border-radius:50%;border:3px solid #fff;border-top-color:transparent;animation:spin .8s linear infinite}
+.pk-track{position:relative;height:34px;margin:14px 0 6px;border-radius:8px;background:repeating-linear-gradient(90deg,var(--line) 0 3px,transparent 3px 6px);cursor:pointer}
+.pk-track .used{position:absolute;top:4px;bottom:4px;border-radius:5px;background:color-mix(in srgb,var(--muted) 45%,transparent);font-size:.7rem;font-weight:700;color:var(--ink);display:grid;place-items:center;overflow:hidden}
+.pk-track .sel{position:absolute;top:0;bottom:0;border-radius:6px;background:color-mix(in srgb,var(--cap) 50%,transparent);border:2px solid var(--cap)}
+.pk-track .head{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--accent);pointer-events:none}
+.pk-legend{display:flex;justify-content:space-between;font-size:.8rem;color:var(--muted)}
+.pk-row{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:12px}
+.pk-row .ghost{padding:9px 12px;font-size:.9rem}
+#pkSel{font-weight:600;min-width:15ch;text-align:center}
+.pk-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}
+.pick-row{margin-top:10px}
+.hookbox{margin-top:10px;border:1px solid var(--line);border-radius:12px;padding:8px 10px;font-size:.88rem}
+.hk-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.hk-head .small-lab{margin:0}
+.hk-now{font-weight:600;margin-top:2px}
+.hk-now.none{font-weight:400;color:var(--muted);font-style:italic}
+.hk-opts{list-style:none;padding:0;margin:8px 0 0}
+.hk-opts li+li{margin-top:6px}
+.hk-opts label{display:flex;gap:8px;align-items:flex-start;cursor:pointer;line-height:1.35}
+.hk-opts input{margin-top:3px;accent-color:var(--accent);flex:none}
+.hk-opts small{display:block;color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.04em}
+.hk-edit input[type=text]{margin-top:8px;font-size:.88rem;padding:8px 10px;background:var(--surface)}
+.hk-edit .redo-row input[type=text]{margin-top:0;flex:1;min-width:0}
+.hk-thumb{display:flex;align-items:center;gap:8px;margin-top:8px;cursor:pointer}
+.hk-thumb input{accent-color:var(--accent)}
+.hk-emoji{font-size:.8rem;color:var(--muted);margin-top:4px}
+.pick-row .ghost{width:100%;padding:9px 12px;font-size:.9rem}
 @media (prefers-reduced-motion: reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 </style>
 </head>
@@ -132,18 +191,27 @@ ul.tasks li.done{color:var(--ink)}ul.tasks li.done .tick{background:var(--good);
         <span class="lab">Your vlog</span>
         <label class="drop" id="drop"><input type="file" id="file" accept="video/*"><span id="dropText">Click to choose the video file, or drop it here</span></label>
         <div class="or">or</div>
-        <input type="text" id="link" placeholder="Google Drive link (sharing set to 'Anyone with the link')" autocomplete="off">
+        <input type="text" id="link" placeholder="Google Drive link (sharing set to 'Anyone with the link')" autocomplete="off" aria-describedby="linkHint">
+        <div class="hint" id="linkHint" aria-live="polite"></div>
         <div class="hint">Use the original export, not a YouTube download, for the sharpest Shorts.</div>
       </div>
       <div class="field stack">
         <span class="lab">About this vlog <small>(optional, helps Clipline pick better moments and write titles in your voice)</small></span>
         <div class="inrow">
-          <input type="text" id="ytUrl" placeholder="Paste the vlog's YouTube link to fill these in" autocomplete="off">
+          <input type="text" id="ytUrl" placeholder="Paste the vlog's YouTube link to fill these in" autocomplete="off" aria-describedby="ytHint">
           <button type="button" class="ghost" id="ytFill">Fill in</button>
         </div>
         <div class="hint" id="ytHint" aria-live="polite"></div>
         <input type="text" id="vTitle" placeholder="Vlog title" autocomplete="off">
         <textarea id="vDesc" rows="4" placeholder="Vlog description"></textarea>
+      </div>
+      <div class="field stack">
+        <label class="lab" for="note">Anything Clipline should know? <small>(optional)</small></label>
+        <textarea id="note" rows="3" maxlength="1000" placeholder="For example: Include the part where we reach the summit. Skip the car drive. Funny moments work best."></textarea>
+        <span class="lab" style="margin-top:16px">Must-have moments <small>(optional: exact times you want as Shorts, whatever the AI thinks)</small></span>
+        <div id="mustRows" class="stack"></div>
+        <button type="button" class="ghost" id="addMust">+ Add a moment</button>
+        <div class="hint" id="mustHint" aria-live="polite"></div>
       </div>
       <div class="field">
         <span class="lab" id="countLab">How many Shorts?</span>
@@ -198,10 +266,11 @@ ul.tasks li.done{color:var(--ink)}ul.tasks li.done .tick{background:var(--good);
     <div class="head">
       <div>
         <h2 id="resTitle">Your Shorts are ready</h2>
-        <p class="lede">Play each one, edit titles, flip to see the thumbnail, and untick anything you don't want posted.</p>
+        <p class="lede">Play each one, edit titles, flip to see the thumbnail, and untick anything you don't want posted. Not happy with one? Click <b>Try again</b> under it. Missing a moment? Use <b>Add a Short</b> at the end.</p>
       </div>
       <button class="ghost" id="newBtn" type="button">Start a new vlog</button>
     </div>
+    <div class="note" id="fewNote" role="status" style="margin-top:18px" hidden></div>
     <div class="reel" id="reel"></div>
     <div class="dock">
       <span class="grow" id="dockText"></span>
@@ -219,6 +288,24 @@ ul.tasks li.done{color:var(--ink)}ul.tasks li.done .tick{background:var(--good);
     </div>
     <div class="err" id="err3" role="alert"></div>
   </section>
+
+  <dialog id="picker" aria-labelledby="pkTitle">
+    <h3 id="pkTitle">Choose a moment</h3>
+    <p class="lede">Play or drag through your vlog. Click <b>Set start</b> where the Short should begin and <b>Set end</b> where it should finish. Grey blocks are your other Shorts.</p>
+    <div class="pk-stage"><video id="pkVideo" controls playsinline preload="auto"></video><div class="pk-wait" id="pkWait" role="status"></div></div>
+    <div class="pk-track" id="pkTrack" role="presentation"></div>
+    <div class="pk-legend"><span>0:00</span><span id="pkTotal"></span></div>
+    <div class="pk-row">
+      <button type="button" class="ghost" id="pkBack" aria-label="Back 1 second">−1s</button>
+      <button type="button" class="ghost" id="pkSetStart">Set start</button>
+      <span id="pkSel" aria-live="polite"></span>
+      <button type="button" class="ghost" id="pkSetEnd">Set end</button>
+      <button type="button" class="ghost" id="pkFwd" aria-label="Forward 1 second">+1s</button>
+    </div>
+    <div class="pk-row"><button type="button" class="ghost" id="pkPlaySel">Play the moment</button></div>
+    <div class="err" id="pkErr" role="alert"></div>
+    <div class="pk-actions"><button type="button" class="ghost" id="pkCancel">Cancel</button><button type="button" class="primary" id="pkUse">Use this moment</button></div>
+  </dialog>
 
   <!-- 4. Scheduled -->
   <section id="s4" hidden>
@@ -250,17 +337,126 @@ function renderCount(){
   $("frames").innerHTML = "<span></span>".repeat(count);
   $("make").textContent = count===1 ? "Make my Short" : "Make my "+count+" Shorts";
 }
-$("minus").onclick=()=>{count=Math.max(1,count-1);renderCount();};
-$("plus").onclick=()=>{count=Math.min(10,count+1);renderCount();};
+$("minus").onclick=()=>{count=Math.max(1,mustRows().length,count-1);renderCount();if(!$("mustHint").classList.contains("bad")) mustCountHint();};
+$("plus").onclick=()=>{count=Math.min(10,count+1);renderCount();if(!$("mustHint").classList.contains("bad")) mustCountHint();};
 renderCount();
-function setFile(f){ if(!f) return; const dt=new DataTransfer(); dt.items.add(f); $("file").files=dt.files;
+
+// ---- must-have moments (the server checks these again)
+const parseTime=t=>{ t=String(t||"").trim(); if(!/^\d+(:\d{1,2}){0,2}(\.\d+)?$/.test(t)) return null; return t.split(":").reduce((a,p)=>a*60+parseFloat(p),0); };
+let videoDuration=null;
+function timesHTML(cls){
+  return '<div class="times-row '+(cls||"")+'">From <input type="text" class="t0" placeholder="2:10" inputmode="decimal" aria-label="Start time, minutes:seconds"> To <input type="text" class="t1" placeholder="2:45" inputmode="decimal" aria-label="End time, minutes:seconds"></div>';
+}
+function momentProblem(a,b,label){
+  const s=parseTime(a), e=parseTime(b);
+  if(s===null||e===null) return "Type both times for "+label+" like 2:10 (minutes:seconds).";
+  if(e<=s) return "For "+label+", the To time has to be after the From time.";
+  if(e-s<5) return "The "+label+" is too short. Make it at least 5 seconds.";
+  if(e-s>180) return "The "+label+" is longer than 3 minutes, the most YouTube allows for a Short.";
+  if(videoDuration && s>=videoDuration) return "The "+label+" starts after the video ends ("+fmt(videoDuration)+").";
+  return "";
+}
+function mustRows(){
+  return [...$("mustRows").children].map(r=>({start:r.querySelector(".t0").value.trim(),end:r.querySelector(".t1").value.trim(),row:r})).filter(r=>r.start||r.end);
+}
+function mustCountHint(){
+  const k=mustRows().length;
+  if(k>count){ count=Math.min(10,k); renderCount(); }
+  $("mustHint").textContent = !k ? "" : k>=count ? "All "+count+" Shorts will be your must-have moments."
+    : k+" of your "+count+" Shorts will be your must-have moments; Clipline picks the other "+(count-k)+".";
+}
+function checkMust(){
+  let msg="";
+  [...$("mustRows").children].forEach(r=>r.querySelectorAll("input").forEach(i=>i.classList.remove("bad")));
+  mustRows().forEach((r,k)=>{
+    const m=momentProblem(r.start,r.end,"must-have moment "+(k+1));
+    if(m){ r.row.querySelectorAll("input").forEach(i=>i.classList.add("bad")); msg=msg||m; }
+  });
+  $("mustHint").classList.toggle("bad",!!msg);
+  if(msg){ $("mustHint").textContent=msg; return false; }
+  mustCountHint(); return true;
+}
+$("addMust").onclick=()=>{
+  if($("mustRows").children.length>=10) return;
+  $("mustRows").insertAdjacentHTML("beforeend",timesHTML());
+  const row=$("mustRows").lastElementChild;
+  row.insertAdjacentHTML("beforeend",'<button type="button" class="x" aria-label="Remove this moment">×</button>');
+  row.querySelector(".x").onclick=()=>{ row.remove(); checkMust(); };
+  row.querySelectorAll("input").forEach(i=>i.addEventListener("input",()=>{ if($("mustHint").classList.contains("bad")) checkMust(); else mustCountHint(); }));
+  row.querySelectorAll("input").forEach(i=>i.addEventListener("blur",checkMust));
+  row.querySelector(".t0").focus();
+};
+// The video's length, so must-have moments past the end are caught before uploading (if the browser can read it).
+function readDuration(f){
+  videoDuration=null;
+  try{
+    const v=document.createElement("video"); v.preload="metadata";
+    v.onloadedmetadata=()=>{ if(isFinite(v.duration)) videoDuration=v.duration; URL.revokeObjectURL(v.src); if(mustRows().length) checkMust(); };
+    v.src=URL.createObjectURL(f);
+  }catch(e){}
+}
+function setFile(f){ if(!f) return; readDuration(f); const dt=new DataTransfer(); dt.items.add(f); $("file").files=dt.files;
   $("drop").classList.add("has"); $("dropText").textContent = f.name+" ("+(f.size/1e9).toFixed(2)+" GB)"; }
-$("file").onchange=e=>setFile(e.target.files[0]);
+$("file").onchange=e=>{ setFile(e.target.files[0]); checkVideoLink(); };
 ["dragover","dragenter"].forEach(ev=>$("drop").addEventListener(ev,e=>{e.preventDefault();$("drop").classList.add("has");}));
-$("drop").addEventListener("drop",e=>{e.preventDefault();setFile(e.dataTransfer.files[0]);});
+$("drop").addEventListener("drop",e=>{e.preventDefault();setFile(e.dataTransfer.files[0]);checkVideoLink();});
+
+// ---- link checks (the same rules as link_kind() in youtube_upload.py, which checks again on the server)
+function linkKind(url){
+  url=(url||"").trim(); if(!url) return "";
+  let u; try{ u=new URL(url.includes("://")?url:"https://"+url); }catch(e){ return "other"; }
+  const host=u.hostname.toLowerCase();
+  if(host==="youtu.be"||host.endsWith("youtube.com")||host.endsWith("youtube-nocookie.com"))
+    return /^[A-Za-z0-9_-]{11}$/.test(url) || /(?:v=|youtu\.be\/|\/shorts\/|\/live\/|\/embed\/|\/v\/)[A-Za-z0-9_-]{11}/.test(url) ? "youtube" : "youtube_page";
+  if(host==="drive.google.com"||host==="docs.google.com"){
+    if(u.pathname.includes("/folders/")) return "drive_folder";
+    if(u.pathname.includes("/file/d/")||u.searchParams.has("id")) return "drive_file";
+    return "drive_page";
+  }
+  return "other";
+}
+const VIDEO_LINK_PROBLEMS={
+  youtube:"That's a YouTube link. Clipline can't download videos from YouTube (YouTube's rules don't allow it). Upload the original video file or use a Google Drive link instead.",
+  youtube_page:"That's a YouTube link. Clipline can't download videos from YouTube, so upload the original video file or use a Google Drive link instead.",
+  drive_folder:"That's a link to a Drive folder. Open the folder, right-click the video, choose Share, then Copy link, and paste that link instead.",
+  drive_page:"That's a link to a Drive page, not to one video. In Drive, right-click the video, choose Share, then Copy link, and paste that link instead.",
+  other:"That doesn't look like a Google Drive link. Paste a link that starts with https://drive.google.com, or upload the video file instead."};
+const YT_LINK_PROBLEMS={
+  drive_file:"That's a Google Drive link. This box is for the vlog's YouTube link.",
+  drive_folder:"That's a Google Drive link. This box is for the vlog's YouTube link.",
+  drive_page:"That's a Google Drive link. This box is for the vlog's YouTube link.",
+  youtube_page:"That's a YouTube link, but not to one video (maybe a channel or playlist). Open the vlog on YouTube and copy its link from the Share button.",
+  other:"That doesn't look like a YouTube video link. Open the vlog on YouTube and copy its link from the Share button."};
+// Shows the problem under a box (with a "move it" button when the link just went in the wrong box).
+function flag(input,hint,msg,move){
+  input.classList.toggle("bad",!!msg);
+  hint.classList.toggle("bad",!!msg);
+  hint.textContent=msg||"";
+  if(msg&&move){
+    const b=document.createElement("button"); b.type="button"; b.className="linkbtn"; b.textContent=move.label;
+    b.onclick=move.run; hint.append(" ",b);
+  }
+  return !msg;
+}
+function checkVideoLink(){
+  if($("file").files[0]) return flag($("link"),$("linkHint"),"");
+  const v=$("link").value.trim(), kind=linkKind(v);
+  return flag($("link"),$("linkHint"),VIDEO_LINK_PROBLEMS[kind],
+    kind==="youtube"&&!$("ytUrl").value.trim() ? {label:"Use it for the title and description instead",
+      run:()=>{ $("ytUrl").value=v; $("link").value=""; checkVideoLink(); fillVlogInfo(); }} : null);
+}
+function checkYtLink(){
+  const v=$("ytUrl").value.trim(), kind=linkKind(v);
+  return flag($("ytUrl"),$("ytHint"),YT_LINK_PROBLEMS[kind],
+    kind==="drive_file"&&!$("link").value.trim() ? {label:"Use it as the vlog's video instead",
+      run:()=>{ $("link").value=v; $("ytUrl").value=""; checkYtLink(); checkVideoLink(); }} : null);
+}
+$("link").addEventListener("input",checkVideoLink);
+$("ytUrl").addEventListener("input",()=>{ if(!$("ytUrl").value.trim()||$("ytUrl").classList.contains("bad")) checkYtLink(); });
 
 async function fillVlogInfo(){
   const url=$("ytUrl").value.trim(); if(!url) return;
+  if(!checkYtLink()) return;
   $("ytHint").textContent="Reading the video's details from YouTube...";
   try{
     const r=await fetch("/api/vlog-info?url="+encodeURIComponent(url)); const j=await r.json();
@@ -280,11 +476,16 @@ $("make").onclick=()=>{
   $("err1").textContent="";
   const f=$("file").files[0], link=$("link").value.trim();
   if(!f && !link){ $("err1").textContent="Choose your vlog file or paste a Google Drive link."; return; }
+  const okVideo=checkVideoLink(), okYt=checkYtLink(), okMust=checkMust();
+  if(!okVideo||!okYt){ $("err1").textContent="Fix the link marked in red above."; (okVideo?$("ytUrl"):$("link")).focus(); return; }
+  if(!okMust){ $("err1").textContent="Fix the must-have moment marked in red above."; $("mustRows").querySelector("input.bad").focus(); return; }
   const fd=new FormData();
   if(f) fd.append("video",f); else fd.append("link",link);
   fd.append("yt_url",$("ytUrl").value.trim());
   fd.append("title",$("vTitle").value.trim());
   fd.append("description",$("vDesc").value.trim());
+  fd.append("note",$("note").value.trim());
+  fd.append("must",JSON.stringify(mustRows().map(r=>({start:r.start,end:r.end}))));
   fd.append("count",count);
   fd.append("style",document.querySelector("input[name=style]:checked").value);
   fd.append("schedule",$("sched").value);
@@ -296,7 +497,12 @@ $("make").onclick=()=>{
   xhr.onload=()=>{
     $("make").disabled=false; $("upBar").hidden=true; renderCount();
     let r={}; try{r=JSON.parse(xhr.responseText);}catch(e){}
-    if(xhr.status!==200){ $("err1").textContent=r.error||"Something went wrong starting the job."; return; }
+    if(xhr.status!==200){
+      if(r.field==="link") flag($("link"),$("linkHint"),r.error);
+      if(r.field==="yt_url") flag($("ytUrl"),$("ytHint"),r.error);
+      if(r.field==="must"){ $("mustHint").textContent=r.error; $("mustHint").classList.add("bad"); }
+      $("err1").textContent=r.error||"Something went wrong starting the job."; return;
+    }
     startPolling(r.id);
   };
   xhr.onerror=()=>{ $("make").disabled=false; renderCount(); $("err1").textContent="Couldn't reach Clipline. Is the app window still open?"; };
@@ -313,7 +519,11 @@ async function tick(){
   if(r.status===404){ clearInterval(poll); location.hash=""; show(1); return; }
   job=await r.json();
   if(job.upload_status){ renderUpload(); return; }
-  if(job.status==="ready"){ clearInterval(poll); renderResults(); show(3); return; }
+  if(job.status==="ready"){
+    if($("s3").hidden || !$("reel").children.length){ renderResults(); show(3); } else refreshResults();
+    if(!job.shorts.some(s=>s.retrying)) clearInterval(poll);
+    return;
+  }
   renderProgress();
 }
 function renderProgress(){
@@ -331,39 +541,295 @@ function renderProgress(){
 }
 
 // ---- review
-function renderResults(){
-  const n=job.shorts.length;
-  $("resTitle").textContent = n===1 ? "Your Short is ready" : "Your "+n+" Shorts are ready";
-  $("reel").innerHTML = job.shorts.map(s=>{
-    const v="/media/"+job.id+"/"+s.video, t="/media/"+job.id+"/"+s.thumb;
-    return '<article class="short" data-idx="'+s.idx+'">'+
-      '<div class="phone"><video src="'+v+'" poster="'+t+'" controls playsinline preload="metadata"></video><img src="'+t+'" alt="Thumbnail for '+esc(s.title)+'"></div>'+
-      '<div class="toggle" role="group" aria-label="Preview"><button type="button" aria-pressed="true" data-v="v">Short</button><button type="button" aria-pressed="false" data-v="t">Thumbnail</button></div>'+
-      '<input class="title" type="text" value="'+esc(s.title)+'" aria-label="Title for Short '+s.idx+'" maxlength="95">'+
-      '<div class="from">From '+fmt(s.start)+' to '+fmt(s.end)+' ('+Math.round(s.end-s.start)+'s)</div>'+
-      '<div class="why">'+esc(s.why)+'</div>'+
-      '<div class="row"><label class="keep"><input type="checkbox" checked> Post this</label><a href="'+v+'" download>Download</a></div>'+
-    '</article>';
-  }).join("");
-  document.querySelectorAll(".short").forEach(el=>{
-    el.querySelectorAll(".toggle button").forEach(b=>b.onclick=()=>{
-      el.querySelectorAll(".toggle button").forEach(x=>x.setAttribute("aria-pressed",x===b));
-      el.classList.toggle("thumb",b.dataset.v==="t"); if(b.dataset.v==="t") el.querySelector("video").pause();
-    });
-    el.querySelector(".keep input").onchange=e=>{ el.classList.toggle("off",!e.target.checked); dock(); };
-    el.querySelector("video").addEventListener("play",e=>document.querySelectorAll("#reel video").forEach(v=>{ if(v!==e.target) v.pause(); }));
-  });
-  dock();
+function cardHTML(s){
+  if(s.pending) return '<article class="short pending" data-idx="'+s.idx+'" data-video="">'+
+    '<div class="phone"><div class="busy" aria-live="polite"><span class="spin" aria-hidden="true"></span><span class="bmsg"></span></div></div>'+
+    '<div class="from">New Short</div></article>';
+  const v="/media/"+job.id+"/"+s.video, t="/media/"+job.id+"/"+s.thumb;
+  return '<article class="short" data-idx="'+s.idx+'" data-video="'+esc(s.video)+'">'+
+    '<div class="phone"><video src="'+v+'" poster="'+t+'" controls playsinline preload="metadata"></video><img src="'+t+'" alt="Thumbnail for '+esc(s.title)+'">'+
+      '<div class="busy" aria-live="polite"><span class="spin" aria-hidden="true"></span><span class="bmsg"></span></div></div>'+
+    '<div class="toggle" role="group" aria-label="Preview"><button type="button" aria-pressed="true" data-v="v">Short</button><button type="button" aria-pressed="false" data-v="t">Thumbnail</button></div>'+
+    '<input class="title" type="text" value="'+esc(s.title)+'" aria-label="Title for Short '+s.idx+'" maxlength="95">'+
+    hookHTML(s)+
+    '<div class="from">From '+fmt(s.start)+' to '+fmt(s.end)+' ('+Math.round(s.end-s.start)+'s)'+(s.manual?' · your pick':'')+'</div>'+
+    '<div class="why">'+esc(s.why)+'</div>'+
+    '<div class="row"><label class="keep"><input type="checkbox"'+(s.keep===false?'':' checked')+'> Post this</label>'+
+      '<span class="links"><button type="button" class="linkbtn retry">Try again</button><a href="'+v+'" download>Download</a></span></div>'+
+    '<div class="redo" hidden>'+
+      '<textarea rows="3" maxlength="500" aria-label="What would you like instead for Short '+s.idx+'?" placeholder="Optional: what would you like instead? For example: the part where we reach the top, or around 3:20"></textarea>'+
+      '<div class="pick-row"><button type="button" class="ghost pick">Choose on the video</button></div><span class="small-lab">Or type the exact times</span>'+timesHTML()+
+      '<div class="redo-row"><button type="button" class="primary go">Find another moment</button><button type="button" class="ghost cancel">Cancel</button></div>'+
+    '</div>'+
+    '<div class="err rerr" role="alert"></div>'+
+  '</article>';
 }
+// ---- hook controls
+const HOOK_NAMES={curiosity:"Curiosity",bold:"Bold",story:"Story",custom:"Your own"};
+function hookOptions(s){
+  const opts=Object.entries(s.hooks||{}).filter(([,t])=>t);
+  if(s.hook && !opts.some(([,t])=>t===s.hook)) opts.push(["custom",s.hook]);  // older Shorts: just the one hook
+  return opts;
+}
+function hookOptsHTML(s,chosen){
+  return hookOptions(s).map(([k,t])=>'<li><label><input type="radio" name="hk'+s.idx+'" value="'+esc(k)+'" data-text="'+esc(t)+'"'+(chosen===k?' checked':'')+'><span><small>'+esc(HOOK_NAMES[k]||k)+'</small>'+esc(t)+'</span></label></li>').join("")+
+    '<li><label><input type="radio" name="hk'+s.idx+'" value="none"'+(chosen==="none"?' checked':'')+'><span><small>No text hook</small>Let the original audio open the Short</span></label></li>';
+}
+function hookHTML(s){
+  const none=s.hook_mode==="none"||!s.hook;
+  return '<div class="hookbox"><div class="hk-head"><span class="small-lab">Hook</span><button type="button" class="linkbtn hk-change">Change</button></div>'+
+    '<div class="hk-now'+(none?' none':'')+'">'+(none?'No text hook (original audio)':esc(s.hook))+'</div>'+
+    '<div class="hk-edit" hidden>'+
+      '<ul class="hk-opts" role="radiogroup" aria-label="Hook for Short '+s.idx+'">'+hookOptsHTML(s,none?"none":(s.hook_style||"custom"))+'</ul>'+
+      '<input type="text" class="hk-text" maxlength="60" aria-label="Hook text, edit to write your own" value="'+esc(none?"":s.hook)+'"'+(none?' disabled':'')+'>'+
+      '<div class="hk-emoji" hidden>Emoji can\'t be shown in the video or thumbnail, so they\'re left out there. They stay in the title and description.</div>'+
+      '<label class="hk-thumb"><input type="checkbox" class="hk-usethumb" checked> Also put it on the thumbnail</label>'+
+      '<div class="redo-row"><input type="text" class="hk-note" maxlength="300" placeholder="Optional: funnier, mention the snow..." aria-label="What the new hooks should be like"><button type="button" class="ghost hk-rewrite">Rewrite</button></div>'+
+      '<div class="redo-row"><button type="button" class="primary hk-apply">Apply</button><button type="button" class="ghost hk-cancel">Cancel</button></div>'+
+      '<div class="err hk-err" role="alert"></div>'+
+    '</div></div>';
+}
+function wireHook(el,s){
+  const box=el.querySelector(".hookbox"), edit=box.querySelector(".hk-edit"), text=box.querySelector(".hk-text"), err=box.querySelector(".hk-err");
+  const usethumb=box.querySelector(".hk-usethumb"), emoji=box.querySelector(".hk-emoji");
+  const paintText=()=>{
+    emoji.hidden=!/[\u{1F000}-\u{1FFFF}\u2600-\u27BF]/u.test(text.value);
+    usethumb.disabled=text.disabled; usethumb.parentElement.style.opacity=text.disabled?.5:1;
+  };
+  const wireOpts=()=>box.querySelectorAll(".hk-opts input").forEach(r=>r.onchange=()=>{
+    text.disabled = r.value==="none"; text.value = r.value==="none" ? "" : r.dataset.text; paintText();
+  });
+  paintText();
+  wireOpts();
+  // Typing your own text makes it "Your own" hook.
+  text.addEventListener("input",()=>{
+    const r=box.querySelector(".hk-opts input:checked");
+    if(r && r.value!=="none" && text.value.trim()!==r.dataset.text){ r.checked=false; }
+    paintText();
+  });
+  box.querySelector(".hk-change").onclick=()=>{ edit.hidden=!edit.hidden; err.textContent=""; };
+  box.querySelector(".hk-cancel").onclick=()=>{ edit.hidden=true; err.textContent=""; };
+  box.querySelector(".hk-rewrite").onclick=async()=>{
+    const b=box.querySelector(".hk-rewrite"); err.textContent=""; b.disabled=true; b.textContent="Writing...";
+    try{
+      const r=await fetch("/api/hooks/"+jobId+"/"+s.idx,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({note:box.querySelector(".hk-note").value.trim()})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok){ err.textContent=j.error||"Couldn't write new hooks. Please try again."; return; }
+      s.hooks=j.hooks;
+      box.querySelector(".hk-opts").innerHTML=hookOptsHTML({...s,hook:null},j.pick); wireOpts();
+      text.disabled=false; text.value=j.hooks[j.pick]||""; paintText();
+    }catch(e){ err.textContent="Couldn't reach Clipline. Is the app window still open?"; }
+    finally{ b.disabled=false; b.textContent="Rewrite"; }
+  };
+  box.querySelector(".hk-apply").onclick=async()=>{
+    err.textContent="";
+    const r=box.querySelector(".hk-opts input:checked"), none=r&&r.value==="none", t=text.value.trim();
+    if(!none && !t){ err.textContent="Type a hook, or choose No text hook."; return; }
+    const style = none ? "none" : (r && r.dataset.text===t ? r.value : "custom");
+    if(await sendMoment("/api/hook/"+jobId+"/"+s.idx,{mode:none?"none":"text",text:t,style,thumb:usethumb.checked},err)){ edit.hidden=true; el.querySelector("video").pause(); }
+  };
+}
+
+const ADD_CARD='<article class="short addcard" id="addCard">'+
+  '<button type="button" class="phone" id="addOpen"><b aria-hidden="true">+</b><b style="font-size:1.1rem">Add a Short</b><span>A moment Clipline missed</span></button>'+
+  '<div class="redo" hidden>'+
+    '<textarea rows="3" maxlength="500" aria-label="Describe the moment you want" placeholder="Describe the moment, for example: when we see the bear. Or type the exact times below."></textarea>'+
+    '<div class="pick-row"><button type="button" class="ghost pick">Choose on the video</button></div><span class="small-lab">Or type the exact times</span>'+timesHTML()+
+    '<div class="redo-row"><button type="button" class="primary go">Make this Short</button><button type="button" class="ghost cancel">Cancel</button></div>'+
+  '</div>'+
+  '<div class="err rerr" role="alert"></div>'+
+'</article>';
+// Reads a moment form (description and/or From/To). Returns null and shows why if the times don't make sense.
+function readMoment(box,errEl){
+  const note=box.querySelector("textarea").value.trim(), start=box.querySelector(".t0").value.trim(), end=box.querySelector(".t1").value.trim();
+  const bad=(start||end) ? momentProblem(start,end,"moment") : "";
+  box.querySelectorAll(".times-row input").forEach(i=>i.classList.toggle("bad",!!bad));
+  if(bad){ errEl.textContent=bad; return null; }
+  return {note,start,end};
+}
+async function sendMoment(url,body,errEl){
+  let r, j={};
+  try{
+    r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    try{ j=await r.json(); }catch(e){}
+  }catch(e){ errEl.textContent="Couldn't reach Clipline. Is the app window still open?"; return false; }
+  if(!r.ok){ errEl.textContent=j.error||"Something went wrong. Please try again."; return false; }
+  clearInterval(poll); poll=setInterval(tick,1000); tick();
+  return true;
+}
+function wire(el){
+  if(el.classList.contains("pending")) return;
+  el.querySelectorAll(".toggle button").forEach(b=>b.onclick=()=>{
+    el.querySelectorAll(".toggle button").forEach(x=>x.setAttribute("aria-pressed",x===b));
+    el.classList.toggle("thumb",b.dataset.v==="t"); if(b.dataset.v==="t") el.querySelector("video").pause();
+  });
+  el.querySelector(".keep input").onchange=e=>{ el.classList.toggle("off",!e.target.checked); dock(); };
+  el.querySelector("video").addEventListener("play",e=>document.querySelectorAll("#reel video").forEach(v=>{ if(v!==e.target) v.pause(); }));
+  const redo=el.querySelector(".redo"), err=el.querySelector(".rerr");
+  el.querySelector(".retry").onclick=()=>{ redo.hidden=!redo.hidden; if(!redo.hidden) redo.querySelector("textarea").focus(); };
+  el.querySelector(".pick").onclick=()=>openPicker(redo,+el.dataset.idx);
+  wireHook(el,job.shorts.find(x=>x.idx===+el.dataset.idx));
+  el.querySelector(".cancel").onclick=()=>{ redo.hidden=true; err.textContent=""; };
+  el.querySelector(".go").onclick=async()=>{
+    err.textContent="";
+    const m=readMoment(redo,err); if(!m) return;
+    if(await sendMoment("/api/retry/"+jobId+"/"+el.dataset.idx,m,err)){ redo.hidden=true; el.querySelector("video").pause(); }
+  };
+}
+function wireAdd(){
+  const card=$("addCard"), form=card.querySelector(".redo"), err=card.querySelector(".rerr");
+  $("addOpen").onclick=()=>{ form.hidden=false; form.querySelector("textarea").focus(); };
+  card.querySelector(".pick").onclick=()=>openPicker(form,null);
+  card.querySelector(".cancel").onclick=()=>{ form.hidden=true; err.textContent=""; };
+  card.querySelector(".go").onclick=async()=>{
+    err.textContent="";
+    const m=readMoment(form,err); if(!m) return;
+    if(!m.note&&!m.start){ err.textContent="Describe the moment you want, or type its From and To times."; return; }
+    if(await sendMoment("/api/add/"+jobId,m,err)){
+      form.hidden=true; form.querySelector("textarea").value=""; form.querySelectorAll("input").forEach(i=>i.value="");
+    }
+  };
+}
+function paintState(el,s){
+  el.classList.toggle("redoing",!!s.retrying);
+  el.querySelector(".bmsg").textContent = s.retrying ? (s.retry_msg||"Making this Short") : "";
+  if(s.pending) return;
+  el.querySelector(".retry").disabled = !!s.retrying;
+  el.querySelectorAll(".hk-change,.hk-apply,.hk-rewrite").forEach(b=>b.disabled=!!s.retrying);
+  el.querySelector(".rerr").textContent = s.retry_error ? "Try again stopped: "+s.retry_error : "";
+}
+function paintTitle(){
+  const n=job.shorts.filter(s=>!s.pending).length;
+  $("resTitle").textContent = n===1 ? "Your Short is ready" : "Your "+n+" Shorts are ready";
+  // Fewer Shorts than asked for: say why and what to do, until Add a Short makes up the difference.
+  const asked=job.count||0, few=job.shorts.length<asked;
+  $("fewNote").hidden=!few;
+  if(few) $("fewNote").innerHTML="Found "+n+" good moment"+(n===1?"":"s")+" out of the "+asked+" you asked for. "+
+    (job.little_speech ? "Clipline picks moments from what's said, and this vlog doesn't have much talking. "
+                       : "The rest of the vlog didn't have strong stand-alone moments. ")+
+    "Use <b>Add a Short</b> at the end to pick more moments yourself, by describing them or by their times.";
+  const err=$("addCard").querySelector(".rerr");
+  if(job.add_error) err.textContent="Couldn't add the Short: "+job.add_error;
+  else if(err.textContent.startsWith("Couldn't add the Short")) err.textContent="";
+}
+function renderResults(){
+  $("reel").innerHTML = job.shorts.map(cardHTML).join("")+ADD_CARD;
+  document.querySelectorAll(".short[data-idx]").forEach(el=>{
+    const s=job.shorts.find(x=>x.idx===+el.dataset.idx);
+    wire(el); paintState(el,s); el.classList.toggle("off",s.keep===false);
+  });
+  wireAdd(); paintTitle(); dock();
+}
+// While Shorts are being made, refresh only the cards that changed, so edited titles and ticks stay.
+function refreshResults(){
+  const ids=new Set(job.shorts.map(s=>String(s.idx)));
+  document.querySelectorAll(".short[data-idx]").forEach(el=>{ if(!ids.has(el.dataset.idx)) el.remove(); });
+  job.shorts.forEach(s=>{
+    let el=document.querySelector('.short[data-idx="'+s.idx+'"]');
+    if(!el || el.dataset.video!==(s.pending?"":s.video)){
+      if(el){ el.insertAdjacentHTML("afterend",cardHTML(s)); el.remove(); }
+      else $("addCard").insertAdjacentHTML("beforebegin",cardHTML(s));
+      el=document.querySelector('.short[data-idx="'+s.idx+'"]'); wire(el);
+    }
+    paintState(el,s);
+  });
+  paintTitle(); dock();
+}
+// ---- choose a scene on the video (plays preview.mp4, a small copy every browser can play)
+let pkBox=null, pkIdx=null, pkStart=null, pkEnd=null, pkStopAt=null, pkLoad=0;
+const fmtExact=t=>{ const m=Math.floor(t/60), r=(t-m*60).toFixed(1); return m+":"+r.padStart(4,"0"); };
+function openPicker(box,idx){
+  pkBox=box; pkIdx=idx;
+  pkStart=parseTime(box.querySelector(".t0").value); pkEnd=parseTime(box.querySelector(".t1").value);
+  $("pkErr").textContent="";
+  $("pkTitle").textContent = idx ? "Choose a new moment for Short "+idx : "Choose a moment for a new Short";
+  $("picker").showModal(); paintPick(); loadPreview(false);
+}
+async function loadPreview(retry){
+  const v=$("pkVideo"), mine=++pkLoad;
+  if(v.dataset.job===jobId && v.getAttribute("src")){ if(pkStart!=null) v.currentTime=pkStart; return; }
+  v.removeAttribute("src"); v.load();
+  $("pkWait").hidden=false; $("pkWait").innerHTML='<span class="spin" aria-hidden="true"></span> Getting your vlog ready to play. For a long vlog this takes a minute or two.';
+  while($("picker").open && mine===pkLoad){
+    let j;
+    try{ const r=await fetch("/api/preview/"+jobId,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({retry})}); j=await r.json(); }
+    catch(e){ j={status:"error",error:"Couldn't reach Clipline. Is the app window still open?"}; }
+    retry=false;
+    if(mine!==pkLoad) return;
+    if(j.status==="ready"){
+      v.dataset.job=jobId; v.src=j.url; $("pkWait").hidden=true;
+      v.addEventListener("loadedmetadata",()=>{ if(pkStart!=null) v.currentTime=pkStart; paintPick(); },{once:true});
+      return;
+    }
+    if(j.status==="error"){
+      $("pkWait").innerHTML=esc(j.error)+' <button type="button" class="linkbtn" id="pkRetry">Try again</button>';
+      $("pkRetry").onclick=()=>loadPreview(true); return;
+    }
+    await new Promise(r=>setTimeout(r,1500));
+  }
+}
+function pkDuration(){ const d=$("pkVideo").duration; return isFinite(d)&&d>0 ? d : (job.duration||0); }
+function paintPick(){
+  const d=pkDuration(), pct=t=>(Math.max(0,Math.min(t,d))/d*100)+"%";
+  $("pkTotal").textContent = d ? fmt(d) : "";
+  let html="";
+  if(d){
+    job.shorts.filter(s=>!s.pending && s.idx!==pkIdx).forEach(s=>{
+      html+='<div class="used" style="left:'+pct(s.start)+';width:'+((s.end-s.start)/d*100)+'%" title="Short '+s.idx+'">'+s.idx+'</div>';
+    });
+    if(pkStart!=null) html+='<div class="sel" style="left:'+pct(pkStart)+';width:'+(pkEnd!=null?((pkEnd-pkStart)/d*100):0.6)+'%"></div>';
+    html+='<div class="head" style="left:'+pct($("pkVideo").currentTime||0)+'"></div>';
+  }
+  $("pkTrack").innerHTML=html;
+  $("pkSel").textContent = (pkStart!=null ? fmtExact(pkStart) : "start?")+" to "+(pkEnd!=null ? fmtExact(pkEnd) : "end?")+
+    (pkStart!=null&&pkEnd!=null ? " ("+Math.round(pkEnd-pkStart)+"s)" : "");
+}
+$("pkVideo").addEventListener("timeupdate",()=>{
+  const v=$("pkVideo");
+  if(pkStopAt!=null && v.currentTime>=pkStopAt){ v.pause(); pkStopAt=null; }
+  paintPick();
+});
+$("pkVideo").addEventListener("seeking",paintPick);
+$("pkTrack").onclick=e=>{
+  const d=pkDuration(), r=$("pkTrack").getBoundingClientRect(); if(!d) return;
+  $("pkVideo").currentTime=Math.max(0,Math.min(d,(e.clientX-r.left)/r.width*d)); pkStopAt=null;
+};
+$("pkBack").onclick=()=>{ $("pkVideo").currentTime=Math.max(0,$("pkVideo").currentTime-1); };
+$("pkFwd").onclick=()=>{ $("pkVideo").currentTime=Math.min(pkDuration(),$("pkVideo").currentTime+1); };
+$("pkSetStart").onclick=()=>{
+  pkStart=$("pkVideo").currentTime; if(pkEnd!=null && pkEnd<=pkStart) pkEnd=null;
+  $("pkErr").textContent=""; paintPick();
+};
+$("pkSetEnd").onclick=()=>{
+  const t=$("pkVideo").currentTime;
+  if(pkStart!=null && t<=pkStart){ $("pkErr").textContent="The end has to be after the start. Move further into the video first."; return; }
+  pkEnd=t; $("pkErr").textContent=""; paintPick();
+};
+$("pkPlaySel").onclick=()=>{
+  if(pkStart==null){ $("pkErr").textContent="Set the start first."; return; }
+  const v=$("pkVideo"); v.currentTime=pkStart; pkStopAt=pkEnd; v.play();
+};
+$("pkUse").onclick=()=>{
+  if(pkStart==null||pkEnd==null){ $("pkErr").textContent="Set both the start and the end of the moment."; return; }
+  const a=fmtExact(pkStart), b=fmtExact(pkEnd), bad=momentProblem(a,b,"moment");
+  if(bad){ $("pkErr").textContent=bad; return; }
+  pkBox.querySelector(".t0").value=a; pkBox.querySelector(".t1").value=b;
+  pkBox.querySelectorAll(".times-row input").forEach(i=>i.classList.remove("bad"));
+  $("picker").close(); pkBox.querySelector(".go").focus();
+};
+$("pkCancel").onclick=()=>$("picker").close();
+$("picker").addEventListener("close",()=>{ $("pkVideo").pause(); pkStopAt=null; pkLoad++; });
+
 function dock(){
-  const total=document.querySelectorAll(".short").length, k=document.querySelectorAll(".short .keep input:checked").length;
-  $("dockText").textContent = k ? k+" of "+total+" will be posted" : "Tick at least one Short";
+  const total=document.querySelectorAll(".short[data-idx]:not(.pending)").length, k=document.querySelectorAll(".short .keep input:checked").length;
+  const busy=document.querySelectorAll(".short.redoing").length;
+  $("dockText").textContent = busy ? "Making "+(busy===1?"a Short":busy+" Shorts")+"..." : k ? k+" of "+total+" will be posted" : "Tick at least one Short";
   $("schedBtn").textContent = k===1 ? "Schedule 1 Short" : "Schedule "+k+" Shorts";
-  $("schedBtn").disabled = !k;
+  $("schedBtn").disabled = !k || busy>0;
 }
 $("schedBtn").onclick=async()=>{
   $("err3").textContent="";
-  const shorts=[...document.querySelectorAll(".short")].map(el=>({idx:+el.dataset.idx,title:el.querySelector("input.title").value,keep:el.querySelector(".keep input").checked}));
+  const shorts=[...document.querySelectorAll(".short[data-idx]:not(.pending)")].map(el=>({idx:+el.dataset.idx,title:el.querySelector("input.title").value,keep:el.querySelector(".keep input").checked}));
   const r=await fetch("/api/schedule/"+jobId,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({shorts,schedule:$("sched2").value})});
   const j=await r.json();
   if(!r.ok){ $("err3").textContent=j.error||"Couldn't start posting."; return; }

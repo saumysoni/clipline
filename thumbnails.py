@@ -3,9 +3,9 @@ Thumbnails: a sticker-style cut-out of the creator with a bright outline, plus a
 ("vision board") of the other things the Short shows: cut-out objects and tilted photo cards.
 
   1. sample_frames()   ~10 frames spread across the clip
-  2. plan()            Gemini looks at the frames and picks the best face frame, up to 3 things
-                       worth showing (with their position in the frame), the text and an accent
-                       colour. Without Gemini, plan_without_ai() uses face detection instead.
+  2. plan()            the AI (Gemini or OpenAI) looks at the frames and picks the best face frame,
+                       up to 3 things worth showing (with their position in the frame), the text and an accent
+                       colour. Without the AI, plan_without_ai() uses face detection instead.
   3. cut_out()         rembg removes backgrounds (runs on the processor; no GPU needed)
   4. compose()         lays everything out on a 1080x1920 canvas
 
@@ -94,8 +94,6 @@ Prefer fewer, clearer items over many weak ones. Use [] if nothing besides the c
 
 
 def plan(frames, moment, words=None, context=None):
-    from google.genai import types
-
     said = ""
     if words:
         said = " ".join(w["w"] for w in words if moment["start"] - 0.1 <= w["s"] <= moment["end"])[:1500]
@@ -109,8 +107,8 @@ def plan(frames, moment, words=None, context=None):
         small.thumbnail((512, 512))
         buf = io.BytesIO()
         small.save(buf, "JPEG", quality=80)
-        contents += [f"Frame {k}:", types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg")]
-    raw = P.gemini_json(contents, temperature=0.5)
+        contents += [f"Frame {k}:", P.image_part(buf.getvalue())]
+    raw = P.ai_json(contents, temperature=0.5)
     return clean_plan(raw, frames, moment)
 
 
@@ -343,7 +341,7 @@ def fit_font(draw, text, max_size, max_w):
 def draw_text(canvas, line1, line2, accent, top=110):
     """Line 1 in white, line 2 on an accent-coloured block, centred at the top (away from the face)."""
     d = ImageDraw.Draw(canvas)
-    l1, l2 = (line1 or "").upper().strip(), (line2 or "").upper().strip()
+    l1, l2 = P.without_emoji(line1).upper().strip(), P.without_emoji(line2).upper().strip()
     y = top
     if l1:
         f1 = fit_font(d, l1, 130, W - 140)
@@ -427,6 +425,20 @@ def save(img, path):
         img.save(path, "JPEG", quality=q, optimize=True)
         if Path(path).stat().st_size <= MAX_BYTES:
             return
+
+
+def retext(job_dir, work_name, line1, line2, out_name):
+    """Redraw a collage thumbnail with new text, from the frames and layout saved when it was made."""
+    import json
+
+    work = Path(job_dir) / work_name
+    pl = json.loads((work / "plan.json").read_text(encoding="utf-8"))
+    paths = sorted(work.glob("frame_*.jpg"), key=lambda f: int(f.stem.split("_")[1]))
+    frames = [Image.open(f).convert("RGB") for f in paths]
+    pl.update(line1=line1, line2=line2)
+    save(compose(frames, pl), Path(job_dir) / out_name)
+    (work / "plan.json").write_text(json.dumps(pl, indent=1), encoding="utf-8")
+    return out_name
 
 
 def make_collage_thumbnail(video_path, moment, idx, job_dir, words=None, context=None):

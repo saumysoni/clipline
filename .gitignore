@@ -15,6 +15,13 @@ jobs/
 fonts/*.ttf
 fonts/*.otf
 
+# Test videos dropped in the project folder (media is never committed; the README demo is the exception)
+*.mov
+*.MOV
+*.mp4
+*.MP4
+!docs/*.mp4
+
 # Local scratch and backups
 _test/
 _backups/
