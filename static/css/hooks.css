@@ -1,6 +1,6 @@
 /* Hook controls on each Short card. */
 /* hook box */
-.hookbox{background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:10px 11px;font-size:.88rem}
+.hookbox{background:var(--raised);border:1px solid var(--line);border-radius:10px;padding:8px 9px;font-size:.84rem}
 .hk-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .hk-head .small-lab{margin:0;display:flex;align-items:center;gap:5px}
 .hk-head .small-lab .ms{font-size:14px;color:var(--cap-line)}

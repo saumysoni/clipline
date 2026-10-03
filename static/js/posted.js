@@ -17,5 +17,5 @@ function renderDone(){
 
 // From the Posted page back to the Shorts, e.g. to upload ones that were left unticked. Posted ones stay marked.
 let onReview=false;
-$("backBtn").onclick=()=>{ onReview=true; $("upPanel").hidden=true; $("err3").textContent=""; renderResults(); show(3); markPosted(); };
+$("backBtn").onclick=()=>{ onReview=true; $("upPanel").hidden=true; $("err3").textContent=""; renderResults(); show(3); showPost(false); markPosted(); };
 $("newBtn").onclick=$("againBtn").onclick=()=>{ location.hash=""; location.reload(); };

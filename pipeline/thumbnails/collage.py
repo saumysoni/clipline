@@ -2,6 +2,8 @@
 The collage thumbnail from start to finish (frames -> plan -> cut-outs -> layout), and redrawing
 one with new text from its saved thumbwork_N/ folder (no AI, no new frames).
 """
+import json
+import threading
 from pathlib import Path
 
 from PIL import Image
@@ -11,11 +13,12 @@ from pipeline.thumbnails.layout import compose, save
 from pipeline.thumbnails.plan import fresh_accent, plan, plan_without_ai
 
 
+_ACCENT_LOCK = threading.Lock()  # thumbnails made side by side must not pick the same colour
+
+
 def redraw(job_dir, work_name, out_name, **changes):
     """Redraw a collage thumbnail from the frames and plan saved when it was made (no AI, no new frames),
     with `changes` applied to the plan (new text: line1/line2, another look: look)."""
-    import json
-
     work = Path(job_dir) / work_name
     pl = json.loads((work / "plan.json").read_text(encoding="utf-8"))
     pl.setdefault("look", "burst")  # plans from before looks existed were all burst
@@ -41,10 +44,12 @@ def make_collage_thumbnail(video_path, moment, idx, job_dir, words=None, context
     except Exception as e:  # noqa: BLE001  (no key, Gemini busy, odd answer...)
         print(f"Thumbnail planning without AI ({e}).")
         pl = plan_without_ai(frames, moment)
-    pl["accent"] = fresh_accent(job_dir, work.name, pl["accent"])
+    with _ACCENT_LOCK:  # choose the colour and save the plan at once, so the next thumbnail sees it
+        pl["accent"] = fresh_accent(job_dir, work.name, pl["accent"])
+        (work / "plan.json").write_text(json.dumps(pl, indent=1), encoding="utf-8")
     img = compose(frames, pl)
     name = f"thumb_{idx}.jpg"
     save(img, job_dir / name)
-    (work / "plan.json").write_text(__import__("json").dumps(pl, indent=1), encoding="utf-8")
+    (work / "plan.json").write_text(json.dumps(pl, indent=1), encoding="utf-8")
     moment["thumb_look"], moment["thumb_work"] = pl["look"], work.name  # so the page can show and change it
     return name

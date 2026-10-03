@@ -1,6 +1,7 @@
 """
 Thumbnails, step 1: frames spread across the Short, and finding faces in them.
 """
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import numpy as np
@@ -16,14 +17,16 @@ def sample_frames(video_path, start, end, work, n=N_FRAMES):
     work = Path(work)
     work.mkdir(parents=True, exist_ok=True)
     span = max(0.5, end - start - 1.0)
-    frames = []
-    for k in range(n):
+
+    def grab(k):  # each frame is its own quick seek; four at a time
         t = start + 0.5 + span * (k + 0.5) / n
         out = work / f"frame_{k}.jpg"
         run([ffmpeg_exe(), "-y", "-ss", f"{t:.2f}", "-i", str(Path(video_path).resolve()),
                "-frames:v", "1", "-vf", "scale='min(1920,iw)':-2", "-q:v", "2", str(out)])
-        if out.exists():
-            frames.append(Image.open(out).convert("RGB"))
+        return Image.open(out).convert("RGB") if out.exists() else None
+
+    with ThreadPoolExecutor(4) as pool:
+        frames = [f for f in pool.map(grab, range(n)) if f is not None]
     if not frames:
         raise RuntimeError("couldn't read frames")
     return frames

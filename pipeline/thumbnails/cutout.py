@@ -2,6 +2,7 @@
 Thumbnails, step 3: cutting the creator and objects out of frames (rembg, runs on the processor).
 """
 import os
+import threading
 
 import numpy as np
 from PIL import Image, ImageFilter
@@ -10,12 +11,18 @@ from pipeline.thumbnails.frames import find_faces
 
 
 _REMBG = {}
+_REMBG_LOCK = threading.Lock()  # thumbnails are made side by side; load each model only once
 
 
 def rembg_session(name=None):
     """Background remover, loaded once per process. None if rembg isn't installed.
     Objects use THUMB_CUTOUT_MODEL; the creator uses the people-only THUMB_PERSON_MODEL."""
     name = name or os.getenv("THUMB_CUTOUT_MODEL", "isnet-general-use")
+    with _REMBG_LOCK:
+        return _load(name)
+
+
+def _load(name):
     if name not in _REMBG:
         try:
             from rembg import new_session
@@ -24,6 +31,13 @@ def rembg_session(name=None):
             print(f"Cut-outs unavailable ({e}); using photo cards instead.")
             _REMBG[name] = None
     return _REMBG[name]
+
+
+def warm_up():
+    """Load both cut-out models now (in the background while the Shorts are edited), so the first
+    thumbnail doesn't wait for them."""
+    rembg_session()
+    rembg_session(os.getenv("THUMB_PERSON_MODEL", PERSON_MODEL))
 
 
 # A cut-out only looks good if the background remover was sure where the edge is. Measured on real
@@ -48,6 +62,19 @@ def edge_quality(alpha, mask):
     return soft, solidity, ragged
 
 
+def fill_small_holes(mask, share=0.01):
+    """Fill pinholes inside a cut-out, but keep real gaps (between an arm and the body, under a cup's
+    handle) see-through: filling those is what put dark patches of car seat inside the outline."""
+    from scipy import ndimage
+
+    holes = ndimage.binary_fill_holes(mask) & ~mask
+    labels, count = ndimage.label(holes)
+    if not count:
+        return mask
+    sizes = ndimage.sum(holes, labels, range(1, count + 1))
+    return mask | np.isin(labels, 1 + np.flatnonzero(sizes <= share * max(1, mask.sum())))
+
+
 def smooth_mask(mask):
     """Round off jagged edges and drop small loose bits, so the sticker outline drawn around it is tidy."""
     from scipy import ndimage
@@ -58,7 +85,23 @@ def smooth_mask(mask):
     if count > 1:
         sizes = ndimage.sum(smooth, labels, range(1, count + 1))
         smooth = np.isin(labels, 1 + np.flatnonzero(sizes >= 0.05 * sizes.max()))
-    return ndimage.binary_fill_holes(smooth) if smooth.any() else mask
+    return fill_small_holes(smooth) if smooth.any() else mask
+
+
+def resize_cutout(rgba, w, h):
+    """A cut-out resized for the thumbnail with a crisp, smooth edge at the NEW size. Scaling a hard
+    mask up (a 640x360 frame blown up 3x) gives a staircase outline; instead the mask is scaled softly,
+    re-smoothed in proportion to the zoom and cut sharp again, then anti-aliased by one pixel. The
+    edge is also pulled in slightly, so no fringe of the old background shows."""
+    w, h = max(1, int(w)), max(1, int(h))
+    zoom = max(w / max(1, rgba.width), h / max(1, rgba.height))
+    rgb = rgba.convert("RGB").resize((w, h), Image.LANCZOS)
+    a = rgba.getchannel("A").resize((w, h), Image.BICUBIC)
+    a = a.filter(ImageFilter.GaussianBlur(max(1.0, 0.7 * zoom))).point(lambda v: 255 if v > 150 else 0)
+    a = a.filter(ImageFilter.GaussianBlur(0.9))
+    out = rgb.convert("RGBA")
+    out.putalpha(a)
+    return out
 
 
 def cut_out(img, keep_point=None, strict=True):
@@ -86,7 +129,7 @@ def cut_out(img, keep_point=None, strict=True):
     else:
         keep = 1 + int(np.argmax(ndimage.sum(labels > 0, labels, range(1, count + 1))))
     mask = ndimage.binary_dilation(labels == keep, iterations=r + 1) & solid
-    mask = ndimage.binary_fill_holes(mask)
+    mask = fill_small_holes(mask)
     coverage = mask.mean()
     if not 0.04 <= coverage <= 0.92:  # nothing found, or nothing removed
         return None
@@ -95,7 +138,7 @@ def cut_out(img, keep_point=None, strict=True):
         if soft > MAX_SOFT or solidity < MIN_SOLIDITY or ragged > MAX_RAGGED:
             return None
     mask = smooth_mask(mask)
-    alpha = Image.fromarray((mask * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(1.2))
+    alpha = Image.fromarray((mask * 255).astype(np.uint8))  # hard edge: resize_cutout() smooths it at size
     out = rgba.convert("RGB").convert("RGBA")
     out.putalpha(alpha)
     return out.crop(out.getbbox())
@@ -152,7 +195,23 @@ def face_cutout(img, face_box=None, person_box=None):
     from rembg import remove
     from scipy import ndimage
 
-    alpha = np.asarray(remove(img, session=sess).getchannel("A"), dtype=np.float32) / 255.0
+    # the creator's area: the AI's person_box (a little wider), else around the face
+    if person_box:
+        py0, px0, py1, px1 = person_box
+        pad_x, pad_y = 0.03 * (px1 - px0), 0.03 * (py1 - py0)
+        left, right = int((px0 - pad_x) / 1000 * img.width), int((px1 + pad_x) / 1000 * img.width)
+        top = int((py0 - pad_y) / 1000 * img.height)
+    else:
+        left, right, top = int(x - 3.0 * w), int(x + w + 3.0 * w), int(y - 1.1 * h)
+    left, right, top = max(0, left), min(img.width, right), max(0, min(top, y))
+    bottom = min(img.height, int(y + BUST * h))
+    # The model only sees a 320x320 picture: giving it just the creator's area (plus a margin, so it
+    # sees where the body goes) instead of the whole frame gives a far more detailed outline.
+    m = int(0.6 * w)
+    view = (max(0, left - m), max(0, top - m), min(img.width, right + m), min(img.height, bottom + m))
+    alpha = np.zeros((img.height, img.width), dtype=np.float32)
+    part = remove(img.crop(view), session=sess).getchannel("A")
+    alpha[view[1]:view[3], view[0]:view[2]] = np.asarray(part, dtype=np.float32) / 255.0
     solid = alpha > 0.5
     cx, cy = min(img.width - 1, x + w // 2), min(img.height - 1, y + h // 2)
     r = max(2, int(w * 0.12))
@@ -165,19 +224,9 @@ def face_cutout(img, face_box=None, person_box=None):
         dist = ndimage.distance_transform_edt(labels == 0, return_indices=True)[1]
         keep = labels[dist[0][cy, cx], dist[1][cy, cx]]
     mask = ndimage.binary_dilation(labels == keep, iterations=r + 1) & solid
-    # the creator's area: the AI's person_box (a little wider), else around the face
-    if person_box:
-        py0, px0, py1, px1 = person_box
-        pad_x, pad_y = 0.03 * (px1 - px0), 0.03 * (py1 - py0)
-        left, right = int((px0 - pad_x) / 1000 * img.width), int((px1 + pad_x) / 1000 * img.width)
-        top = int((py0 - pad_y) / 1000 * img.height)
-    else:
-        left, right, top = int(x - 3.0 * w), int(x + w + 3.0 * w), int(y - 1.1 * h)
-    left, right, top = max(0, left), min(img.width, right), max(0, min(top, y))
-    bottom = min(img.height, int(y + BUST * h))
     area = np.zeros_like(mask)
     area[top:bottom, left:right] = True
-    mask = smooth_mask(ndimage.binary_fill_holes(mask & area))
+    mask = smooth_mask(fill_small_holes(mask & area))
     if mask.sum() < 0.5 * w * h:  # less than half a face: the cut-out missed the creator
         return None, crop, None
     ys, xs = np.nonzero(mask)
@@ -192,12 +241,21 @@ def face_cutout(img, face_box=None, person_box=None):
     if ys.min() <= top + edge and top > 0:
         sides.add("top")
     out = img.convert("RGBA")
-    out.putalpha(Image.fromarray((mask * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(1.0)))
+    out.putalpha(Image.fromarray((mask * 255).astype(np.uint8)))  # hard edge: resize_cutout() smooths it at size
     box = out.getbbox()
     return out.crop(box), crop, {"sides": sides, "face": (x - box[0], y - box[1], w, h)}
 
 
+_FACE_SIZE = {}
+
+
 def face_size(img):
-    """Width of the largest face as a share of the frame width (0 if none)."""
-    face, _ = find_faces(img)
-    return face[2] / img.width if face else 0.0
+    """Width of the largest face as a share of the frame width (0 if none). Remembered per frame, since
+    the face finder is slow on big frames and several steps ask."""
+    key = id(img)
+    if key not in _FACE_SIZE or _FACE_SIZE[key][0] is not img:
+        face, _ = find_faces(img)
+        if len(_FACE_SIZE) > 200:
+            _FACE_SIZE.clear()
+        _FACE_SIZE[key] = (img, face[2] / img.width if face else 0.0)
+    return _FACE_SIZE[key][1]

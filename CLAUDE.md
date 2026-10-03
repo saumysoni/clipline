@@ -66,6 +66,7 @@ The code is split so two people can work on different features without touching 
 | Review cards | | `web/job_status.py`, `web/pages.py` (`/media`) | `js/review.js`, `js/review-cards.js`, `sections/review.html`, `css/review.css` |
 | Hooks | `pipeline/hooks.py` | `web/hooks.py` | `js/hooks.js`, `css/hooks.css` |
 | Thumbnail look (Scene / Burst / Bold switch) | `pipeline/thumbnails/looks/` (one file per look), `make.py` (`relook_thumbnail`) | `web/thumbnail_look.py` | `js/thumbnail-look.js`, `css/thumbnail-look.css` |
+| Post page (after review: list, when, where, upload) | | `web/posting.py` | `sections/review.html` (`#postView`), `js/posting.js` (`showPost()`), `css/posting.css` |
 | Try again | `pipeline/try_again.py` | `web/try_again.py` | `js/review-cards.js` |
 | Add a Short / must-have moments | `pipeline/manual_moment.py` | `web/add_short.py` | `js/review-cards.js` |
 | Choose on the video | `pipeline/preview.py` | `web/preview.py` | `js/picker.js`, `sections/picker.html`, `css/picker.css` |
@@ -171,14 +172,27 @@ The code is split so two people can work on different features without touching 
       "object" items become stickers only if the edge is clean (`edge_quality()`: soft/solidity/ragged limits,
       measured on real frames), else a card. A cut-out covering <4% or >92% of the crop fails. No piece is blown
       up more than `MAX_UPSCALE`; one that would end up under `MIN_PIECE` pixels is left out.
-    - **The creator** is cut out of the whole frame with the people-only model (`THUMB_PERSON_MODEL`, default
-      `u2net_human_seg`: no plates or chairs stuck to her), limited to the AI's `person_box` (else from just
+    - **Edges:** cut-outs keep a hard mask; `resize_cutout()` scales it softly to the final size, re-smooths in
+      proportion to the zoom and cuts it sharp again (scaling a hard mask up gave staircase outlines).
+      `fill_small_holes()` fills only pinholes: filling every hole put dark patches of background (the gap
+      between an arm and the body) inside the outline. Every cut-out goes through `scale_to()`/`resize_cutout()`.
+    - **The creator** is cut out with the people-only model (`THUMB_PERSON_MODEL`, default
+      `u2net_human_seg`: no plates or chairs stuck to her), run on her area plus a margin only (the model sees
+      320x320, so the whole frame gave a coarse outline), limited to the AI's `person_box` (else from just
       above the head and a few face-widths wide) and cut below the chest. `face_cutout()` reports which sides
       are straight cuts; `place_person()` makes her big enough that those run past the canvas edge, keeping
-      the face central, so the outline only follows her real shape. A frame where someone is right above her
+      the face central, so the outline only follows her real shape; if the 55%-face cap stops that, she slides
+      toward the cut side (face kept between 24% and 76% of the width). A frame where someone is right above her
       is only a backup, except the AI's own frame (the face finder's alternatives can be wrong).
     - **Looks:** `compose()` hands the plan to `looks/<look>.py` (`burst`, `scene`, `bold`; `THUMB_LOOK`, default
-      scene). `prepare()` does the shared work (cut-outs, sharp pieces, a "quiet" frame for backgrounds). The
+      burst). Burst fills `SLOTS_AROUND_FACE` (6) with the AI's items first (up to 6), then `other_moments()`:
+      sharp, mutually different frames of the Short, as shaped photos (`shaped_card()`: circle, rounded,
+      arch, polaroid); the creator is drawn last, on top and biggest.
+    - **Fonts:** bundled in `pipeline/thumbnails/fonts/` (OFL): Anton for headlines, DM Serif Display for the
+      small line, matching the creator's own channel style. Latin only; other scripts use the system bold font.
+    - **Speed:** frames are grabbed 4 at a time; `make_shorts` starts each thumbnail as soon as its Short is
+      edited, `THUMB_WORKERS` (3) at once, after `warm_up_thumbnails()` loaded the models in the background.
+      `rembg_session()` is locked (one load per model) and the accent is chosen under a lock. `prepare()` does the shared work (cut-outs, sharp pieces, a "quiet" frame for backgrounds). The
       look is saved in `plan.json`; plans from before looks existed are treated as burst. A creator can switch
       a Short's look on its card (`/api/look/...`, redrawn from `thumbwork_N/`, no AI).
     - **Colours:** `fresh_accent()` gives each Short of a vlog a different accent (it reads the other

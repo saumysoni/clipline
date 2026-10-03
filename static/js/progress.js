@@ -10,7 +10,7 @@ async function tick(){
   job=await r.json();
   if(job.upload_status && job.upload_status!=="error" && !(job.upload_status==="done" && onReview)){ renderUpload(); return; }
   if(job.status==="ready"){
-    if($("s3").hidden || !$("reel").children.length){ renderResults(); show(3); } else refreshResults();
+    if($("s3").hidden || !$("reel").children.length){ renderResults(); show(3); showPost(job.upload_status==="error"); } else refreshResults();
     if((job.uploads||[]).length) markPosted();
     if(focusIdx!=null){ const el=document.querySelector('.short[data-idx="'+focusIdx+'"]'); focusIdx=null; if(el) el.scrollIntoView({block:"center"}); }
     if(job.upload_status==="error"){ markPosted(); if(!$("err3").textContent) $("err3").textContent="Posting stopped: "+job.upload_msg; }

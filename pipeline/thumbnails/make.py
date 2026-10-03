@@ -20,6 +20,22 @@ def make_thumbnail(video_path, meta, moment, cx, idx, job_dir, words=None, conte
     return make_simple_thumbnail(video_path, meta, moment, cx, idx, job_dir)
 
 
+def warm_up_thumbnails():
+    """Load the cut-out models in the background (call early; never fails)."""
+    if os.getenv("THUMB_STYLE", "collage").lower() == "simple":
+        return
+
+    def load():
+        try:
+            from pipeline.thumbnails.cutout import warm_up
+            warm_up()
+        except Exception as e:  # noqa: BLE001
+            print(f"Couldn't load the cut-out models early ({e}).")
+
+    import threading
+    threading.Thread(target=load, daemon=True).start()
+
+
 def retext_thumbnail(video_path, meta, moment, cx, num, job_dir):
     """The Short's thumbnail with new text (moment's thumb_line1/2) as thumb_<num>.jpg. A collage reuses
     its saved frames and layout (no AI, no new frames); otherwise the simple style is drawn again."""

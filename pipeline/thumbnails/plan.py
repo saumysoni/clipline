@@ -1,5 +1,5 @@
 """
-Thumbnails, step 2: the AI looks at the frames and plans the collage (best face frame, up to 3
+Thumbnails, step 2: the AI looks at the frames and plans the collage (best face frame, up to 6
 things worth showing with their position, text, accent colour). plan_without_ai() is the fallback.
 Boxes are box_2d = [ymin, xmin, ymax, xmax] on a 0-1000 scale; clean_plan() checks everything.
 
@@ -36,7 +36,7 @@ Return ONLY a JSON object:
               (the creator, not anyone else in the frame), or null,
   "person_box": [ymin, xmin, ymax, xmax] around the creator's whole visible body (head, hair, arms) in
                 that frame, scaled 0-1000, not including anyone else, or null,
-  "items": up to 3 distinct things this Short is about (food, animal, vehicle, landmark, product,
+  "items": up to 6 distinct things this Short is about (food, animal, vehicle, landmark, product,
            view...), never the creator. They must match the title, hook or what is said: if the title
            names something (a dish, a place, a price), show THAT thing, first. Never pick random
            background objects. Only include a thing if it is big, sharp and clearly recognisable in
@@ -109,7 +109,7 @@ def clean_plan(raw, frames, moment):
             return None
 
     items = []
-    for it in (raw.get("items") or [])[:3]:
+    for it in (raw.get("items") or [])[:6]:
         if not isinstance(it, dict):
             continue
         k, box = frame_no(it.get("frame")), it.get("box_2d")

@@ -6,7 +6,7 @@ import os
 import secrets
 import urllib.request
 
-from youtube.config import CLIENT_SECRET, LOGIN_SCOPES, NET_TIMEOUT, SCOPES, YOUTUBE_SCOPE, client_id
+from youtube.config import LOGIN_SCOPES, NET_TIMEOUT, SCOPES, YOUTUBE_SCOPE, client_config, client_id
 from youtube.connection import _CHANNEL, _lookup_channel, _quick_request, _save_token
 
 
@@ -24,12 +24,12 @@ def start_google(purpose, redirect_uri, next_id="", popup=False):
     purpose is "login" (Clipline account) or "youtube" (connect a channel)."""
     from google_auth_oauthlib.flow import Flow
 
-    if not CLIENT_SECRET.exists():
-        raise RuntimeError("Google sign-in isn't set up yet: client_secret.json is missing. "
+    if not client_config():
+        raise RuntimeError("Google sign-in isn't set up yet: Clipline has no Google client. "
                            "Follow README step 5, then try again.")
     _allow_http(redirect_uri)
     scopes = LOGIN_SCOPES if purpose == "login" else SCOPES
-    flow = Flow.from_client_secrets_file(str(CLIENT_SECRET), scopes, redirect_uri=redirect_uri)
+    flow = Flow.from_client_config(client_config(), scopes, redirect_uri=redirect_uri)
     extra = ({"prompt": "select_account"} if purpose == "login"
              else {"access_type": "offline", "prompt": "consent select_account"})
     url, state = flow.authorization_url(**extra)
@@ -49,7 +49,7 @@ def _exchange(args, pending, scopes):
             str(args.get("state", "")), str(pending.get("state", ""))):
         raise RuntimeError("This sign-in page is out of date. Close it and try again.")
     _allow_http(pending["redirect_uri"])
-    flow = Flow.from_client_secrets_file(str(CLIENT_SECRET), scopes, redirect_uri=pending["redirect_uri"],
+    flow = Flow.from_client_config(client_config(), scopes, redirect_uri=pending["redirect_uri"],
                                          code_verifier=pending["verifier"], autogenerate_code_verifier=False)
     try:
         token = flow.fetch_token(code=args["code"], timeout=NET_TIMEOUT)
