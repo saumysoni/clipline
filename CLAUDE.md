@@ -5,9 +5,9 @@ Guidance for Claude (and humans) working on this repo. Read this before changing
 ## What Clipline is
 
 A local web app that turns one long vlog into finished vertical YouTube Shorts:
-transcribe (faster-whisper) → pick moments (Gemini) → cut, reframe to 9:16 around the face, burn in
-word-by-word captions (FFmpeg + libass) → thumbnail (Pillow) → review in the browser → upload and
-schedule (YouTube Data API v3).
+transcribe (faster-whisper) → pick moments (Gemini, or OpenAI with `AI_PROVIDER=openai`) → cut,
+reframe to 9:16 around the face, burn in word-by-word captions (FFmpeg + libass) → thumbnail (Pillow)
+→ review in the browser → upload and schedule (YouTube Data API v3).
 
 Everything runs on the user's own computer. The people using it are **creators, not developers**:
 every error they can see must be plain English and say what to do next.
@@ -102,14 +102,21 @@ Manual run: `.venv/bin/python app.py`. There is no build step and no test suite 
     YouTube audiovisual content, even the creator's own, and breaking that risks the API access posting
     depends on. `fetch_video_info()` reads only public text (Data API with `YOUTUBE_API_KEY`, else oEmbed =
     title only). The video always comes from an upload or a Drive link.
-11. **Gemini calls go through `gemini_json()`** (retries busy models, skips retired ones, parses JSON). Use it
-    for any new Gemini feature instead of calling the client directly.
+11. **AI calls go through `ai_json()`**, which uses Gemini (`gemini_json()`) or OpenAI (`openai_json()`) depending
+    on `AI_PROVIDER`. Both share `ask_models()` (retries busy models, skips retired ones) and parse JSON. Use
+    it for any new AI feature instead of calling a client directly, and pass images as `image_part(bytes)`.
+    OpenAI's JSON mode only returns objects, so a requested list arrives as `{"items": [...]}`; callers must
+    accept a dict wrapping the list (as `pick_moments()` does). OpenAI's reasoning models reject
+    `temperature`, so `openai_json()` retries without it. `OPENAI_FALLBACK_MODELS` needs the same care as
+    `FALLBACK_MODELS` (check https://platform.openai.com/docs/models).
 12. **Thumbnails:** Gemini's `box_2d` is `[ymin, xmin, ymax, xmax]` on a 0-1000 scale. `clean_plan()` validates
     everything Gemini returns. The face cut-out crops ~1.2 face-widths either side first and splits thin
     bridges (erode → pick the blob under the face → dilate), so people next to the creator aren't included;
     overlapping people can still leak in, which is why the prompt asks for frames with the creator alone.
     "scene" items become photo cards and "object" items become stickers; a cut-out covering <4% or >92% of
     the crop counts as failed and becomes a card. Output stays under YouTube's 2 MB thumbnail limit.
+    Gemini is trained on `box_2d`; OpenAI models are asked for the same format but place boxes less
+    precisely, so expect looser item cut-outs with `AI_PROVIDER=openai`.
     rembg downloads its model (~180 MB) on first use into `U2NET_HOME` (default `~/.u2net`); bake it into the
     server image in the cloud.
 
