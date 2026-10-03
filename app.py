@@ -180,19 +180,28 @@ def start():
     return jsonify(id=job_id)
 
 
+def load_job(job_id):
+    """The job from memory, or from its job.json if the app was restarted. Call with LOCK held."""
+    job = JOBS.get(job_id)
+    if not job and re.fullmatch(r"[0-9a-f]{10}", job_id):
+        saved = JOBS_DIR / job_id / "job.json"
+        if saved.exists():  # app was restarted: reload finished jobs
+            job = json.loads(saved.read_text(encoding="utf-8"))
+            if job.get("status") == "working":
+                job.update(status="error", error="Clipline was closed while this was running. Start it again.")
+            if job.get("upload_status") in ("starting", "connecting", "uploading"):
+                job.update(upload_status="error", upload_msg="Clipline was closed during posting.")
+            for s in job.get("shorts", []):
+                if s.pop("retrying", None):
+                    s["retry_error"] = "Clipline was closed while this was being remade. Try again."
+            JOBS[job_id] = job
+    return job
+
+
 @app.get("/api/status/<job_id>")
 def status(job_id):
     with LOCK:
-        job = JOBS.get(job_id)
-        if not job and re.fullmatch(r"[0-9a-f]{10}", job_id):
-            saved = JOBS_DIR / job_id / "job.json"
-            if saved.exists():  # app was restarted: reload finished jobs
-                job = json.loads(saved.read_text(encoding="utf-8"))
-                if job.get("status") == "working":
-                    job.update(status="error", error="Clipline was closed while this was running. Start it again.")
-                if job.get("upload_status") in ("starting", "connecting", "uploading"):
-                    job.update(upload_status="error", upload_msg="Clipline was closed during posting.")
-                JOBS[job_id] = job
+        job = load_job(job_id)
         if not job:
             abort(404)
         return jsonify(job)
@@ -203,6 +212,79 @@ def media(job_id, name):
     if not re.fullmatch(r"[0-9a-f]{10}", job_id) or not re.fullmatch(r"(short|thumb)_\d+\.(mp4|jpg)", name):
         abort(404)
     return send_from_directory(JOBS_DIR / job_id, name, conditional=True)
+
+
+# --------------------------------------------------------------------------- try again
+RETRY_LOCKS = {}  # one remake at a time per job, so two new picks can't land on the same moment
+
+
+def update_short(job_id, idx, **kw):
+    with LOCK:
+        job = JOBS[job_id]
+        job["shorts"] = [{**s, **kw} if s["idx"] == idx else s for s in job["shorts"]]
+        (JOBS_DIR / job_id / "job.json").write_text(json.dumps(job, default=str), encoding="utf-8")
+
+
+def retry_short(job_id, idx, note):
+    job_dir = JOBS_DIR / job_id
+    with LOCK:
+        lock = RETRY_LOCKS.setdefault(job_id, threading.Lock())
+    try:
+        with lock:
+            say = lambda pct, msg: update_short(job_id, idx, retry_msg=msg)  # noqa: E731
+            say(0, "Finding a new moment")
+            with LOCK:
+                job = json.loads(json.dumps(JOBS[job_id]))
+            me = next(s for s in job["shorts"] if s["idx"] == idx)
+            taken = [s for s in job["shorts"] if s["idx"] != idx]
+            rejected = me.get("tried", []) + [{"start": me["start"], "end": me["end"]}]
+            src = next(job_dir.glob("source.*"), None)
+            tr_path = job_dir / "transcript.json"
+            if not src or not tr_path.exists():
+                raise RuntimeError("The original video for this job is gone, so it can't be remade. "
+                                   "Start a new vlog instead.")
+            tr = json.loads(tr_path.read_text(encoding="utf-8"))
+            m = pipeline.repick_moment(tr, taken, rejected, note, say, context=job.get("vlog"))
+
+            # New file names, so the browser shows the new Short instead of a cached old one.
+            used = [int(n) for s in job["shorts"] for n in re.findall(r"_(\d+)\.", s["video"] + s["thumb"])]
+            num = max(used + [len(job["shorts"])]) + 1
+            meta = pipeline.probe(src)
+            pipeline.prepare_job_fonts(job_dir)
+            say(0, "Editing the new Short")
+            video, cx = pipeline.render_short(src, meta, m, tr["words"], num, job.get("style", "bold"), job_dir)
+            say(0, "Designing the thumbnail")
+            thumb = pipeline.make_thumbnail(src, meta, m, cx, num, job_dir, tr["words"], job.get("vlog"))
+        with LOCK:
+            job = JOBS[job_id]
+            job["shorts"] = [{**m, "idx": idx, "video": video, "thumb": thumb, "keep": True, "tried": rejected}
+                             if s["idx"] == idx else s for s in job["shorts"]]
+            (job_dir / "job.json").write_text(json.dumps(job, default=str), encoding="utf-8")
+    except Exception as e:
+        traceback.print_exc()
+        update_short(job_id, idx, retrying=False, retry_error=str(e))
+
+
+@app.post("/api/retry/<job_id>/<int:idx>")
+def retry(job_id, idx):
+    note = str((request.get_json(silent=True) or {}).get("note", ""))[:500]
+    with LOCK:
+        job = load_job(job_id)
+        if not job or job.get("status") != "ready":
+            abort(400)
+        if job.get("upload_status") in ("starting", "connecting", "uploading"):
+            return jsonify(error="Wait until posting has finished."), 400
+        me = next((s for s in job["shorts"] if s["idx"] == idx), None)
+        if not me:
+            abort(404)
+        if me.get("retrying"):
+            return jsonify(error="This Short is already being remade."), 400
+    if job.get("upload_status") == "error":
+        update(job_id, upload_status=None)  # the page shows the review screen again while remaking
+    update_short(job_id, idx, retrying=True, retry_msg="Waiting for the other Short to finish",
+                 retry_error=None)
+    threading.Thread(target=retry_short, args=(job_id, idx, note), daemon=True).start()
+    return jsonify(ok=True)
 
 
 # --------------------------------------------------------------------------- schedule & upload
@@ -238,10 +320,12 @@ def do_upload(job_id, items, mode):
 def schedule(job_id):
     data = request.get_json(force=True)
     with LOCK:
-        job = JOBS.get(job_id)
+        job = load_job(job_id)
         if not job or job.get("status") != "ready":
             abort(400)
         by_idx = {s["idx"]: s for s in job["shorts"]}
+        if any(s.get("retrying") for s in job["shorts"]):
+            return jsonify(error="Wait until the Short you're remaking is ready."), 400
     if not yt.is_configured():
         return jsonify(error="YouTube isn't connected yet: client_secret.json is missing. "
                              "The Shorts are saved in the jobs folder, so you can post them by hand, "

@@ -101,7 +101,18 @@ ul.tasks li.done{color:var(--ink)}ul.tasks li.done .tick{background:var(--good);
 .row{display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:.9rem}
 .keep{display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500}
 .keep input{width:18px;height:18px;accent-color:var(--accent)}
-.row a{color:var(--muted)}
+.row a,.linkbtn{color:var(--muted)}
+.links{display:flex;gap:12px}
+.linkbtn{border:0;background:none;padding:0;cursor:pointer;text-decoration:underline;font-size:inherit}
+.linkbtn:disabled{opacity:.4;cursor:default}
+.redo{margin-top:10px}
+.redo textarea{font-size:.88rem;padding:8px 10px;background:var(--surface)}
+.redo-row{display:flex;gap:8px;margin-top:8px}
+.redo-row button{padding:8px 12px;font-size:.88rem;border-radius:10px}
+.busy{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px;text-align:center;background:color-mix(in srgb,#000 72%,transparent);color:#fff;font-weight:600;font-size:.92rem}
+.short.redoing .busy{display:flex}
+.busy .spin{width:28px;height:28px;border-radius:50%;border:3px solid #fff;border-top-color:transparent;animation:spin .8s linear infinite}
+.short .err{font-size:.85rem;margin-top:6px;min-height:0}
 .dock{position:sticky;bottom:0;z-index:5;margin:8px -20px 0;padding:14px 20px calc(14px + env(safe-area-inset-bottom,0px));background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);border-top:1px solid var(--line);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .dock select{width:auto;min-width:240px}
 .dock .grow{flex:1;color:var(--muted);font-size:.92rem}
@@ -198,7 +209,7 @@ ul.tasks li.done{color:var(--ink)}ul.tasks li.done .tick{background:var(--good);
     <div class="head">
       <div>
         <h2 id="resTitle">Your Shorts are ready</h2>
-        <p class="lede">Play each one, edit titles, flip to see the thumbnail, and untick anything you don't want posted.</p>
+        <p class="lede">Play each one, edit titles, flip to see the thumbnail, and untick anything you don't want posted. Not happy with one? Click <b>Try again</b> under it.</p>
       </div>
       <button class="ghost" id="newBtn" type="button">Start a new vlog</button>
     </div>
@@ -313,7 +324,11 @@ async function tick(){
   if(r.status===404){ clearInterval(poll); location.hash=""; show(1); return; }
   job=await r.json();
   if(job.upload_status){ renderUpload(); return; }
-  if(job.status==="ready"){ clearInterval(poll); renderResults(); show(3); return; }
+  if(job.status==="ready"){
+    if($("s3").hidden || !$("reel").children.length){ renderResults(); show(3); } else refreshResults();
+    if(!job.shorts.some(s=>s.retrying)) clearInterval(poll);
+    return;
+  }
   renderProgress();
 }
 function renderProgress(){
@@ -331,35 +346,82 @@ function renderProgress(){
 }
 
 // ---- review
+function cardHTML(s){
+  const v="/media/"+job.id+"/"+s.video, t="/media/"+job.id+"/"+s.thumb;
+  return '<article class="short" data-idx="'+s.idx+'" data-video="'+esc(s.video)+'">'+
+    '<div class="phone"><video src="'+v+'" poster="'+t+'" controls playsinline preload="metadata"></video><img src="'+t+'" alt="Thumbnail for '+esc(s.title)+'">'+
+      '<div class="busy" aria-live="polite"><span class="spin" aria-hidden="true"></span><span class="bmsg"></span></div></div>'+
+    '<div class="toggle" role="group" aria-label="Preview"><button type="button" aria-pressed="true" data-v="v">Short</button><button type="button" aria-pressed="false" data-v="t">Thumbnail</button></div>'+
+    '<input class="title" type="text" value="'+esc(s.title)+'" aria-label="Title for Short '+s.idx+'" maxlength="95">'+
+    '<div class="from">From '+fmt(s.start)+' to '+fmt(s.end)+' ('+Math.round(s.end-s.start)+'s)</div>'+
+    '<div class="why">'+esc(s.why)+'</div>'+
+    '<div class="row"><label class="keep"><input type="checkbox"'+(s.keep===false?'':' checked')+'> Post this</label>'+
+      '<span class="links"><button type="button" class="linkbtn retry">Try again</button><a href="'+v+'" download>Download</a></span></div>'+
+    '<div class="redo" hidden>'+
+      '<textarea rows="3" maxlength="500" aria-label="What would you like instead for Short '+s.idx+'?" placeholder="Optional: what would you like instead? For example: the part where we reach the top, or around 3:20"></textarea>'+
+      '<div class="redo-row"><button type="button" class="primary go">Find another moment</button><button type="button" class="ghost cancel">Cancel</button></div>'+
+    '</div>'+
+    '<div class="err rerr" role="alert"></div>'+
+  '</article>';
+}
+function wire(el){
+  el.querySelectorAll(".toggle button").forEach(b=>b.onclick=()=>{
+    el.querySelectorAll(".toggle button").forEach(x=>x.setAttribute("aria-pressed",x===b));
+    el.classList.toggle("thumb",b.dataset.v==="t"); if(b.dataset.v==="t") el.querySelector("video").pause();
+  });
+  el.querySelector(".keep input").onchange=e=>{ el.classList.toggle("off",!e.target.checked); dock(); };
+  el.querySelector("video").addEventListener("play",e=>document.querySelectorAll("#reel video").forEach(v=>{ if(v!==e.target) v.pause(); }));
+  const redo=el.querySelector(".redo");
+  el.querySelector(".retry").onclick=()=>{ redo.hidden=!redo.hidden; if(!redo.hidden) redo.querySelector("textarea").focus(); };
+  el.querySelector(".cancel").onclick=()=>{ redo.hidden=true; };
+  el.querySelector(".go").onclick=async()=>{
+    el.querySelector(".rerr").textContent="";
+    let r, j={};
+    try{
+      r=await fetch("/api/retry/"+jobId+"/"+el.dataset.idx,{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({note:redo.querySelector("textarea").value.trim()})});
+      try{ j=await r.json(); }catch(e){}
+    }catch(e){ el.querySelector(".rerr").textContent="Couldn't reach Clipline. Is the app window still open?"; return; }
+    if(!r.ok){ el.querySelector(".rerr").textContent=j.error||"Couldn't start remaking this Short."; return; }
+    redo.hidden=true; el.querySelector("video").pause();
+    clearInterval(poll); poll=setInterval(tick,1000); tick();
+  };
+}
+function paintState(el,s){
+  el.classList.toggle("redoing",!!s.retrying);
+  el.querySelector(".bmsg").textContent = s.retrying ? (s.retry_msg||"Remaking this Short") : "";
+  el.querySelector(".retry").disabled = !!s.retrying;
+  el.querySelector(".rerr").textContent = s.retry_error ? "Try again stopped: "+s.retry_error : "";
+}
 function renderResults(){
   const n=job.shorts.length;
   $("resTitle").textContent = n===1 ? "Your Short is ready" : "Your "+n+" Shorts are ready";
-  $("reel").innerHTML = job.shorts.map(s=>{
-    const v="/media/"+job.id+"/"+s.video, t="/media/"+job.id+"/"+s.thumb;
-    return '<article class="short" data-idx="'+s.idx+'">'+
-      '<div class="phone"><video src="'+v+'" poster="'+t+'" controls playsinline preload="metadata"></video><img src="'+t+'" alt="Thumbnail for '+esc(s.title)+'"></div>'+
-      '<div class="toggle" role="group" aria-label="Preview"><button type="button" aria-pressed="true" data-v="v">Short</button><button type="button" aria-pressed="false" data-v="t">Thumbnail</button></div>'+
-      '<input class="title" type="text" value="'+esc(s.title)+'" aria-label="Title for Short '+s.idx+'" maxlength="95">'+
-      '<div class="from">From '+fmt(s.start)+' to '+fmt(s.end)+' ('+Math.round(s.end-s.start)+'s)</div>'+
-      '<div class="why">'+esc(s.why)+'</div>'+
-      '<div class="row"><label class="keep"><input type="checkbox" checked> Post this</label><a href="'+v+'" download>Download</a></div>'+
-    '</article>';
-  }).join("");
+  $("reel").innerHTML = job.shorts.map(cardHTML).join("");
   document.querySelectorAll(".short").forEach(el=>{
-    el.querySelectorAll(".toggle button").forEach(b=>b.onclick=()=>{
-      el.querySelectorAll(".toggle button").forEach(x=>x.setAttribute("aria-pressed",x===b));
-      el.classList.toggle("thumb",b.dataset.v==="t"); if(b.dataset.v==="t") el.querySelector("video").pause();
-    });
-    el.querySelector(".keep input").onchange=e=>{ el.classList.toggle("off",!e.target.checked); dock(); };
-    el.querySelector("video").addEventListener("play",e=>document.querySelectorAll("#reel video").forEach(v=>{ if(v!==e.target) v.pause(); }));
+    const s=job.shorts.find(x=>x.idx===+el.dataset.idx);
+    wire(el); paintState(el,s); el.classList.toggle("off",s.keep===false);
+  });
+  dock();
+}
+// While a Short is being remade, refresh only the cards that changed, so edited titles and ticks stay.
+function refreshResults(){
+  job.shorts.forEach(s=>{
+    let el=document.querySelector('.short[data-idx="'+s.idx+'"]');
+    if(!el) return;
+    if(el.dataset.video!==s.video){
+      el.insertAdjacentHTML("afterend",cardHTML(s)); el.remove();
+      el=document.querySelector('.short[data-idx="'+s.idx+'"]'); wire(el);
+    }
+    paintState(el,s);
   });
   dock();
 }
 function dock(){
   const total=document.querySelectorAll(".short").length, k=document.querySelectorAll(".short .keep input:checked").length;
-  $("dockText").textContent = k ? k+" of "+total+" will be posted" : "Tick at least one Short";
+  const busy=document.querySelectorAll(".short.redoing").length;
+  $("dockText").textContent = busy ? "Remaking "+(busy===1?"a Short":busy+" Shorts")+"..." : k ? k+" of "+total+" will be posted" : "Tick at least one Short";
   $("schedBtn").textContent = k===1 ? "Schedule 1 Short" : "Schedule "+k+" Shorts";
-  $("schedBtn").disabled = !k;
+  $("schedBtn").disabled = !k || busy>0;
 }
 $("schedBtn").onclick=async()=>{
   $("err3").textContent="";

@@ -606,6 +606,50 @@ def clean_moments(raw, transcript, n):
     return picked
 
 
+def overlaps(a, b):
+    return a["start"] < b["end"] and b["start"] < a["end"]
+
+
+def repick_moment(transcript, taken, rejected, note="", progress=lambda pct, msg: None, context=None):
+    """Pick one replacement moment for a Short the creator didn't like.
+
+    `taken` are the other Shorts' moments (never overlapped), `rejected` the moments already
+    tried for this Short (avoided unless the creator's note asks for one of them, e.g. "start earlier"),
+    `note` is what the creator asked for, in their own words (may be empty).
+    """
+    span = lambda m: f"{m['start']:.1f}-{m['end']:.1f}s"  # noqa: E731
+    extra = ""
+    if taken:
+        extra += ("ALREADY USED by other Shorts, never overlap these: "
+                  + ", ".join(span(m) for m in taken) + "\n")
+    if rejected:
+        extra += ("THE CREATOR DIDN'T LIKE these picks, choose something different: "
+                  + ", ".join(span(m) for m in rejected) + "\n")
+    if note.strip():
+        extra += ("WHAT THE CREATOR WANTS for this Short (follow it closely; if they give a time like 3:20, "
+                  f"the moment must include that time): {note.strip()[:500]}\n")
+    lines = [f"[{s['s']:.1f}-{s['e']:.1f}] {s['text']}" for s in transcript["segments"]]
+    prompt = PICK_PROMPT.format(
+        duration=fmt_mmss(transcript["duration"]), n=3, min_len=MIN_LEN + 5, max_len=MAX_LEN,
+        transcript="\n".join(lines), context=vlog_context_block(context) + (extra and extra + "\n"),
+    )
+    progress(20, "Reading the transcript again")
+    raw = ai_json(prompt, progress)
+    if isinstance(raw, dict):
+        raw = next((v for v in raw.values() if isinstance(v, list)), [])
+    progress(60, "Choosing a new moment")
+    try:
+        options = clean_moments(raw, transcript, 3)
+    except RuntimeError:
+        options = []
+    options = [m for m in options if not any(overlaps(m, t) for t in taken)]
+    fresh = [m for m in options if not any(overlaps(m, r) for r in rejected)]
+    if fresh or (options and note.strip()):
+        return (fresh or options)[0]
+    raise RuntimeError("Couldn't find another good moment that doesn't overlap your other Shorts. "
+                       "Describe the moment you want in the box (or give a time like 3:20) and try again.")
+
+
 # --------------------------------------------------------------------------- 3. render
 def face_center_x(video_path, start, end, width):
     """Median horizontal position of the main face during the clip (None if no face).
