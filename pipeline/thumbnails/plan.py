@@ -17,6 +17,10 @@ from pipeline.ai import ai_json, has_key, image_part
 from pipeline.thumbnails.frames import find_faces
 
 
+AI_TIMEOUT = 60    # seconds one planning request may take (it normally takes 5-20)
+AI_DEADLINE = 120  # seconds the whole planning may take, every model and provider included
+
+
 ACCENTS = ["#FFD60A", "#00F5D4", "#FF4D6D", "#7CFF4F", "#4CC9F0", "#FF9F1C", "#C77DFF"]
 
 
@@ -89,7 +93,8 @@ def ask_ai(contents):
         raise RuntimeError("no AI key in .env")
     for provider in providers:
         try:
-            return ai_json(contents, temperature=0.5, provider=provider)
+            # a thumbnail can always be made without the AI, so don't wait long for it
+            return ai_json(contents, temperature=0.5, provider=provider, timeout=AI_TIMEOUT, busy_waits=[])
         except Exception as e:  # noqa: BLE001  (busy, limit used up, bad key...: try the next one)
             print(f"Thumbnail planning with {provider} didn't work ({e}).")
             last = e

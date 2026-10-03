@@ -20,12 +20,16 @@ OPENAI_FALLBACK_MODELS = ["gpt-5.4-mini", "gpt-5-mini", "gpt-4.1-mini"]
 BUSY_WAITS = [15, 45]  # seconds to wait before another round when every model is busy
 
 
+TIMEOUT = 180  # seconds one request may take; without a limit, a request that never answers hangs forever
+
+
 def gemini_error_kind(e):
     """Sort a Gemini error into: busy, limit, missing, bad_key or other."""
     code = getattr(e, "code", None)
     msg = str(e).lower()
     if code in (500, 502, 503, 504) or any(k in msg for k in ("unavailable", "overloaded", "high demand",
-                                                               "deadline", "internal error", "timed out")):
+                                                               "deadline", "internal error", "timed out", "timeout")) \
+            or "Timeout" in type(e).__name__:
         return "busy"
     if code == 429 or "resource_exhausted" in msg or "quota" in msg:
         return "limit"
@@ -68,21 +72,25 @@ def has_key(provider):
     return bool(os.getenv({"gemini": "GEMINI_API_KEY", "openai": "OPENAI_API_KEY"}.get(provider, "")))
 
 
-def ai_json(contents, progress=lambda pct, msg: None, temperature=0.4, busy_hint="", provider=None):
+def ai_json(contents, progress=lambda pct, msg: None, temperature=0.4, busy_hint="", provider=None,
+            timeout=TIMEOUT, busy_waits=None):
     """Ask the AI for JSON: `provider` if given ("gemini" or "openai"), else AI_PROVIDER in .env.
 
     `contents` is a string, or a list of strings and image_part()s. Returns the parsed JSON.
+    timeout: seconds per request (a timed-out request counts as busy). busy_waits: the waits between
+    rounds when every model is busy (default BUSY_WAITS; [] = one round, for callers in a hurry).
     """
     provider = (provider or ai_provider()).strip().lower()
     if provider == "openai":
-        return openai_json(contents, progress, temperature, busy_hint)
+        return openai_json(contents, progress, temperature, busy_hint, timeout, busy_waits)
     if provider != "gemini":
         raise RuntimeError(f"AI_PROVIDER in .env is '{provider}', which Clipline doesn't know. "
                            "Set it to gemini or openai and restart.")
-    return gemini_json(contents, progress, temperature, busy_hint)
+    return gemini_json(contents, progress, temperature, busy_hint, timeout, busy_waits)
 
 
-def ask_models(name, candidates, call, error_kind, fatal, progress, busy_hint, busy_msg, limit_msg, none_msg):
+def ask_models(name, candidates, call, error_kind, fatal, progress, busy_hint, busy_msg, limit_msg, none_msg,
+               busy_waits=None):
     """Run call(model) on each model in turn and return the first answer.
 
     Busy models are retried in rounds (waits in BUSY_WAITS), missing or limited models are skipped,
@@ -90,7 +98,7 @@ def ask_models(name, candidates, call, error_kind, fatal, progress, busy_hint, b
     """
     resp, problems = None, []
     # Each round tries every model once; if they were all busy, wait a bit and go again.
-    for wait in [0] + BUSY_WAITS:
+    for wait in [0] + list(BUSY_WAITS if busy_waits is None else busy_waits):
         if wait:
             progress(10, f"{name} is busy, trying again in {wait} seconds")
             time.sleep(wait)
@@ -139,7 +147,8 @@ def candidate_models(env_name, fallbacks):
     return [wanted] + [m for m in fallbacks if m != wanted]
 
 
-def gemini_json(contents, progress=lambda pct, msg: None, temperature=0.4, busy_hint=""):
+def gemini_json(contents, progress=lambda pct, msg: None, temperature=0.4, busy_hint="", timeout=TIMEOUT,
+                busy_waits=None):
     """Ask Gemini for JSON, trying the model from .env first and then the other current models.
 
     Gemini sometimes answers "busy" (503) or "limit reached" (429): busy models are retried in rounds
@@ -152,7 +161,7 @@ def gemini_json(contents, progress=lambda pct, msg: None, temperature=0.4, busy_
     key = os.getenv("GEMINI_API_KEY")
     if not key:
         raise RuntimeError("GEMINI_API_KEY is missing. Add it to the .env file (see README).")
-    client = genai.Client(api_key=key)
+    client = genai.Client(api_key=key, http_options=types.HttpOptions(timeout=int(timeout * 1000)))
     if isinstance(contents, list):
         contents = [types.Part.from_bytes(data=c["image"], mime_type=c["mime_type"]) if isinstance(c, dict)
                     else c for c in contents]
@@ -168,11 +177,12 @@ def gemini_json(contents, progress=lambda pct, msg: None, temperature=0.4, busy_
         busy_msg="Gemini is overloaded right now (this is on Google's side). ",
         limit_msg="Gemini's free usage limit is used up for now. Try again in a while (or tomorrow). ",
         none_msg="None of the Gemini models are available to this API key. "
-                 "Put a current Flash model name in GEMINI_MODEL in .env.")
+                 "Put a current Flash model name in GEMINI_MODEL in .env.", busy_waits=busy_waits)
     return parse_ai_json(resp.text, "Gemini")
 
 
-def openai_json(contents, progress=lambda pct, msg: None, temperature=0.4, busy_hint=""):
+def openai_json(contents, progress=lambda pct, msg: None, temperature=0.4, busy_hint="", timeout=TIMEOUT,
+                busy_waits=None):
     """Ask OpenAI for JSON, trying OPENAI_MODEL first and then the other current models (same retry
     rules as gemini_json()). OpenAI's JSON mode only returns objects, so a requested list comes back
     wrapped in an object; callers already accept that.
@@ -185,7 +195,7 @@ def openai_json(contents, progress=lambda pct, msg: None, temperature=0.4, busy_
     if not key:
         raise RuntimeError("OPENAI_API_KEY is missing. Add it to the .env file (see README), "
                            "or set AI_PROVIDER=gemini.")
-    client = OpenAI(api_key=key, max_retries=0, timeout=300)
+    client = OpenAI(api_key=key, max_retries=0, timeout=timeout)
     parts = []
     for c in contents if isinstance(contents, list) else [contents]:
         if isinstance(c, dict):
@@ -223,5 +233,5 @@ def openai_json(contents, progress=lambda pct, msg: None, temperature=0.4, busy_
         busy_msg="OpenAI is overloaded right now (this is on OpenAI's side). ",
         limit_msg="OpenAI's rate limit was reached. Wait a minute and try again. ",
         none_msg="None of the OpenAI models are available to this API key. "
-                 "Put a current model name in OPENAI_MODEL in .env.")
+                 "Put a current model name in OPENAI_MODEL in .env.", busy_waits=busy_waits)
     return parse_ai_json(resp.choices[0].message.content, "OpenAI")

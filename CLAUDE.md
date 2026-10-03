@@ -192,7 +192,10 @@ The code is split so two people can work on different features without touching 
       small line, matching the creator's own channel style. Latin only; other scripts use the system bold font.
     - **Speed:** frames are grabbed 4 at a time; `make_shorts` starts each thumbnail as soon as its Short is
       edited, `THUMB_WORKERS` (3) at once, after `warm_up_thumbnails()` loaded the models in the background.
-      `rembg_session()` is locked (one load per model) and the accent is chosen under a lock. `prepare()` does the shared work (cut-outs, sharp pieces, a "quiet" frame for backgrounds). The
+      `rembg_session()` is locked (one load per model) and the accent is chosen under a lock.
+    - **Never wait forever on the AI:** every request has a timeout (`ai.TIMEOUT`, 180 s; thumbnails 60 s, no
+      busy waits), and thumbnail planning has an overall `AI_DEADLINE` (120 s) after which `plan_without_ai()` is
+      used. Without these, one Gemini request that never answered left a job stuck on "Thumbnail 2 of 6". `prepare()` does the shared work (cut-outs, sharp pieces, a "quiet" frame for backgrounds). The
       look is saved in `plan.json`; plans from before looks existed are treated as burst. A creator can switch
       a Short's look on its card (`/api/look/...`, redrawn from `thumbwork_N/`, no AI).
     - **Colours:** `fresh_accent()` gives each Short of a vlog a different accent (it reads the other

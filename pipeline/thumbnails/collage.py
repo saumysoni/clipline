@@ -4,13 +4,15 @@ one with new text from its saved thumbwork_N/ folder (no AI, no new frames).
 """
 import json
 import threading
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeout
 from pathlib import Path
 
 from PIL import Image
 
 from pipeline.thumbnails.frames import sample_frames
 from pipeline.thumbnails.layout import compose, save
-from pipeline.thumbnails.plan import fresh_accent, plan, plan_without_ai
+from pipeline.thumbnails.plan import AI_DEADLINE, fresh_accent, plan, plan_without_ai
 
 
 _ACCENT_LOCK = threading.Lock()  # thumbnails made side by side must not pick the same colour
@@ -39,11 +41,19 @@ def make_collage_thumbnail(video_path, moment, idx, job_dir, words=None, context
     job_dir = Path(job_dir)
     work = job_dir / f"thumbwork_{idx}"
     frames = sample_frames(video_path, moment["start"], moment["end"], work)
+    # The AI gets AI_DEADLINE seconds in all; after that the thumbnail is planned without it, so one
+    # request that never answers can't hold up the whole job (it once hung forever on "Thumbnail 2 of 6").
+    pool = ThreadPoolExecutor(1)
     try:
-        pl = plan(frames, moment, words, context)
+        pl = pool.submit(plan, frames, moment, words, context).result(timeout=AI_DEADLINE)
+    except FuturesTimeout:
+        print(f"Thumbnail planning took over {AI_DEADLINE}s; planning without AI.")
+        pl = plan_without_ai(frames, moment)
     except Exception as e:  # noqa: BLE001  (no key, Gemini busy, odd answer...)
         print(f"Thumbnail planning without AI ({e}).")
         pl = plan_without_ai(frames, moment)
+    finally:
+        pool.shutdown(wait=False)
     with _ACCENT_LOCK:  # choose the colour and save the plan at once, so the next thumbnail sees it
         pl["accent"] = fresh_accent(job_dir, work.name, pl["accent"])
         (work / "plan.json").write_text(json.dumps(pl, indent=1), encoding="utf-8")
