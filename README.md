@@ -2,7 +2,7 @@
 
 Turn one long vlog into finished YouTube Shorts: it finds the best moments, cuts them vertical around the creator's face, burns in word-by-word captions with an on-screen hook, makes a thumbnail for each, lets you play and approve them, then uploads and schedules them on the channel.
 
-Everything runs on your own computer with free tools. The only accounts you need are a free Gemini API key and (for auto-posting) a free Google Cloud project.
+Everything runs on your own computer with free tools. The only accounts you need are a free Gemini API key (or an OpenAI key) and (for auto-posting) a free Google Cloud project.
 
 <p align="center">
   <a href="docs/demo.mp4"><img src="docs/demo.gif" width="240" alt="Clipline demo: a creator's long edit turns into a stack of ready-to-post Shorts"></a>
@@ -15,7 +15,9 @@ Everything runs on your own computer with free tools. The only accounts you need
 2. **Find moments.** Gemini reads the full transcript (plus the vlog's title and description, if you give them) and picks the strongest stand-alone moments, with a hook, title, thumbnail text and hashtags for each, written in the creator's tone.
 3. **Edit.** FFmpeg cuts each moment, crops to 9:16 centred on the face, and burns in captions in the style you chose. Output is 1080×1920, high quality (CRF 18).
 4. **Thumbnails.** Gemini looks at frames from each Short and picks the best reaction shot plus the things worth showing (food, places, vehicles...). Clipline cuts the creator out with a bright glowing outline, adds the other things as cut-out stickers or tilted photo cards (a collage), and puts bold text on top.
-5. **Review.** You play every Short in the browser, edit titles, untick any you don't want.
+5. **Review.** You play every Short in the browser, edit titles, untick any you don't want. Not happy with one? **Try again** picks a different moment (optionally from your description or exact times). **Add a Short** makes one from a moment the AI missed. Under **Hook**, choose between three opening texts (Curiosity, Bold, Story), type your own, ask for new ones, or turn the text off so your own words open the Short. In both, **Choose on the video** lets you play through the vlog and mark the start and end yourself, which is the way to get scenes without talking (the AI only knows what's said).
+
+Before you start, you can also tell Clipline what you want ("include the summit, skip the drive") and add **must-have moments** by their times; those always become Shorts and the AI picks the rest.
 6. **Post.** The approved Shorts are uploaded to YouTube and scheduled.
 
 All files are saved in the `jobs` folder, so you can also download and post them by hand.
@@ -49,6 +51,10 @@ Check it worked: `ffmpeg -version` should print a version number.
 Go to https://aistudio.google.com/apikey, sign in, and create a key.
 In the Clipline folder, copy `.env.example` to a new file named `.env` and paste the key after `GEMINI_API_KEY=`.
 (On a Mac, in Terminal: `cp .env.example .env`, then `open -e .env` to edit it.) Never commit `.env`; it's your private key.
+
+**Prefer OpenAI?** Set `AI_PROVIDER=openai` and paste an OpenAI key after `OPENAI_API_KEY=` instead
+(from https://platform.openai.com/api-keys; OpenAI's API is paid, so the account needs credit).
+`OPENAI_MODEL` picks the model. Everything else works the same.
 
 ### 2b. Let Clipline read your vlog's YouTube title and description (optional)
 
@@ -117,6 +123,8 @@ The first time you click **Schedule**, a Google sign-in page opens. The creator 
 | Gemini is overloaded / 503 UNAVAILABLE | Google's servers are busy. Clipline retries and tries other models by itself; if it still fails, upload the same video again in a few minutes. The transcript is saved, so it won't be redone. |
 | Gemini free usage limit is used up | Wait a while (or until tomorrow) and upload the same video again; the transcript is reused. |
 | `No option name near 'captions_1.ass...'` | Your FFmpeg was installed without caption support. Clipline now switches to a complete FFmpeg add-on by itself; restart with the start script so it gets installed. |
+| `OPENAI_API_KEY is missing` / OpenAI refused the key | Check `OPENAI_API_KEY` in `.env`, or set `AI_PROVIDER=gemini`. |
+| Your OpenAI account has no credit left | Add credit on OpenAI's billing page and try again. |
 | Upload says quota exceeded | YouTube's free daily quota is used up. Try again tomorrow. |
 
 ## Files

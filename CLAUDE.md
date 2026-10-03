@@ -5,9 +5,9 @@ Guidance for Claude (and humans) working on this repo. Read this before changing
 ## What Clipline is
 
 A local web app that turns one long vlog into finished vertical YouTube Shorts:
-transcribe (faster-whisper) → pick moments (Gemini) → cut, reframe to 9:16 around the face, burn in
-word-by-word captions (FFmpeg + libass) → thumbnail (Pillow) → review in the browser → upload and
-schedule (YouTube Data API v3).
+transcribe (faster-whisper) → pick moments (Gemini, or OpenAI with `AI_PROVIDER=openai`) → cut,
+reframe to 9:16 around the face, burn in word-by-word captions (FFmpeg + libass) → thumbnail (Pillow)
+→ review in the browser → upload and schedule (YouTube Data API v3).
 
 Everything runs on the user's own computer. The people using it are **creators, not developers**:
 every error they can see must be plain English and say what to do next.
@@ -49,13 +49,13 @@ Manual run: `.venv/bin/python app.py`. There is no build step and no test suite 
 
 | File | What it does |
 |---|---|
-| `app.py` | Flask server (127.0.0.1:8000). `/api/start` saves the upload and runs `make_shorts()` in a background thread; `/api/status/<id>` is polled every second by the page; `/api/schedule/<id>` uploads. Job state lives in memory (`JOBS`) and is mirrored to `jobs/<id>/job.json`. |
-| `pipeline.py` | All media work: `probe`, `load_audio`, `transcribe`, `pick_moments` / `clean_moments`, `face_center_x`, `build_ass`, `render_short`, `make_thumbnail`, plus `ffmpeg_exe()` (chooses which FFmpeg to use). |
+| `app.py` | Flask server (127.0.0.1:8000). `/api/start` saves the upload and runs `make_shorts()` in a background thread; `/api/status/<id>` is polled every second by the page; `/api/retry/<id>/<idx>` remakes one Short and `/api/add/<id>` adds one (both run `remake_short()` in a thread, one at a time per job); `/api/hooks/<id>/<idx>` writes 3 new hook options and `/api/hook/<id>/<idx>` re-renders one Short with a chosen hook (or none), reusing its saved face position `cx`; `/api/preview/<id>` makes `preview.mp4` for choosing a scene on the video (also started when a job finishes); `/api/schedule/<id>` uploads. Job state lives in memory (`JOBS`) and is mirrored to `jobs/<id>/job.json`. |
+| `pipeline.py` | All media work: `probe`, `load_audio`, `transcribe`, `pick_moments` / `clean_moments`, `repick_moment` (Try again), `manual_moment` (creator's own times; the AI only writes the text), `make_preview` (small H.264 copy every browser can play; `-hwaccel auto` uses video hardware when present), `face_center_x`, `build_ass`, `render_short`, `make_thumbnail`, plus `ffmpeg_exe()` (chooses which FFmpeg to use). |
 | `thumbnails.py` | Collage thumbnails: `sample_frames()` → `plan()` (Gemini sees ~10 frames, returns the face frame, up to 3 items with `box_2d`, text, accent) or `plan_without_ai()` → `cut_out()` (rembg) → `compose()`. Called from `pipeline.make_thumbnail()`, which falls back to `make_simple_thumbnail()`. |
 | `youtube_upload.py` | OAuth (desktop flow → `token.json`), `plan_times()` for the schedule, `upload_short()`, and `fetch_video_info()` (title/description/tags of a vlog from its link). |
 | `static/index.html` | The whole UI: one file, vanilla JS, no build. |
 | `start-mac.command`, `start-windows.bat` | One-click launchers (venv + install + run). |
-| `jobs/<id>/` | Per-run output: `source.*`, `transcript.json`, `captions_N.ass`, `short_N.mp4`, `thumb_N.jpg`, `job.json`. Git-ignored. |
+| `jobs/<id>/` | Per-run output: `source.*`, `transcript.json`, `captions_N.ass`, `short_N.mp4`, `thumb_N.jpg`, `preview.mp4`, `job.json`. Git-ignored. |
 | `jobs/_transcripts/<fingerprint>.json` | Transcript cache keyed by a hash of the video (size + first/last 4 MB), so re-uploading the same vlog skips transcription. |
 
 ## Hard-won gotchas (don't undo these)
@@ -102,16 +102,32 @@ Manual run: `.venv/bin/python app.py`. There is no build step and no test suite 
     YouTube audiovisual content, even the creator's own, and breaking that risks the API access posting
     depends on. `fetch_video_info()` reads only public text (Data API with `YOUTUBE_API_KEY`, else oEmbed =
     title only). The video always comes from an upload or a Drive link.
-11. **Gemini calls go through `gemini_json()`** (retries busy models, skips retired ones, parses JSON). Use it
-    for any new Gemini feature instead of calling the client directly.
+11. **AI calls go through `ai_json()`**, which uses Gemini (`gemini_json()`) or OpenAI (`openai_json()`) depending
+    on `AI_PROVIDER`. Both share `ask_models()` (retries busy models, skips retired ones) and parse JSON. Use
+    it for any new AI feature instead of calling a client directly, and pass images as `image_part(bytes)`.
+    OpenAI's JSON mode only returns objects, so a requested list arrives as `{"items": [...]}`; callers must
+    accept a dict wrapping the list (as `pick_moments()` does). OpenAI's reasoning models reject
+    `temperature`, so `openai_json()` retries without it. `OPENAI_FALLBACK_MODELS` needs the same care as
+    `FALLBACK_MODELS` (check https://platform.openai.com/docs/models).
 12. **Thumbnails:** Gemini's `box_2d` is `[ymin, xmin, ymax, xmax]` on a 0-1000 scale. `clean_plan()` validates
     everything Gemini returns. The face cut-out crops ~1.2 face-widths either side first and splits thin
     bridges (erode → pick the blob under the face → dilate), so people next to the creator aren't included;
     overlapping people can still leak in, which is why the prompt asks for frames with the creator alone.
     "scene" items become photo cards and "object" items become stickers; a cut-out covering <4% or >92% of
     the crop counts as failed and becomes a card. Output stays under YouTube's 2 MB thumbnail limit.
+    Gemini is trained on `box_2d`; OpenAI models are asked for the same format but place boxes less
+    precisely, so expect looser item cut-outs with `AI_PROVIDER=openai`.
     rembg downloads its model (~180 MB) on first use into `U2NET_HOME` (default `~/.u2net`); bake it into the
     server image in the cloud.
+
+13. **Hooks must be true.** Each Short has `hooks` (curiosity / bold / story, plus "custom" if the creator typed
+    one), the chosen `hook`, `hook_style` and `hook_mode` ("text" or "none" = no banner, the original audio opens
+    it). Every prompt carries `HOOK_RULE` (no invented facts), and `hook_fields()` drops any hook with a number
+    that isn't said in the moment ("I lost $2,000" from a clip that never says it). Keep both when changing prompts.
+    Applying a hook can also redraw the thumbnail text (`hook_to_lines()` → `retext_thumbnail()`), which reuses
+    the collage's saved `thumbwork_N/` frames and `plan.json` (no AI, no new frames).
+14. **No emoji in burned-in text.** The caption and thumbnail fonts have no emoji, so they'd show as empty boxes;
+    `without_emoji()` strips them in `ass_escape()` and the thumbnail drawers. Titles/descriptions keep them.
 
 ## Conventions
 
