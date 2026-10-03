@@ -2,20 +2,26 @@
 Clipline: run `python app.py`, then open http://localhost:8000
 """
 import hashlib
+import html
+import sqlite3
+import time
 import json
+import os
 import logging
 import re
 import shutil
 import sys
 import threading
 import traceback
+import urllib.parse
 import uuid
 import webbrowser
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
-from flask import Flask, abort, jsonify, request, send_from_directory
+from flask import Flask, abort, g, jsonify, redirect, request, send_from_directory, session
+from werkzeug.security import check_password_hash, generate_password_hash
 
 ROOT = Path(__file__).resolve().parent
 load_dotenv(ROOT / ".env")
@@ -23,6 +29,7 @@ sys.stdout.reconfigure(line_buffering=True)  # log lines appear at once, also wh
 
 import pipeline  # noqa: E402  (load .env first)
 import youtube_upload as yt  # noqa: E402
+import db  # noqa: E402
 
 JOBS_DIR = ROOT / "jobs"
 JOBS_DIR.mkdir(exist_ok=True)
@@ -38,6 +45,17 @@ class _HideStatusPolls(logging.Filter):
 
 logging.getLogger("werkzeug").addFilter(_HideStatusPolls())
 app.config["MAX_CONTENT_LENGTH"] = None  # long 4K vlogs are big
+
+# Accounts: a signed session cookie holds the user's id. SESSION_COOKIE_SECURE=1 on an https server.
+db.init()
+app.secret_key = db.secret_key()
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=os.getenv("SESSION_COOKIE_SECURE", "") in ("1", "true", "yes"),
+    PERMANENT_SESSION_LIFETIME=30 * 24 * 3600,
+    SESSION_REFRESH_EACH_REQUEST=False,  # the sign-in window and the page share one cookie; don't overwrite it
+)
 
 JOBS = {}
 LOCK = threading.Lock()
@@ -205,7 +223,7 @@ def start():
     elif not link:
         return jsonify(error="Add a video file or a Google Drive link."), 400
     with LOCK:
-        JOBS[job_id] = {"id": job_id, "status": "working", "stage": 0, "pct": 0, "msg": "",
+        JOBS[job_id] = {"id": job_id, "owner": g.user["id"], "status": "working", "stage": 0, "pct": 0, "msg": "",
                         "count": count, "style": style, "schedule": schedule, "name": name,
                         "stages": STAGES, "shorts": [], "vlog": vlog, "note": note,
                         "must": [{"start": a, "end": b} for a, b in must]}
@@ -226,6 +244,10 @@ def load_job(job_id):
             if job.get("upload_status") in ("starting", "connecting", "uploading"):
                 job.update(upload_status="error", upload_msg="Clipline was closed during posting.")
             job["shorts"] = [s for s in job.get("shorts", []) if not s.get("pending")]
+            by_idx = {s["idx"]: s for s in job["shorts"]}
+            for u in job.get("uploads") or []:  # uploads from before Clipline noted which file went up
+                if "video" not in u and u["idx"] in by_idx:
+                    u["video"], u["thumb"] = by_idx[u["idx"]]["video"], by_idx[u["idx"]]["thumb"]
             for s in job["shorts"]:
                 if s.pop("retrying", None):
                     s["retry_error"] = "Clipline was closed while this was being remade. Try again."
@@ -533,33 +555,60 @@ def new_hooks(job_id, idx):
 
 
 # --------------------------------------------------------------------------- schedule & upload
-def do_upload(job_id, items, mode):
+POSTING = set()  # jobs whose Shorts are being uploaded right now (in this process)
+
+
+def youtube_title(title):
+    return title + " #Shorts" if "#shorts" not in title.lower() and len(title) <= 90 else title
+
+
+def do_upload(user_id, job_id, items, mode, times, earlier):
+    """Upload `items` at `times`. An item with "replace" (its earlier upload record) is an edited Short:
+    the new version goes up first, then the old one is deleted, so a failure never loses both."""
     job_dir = JOBS_DIR / job_id
-    results = []
+    results = list(earlier)
     try:
-        update(job_id, upload_status="connecting", upload_msg="Connecting to YouTube (approve in the browser tab)")
-        service = yt.get_service()
-        times = yt.plan_times(len(items), mode)
+        update(job_id, upload_status="connecting", upload_msg="Connecting to YouTube")
+        service = yt.get_service(user_id)
+        channel = (yt.account(user_id).get("channel") or {}).get("id")
         for k, (it, when) in enumerate(zip(items, times)):
-            label = f"Uploading Short {k + 1} of {len(items)}"
+            old = it.get("replace")
+            label = (f"Uploading the new version of Short {it['idx']}" if old
+                     else f"Uploading Short {k + 1} of {len(items)}")
             update(job_id, upload_status="uploading", upload_msg=label, upload_pct=0)
             tags = it.get("hashtags", [])
             lead = it.get("hook", "") if it.get("hook_mode", "text") != "none" else it.get("title", "")
             desc = (lead + "\n\n" + " ".join("#" + t for t in tags + ["Shorts"])).strip()
-            title = it["title"]
-            if "#shorts" not in title.lower() and len(title) <= 90:
-                title += " #Shorts"
             vid, note = yt.upload_short(
-                service, job_dir / it["video"], title, desc, tags, when, job_dir / it["thumb"],
+                service, job_dir / it["video"], youtube_title(it["title"]), desc, tags, when, job_dir / it["thumb"],
                 progress=lambda p: update(job_id, upload_pct=p),
             )
-            results.append({"idx": it["idx"], "title": it["title"], "video_id": vid,
-                            "when": when.isoformat() if when else None, "note": note})
-            update(job_id, uploads=results)
-        update(job_id, upload_status="done", upload_msg="All scheduled", uploads=results)
+            rec = {"idx": it["idx"], "title": it["title"], "video_id": vid, "video": it["video"],
+                   "thumb": it["thumb"], "when": when.isoformat() if when else None, "note": note,
+                   "channel": channel}
+            if old:
+                update(job_id, upload_msg="Removing the old version from YouTube")
+                try:
+                    yt.delete_video(service, old["video_id"])
+                except Exception as e:
+                    print("Couldn't delete the old version:", repr(e)[:300])
+                    rec["note"] = ("The old version is still on YouTube: delete it in YouTube Studio. "
+                                   + (note or "")).strip()
+                results = [rec if r["idx"] == it["idx"] else r for r in results]
+            else:
+                results.append(rec)
+            update(job_id, uploads=results)  # saved at once, so a retry never posts this Short twice
+        done = "Updated" if all(i.get("replace") for i in items) else "All posted" if mode == "now" else "All scheduled"
+        update(job_id, upload_status="done", upload_msg=done, uploads=results)
     except Exception as e:
         traceback.print_exc()
-        update(job_id, upload_status="error", upload_msg=str(e), uploads=results)
+        msg = yt.upload_error_message(e)
+        if results and not any(i.get("replace") for i in items):
+            msg += f" ({len(results)} already on YouTube; pressing the button again posts only the rest.)"
+        update(job_id, upload_status="error", upload_msg=msg, uploads=results)
+    finally:
+        with LOCK:
+            POSTING.discard(job_id)
 
 
 @app.post("/api/schedule/<job_id>")
@@ -569,24 +618,301 @@ def schedule(job_id):
         job = load_job(job_id)
         if not job or job.get("status") != "ready":
             abort(400)
+        if job_id in POSTING:
+            return jsonify(error="These Shorts are already being posted."), 400
         by_idx = {s["idx"]: s for s in job["shorts"]}
         if any(s.get("retrying") for s in job["shorts"]):
             return jsonify(error="Wait until the Short you're remaking is ready."), 400
+        earlier = list(job.get("uploads") or [])
     if not yt.is_configured():
         return jsonify(error="YouTube isn't connected yet: client_secret.json is missing. "
                              "The Shorts are saved in the jobs folder, so you can post them by hand, "
                              "or follow README step 5 to turn on automatic posting."), 400
+    acct = yt.account(g.user["id"])
+    if not acct["signed_in"]:
+        return jsonify(error="Connect YouTube first, so Clipline knows which channel to post to.",
+                       signin=True), 400
+    posted = {u["idx"] for u in earlier}
     items = []
     for row in data.get("shorts", []):
         s = by_idx.get(int(row["idx"]))
-        if s and row.get("keep"):
+        if s and row.get("keep") and s["idx"] not in posted:
             items.append({**s, "title": (row.get("title") or s["title"]).strip()[:95]})
     if not items:
-        return jsonify(error="Tick at least one Short."), 400
+        return jsonify(error="Those Shorts are already on YouTube." if posted else "Tick at least one Short."), 400
     mode = data.get("schedule", job.get("schedule", "d18"))
-    update(job_id, upload_status="starting", uploads=[], schedule=mode)
-    threading.Thread(target=do_upload, args=(job_id, items, mode), daemon=True).start()
+    if mode not in ("now", "d18", "d12", "two", "custom"):
+        mode = "d18"
+    try:
+        every = int(data.get("every") or 24)
+    except (TypeError, ValueError):
+        every = 24
+    try:
+        times = yt.plan_times(len(items), mode, data.get("tz"), data.get("start"), every)
+    except RuntimeError as e:
+        return jsonify(error=str(e), field="start"), 400
+    with LOCK:
+        if job_id in POSTING:
+            return jsonify(error="These Shorts are already being posted."), 400
+        POSTING.add(job_id)
+    update(job_id, upload_status="starting", upload_msg="Starting", uploads=earlier, schedule=mode)
+    threading.Thread(target=do_upload, args=(g.user["id"], job_id, items, mode, times, earlier), daemon=True).start()
     return jsonify(ok=True)
+
+
+# --------------------------------------------------------------------------- Shorts already on YouTube
+def posted_shorts(user_id):
+    """Every upload record from this user's jobs, newest vlog first, with the job's id and vlog name."""
+    with LOCK:
+        ids = {p.parent.name for p in JOBS_DIR.glob("*/job.json")} | set(JOBS)
+        jobs = [load_job(i) for i in ids if re.fullmatch(r"[0-9a-f]{10}", i)]
+        jobs = [json.loads(json.dumps(j, default=str)) for j in jobs
+                if j and j.get("uploads") and j.get("owner") == user_id]
+    out = []
+    for j in sorted(jobs, key=lambda j: (JOBS_DIR / j["id"] / "job.json").stat().st_mtime
+                    if (JOBS_DIR / j["id"] / "job.json").exists() else 0, reverse=True):
+        shorts = {s["idx"]: s for s in j.get("shorts", [])}
+        vlog = (j.get("vlog") or {}).get("title") or j.get("name") or "Your vlog"
+        for u in j["uploads"]:
+            s = shorts.get(u["idx"], {})
+            out.append({**u, "job": j["id"], "vlog": vlog, "thumb": u.get("thumb") or s.get("thumb", ""),
+                        "changed": bool(s) and (s.get("video") != u.get("video", s.get("video")))})
+    return out
+
+
+@app.get("/api/posted")
+def posted():
+    uid = g.user["id"]
+    items, live, note = posted_shorts(uid), False, None
+    acct = yt.account(uid)
+    me = (acct.get("channel") or {}).get("id")
+    if items and acct["signed_in"]:
+        try:
+            states = yt.video_states(yt.get_service(uid), [u["video_id"] for u in items])
+            for u in items:
+                if u.get("channel") and me and u["channel"] != me:
+                    u["state"] = {"privacy": "other_channel"}
+                else:  # not found: deleted in Studio, or (older records) uploaded to another channel.
+                    u["state"] = states.get(u["video_id"]) or {"privacy": "missing"}  # the creator decides
+            live = True
+        except Exception as e:
+            traceback.print_exc()
+            note = "Couldn't check YouTube right now, so this shows what Clipline remembers. " + yt.upload_error_message(e)
+    return jsonify(items=items, live=live, note=note, signed_in=acct["signed_in"])
+
+
+@app.post("/api/unmark/<job_id>/<int:idx>")
+def unmark(job_id, idx):
+    """The creator says this Short is no longer on YouTube: forget the upload so it can go up again."""
+    with LOCK:
+        job, rec, _ = find_upload(job_id, idx)
+    if not job:
+        return jsonify(error="Wait until posting has finished."), 400
+    forget_upload(job_id, idx)
+    return jsonify(ok=True)
+
+
+def find_upload(job_id, idx):
+    """(job copy, upload record, current Short) for a posted Short. Call with LOCK held."""
+    job = load_job(job_id)
+    if not job:
+        abort(404)
+    rec = next((u for u in job.get("uploads") or [] if u["idx"] == idx), None)
+    short = next((s for s in job.get("shorts", []) if s["idx"] == idx and not s.get("pending")), None)
+    if not rec or not short:
+        abort(404)
+    if job_id in POSTING:
+        return None, None, None
+    return job, dict(rec), dict(short)
+
+
+def forget_upload(job_id, idx):
+    with LOCK:
+        job = JOBS[job_id]
+        job["uploads"] = [u for u in job.get("uploads") or [] if u["idx"] != idx]
+        (JOBS_DIR / job_id / "job.json").write_text(json.dumps(job, default=str), encoding="utf-8")
+
+
+GONE = ("Clipline can't find this Short on the YouTube channel you connected. If you deleted it in YouTube "
+        "Studio, use Unmark it on the My scheduled Shorts page, then upload it again. If it's on another "
+        "channel, connect that channel first.")
+
+
+@app.post("/api/reschedule/<job_id>/<int:idx>")
+def reschedule(job_id, idx):
+    """Give a scheduled Short a new time (the creator's local time + time zone from the browser)."""
+    data = request.get_json(force=True)
+    with LOCK:
+        job, rec, _ = find_upload(job_id, idx)
+    if not job:
+        return jsonify(error="Wait until posting has finished."), 400
+    try:
+        when = yt.plan_times(1, "custom", data.get("tz"), data.get("start"))[0]
+        service = yt.get_service(g.user["id"])
+        if not yt.video_states(service, [rec["video_id"]]):
+            return jsonify(error=GONE), 400
+        yt.reschedule(service, rec["video_id"], when)
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify(error=yt.upload_error_message(e)), 400
+    with LOCK:
+        j = JOBS[job_id]
+        j["uploads"] = [{**u, "when": when.isoformat()} if u["idx"] == idx else u for u in j["uploads"]]
+        (JOBS_DIR / job_id / "job.json").write_text(json.dumps(j, default=str), encoding="utf-8")
+    return jsonify(ok=True, when=when.isoformat())
+
+
+@app.post("/api/repost/<job_id>/<int:idx>")
+def repost(job_id, idx):
+    """Bring an uploaded Short up to date after editing it in Clipline.
+    Title only: change the title on YouTube. New video (hook, moment): upload the new version with the
+    same time, then delete the old one. Never for a Short that's already public (it would lose its views)."""
+    data = request.get_json(force=True)
+    with LOCK:
+        job, rec, short = find_upload(job_id, idx)
+        if job and short.get("retrying"):
+            return jsonify(error="Wait until this Short has finished being remade."), 400
+    if not job:
+        return jsonify(error="Wait until posting has finished."), 400
+    title = (data.get("title") or short["title"]).strip()[:95]
+    try:
+        service = yt.get_service(g.user["id"])
+        state = yt.video_states(service, [rec["video_id"]]).get(rec["video_id"])
+        if not state:
+            return jsonify(error=GONE), 400
+        if short["video"] == rec.get("video", short["video"]):
+            if title == rec["title"]:
+                return jsonify(error="Nothing has changed since it was uploaded. Edit the title, hook or moment first."), 400
+            yt.update_title(service, rec["video_id"], youtube_title(title))
+            with LOCK:
+                j = JOBS[job_id]
+                j["uploads"] = [{**u, "title": title} if u["idx"] == idx else u for u in j["uploads"]]
+                (JOBS_DIR / job_id / "job.json").write_text(json.dumps(j, default=str), encoding="utf-8")
+            update_short(job_id, idx, title=title)
+            return jsonify(ok=True, done="title")
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify(error=yt.upload_error_message(e)), 400
+    if yt.is_live(state):
+        return jsonify(error="This Short is already public. Replacing it would delete its views and comments, so "
+                             "Clipline won't do that. Change it in YouTube Studio, or use Add a Short to post "
+                             "the edited moment as a new Short."), 400
+    when = None
+    if rec.get("when"):
+        when = datetime.fromisoformat(rec["when"])
+        if when < datetime.now(when.tzinfo) + yt.MIN_LEAD:
+            return jsonify(error="This Short goes public in less than 15 minutes, too soon to replace it. "
+                                 "Change its time first."), 400
+    with LOCK:
+        if job_id in POSTING:
+            return jsonify(error="Wait until posting has finished."), 400
+        POSTING.add(job_id)
+        earlier = list(JOBS[job_id].get("uploads") or [])
+    update_short(job_id, idx, title=title)
+    update(job_id, upload_status="starting", upload_msg="Starting")
+    item = {**short, "title": title, "replace": rec}
+    threading.Thread(target=do_upload, args=(g.user["id"], job_id, [item], "replace", [when], earlier),
+                     daemon=True).start()
+    return jsonify(ok=True, done="replace")
+
+
+# --------------------------------------------------------------------------- YouTube sign-in
+# The page opens /api/youtube/signin in a small window. Google sends the creator back to the callback,
+# which saves the sign-in, tells the page and closes the window.
+def youtube_redirect_uri():
+    # Must match a redirect address on the Google OAuth client exactly (see README step 5).
+    return os.getenv("YOUTUBE_REDIRECT_URI") or request.host_url.rstrip("/") + "/api/youtube/callback"
+
+
+@app.get("/api/youtube/signin")
+def youtube_signin():
+    """Connect YouTube (opened in a small window from a signed-in page)."""
+    nxt = request.args.get("next", "")
+    nxt = nxt if re.fullmatch(r"[0-9a-f]{10}", nxt) else ""
+    popup = request.args.get("popup") == "1"
+    try:
+        url, session["google"] = yt.start_google("youtube", youtube_redirect_uri(), nxt, popup)
+        return redirect(url)
+    except RuntimeError as e:
+        return youtube_done_page(False, str(e), nxt, popup)
+
+
+@app.get("/api/auth/google")
+def auth_google():
+    """Sign in to Clipline with Google (the whole page goes to Google and comes back)."""
+    try:
+        url, session["google"] = yt.start_google("login", youtube_redirect_uri())
+        return redirect(url)
+    except RuntimeError as e:
+        return login_problem_page(str(e))
+
+
+@app.get("/api/youtube/callback")
+def youtube_callback():
+    """Google sends both kinds of sign-in back here (the one address registered on the OAuth client)."""
+    pending = session.pop("google", None) or {}
+    if pending.get("purpose") == "login":
+        try:
+            user = google_user(yt.finish_login(request.args.to_dict(), pending))
+        except RuntimeError as e:
+            return login_problem_page(str(e))
+        except Exception:
+            traceback.print_exc()
+            return login_problem_page("Something went wrong while signing in. Try again.")
+        start_session(user)
+        return redirect("/")
+    nxt, popup = pending.get("next", ""), bool(pending.get("popup"))
+    if not g.user:
+        return youtube_done_page(False, "Sign in to Clipline first, then connect YouTube.", nxt, popup)
+    try:
+        channel = yt.finish_youtube(request.args.to_dict(), pending, g.user["id"])
+        return youtube_done_page(True, f"Connected {channel['title']}."
+                                       + (" You can close this window." if popup else ""), nxt, popup)
+    except RuntimeError as e:
+        return youtube_done_page(False, str(e), nxt, popup)
+    except Exception:
+        traceback.print_exc()
+        return youtube_done_page(False, "Something went wrong while connecting YouTube. Try again.", nxt, popup)
+
+
+def login_problem_page(msg):
+    return (f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Clipline · Sign in</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>body{{font:16px/1.5 system-ui,sans-serif;margin:0;min-height:100vh;display:grid;place-items:center;
+background:#0e1018;color:#e8eaf2;padding:16px}}main{{max-width:420px;text-align:center}}a{{color:#8fb4ff}}</style>
+</head><body><main><h1 style="font-size:1.3rem">Not signed in</h1><p>{html.escape(msg)}</p>
+<p><a href="/">Back to Clipline</a></p></main></body></html>""", 400)
+
+
+def youtube_done_page(ok, msg, nxt="", popup=False):
+    # In the small sign-in window: tell the page (if the browser kept the link to it) and close.
+    # Opened in the same tab (popups blocked): go back to the job's page.
+    back = "/" + ("#" + nxt if nxt else "")
+    payload = json.dumps({"clipline": "youtube", "ok": ok, "msg": msg}).replace("<", "\\u003c")
+    return (f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Clipline · YouTube</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>body{{font:16px/1.5 system-ui,sans-serif;margin:0;min-height:100vh;display:grid;place-items:center;
+background:#0e1018;color:#e8eaf2;padding:16px}}main{{max-width:420px;text-align:center}}
+a{{color:#8fb4ff}}</style></head><body><main><h1 style="font-size:1.3rem">
+{"YouTube connected" if ok else "YouTube not connected"}</h1><p>{html.escape(msg)}</p>
+<p><a href="{back}">Back to Clipline</a></p></main>
+<script>
+var m={payload};
+if({json.dumps(popup)}){{ try{{ window.opener && window.opener.postMessage(m, location.origin); }}catch(e){{}}
+  if(m.ok) setTimeout(function(){{ window.close(); }}, 800); }}
+else if(m.ok) setTimeout(function(){{ location.replace({json.dumps(back)}); }}, 900);
+</script></body></html>""", 200 if ok else 400)
+
+
+@app.post("/api/youtube/signout")
+def youtube_signout():
+    yt.sign_out(g.user["id"])
+    return jsonify(ok=True)
+
+
+@app.get("/api/youtube/me")
+def youtube_me():
+    return jsonify(yt.account(g.user["id"]))
 
 
 @app.get("/api/vlog-info")
@@ -597,9 +923,144 @@ def vlog_info():
         return jsonify(error=str(e)), 400
 
 
+# --------------------------------------------------------------------------- Clipline accounts
+# Anyone can make an account: email + password, or Sign in with Google (name and email only).
+# Every /api and /media address needs a signed-in user, and a job is only reachable by its owner.
+PUBLIC = {"index", "static", "config", "me", "auth_signup", "auth_login", "auth_logout", "auth_google",
+          "youtube_callback"}
+EMAIL_RE = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
+FAILS = {}  # (email, ip) -> times of recent wrong passwords
+
+
+def current_user():
+    uid = session.get("uid")
+    user = db.user_by_id(uid) if uid else None
+    if not user or session.get("sv") != user["session_version"]:  # signed out everywhere (e.g. Google took over)
+        return None
+    return user
+
+
+def start_session(user):
+    session.clear()
+    session.permanent = True
+    session.update(uid=user["id"], sv=user["session_version"])
+
+
+@app.before_request
+def gate():
+    origin = request.headers.get("Origin")
+    if request.method == "POST" and origin and \
+            urllib.parse.urlparse(origin).netloc != urllib.parse.urlparse(request.host_url).netloc:
+        return jsonify(error="That request came from another website, so Clipline ignored it."), 403
+    g.user = current_user()
+    if request.endpoint in PUBLIC or request.endpoint is None:
+        return None
+    if not g.user:
+        return jsonify(error="Sign in to Clipline first.", login=True), 401
+    job_id = (request.view_args or {}).get("job_id")
+    if job_id is not None:
+        with LOCK:
+            job = load_job(job_id)
+        if not job or job.get("owner") != g.user["id"]:
+            abort(404)
+    return None
+
+
+def claim_old_jobs(user_id):
+    """Jobs made before Clipline had accounts belong to the first account (the person who ran it)."""
+    if db.count_users() != 1:
+        return
+    for path in JOBS_DIR.glob("*/job.json"):
+        with LOCK:
+            job = JOBS.get(path.parent.name) or json.loads(path.read_text(encoding="utf-8"))
+            if job.get("owner"):
+                continue
+            job["owner"] = user_id
+            path.write_text(json.dumps(job, default=str), encoding="utf-8")
+            if path.parent.name in JOBS:
+                JOBS[path.parent.name]["owner"] = user_id
+        print(f"Gave job {path.parent.name} (made before accounts) to the first account.")
+
+
+def google_user(info):
+    """The Clipline user for a Google sign-in: found by Google account, linked by email, or new."""
+    user = db.user_by_google(info["sub"])
+    if user:
+        return user
+    user = db.user_by_email(info["email"])
+    if user:
+        if not info["email_verified"]:
+            raise RuntimeError("Google hasn't confirmed this email address, so it can't be joined to your Clipline "
+                               "account. Sign in with your email and password instead.")
+        # Google proves who owns the email; a password set earlier was never checked, so it's removed.
+        db.link_google(user["id"], info["sub"], info["name"], clear_password=not user["email_verified"])
+        return db.user_by_id(user["id"])
+    try:
+        uid = db.create_user(info["email"], info["name"], google_sub=info["sub"], email_verified=info["email_verified"])
+    except sqlite3.IntegrityError:  # signed up a moment ago in another tab
+        return db.user_by_email(info["email"])
+    claim_old_jobs(uid)
+    return db.user_by_id(uid)
+
+
+@app.get("/api/me")
+def me():
+    u = g.user
+    return jsonify(user={"email": u["email"], "name": u["name"]} if u else None, google=yt.is_configured())
+
+
+@app.post("/api/auth/signup")
+def auth_signup():
+    data = request.get_json(force=True)
+    email, password = str(data.get("email", "")).strip().lower(), str(data.get("password", ""))
+    if not EMAIL_RE.fullmatch(email) or len(email) > 200:
+        return jsonify(error="Type a valid email address.", field="email"), 400
+    if len(password) < 8:
+        return jsonify(error="Choose a password with at least 8 characters.", field="password"), 400
+    if len(password) > 200:
+        return jsonify(error="That password is too long.", field="password"), 400
+    existing = db.user_by_email(email)
+    if existing:
+        msg = ("This email already has a Clipline account through Google. Use Sign in with Google."
+               if existing["google_sub"] and not existing["password_hash"]
+               else "There's already an account with this email. Sign in instead.")
+        return jsonify(error=msg, field="email"), 400
+    try:
+        uid = db.create_user(email, str(data.get("name", "")), password_hash=generate_password_hash(password))
+    except sqlite3.IntegrityError:
+        return jsonify(error="There's already an account with this email. Sign in instead.", field="email"), 400
+    claim_old_jobs(uid)
+    start_session(db.user_by_id(uid))
+    return jsonify(ok=True)
+
+
+@app.post("/api/auth/login")
+def auth_login():
+    data = request.get_json(force=True)
+    email, password = str(data.get("email", "")).strip().lower(), str(data.get("password", ""))
+    key, now = (email, request.remote_addr), time.time()
+    recent = [t for t in FAILS.get(key, []) if now - t < 900]
+    if len(recent) >= 10:
+        return jsonify(error="Too many wrong tries. Wait 15 minutes, then try again."), 429
+    user = db.user_by_email(email)
+    if not user or not user["password_hash"] or not check_password_hash(user["password_hash"], password):
+        FAILS[key] = recent + [now]
+        return jsonify(error="Wrong email or password. If you made your account with Google, "
+                             "use Sign in with Google."), 400
+    FAILS.pop(key, None)
+    start_session(user)
+    return jsonify(ok=True)
+
+
+@app.post("/api/auth/logout")
+def auth_logout():
+    session.clear()
+    return jsonify(ok=True)
+
+
 @app.get("/api/config")
 def config():
-    return jsonify(youtube=yt.is_configured(), today=date.today().isoformat())
+    return jsonify(youtube=yt.is_configured(), today=date.today().isoformat())  # sign-in: /api/youtube/me
 
 
 @app.get("/")

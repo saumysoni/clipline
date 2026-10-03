@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..24,400,0..1,0&icon_names=add,add_circle,add_to_drive,arrow_forward,auto_awesome,bolt,bookmark,calendar_month,check,checklist,close,cloud_upload,contrast,dark_mode,download,first_page,hd,image,info,last_page,light_mode,lightbulb,movie,open_in_new,play_arrow,play_circle,refresh,remove,schedule,smart_display,sync,tune&display=block" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..24,400,0..1,0&icon_names=add,add_circle,add_to_drive,arrow_forward,auto_awesome,bolt,bookmark,calendar_month,check,checklist,close,cloud_upload,contrast,dark_mode,download,edit,first_page,hd,image,info,last_page,light_mode,lightbulb,movie,open_in_new,photo_camera,play_arrow,play_circle,refresh,remove,schedule,smart_display,sync,tune&display=block" rel="stylesheet">
 <style>
 /* ---- design tokens: "Studio Precision" (dark first), with a light version ---- */
 :root{
@@ -92,10 +92,10 @@ b,strong{font-weight:700}
 .iconbtn:hover{border-color:var(--primary)}
 
 /* ---- fields ---- */
-input[type=text],textarea,select{width:100%;padding:11px 13px;border-radius:10px;border:1px solid var(--line-2);background:var(--field);transition:border-color .15s,box-shadow .15s}
+input[type=text],input[type=datetime-local],textarea,select{width:100%;padding:11px 13px;border-radius:10px;border:1px solid var(--line-2);background:var(--field);transition:border-color .15s,box-shadow .15s}
 textarea{resize:vertical;min-height:84px}
 input[type=text]::placeholder,textarea::placeholder{color:var(--faint)}
-input[type=text]:focus,textarea:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 1px var(--primary)}
+input[type=text]:focus,input[type=datetime-local]:focus,textarea:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 1px var(--primary)}
 input.bad,input.bad:focus{border-color:var(--bad);box-shadow:0 0 0 1px var(--bad)}
 input:disabled{opacity:.5}
 select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 18px) 52%,calc(100% - 13px) 52%;background-size:5px 5px;background-repeat:no-repeat;padding-right:36px;cursor:pointer}
@@ -159,6 +159,8 @@ input[type=checkbox],input[type=radio]{accent-color:var(--primary)}
 @media (max-width:560px){
   .side{gap:8px;padding:8px 12px}
   .pill{display:none}
+  .navlink small,.navlink b{display:none}
+  .who-am-i span{display:none}
   .theme-seg button{padding:6px 7px}
   .theme-seg [data-theme-set=auto]{display:none}
   .steps li{padding:5px 6px;gap:6px}
@@ -330,7 +332,70 @@ ul.tasks li.done .tick{background:var(--good-soft);border-color:transparent;colo
 .dock{position:sticky;bottom:0;z-index:20;margin:28px calc(-1 * clamp(16px,3.5vw,48px)) -48px;padding:14px clamp(16px,3.5vw,48px) calc(14px + env(safe-area-inset-bottom,0px));background:var(--glass);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-top:1px solid var(--line);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .dock .grow{flex:1;color:var(--muted);font-size:.9rem;font-weight:600;display:flex;align-items:center;gap:8px;min-width:12ch}
 .dock select{width:auto;min-width:220px}
+.dock input[type=datetime-local]{width:auto}
+.dock .custom{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dock .custom[hidden]{display:none}
+.dock .custom select{min-width:150px}
+.acct{display:flex;align-items:center;gap:8px;font-size:.86rem;color:var(--muted);flex-basis:100%}
+.acct img{width:22px;height:22px;border-radius:50%;flex:none}
+.acct b{color:var(--ink);font-weight:600}
+.acct[hidden]{display:none}
+button.pill{cursor:pointer;font:inherit;text-align:left}
+button.pill:hover{border-color:var(--line-2);color:var(--ink)}
+.short .keep.posted{color:var(--good);font-weight:600}
 #upPanel{margin-top:20px}
+.auth{min-height:100vh;display:grid;place-items:center;padding:24px 16px;background:var(--bg)}
+.auth[hidden]{display:none}
+.app[hidden]{display:none}
+.auth-card [hidden]{display:none!important}
+.auth-card{width:min(400px,100%);background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:28px;display:flex;flex-direction:column;gap:14px}
+.auth-card .brand{margin-bottom:6px}
+.auth-card h1{font-size:1.5rem;margin:0}
+.auth-card .lede{margin:0;font-size:.92rem}
+.auth-card label{display:flex;flex-direction:column;gap:6px;font-size:.86rem;font-weight:600;color:var(--ink)}
+.auth-card input{width:100%;padding:11px 13px;border-radius:12px;border:1px solid var(--line-2);background:var(--raised);color:var(--ink);font:inherit}
+.auth-card input:focus{outline:none;border-color:var(--primary)}
+.auth-card .primary,.auth-card .ghost{width:100%;text-decoration:none}
+.auth-card a.ghost{color:var(--ink)}
+.auth-or{display:flex;align-items:center;gap:10px;color:var(--faint);font-size:.78rem;font-weight:700;letter-spacing:.08em}
+.auth-or::before,.auth-or::after{content:"";flex:1;height:1px;background:var(--line)}
+.auth-card .switch{font-size:.88rem;color:var(--muted);text-align:center}
+.gmark{width:18px;height:18px;flex:none}
+.who-am-i{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:.8rem;color:var(--muted);min-width:0}
+.who-am-i span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.navlink{display:flex;align-items:center;gap:12px;padding:9px 10px;border-radius:10px;border:0;background:none;color:var(--muted);cursor:pointer;font:inherit;text-align:left;width:100%}
+.navlink:hover{background:var(--raised);color:var(--ink)}
+.navlink.now{background:var(--primary-soft);color:var(--ink)}
+.navlink .st-ic{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--line-2);flex:none}
+.navlink .st-ic .ms{font-size:16px}
+.navlink b{display:block;font-weight:600;font-size:.92rem}
+.navlink small{display:block;font-size:.78rem;color:var(--faint)}
+.plist{list-style:none;margin:0;padding:0}
+.plist>li{display:grid;grid-template-columns:54px minmax(0,1fr);gap:16px;padding:16px 0;border-bottom:1px solid var(--line)}
+.plist>li:last-child{border-bottom:0}
+.plist img{width:54px;height:96px;object-fit:cover;border-radius:8px;background:var(--raised)}
+.plist .pt{font-weight:600;color:var(--ink)}
+.plist .pv{font-size:.82rem;color:var(--faint);margin-top:2px}
+.plist .pw{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;font-size:.88rem;color:var(--muted)}
+.plist .pa{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;align-items:center}
+.plist .pa .linkbtn{display:inline-flex;align-items:center;gap:4px;font-size:.88rem;font-weight:600}
+.plist .pa .ms{font-size:17px}
+.plist .pa a{display:inline-flex;align-items:center;gap:4px;font-size:.88rem;color:var(--primary-text);text-decoration:none;font-weight:600}
+.plist .pform{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.plist .pform[hidden]{display:none}
+.plist .pform input{width:auto}
+.tag.bad{background:rgba(220,38,38,.12);color:var(--bad)}
+.ytinfo{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border-radius:12px;background:var(--good-soft);font-size:.86rem;color:var(--ink)}
+.ytinfo .ghost{align-self:flex-start;padding:7px 12px;font-size:.86rem}
+.ytinfo small{color:var(--muted)}
+.yt1{margin:4px 0 16px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--raised);display:flex;flex-direction:column;gap:8px;font-size:.86rem;color:var(--muted)}
+.yt1 .who{display:flex;align-items:center;gap:8px}
+.yt1 .who img{width:22px;height:22px;border-radius:50%}
+.yt1 b{color:var(--ink);font-weight:600}
+.yt1 .ghost{width:100%}
+.yt1 .acts{display:flex;gap:12px}
+.dock .soon{opacity:.55;cursor:not-allowed}
+.dock .soon small{font-size:.72rem;font-weight:600;margin-left:4px;padding:2px 6px;border-radius:999px;background:var(--line)}
 #upMsg{font-weight:600}
 
 /* ---- dialog: choose on the video ---- */
@@ -367,7 +432,22 @@ dialog#picker::backdrop{background:rgba(8,10,18,.7)}
 </style>
 </head>
 <body>
-<div class="app">
+<div class="auth" id="auth" hidden>
+  <form class="auth-card" id="authForm" novalidate>
+    <div class="brand"><span class="mark" aria-hidden="true"><i></i></span><span>Clipline</span></div>
+    <h1 id="authTitle">Sign in</h1>
+    <p class="lede" id="authLede">Turn one vlog into a week of Shorts.</p>
+    <a class="ghost" id="googleBtn" href="/api/auth/google"><svg class="gmark" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>Continue with Google</a>
+    <div class="auth-or" id="authOr">OR</div>
+    <label id="nameRow" hidden>Your name <input id="authName" type="text" autocomplete="name" maxlength="100" placeholder="Optional"></label>
+    <label>Email <input id="authEmail" type="email" autocomplete="email" required maxlength="200"></label>
+    <label>Password <input id="authPass" type="password" autocomplete="current-password" required minlength="8" maxlength="200"></label>
+    <div class="err" id="authErr" role="alert"></div>
+    <button class="primary" id="authGo" type="submit">Sign in</button>
+    <p class="switch" id="authSwitchRow"><span id="authSwitchText">New to Clipline?</span> <button type="button" class="linkbtn" id="authSwitch">Create an account</button></p>
+  </form>
+</div>
+<div class="app" id="app" hidden>
   <aside class="side" aria-label="Clipline">
     <div class="brand"><span class="mark" aria-hidden="true"><i></i></span><span>Clipline</span></div>
     <ol class="steps" id="steps" aria-label="Progress">
@@ -376,8 +456,10 @@ dialog#picker::backdrop{background:rgba(8,10,18,.7)}
       <li data-step="3"><span class="st-ic">3</span><span><b>Review</b><small>Check and edit</small></span></li>
       <li data-step="4"><span class="st-ic">4</span><span><b>Posted</b><small>On your channel</small></span></li>
     </ol>
+    <button type="button" class="navlink" id="postedNav"><span class="st-ic"><span class="ms" aria-hidden="true">smart_display</span></span><span><b>On YouTube</b><small>Scheduled Shorts</small></span></button>
     <div class="side-foot">
-      <div class="pill" title="YouTube posting"><span class="dot" id="ytDot"></span><span id="ytText">Checking YouTube</span></div>
+      <div class="who-am-i"><span id="meEmail"></span><button type="button" class="linkbtn" id="logoutBtn">Sign out</button></div>
+      <button type="button" class="pill" id="ytPill" title="YouTube posting"><span class="dot" id="ytDot"></span><span id="ytText">Checking YouTube</span></button>
       <div class="theme"><span>Appearance</span>
         <div class="theme-seg" role="group" aria-label="Appearance">
           <button type="button" data-theme-set="light" aria-pressed="false" title="Light"><span class="ms" aria-hidden="true">light_mode</span><span class="sr">Light</span></button>
@@ -399,6 +481,7 @@ dialog#picker::backdrop{background:rgba(8,10,18,.7)}
         <h1>One vlog in. A week of Shorts out.</h1>
         <p class="lede">Add your vlog and tell Clipline what you want. It finds the best moments, cuts them vertical with captions, a hook and a thumbnail, and posts them on your schedule once you approve them.</p>
       </div>
+      <button class="ghost" id="postedBtn" type="button"><span class="ms" aria-hidden="true">calendar_month</span>My scheduled Shorts</button>
     </div>
     <div class="setup">
       <div>
@@ -475,6 +558,7 @@ dialog#picker::backdrop{background:rgba(8,10,18,.7)}
             <option value="d12">One a day at 12:00 PM, starting tomorrow</option>
             <option value="two">Two a day, 12:00 PM and 6:00 PM</option>
             <option value="now">All at once, right away</option>
+            <option value="custom">Starting on a day and time I choose</option>
           </select>
         </div>
       </div>
@@ -488,6 +572,7 @@ dialog#picker::backdrop{background:rgba(8,10,18,.7)}
           <div><dt>Captions</dt><dd id="sumStyle">Bold yellow</dd></div>
           <div><dt>Posting</dt><dd id="sumSched">One a day, 6 PM</dd></div>
         </dl>
+        <div class="yt1" id="yt1"></div>
         <button class="primary big" id="make" type="button">Make my 5 Shorts</button>
         <div class="bar" id="upBar" hidden><i></i></div>
         <div class="err" id="err1" role="alert"></div>
@@ -539,9 +624,23 @@ dialog#picker::backdrop{background:rgba(8,10,18,.7)}
         <option value="d18">One a day at 6:00 PM</option>
         <option value="d12">One a day at 12:00 PM</option>
         <option value="two">Two a day, 12 PM and 6 PM</option>
+        <option value="custom">Starting on a day and time I choose</option>
         <option value="now">All at once, right away</option>
       </select>
-      <button class="primary" id="schedBtn" type="button">Schedule</button>
+      <span class="custom" id="customWhen" hidden>
+        <input type="datetime-local" id="schStart" aria-label="Date and time of the first Short">
+        <select id="schEvery" aria-label="Time between Shorts">
+          <option value="6">then every 6 hours</option>
+          <option value="12">then every 12 hours</option>
+          <option value="24" selected>then one a day</option>
+          <option value="48">then every 2 days</option>
+          <option value="72">then every 3 days</option>
+          <option value="168">then one a week</option>
+        </select>
+      </span>
+      <button class="ghost soon" id="igBtn" type="button" disabled title="Instagram posting is coming soon"><span class="ms" aria-hidden="true">photo_camera</span>Upload to Instagram<small>Soon</small></button>
+      <button class="primary" id="schedBtn" type="button">Upload to YouTube</button>
+      <div class="acct" id="acct" hidden></div>
     </div>
   </section>
 
@@ -564,6 +663,22 @@ dialog#picker::backdrop{background:rgba(8,10,18,.7)}
     <div class="pk-actions"><button type="button" class="ghost" id="pkCancel">Cancel</button><button type="button" class="primary" id="pkUse"><span class="ms" aria-hidden="true">check</span>Use this moment</button></div>
   </dialog>
 
+  <!-- On YouTube: every Short Clipline uploaded -->
+  <section id="s5" hidden>
+    <div class="work">
+      <div class="page-head">
+        <div>
+          <div class="eyebrow">On YouTube</div>
+          <h1>Your scheduled Shorts</h1>
+          <p class="lede">Every Short Clipline has uploaded. Change when one goes out, or edit it and update it on YouTube.</p>
+        </div>
+        <button class="ghost" id="ptNew" type="button"><span class="ms" aria-hidden="true">add</span>New vlog</button>
+      </div>
+      <div class="banner warn" id="ptNote" role="status" hidden></div>
+      <div class="card" id="ptCard"><ul class="plist" id="plist"><li><span></span><span class="pv">Checking YouTube...</span></li></ul></div>
+    </div>
+  </section>
+
   <!-- 4. Posted -->
   <section id="s4" hidden>
     <div class="work">
@@ -571,12 +686,12 @@ dialog#picker::backdrop{background:rgba(8,10,18,.7)}
         <div>
           <div class="eyebrow">Step 4 of 4 · Posted</div>
           <h1 id="doneTitle">Scheduled</h1>
-          <p class="lede">Each Short goes public at its time. You can change anything in YouTube Studio before then.</p>
+          <p class="lede" id="doneLede">Each Short goes public at its time. You can change anything in YouTube Studio before then.</p>
         </div>
       </div>
       <div class="card"><ul class="cal" id="cal"></ul></div>
       <div class="banner" id="doneNote" style="margin-top:16px"><span class="ms" aria-hidden="true">info</span><span>If your Google project hasn't passed YouTube's API audit yet, YouTube keeps these uploads private. Open each one in YouTube Studio to set it public or scheduled.</span></div>
-      <p style="margin-top:20px"><button class="primary" id="againBtn" type="button"><span class="ms" aria-hidden="true">add</span>Make Shorts from another vlog</button></p>
+      <p style="margin-top:20px;display:flex;gap:12px;flex-wrap:wrap"><button class="ghost" id="backBtn" type="button"><span class="ms" aria-hidden="true">movie</span>Back to my Shorts</button><button class="ghost" id="postedBtn4" type="button"><span class="ms" aria-hidden="true">calendar_month</span>All my scheduled Shorts</button><button class="primary" id="againBtn" type="button"><span class="ms" aria-hidden="true">add</span>Make Shorts from another vlog</button></p>
     </div>
   </section>
 
@@ -592,12 +707,13 @@ const esc = t => String(t).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&
 let count = 5, jobId = null, poll = null, job = null;
 
 function show(n){
-  [1,2,3,4].forEach(i=>$("s"+i).hidden = i!==n);
+  [1,2,3,4,5].forEach(i=>$("s"+i).hidden = i!==n);
+  $("postedNav").classList.toggle("now", n===5);
   document.querySelectorAll("#steps li").forEach(li=>{
     const k=+li.dataset.step, ic=li.querySelector(".st-ic");
-    li.classList.toggle("done",k<n); li.classList.toggle("now",k===n);
+    li.classList.toggle("done",n<5&&k<n); li.classList.toggle("now",k===n);
     if(k===n) li.setAttribute("aria-current","step"); else li.removeAttribute("aria-current");
-    ic.innerHTML = k<n ? '<span class="ms" aria-hidden="true">check</span>' : String(k);
+    ic.innerHTML = n<5&&k<n ? '<span class="ms" aria-hidden="true">check</span>' : String(k);
   });
   window.scrollTo(0,0);
 }
@@ -616,11 +732,81 @@ document.querySelectorAll("[data-theme-set]").forEach(b=>b.onclick=()=>{
 });
 paintTheme();
 
-fetch("/api/config").then(r=>r.json()).then(c=>{
-  $("ytDot").classList.toggle("on", c.youtube);
-  $("ytText").textContent = c.youtube ? "YouTube connected" : "YouTube not set up yet";
-  $("ytText").parentElement.title = c.youtube ? "YouTube posting is set up" : "YouTube posting isn't set up yet (README step 5)";
+// ---- YouTube sign-in: the creator signs in once, then every post goes to that channel
+let yt = {configured:false, signed_in:false, channel:null}, ytWin = null;
+async function loadAccount(){
+  try{ const r=await fetch("/api/youtube/me"); yt=await r.json(); }catch(e){}
+  paintAccount();
+}
+function paintAccount(){
+  const name = yt.channel ? yt.channel.title : "your channel";
+  $("ytDot").classList.toggle("on", yt.signed_in);
+  $("ytText").textContent = yt.signed_in ? name : "Connect YouTube";
+  $("ytPill").title = !yt.configured ? "YouTube posting isn't set up yet (README step 5)"
+    : yt.signed_in ? "Posting to "+name : "Connect your YouTube channel to post your Shorts";
+  $("acct").hidden = false;
+  $("acct").innerHTML = !yt.configured
+    ? '<span class="ms" aria-hidden="true">info</span><span>YouTube posting isn\'t set up yet: <b>client_secret.json</b> is missing from the Clipline folder. Follow README step 5, then restart Clipline. You can still Save each Short.</span>'
+    : yt.signed_in
+    ? (yt.channel&&yt.channel.thumb ? '<img src="'+esc(yt.channel.thumb)+'" alt="" referrerpolicy="no-referrer">' : '<span class="ms" aria-hidden="true">smart_display</span>')+
+      '<span>Posting to <b>'+esc(name)+'</b>'+(yt.offline?' (offline right now)':'')+'</span>'+
+      '<button type="button" class="linkbtn" id="ytSwitch">Switch channel</button><button type="button" class="linkbtn" id="ytOut">Disconnect</button>'
+    : '<span class="ms" aria-hidden="true">smart_display</span><span>YouTube isn\'t connected yet. <b>Upload to YouTube</b> asks you to connect first; then press it again to upload.</span><button type="button" class="linkbtn" id="ytIn3">Connect now</button>';
+  if($("ytSwitch")){ $("ytSwitch").onclick=()=>signIn(); $("ytOut").onclick=signOut; }
+  $("yt1").innerHTML = yt.signed_in
+    ? '<span class="who">'+(yt.channel&&yt.channel.thumb ? '<img src="'+esc(yt.channel.thumb)+'" alt="" referrerpolicy="no-referrer">' : '<span class="ms" aria-hidden="true">smart_display</span>')+
+        '<span>Posting to <b>'+esc(name)+'</b></span></span>'+
+      '<span class="acts"><button type="button" class="linkbtn" id="ytSwitch1">Switch channel</button><button type="button" class="linkbtn" id="ytOut1">Disconnect</button></span>'
+    : '<button type="button" class="ghost" id="ytIn1"><span class="ms" aria-hidden="true">smart_display</span>Connect YouTube</button>'+
+      '<span>Optional now. If you skip it, Clipline asks when you upload.</span>'+(yt.configured ? '' : '<span class="err" id="ytSetup1"></span>');
+  if($("ytIn1")) $("ytIn1").onclick=()=>signIn();
+  if($("ytIn3")) $("ytIn3").onclick=()=>signIn();
+  if($("ytSwitch1")){ $("ytSwitch1").onclick=()=>signIn(); $("ytOut1").onclick=signOut; }
+  if(typeof dock==="function" && jobId) dock();
+}
+// Opens Google's sign-in in a small window. Must run straight from a click, or the browser blocks it.
+function ytError(msg){ if($("s3").hidden) $("err1").textContent=msg; else $("err3").textContent=msg; }
+// What to do once the sign-in lands (e.g. the upload the creator asked for before signing in).
+let ytThen=null;
+function signedIn(a){
+  clearInterval(ytWatch); yt=a; paintAccount(); ytError("");
+  const f=ytThen; ytThen=null; if(f && yt.signed_in) f();
+}
+function signIn(then){
+  ytThen = then || null;
+  if(!yt.configured){
+    const msg="YouTube posting isn't set up yet: the file client_secret.json is missing from the Clipline folder. "+
+      "Create it in Google Cloud (README step 5), put it in the Clipline folder, then click Connect YouTube again. No restart needed.";
+    // Check again first: the file may have been added since the page loaded (then one more click signs in).
+    loadAccount().then(()=>{
+      const m = yt.configured ? "Found client_secret.json. Click Connect YouTube again." : msg;
+      if(!$("s1").hidden && $("ytSetup1")) $("ytSetup1").textContent=m; else if(!$("s1").hidden) $("err1").textContent=m; else ytError(m);
+    });
+    return;
+  }
+  const url="/api/youtube/signin?next="+encodeURIComponent(jobId||"");
+  const w=520, h=640, x=Math.max(0,(screen.width-w)/2), y=Math.max(0,(screen.height-h)/2);
+  ytWin=window.open(url+"&popup=1","clipline-youtube","popup,width="+w+",height="+h+",left="+x+",top="+y);
+  if(!ytWin){ location.href=url; return; }  // popups blocked: sign in in this tab, then come back
+  // Google's pages can cut the link to the window, so ask Clipline itself until the sign-in lands.
+  clearInterval(ytWatch); const until=Date.now()+5*60000;
+  ytWatch=setInterval(async()=>{
+    if(Date.now()>until){ clearInterval(ytWatch); return; }
+    try{ const r=await fetch("/api/youtube/me"); const a=await r.json();
+      if(a.signed_in) signedIn(a); }catch(e){}
+  },2000);
+}
+let ytWatch=null;
+window.addEventListener("message",e=>{
+  if(e.origin!==location.origin || !e.data || e.data.clipline!=="youtube") return;
+  if(!e.data.ok){ ytThen=null; ytError(e.data.msg); }
+  else fetch("/api/youtube/me").then(r=>r.json()).then(a=>{ if(a.signed_in) signedIn(a); }).catch(()=>{});
 });
+async function signOut(){
+  try{ await fetch("/api/youtube/signout",{method:"POST"}); }catch(e){}
+  yt.signed_in=false; yt.channel=null; paintAccount();
+}
+$("ytPill").onclick=()=>{ if(!yt.signed_in) signIn(); };
 
 // ---- form
 function renderCount(){
@@ -643,7 +829,7 @@ function paintPlan(){
   $("mustTag").textContent = k ? k+" / "+count+" chosen" : "Optional";
   const st=document.querySelector("input[name=style]:checked");
   $("sumStyle").textContent = st ? st.closest("label").querySelector("small").textContent : "";
-  $("sumSched").textContent = {d18:"One a day, 6 PM",d12:"One a day, 12 PM",two:"Two a day",now:"All at once"}[$("sched").value]||"";
+  $("sumSched").textContent = {d18:"One a day, 6 PM",d12:"One a day, 12 PM",two:"Two a day",now:"All at once",custom:"Your own times"}[$("sched").value]||"";
 }
 $("minus").onclick=()=>{count=Math.max(1,mustRows().length,count-1);renderCount();if(!$("mustHint").classList.contains("bad")) mustCountHint();};
 $("plus").onclick=()=>{count=Math.min(10,count+1);renderCount();if(!$("mustHint").classList.contains("bad")) mustCountHint();};
@@ -832,9 +1018,12 @@ async function tick(){
   let r; try{ r=await fetch("/api/status/"+jobId); }catch(e){ return; }
   if(r.status===404){ clearInterval(poll); location.hash=""; show(1); return; }
   job=await r.json();
-  if(job.upload_status){ renderUpload(); return; }
+  if(job.upload_status && job.upload_status!=="error" && !(job.upload_status==="done" && onReview)){ renderUpload(); return; }
   if(job.status==="ready"){
     if($("s3").hidden || !$("reel").children.length){ renderResults(); show(3); } else refreshResults();
+    if((job.uploads||[]).length) markPosted();
+    if(focusIdx!=null){ const el=document.querySelector('.short[data-idx="'+focusIdx+'"]'); focusIdx=null; if(el) el.scrollIntoView({block:"center"}); }
+    if(job.upload_status==="error"){ markPosted(); if(!$("err3").textContent) $("err3").textContent="Posting stopped: "+job.upload_msg; }
     if(!job.shorts.some(s=>s.retrying)) clearInterval(poll);
     return;
   }
@@ -1027,6 +1216,7 @@ function paintTitle(){
   else if(err.textContent.startsWith("Couldn't add the Short")) err.textContent="";
 }
 function renderResults(){
+  if(job.schedule && $("sched2").querySelector('option[value="'+job.schedule+'"]')) $("sched2").value=job.schedule;
   $("reel").innerHTML = job.shorts.map(cardHTML).join("")+ADD_CARD;
   document.querySelectorAll(".short[data-idx]").forEach(el=>{
     const s=job.shorts.find(x=>x.idx===+el.dataset.idx);
@@ -1138,28 +1328,106 @@ function dock(){
   const total=document.querySelectorAll(".short[data-idx]:not(.pending)").length, k=document.querySelectorAll(".short .keep input:checked").length;
   const busy=document.querySelectorAll(".short.redoing").length;
   $("dockText").textContent = busy ? "Making "+(busy===1?"a Short":busy+" Shorts")+"..." : k ? k+" of "+total+" will be posted" : "Tick at least one Short";
-  $("schedBtn").innerHTML = '<span class="ms" aria-hidden="true">calendar_month</span>'+(k===1 ? "Schedule 1 Short" : "Schedule "+k+" Shorts");
-  $("schedBtn").disabled = !k || busy>0;
+  const now=$("sched2").value==="now", n=k===1 ? "1 Short" : k+" Shorts";
+  $("customWhen").hidden = $("sched2").value!=="custom";
+  $("schedBtn").innerHTML = '<span class="ms" aria-hidden="true">smart_display</span>Upload '+(k>1?k+" ":"")+'to YouTube';
+  $("schedBtn").title = !yt.signed_in ? "You'll connect YouTube first" : now ? "Posts "+n+" now" : "Schedules "+n;
+  $("schedBtn").disabled = !k || busy>0 || POSTING_NOW();
 }
-$("schedBtn").onclick=async()=>{
+function POSTING_NOW(){ return !!job && ["starting","connecting","uploading"].includes(job.upload_status); }
+// The custom schedule starts tomorrow at 6 PM unless the creator picks something else.
+(()=>{ const d=new Date(); d.setDate(d.getDate()+1); d.setHours(18,0,0,0);
+  const p=x=>String(x).padStart(2,"0");
+  $("schStart").value=d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+"T18:00";
+  const m=new Date(Date.now()+16*60000); $("schStart").min=m.getFullYear()+"-"+p(m.getMonth()+1)+"-"+p(m.getDate())+"T"+p(m.getHours())+":"+p(m.getMinutes()); })();
+$("sched2").addEventListener("change",()=>{ $("err3").textContent=""; dock(); });
+$("schStart").addEventListener("input",()=>$("schStart").classList.remove("bad"));
+$("schedBtn").onclick=()=>{
   $("err3").textContent="";
-  const shorts=[...document.querySelectorAll(".short[data-idx]:not(.pending)")].map(el=>({idx:+el.dataset.idx,title:el.querySelector("input.title").value,keep:el.querySelector(".keep input").checked}));
-  const r=await fetch("/api/schedule/"+jobId,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({shorts,schedule:$("sched2").value})});
-  const j=await r.json();
-  if(!r.ok){ $("err3").textContent=j.error||"Couldn't start posting."; return; }
-  $("schedBtn").disabled=true; $("upPanel").hidden=false; $("upMsg").textContent="Connecting to YouTube";
-  clearInterval(poll); poll=setInterval(tick,1000);
+  if(!yt.signed_in){ signIn(); return; }  // sign in first; then they press Upload themselves
+  postShorts();
 };
+async function postShorts(){
+  const shorts=[...document.querySelectorAll(".short[data-idx]:not(.pending)")].map(el=>({idx:+el.dataset.idx,title:el.querySelector("input.title").value,keep:el.querySelector(".keep input").checked}));
+  let tz=""; try{ tz=Intl.DateTimeFormat().resolvedOptions().timeZone||""; }catch(e){}
+  const mode=$("sched2").value;
+  if(mode==="custom" && !$("schStart").value){ $("schStart").classList.add("bad"); $("err3").textContent="Pick the date and time for the first Short."; return; }
+  $("schedBtn").disabled=true;
+  let r, j;
+  try{
+    r=await fetch("/api/schedule/"+jobId,{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({shorts,schedule:mode,tz,start:$("schStart").value,every:+$("schEvery").value})});
+    j=await r.json();
+  }catch(e){ $("schedBtn").disabled=false; $("err3").textContent="Couldn't reach Clipline. Is the app window still open?"; return; }
+  if(!r.ok){
+    $("schedBtn").disabled=false; $("err3").textContent=j.error||"Couldn't start posting.";
+    if(j.field==="start") $("schStart").classList.add("bad");
+    if(j.signin){ yt.signed_in=false; paintAccount(); }
+    return;
+  }
+  job.upload_status="starting"; onReview=false;
+  $("upPanel").hidden=false; $("upMsg").textContent="Connecting to YouTube"; $("upPct").style.width="0%";
+  clearInterval(poll); poll=setInterval(tick,1000);
+}
 function renderUpload(){
   if($("reel").children.length===0) renderResults();
   if($("s3").hidden && job.upload_status!=="done") show(3);
   $("upPanel").hidden=false; $("upMsg").textContent=job.upload_msg||""; $("upPct").style.width=(job.upload_pct||0)+"%";
-  if(job.upload_status==="error"){ clearInterval(poll); $("err3").textContent="Posting stopped: "+job.upload_msg; $("schedBtn").disabled=false; }
+  markPosted();
+  if(job.upload_status==="error"){ clearInterval(poll); $("err3").textContent="Posting stopped: "+job.upload_msg; }
   if(job.upload_status==="done"){ clearInterval(poll); renderDone(); }
 }
+// Shorts already on YouTube (after a stop halfway) can't be ticked again, so nothing is posted twice.
+function whenText(iso){
+  if(!iso) return "Posted";
+  const d=new Date(iso);
+  return (d>new Date() ? "Scheduled for " : "Went out ")+d.toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"})+", "+d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"});
+}
+function markPosted(){
+  const ups=new Map((job.uploads||[]).map(u=>[u.idx,u]));
+  document.querySelectorAll(".short[data-idx]:not(.pending)").forEach(el=>{
+    const u=ups.get(+el.dataset.idx), info=el.querySelector(".ytinfo");
+    if(!u){ if(info) info.remove(); return; }
+    const box=el.querySelector(".keep input"), lab=el.querySelector(".keep");
+    box.checked=false; box.disabled=true; lab.classList.add("posted");
+    lab.lastChild.textContent=" On YouTube";
+    const s=job.shorts.find(x=>x.idx===u.idx)||{}, title=el.querySelector("input.title");
+    const newVideo = u.video && s.video!==u.video, newTitle = title && title.value.trim()!==u.title;
+    const html='<span><b>On YouTube</b> · '+esc(whenText(u.when))+'</span>'+
+      '<small>'+(newVideo ? "You've edited this Short since it was uploaded. Update replaces the YouTube copy with this one, at the same time."
+        : newTitle ? "Update changes the title on YouTube." : "Edit the title, hook or moment here, then update it on YouTube.")+'</small>'+
+      '<button type="button" class="ghost upd"'+(newVideo||newTitle?'':' disabled')+'><span class="ms" aria-hidden="true">sync</span>'+(newVideo?"Replace on YouTube":"Update on YouTube")+'</button>'+
+      '<div class="err" role="alert"></div>';
+    let box2=info;
+    if(!box2){ box2=document.createElement("div"); box2.className="ytinfo"; el.querySelector(".row").after(box2);
+      if(title) title.addEventListener("input",()=>markPosted()); }
+    const keepErr=box2.querySelector(".err") ? box2.querySelector(".err").textContent : "";
+    if(box2.dataset.html!==html){ box2.innerHTML=html; box2.dataset.html=html; box2.querySelector(".err").textContent=keepErr;
+      box2.querySelector(".upd").onclick=()=>repost(u.idx,box2,newVideo); }
+  });
+  dock();
+}
+async function repost(idx,box,replace){
+  const err=box.querySelector(".err"), btn=box.querySelector(".upd"); err.textContent="";
+  if(!yt.signed_in){ signIn(); return; }
+  if(replace && !confirm("Replace this Short on YouTube?\n\nClipline uploads the edited version with the same time, then deletes the old upload.")) return;
+  const el=document.querySelector('.short[data-idx="'+idx+'"]');
+  btn.disabled=true; btn.lastChild.textContent = replace ? "Replacing..." : "Updating...";
+  let r,j;
+  try{ r=await fetch("/api/repost/"+jobId+"/"+idx,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({title:el.querySelector("input.title").value})}); j=await r.json(); }
+  catch(e){ j={error:"Couldn't reach Clipline. Is the app window still open?"}; r={ok:false}; }
+  if(!r.ok){ err.textContent=j.error||"Couldn't update it."; box.dataset.html=""; tick(); return; }
+  if(j.done==="title"){ const u=(job.uploads||[]).find(x=>x.idx===idx); if(u) u.title=el.querySelector("input.title").value.trim(); box.dataset.html=""; markPosted(); box.querySelector("small").textContent="Title updated on YouTube."; return; }
+  onReview=false; job.upload_status="starting";
+  $("upPanel").hidden=false; $("upMsg").textContent="Connecting to YouTube"; $("upPct").style.width="0%";
+  clearInterval(poll); poll=setInterval(tick,1000);
+}
 function renderDone(){
-  const ups=job.uploads||[];
-  $("doneTitle").textContent = ups.length===1 ? "1 Short scheduled" : ups.length+" Shorts scheduled";
+  const ups=job.uploads||[], now=ups.length && ups.every(u=>!u.when);
+  const n=ups.length===1 ? "1 Short " : ups.length+" Shorts ";
+  $("doneTitle").textContent = n+(now ? "posted" : "scheduled");
+  $("doneLede").textContent = now ? "They're on your channel now. You can change anything in YouTube Studio."
+    : "Each Short goes public at its time. You can change anything in YouTube Studio before then.";
   $("cal").innerHTML = ups.map(u=>{
     const d=u.when?new Date(u.when):null;
     const day=d?d.toLocaleDateString(undefined,{weekday:"short"}):"Now";
@@ -1169,9 +1437,125 @@ function renderDone(){
   }).join("");
   show(4);
 }
+// ---- On YouTube: every uploaded Short, with Change time / Edit Short / Open in Studio
+function stateTag(u){
+  const st=u.state;
+  if(st && st.privacy==="missing") return '<span class="tag bad">Not found on YouTube</span>';
+  if(st && st.privacy==="other_channel") return '<span class="tag">On another channel</span>';
+  if(st && st.privacy==="private" && st.publish_at && new Date(st.publish_at)>new Date()) return '<span class="tag good">Scheduled</span>';
+  if(st && st.privacy==="private") return '<span class="tag">Private</span>';
+  if(st && st.privacy) return '<span class="tag good">'+(st.privacy==="public"?"Public":"Unlisted")+'</span>';
+  return u.when && new Date(u.when)>new Date() ? '<span class="tag good">Scheduled</span>' : '<span class="tag">Posted</span>';
+}
+function localInput(d){ const p=x=>String(x).padStart(2,"0"); return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+"T"+p(d.getHours())+":"+p(d.getMinutes()); }
+async function openPosted(){
+  clearInterval(poll); location.hash="youtube"; show(5);
+  $("plist").innerHTML='<li><span></span><span class="pv">Checking YouTube...</span></li>'; $("ptNote").hidden=true;
+  let j; try{ j=await (await fetch("/api/posted")).json(); }catch(e){ j={items:[],note:"Couldn't reach Clipline. Is the app window still open?"}; }
+  const notes=[];
+  if(j.note) notes.push(j.note);
+  else if(!j.signed_in && j.items.length) notes.push("Connect YouTube to see each Short's live status and change it.");
+  if(j.items.some(u=>u.state&&u.state.privacy==="private"&&!u.state.publish_at)) notes.push("Private Shorts: YouTube keeps uploads private until your Google project passes YouTube's API audit (README step 5). Set them public in YouTube Studio.");
+  $("ptNote").hidden=!notes.length; $("ptNote").innerHTML='<span class="ms" aria-hidden="true">info</span><span>'+notes.map(esc).join("<br>")+'</span>';
+  if(!j.items.length){ $("plist").innerHTML='<li><span></span><span class="pv">Nothing uploaded yet. Shorts you upload to YouTube from Clipline show up here.</span></li>'; return; }
+  j.items.sort((a,b)=>{ const ta=a.state&&a.state.publish_at||a.when||"", tb=b.state&&b.state.publish_at||b.when||""; return tb.localeCompare(ta); });
+  $("plist").innerHTML=j.items.map((u,i)=>{
+    const st=u.state||{}, gone=st.privacy==="missing", other=st.privacy==="other_channel";
+    const when=st.publish_at && st.privacy==="private" ? st.publish_at : u.when;
+    const canMove=!gone && !other && (!st.privacy || st.privacy==="private");
+    return '<li data-i="'+i+'"><img src="/media/'+esc(u.job)+'/'+esc(u.thumb)+'" alt="">'+
+      '<div><div class="pt">'+esc(u.title)+'</div><div class="pv">From '+esc(u.vlog)+'</div>'+
+      '<div class="pw">'+stateTag(u)+'<span>'+(gone?"Deleted in YouTube Studio, or uploaded to a different channel?":other?"Connect that channel to change it.":esc(whenText(st.privacy&&st.privacy!=="private"?null:when)))+'</span>'+
+        (u.changed?'<span class="tag cap">Edited, not updated on YouTube</span>':'')+'</div>'+
+      '<div class="pa">'+(canMove?'<button type="button" class="linkbtn mv"><span class="ms" aria-hidden="true">schedule</span>Change time</button>':'')+
+        '<button type="button" class="linkbtn ed"><span class="ms" aria-hidden="true">edit</span>Edit Short</button>'+
+        (gone?'<button type="button" class="linkbtn um">Unmark it so I can upload it again</button>':'')+
+        (gone||other?'':'<a href="https://studio.youtube.com/video/'+esc(u.video_id)+'/edit" target="_blank" rel="noopener">Open in Studio<span class="ms" aria-hidden="true">open_in_new</span></a>')+'</div>'+
+      '<div class="pform" hidden><input type="datetime-local" aria-label="New date and time"><button type="button" class="primary sv">Save time</button><button type="button" class="ghost cn">Cancel</button></div>'+
+      '<div class="err" role="alert"></div></div></li>';
+  }).join("");
+  $("plist").querySelectorAll("li[data-i]").forEach(li=>{
+    const u=j.items[+li.dataset.i], form=li.querySelector(".pform"), inp=form.querySelector("input"), err=li.querySelector(".err");
+    const mv=li.querySelector(".mv");
+    if(mv) mv.onclick=()=>{
+      if(!j.signed_in){ signIn(); return; }
+      const cur=(u.state&&u.state.publish_at)||u.when; const d=cur?new Date(cur):new Date(Date.now()+86400000);
+      inp.min=localInput(new Date(Date.now()+16*60000)); inp.value=localInput(d<new Date()?new Date(Date.now()+3600000):d);
+      form.hidden=false; inp.focus();
+    };
+    form.querySelector(".cn").onclick=()=>{ form.hidden=true; err.textContent=""; };
+    form.querySelector(".sv").onclick=async()=>{
+      err.textContent=""; let tz=""; try{ tz=Intl.DateTimeFormat().resolvedOptions().timeZone||""; }catch(e){}
+      const b=form.querySelector(".sv"); b.disabled=true; b.textContent="Saving...";
+      let r,k; try{ r=await fetch("/api/reschedule/"+u.job+"/"+u.idx,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({start:inp.value,tz})}); k=await r.json(); }
+      catch(e){ r={ok:false}; k={error:"Couldn't reach Clipline. Is the app window still open?"}; }
+      b.disabled=false; b.textContent="Save time";
+      if(!r.ok){ err.textContent=k.error||"Couldn't change the time."; return; }
+      openPosted();
+    };
+    li.querySelector(".ed").onclick=()=>openJob(u.job,u.idx);
+    const um=li.querySelector(".um");
+    if(um) um.onclick=async()=>{
+      if(!confirm("Unmark \""+u.title+"\"?\n\nOnly do this if it's really gone from YouTube. Clipline will then let you upload it again.")) return;
+      const r=await fetch("/api/unmark/"+u.job+"/"+u.idx,{method:"POST"}); if(!r.ok){ err.textContent=(await r.json()).error||"Couldn't unmark it."; return; }
+      openPosted();
+    };
+  });
+}
+let focusIdx=null;
+function openJob(id,idx){ onReview=true; focusIdx=idx; $("reel").innerHTML=""; startPolling(id); }
+$("postedBtn").onclick=$("postedBtn4").onclick=$("postedNav").onclick=openPosted;
+$("ptNew").onclick=()=>{ location.hash=""; location.reload(); };
+
+// From the Posted page back to the Shorts, e.g. to upload ones that were left unticked. Posted ones stay marked.
+let onReview=false;
+$("backBtn").onclick=()=>{ onReview=true; $("upPanel").hidden=true; $("err3").textContent=""; renderResults(); show(3); markPosted(); };
 $("newBtn").onclick=$("againBtn").onclick=()=>{ location.hash=""; location.reload(); };
 
-if(location.hash.length>1) startPolling(location.hash.slice(1));
+// ---- Clipline account: the app shows only to a signed-in user; any "sign in first" reply brings the sign-in back
+let signup=false, booted=false;
+function paintAuth(){
+  $("authTitle").textContent = signup ? "Create your account" : "Sign in";
+  $("authLede").textContent = signup ? "Free to start. Your vlogs and Shorts stay in your own account." : "Turn one vlog into a week of Shorts.";
+  $("nameRow").hidden=!signup; $("authGo").textContent = signup ? "Create account" : "Sign in";
+  $("authPass").autocomplete = signup ? "new-password" : "current-password";
+  $("authPass").placeholder = signup ? "At least 8 characters" : "";
+  $("authSwitchText").textContent = signup ? "Already have an account?" : "New to Clipline?";
+  $("authSwitch").textContent = signup ? "Sign in" : "Create an account";
+  $("authErr").textContent="";
+}
+function showLogin(){
+  clearInterval(poll); $("app").hidden=true; $("auth").hidden=false; paintAuth();
+  setTimeout(()=>$("authEmail").focus(),0);
+}
+$("authSwitch").onclick=()=>{ signup=!signup; paintAuth(); $("authEmail").focus(); };
+$("authForm").onsubmit=async e=>{
+  e.preventDefault(); $("authErr").textContent="";
+  const body={email:$("authEmail").value,password:$("authPass").value,name:$("authName").value};
+  $("authGo").disabled=true;
+  let r,j; try{ r=await fetch(signup?"/api/auth/signup":"/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}); j=await r.json(); }
+  catch(x){ r={ok:false}; j={error:"Couldn't reach Clipline. Is the app window still open?"}; }
+  $("authGo").disabled=false;
+  if(!r.ok){ $("authErr").textContent=j.error||"Couldn't sign in."; if(j.field==="password") $("authPass").focus(); else $("authEmail").focus(); return; }
+  $("authPass").value=""; boot();
+};
+$("logoutBtn").onclick=async()=>{ try{ await fetch("/api/auth/logout",{method:"POST"}); }catch(x){} location.hash=""; location.reload(); };
+// Any reply that says "sign in first" (the session ended) shows the sign-in screen.
+const rawFetch=window.fetch.bind(window);
+window.fetch=async(...a)=>{ const r=await rawFetch(...a); if(r.status===401) showLogin(); return r; };
+async function boot(){
+  let m; try{ m=await (await rawFetch("/api/me")).json(); }catch(x){ m={user:null,google:false}; }
+  $("googleBtn").hidden=$("authOr").hidden=!m.google;
+  if(!m.user){ showLogin(); return; }
+  $("meEmail").textContent=m.user.email; $("meEmail").title=m.user.email;
+  $("auth").hidden=true; $("app").hidden=false;
+  loadAccount();
+  if(booted){ if(jobId) startPolling(jobId); return; }  // signed in again mid-session: pick the job back up
+  booted=true;
+  if(location.hash==="#youtube") openPosted();
+  else if(location.hash.length>1) startPolling(location.hash.slice(1));
+}
+boot();
 })();
 </script>
 </body>
