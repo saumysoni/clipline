@@ -63,12 +63,17 @@ def ai_provider():
     return (os.getenv("AI_PROVIDER") or "gemini").strip().lower()
 
 
-def ai_json(contents, progress=lambda pct, msg: None, temperature=0.4, busy_hint=""):
-    """Ask the AI chosen by AI_PROVIDER in .env (gemini or openai) for JSON.
+def has_key(provider):
+    """True if .env has the API key that `provider` (gemini or openai) needs."""
+    return bool(os.getenv({"gemini": "GEMINI_API_KEY", "openai": "OPENAI_API_KEY"}.get(provider, "")))
+
+
+def ai_json(contents, progress=lambda pct, msg: None, temperature=0.4, busy_hint="", provider=None):
+    """Ask the AI for JSON: `provider` if given ("gemini" or "openai"), else AI_PROVIDER in .env.
 
     `contents` is a string, or a list of strings and image_part()s. Returns the parsed JSON.
     """
-    provider = ai_provider()
+    provider = (provider or ai_provider()).strip().lower()
     if provider == "openai":
         return openai_json(contents, progress, temperature, busy_hint)
     if provider != "gemini":

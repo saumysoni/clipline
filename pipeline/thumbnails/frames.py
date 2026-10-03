@@ -9,7 +9,7 @@ from PIL import Image
 from pipeline.ffmpeg import ffmpeg_exe, run
 
 
-N_FRAMES = 10
+N_FRAMES = 12  # more chances to catch the thing the Short is about, big and in focus
 
 
 def sample_frames(video_path, start, end, work, n=N_FRAMES):
@@ -21,7 +21,7 @@ def sample_frames(video_path, start, end, work, n=N_FRAMES):
         t = start + 0.5 + span * (k + 0.5) / n
         out = work / f"frame_{k}.jpg"
         run([ffmpeg_exe(), "-y", "-ss", f"{t:.2f}", "-i", str(Path(video_path).resolve()),
-               "-frames:v", "1", "-vf", "scale='min(1280,iw)':-2", "-q:v", "2", str(out)])
+               "-frames:v", "1", "-vf", "scale='min(1920,iw)':-2", "-q:v", "2", str(out)])
         if out.exists():
             frames.append(Image.open(out).convert("RGB"))
     if not frames:

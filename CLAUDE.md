@@ -156,15 +156,25 @@ The code is split so two people can work on different features without touching 
     `temperature`, so `openai_json()` retries without it. `OPENAI_FALLBACK_MODELS` needs the same care as
     `FALLBACK_MODELS` (check https://platform.openai.com/docs/models).
 12. **Thumbnails:** Gemini's `box_2d` is `[ymin, xmin, ymax, xmax]` on a 0-1000 scale. `clean_plan()` validates
-    everything Gemini returns. The face cut-out crops ~1.2 face-widths either side first and splits thin
-    bridges (erode → pick the blob under the face → dilate), so people next to the creator aren't included;
-    overlapping people can still leak in, which is why the prompt asks for frames with the creator alone.
-    "scene" items become photo cards and "object" items become stickers; a cut-out covering <4% or >92% of
-    the crop counts as failed and becomes a card. Output stays under YouTube's 2 MB thumbnail limit.
-    Gemini is trained on `box_2d`; OpenAI models are asked for the same format but place boxes less
-    precisely, so expect looser item cut-outs with `AI_PROVIDER=openai`.
-    rembg downloads its model (~180 MB) on first use into `U2NET_HOME` (default `~/.u2net`); bake it into the
-    server image in the cloud.
+    everything the AI returns. **Thumbnails use Gemini whatever `AI_PROVIDER` says** (`THUMB_AI_PROVIDER`, default
+    gemini): Gemini is trained on `box_2d`, OpenAI places boxes less precisely. `ask_ai()` tries that provider, then
+    the other one, skipping any without a key; if none answers, `plan_without_ai()` (face finder only).
+    - **Face:** the AI also returns `face_box` (the creator's face in `face_frame`). The face finder alone once took a
+      "face" on a wall for the creator, so the AI's box is used for its frame; other frames use the face finder.
+      `pick_face()` tries the AI's frame, then the biggest faces (`FACE_TRIES`); if no cut-out works, a framed photo
+      only if the face is ≥ `MIN_FACE_CARD` of the frame width, else no face at all (never an unrelated frame).
+      The cut-out crops ~1.2 face-widths either side and splits thin bridges (erode → pick the blob under the
+      face → dilate), then `smooth_mask()` rounds the outline and drops loose bits. Overlapping people can still
+      leak in, which is why the prompt asks for frames with the creator alone.
+    - **Items** must be what the title/hook/speech is about, big and sharp. "scene" items become photo cards;
+      "object" items become stickers only if the edge is clean (`edge_quality()`: soft/solidity/ragged limits,
+      measured on real frames), else a card. A cut-out covering <4% or >92% of the crop fails. No piece is blown
+      up more than `MAX_UPSCALE`; one that would end up under `MIN_PIECE` pixels is left out.
+    - **Colours:** `fresh_accent()` gives each Short of a vlog a different accent (it reads the other
+      `thumbwork_*/plan.json`). The accent and `face_box` are saved in `plan.json`, so a hook change redraws the
+      same thumbnail. 12 frames are sampled at up to 1920 px wide, so close-ups have detail.
+    Output stays under YouTube's 2 MB thumbnail limit. rembg downloads its model (~180 MB) on first use into
+    `U2NET_HOME` (default `~/.u2net`); bake it into the server image in the cloud.
 
 13. **Hooks must be true.** Each Short has `hooks` (curiosity / bold / story, plus "custom" if the creator typed
     one), the chosen `hook`, `hook_style` and `hook_mode` ("text" or "none" = no banner, the original audio opens

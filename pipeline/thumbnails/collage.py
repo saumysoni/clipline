@@ -8,7 +8,7 @@ from PIL import Image
 
 from pipeline.thumbnails.frames import sample_frames
 from pipeline.thumbnails.layout import compose, save
-from pipeline.thumbnails.plan import plan, plan_without_ai
+from pipeline.thumbnails.plan import fresh_accent, plan, plan_without_ai
 
 
 def retext(job_dir, work_name, line1, line2, out_name):
@@ -34,6 +34,7 @@ def make_collage_thumbnail(video_path, moment, idx, job_dir, words=None, context
     except Exception as e:  # noqa: BLE001  (no key, Gemini busy, odd answer...)
         print(f"Thumbnail planning without AI ({e}).")
         pl = plan_without_ai(frames, moment)
+    pl["accent"] = fresh_accent(job_dir, work.name, pl["accent"])
     img = compose(frames, pl)
     name = f"thumb_{idx}.jpg"
     save(img, job_dir / name)

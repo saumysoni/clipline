@@ -10,7 +10,7 @@ from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
 from pipeline.constants import OUT_H, OUT_W
 from pipeline.fonts import find_font_file
 from pipeline.text import without_emoji
-from pipeline.thumbnails.cutout import crop_box, cut_out, face_cutout
+from pipeline.thumbnails.cutout import crop_box, cut_out, face_cutout, face_size
 
 
 W, H = OUT_W, OUT_H
@@ -162,47 +162,82 @@ SLOTS_NO_FACE = {1: [(540, 1120, 940, -3)],
                  3: [(330, 820, 580, -7), (760, 1140, 580, 6), (360, 1480, 540, -4)]}
 
 
+MAX_UPSCALE = 2.2   # a collage piece is never blown up more than this (more looks blurry)
+MIN_PIECE = 230     # pixels: a piece that would have to be smaller than this is left out
+FACE_TRIES = 3      # frames tried for the face cut-out (the AI's choice first, then the biggest faces)
+MIN_FACE_CARD = 0.15  # face width / frame width needed to show the face as a framed photo instead
+
+
+def pick_face(frames, first, face_box=None):
+    """(cut-out, None) of the creator, or (None, framed-photo crop) if no cut-out worked but a face is
+    big enough to show as a photo, or (None, None): then the thumbnail goes without a face.
+    The AI's frame (with its face_box) is tried first, then the frames with the biggest faces."""
+    sizes = [face_size(f) for f in frames]
+    if face_box:
+        sizes[first] = (face_box[3] - face_box[1]) / 1000
+    order = [first] + sorted((k for k in range(len(frames)) if k != first and sizes[k] > 0),
+                             key=lambda k: -sizes[k])
+    tried = []
+    for k in order[:FACE_TRIES]:
+        cut, crop = face_cutout(frames[k], face_box if k == first else None)
+        if cut is not None:
+            return cut, None
+        tried.append((sizes[k], crop))
+    big = [crop for size, crop in tried if size >= MIN_FACE_CARD]
+    return None, (big[0] if big else None)
+
+
+def piece_size(img, slot):
+    """How big a collage piece can be drawn without blowing it up too much (0: leave it out)."""
+    size = min(slot, int(max(img.size) * MAX_UPSCALE))
+    return size if size >= MIN_PIECE else 0
+
+
 def compose(frames, pl):
     accent = hex_rgb(pl["accent"])
-    face_img = frames[pl["face_frame"]] if pl["face_frame"] is not None else None
-    face_cut, face_crop = face_cutout(face_img) if face_img is not None else (None, None)
+    face_cut, face_crop = (pick_face(frames, pl["face_frame"], pl.get("face_box"))
+                           if pl["face_frame"] is not None else (None, None))
+    have_face = face_cut is not None or face_crop is not None
 
     pieces = []
     for it in pl["items"]:
         crop = crop_box(frames[it["frame"]], it["box"])
         cut = cut_out(crop) if it["kind"] == "object" else None
         pieces.append(("cut", cut) if cut is not None else ("card", crop))
-    if face_img is None and not pieces:
+    # Leave out pieces too small to show sharply. Biggest slot first, so the first item (what the
+    # title is about) keeps the most room; then lay out whatever is left.
+    largest = max([s for slots in (SLOTS_WITH_FACE if have_face else SLOTS_NO_FACE).values() for _, _, s, _ in slots])
+    pieces = [(kind, img) for kind, img in pieces if piece_size(img, largest)]
+    if not have_face and not pieces:
         raise RuntimeError("nothing to put on the thumbnail")
 
     scene = next((frames[it["frame"]] for it in pl["items"] if it["kind"] == "scene"), None)
     if scene is not None:
         canvas = background(scene, accent)
-    elif face_img is not None:
-        canvas = background(face_img, accent, blur=70)  # heavy blur: no ghost of the face
+    elif pl["face_frame"] is not None:
+        canvas = background(frames[pl["face_frame"]], accent, blur=70)  # heavy blur: no ghost of the face
     else:
         canvas = background(frames[pl["items"][0]["frame"]], accent)
 
-    have_face = face_img is not None
     slots = (SLOTS_WITH_FACE if have_face else SLOTS_NO_FACE).get(len(pieces), [])
     for (kind, img), (cx, cy, size, tilt) in zip(pieces, slots):
+        size = piece_size(img, size) or MIN_PIECE
         if kind == "cut":
             art = sticker(scale_to(img, size, size), outline=16, color=(255, 255, 255))
         else:
             art = photo_card(img, size)
         place(canvas, with_shadow(art, tilt), cx, cy)
 
-    if have_face:
-        if face_cut is not None:
-            target_h = H * 0.60
-            s_ = min(target_h / face_cut.height, W * 1.15 / face_cut.width)
-            face = face_cut.resize((int(face_cut.width * s_), int(face_cut.height * s_)), Image.LANCZOS)
-            art = sticker(face, outline=24, color=accent, glow=30)
-            pad = 24 + 60 + 8
-            canvas.alpha_composite(art, (int((W - art.width) / 2), int(H - art.height + pad)))
-        else:  # the cut-out didn't work: show the face as a big framed photo instead
-            art = with_shadow(photo_card(face_crop, 820, border=24), -3)
-            place(canvas, art, W // 2, int(H * 0.70))
+    if face_cut is not None:
+        target_h = H * 0.60
+        s_ = min(target_h / face_cut.height, W * 1.15 / face_cut.width)
+        face = face_cut.resize((int(face_cut.width * s_), int(face_cut.height * s_)), Image.LANCZOS)
+        art = sticker(face, outline=24, color=accent, glow=30)
+        pad = 24 + 60 + 8
+        canvas.alpha_composite(art, (int((W - art.width) / 2), int(H - art.height + pad)))
+    elif face_crop is not None:  # no cut-out worked, but the face is big enough to show as a framed photo
+        art = with_shadow(photo_card(face_crop, 820, border=24), -3)
+        place(canvas, art, W // 2, int(H * 0.70))
 
     draw_text(canvas, pl["line1"], pl["line2"], accent)
     return canvas.convert("RGB")
