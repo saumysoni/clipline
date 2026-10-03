@@ -1,0 +1,107 @@
+  <!-- 1. Set up -->
+  <section id="s1">
+    <div class="page-head">
+      <div>
+        <div class="eyebrow">Step 1 of 4 · Set up</div>
+        <h1>One vlog in. A week of Shorts out.</h1>
+        <p class="lede">Add your vlog and tell Clipline what you want. It finds the best moments, cuts them vertical with captions, a hook and a thumbnail, and posts them on your schedule once you approve them.</p>
+      </div>
+      <button class="ghost" id="postedBtn" type="button"><span class="ms" aria-hidden="true">calendar_month</span>My scheduled Shorts</button>
+    </div>
+    <div class="setup">
+      <div>
+        <div class="card">
+          <div class="sec-head"><span class="badge">1</span><h2>Your vlog</h2><span class="tag good"><span class="ms" aria-hidden="true">hd</span>Up to 4K</span></div>
+          <label class="drop" id="drop"><input type="file" id="file" accept="video/*">
+            <span class="drop-ic"><span class="ms" aria-hidden="true" id="dropIcon">cloud_upload</span></span>
+            <span id="dropText">Drop your vlog here</span>
+            <span id="dropSub">or click to choose the video file</span>
+          </label>
+          <div class="or">OR</div>
+          <label class="lab" for="link">Google Drive link</label>
+          <div class="with-ic"><span class="ms" aria-hidden="true">add_to_drive</span><input type="text" id="link" placeholder="https://drive.google.com/file/d/..." autocomplete="off" aria-describedby="linkHint"></div>
+          <div class="hint" id="linkHint" aria-live="polite"></div>
+          <div class="hint">Sharing set to "Anyone with the link". Use the original export, not a YouTube download, for the sharpest Shorts.</div>
+        </div>
+
+        <div class="card">
+          <div class="sec-head"><span class="badge">2</span><h2>About this vlog</h2><span class="tag">Optional</span></div>
+          <p class="hint" style="margin:0 0 12px">Helps Clipline pick better moments, spell names right and write titles in your voice.</p>
+          <div class="stack">
+            <div>
+              <label class="lab" for="ytUrl">The vlog's YouTube link</label>
+              <div class="inrow">
+                <div class="with-ic" style="flex:1"><span class="ms" aria-hidden="true">smart_display</span><input type="text" id="ytUrl" placeholder="https://youtube.com/watch?v=..." autocomplete="off" aria-describedby="ytHint"></div>
+                <button type="button" class="ghost" id="ytFill"><span class="ms" aria-hidden="true">sync</span>Fill in</button>
+              </div>
+              <div class="hint" id="ytHint" aria-live="polite"></div>
+            </div>
+            <div><label class="lab" for="vTitle">Vlog title</label><input type="text" id="vTitle" autocomplete="off"></div>
+            <div><label class="lab" for="vDesc">Vlog description</label><textarea id="vDesc" rows="4"></textarea></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="sec-head"><span class="badge">3</span><h2>Your notes for Clipline</h2><span class="tag">Optional</span></div>
+          <label class="lab" for="note">Anything Clipline should know?</label>
+          <textarea id="note" rows="3" maxlength="1000" placeholder="For example: Include the part where we reach the summit. Skip the car drive. Funny moments work best."></textarea>
+        </div>
+
+        <div class="card">
+          <div class="sec-head"><span class="badge">4</span><h2>Must-have moments</h2><span class="tag cap" id="mustTag">Optional</span></div>
+          <p class="hint" style="margin:0 0 12px">Exact times you want as Shorts, whatever the AI thinks. Clipline picks the rest.</p>
+          <div id="mustRows" class="stack" style="margin-bottom:12px"></div>
+          <button type="button" class="ghost addrow" id="addMust"><span class="ms" aria-hidden="true">add_circle</span>Add a moment</button>
+          <div class="hint" id="mustHint" aria-live="polite"></div>
+        </div>
+
+        <div class="card">
+          <div class="sec-head"><span class="badge">5</span><h2 id="countLab">How many Shorts?</h2><span class="tag">1 to 10</span></div>
+          <div class="count-row">
+            <div class="ctrl" role="group" aria-labelledby="countLab">
+              <button type="button" id="minus" aria-label="Fewer"><span class="ms" aria-hidden="true">remove</span></button>
+              <output class="num" id="num" aria-live="polite">5</output>
+              <button type="button" id="plus" aria-label="More"><span class="ms" aria-hidden="true">add</span></button>
+            </div>
+            <div class="frames" id="frames" aria-hidden="true"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="sec-head"><span class="badge">6</span><h2 id="styleLab">Caption style</h2></div>
+          <div class="styles" role="radiogroup" aria-labelledby="styleLab">
+            <label><input type="radio" name="style" value="bold" checked><span class="chip"><span class="sample">THIS <b>HILL</b></span><small>Bold yellow</small></span></label>
+            <label><input type="radio" name="style" value="clean"><span class="chip"><span class="sample clean">this <b>hill</b></span><small>Clean</small></span></label>
+            <label><input type="radio" name="style" value="boxed"><span class="chip"><span class="sample box">this <b>hill</b></span><small>Boxed</small></span></label>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="sec-head"><span class="badge">7</span><h2><label for="sched">When should they post?</label></h2></div>
+          <select id="sched">
+            <option value="d18">One a day at 6:00 PM, starting tomorrow</option>
+            <option value="d12">One a day at 12:00 PM, starting tomorrow</option>
+            <option value="two">Two a day, 12:00 PM and 6:00 PM</option>
+            <option value="now">All at once, right away</option>
+            <option value="custom">Starting on a day and time I choose</option>
+          </select>
+        </div>
+      </div>
+
+      <aside class="card summary" aria-label="Your plan">
+        <h3><span class="ms" aria-hidden="true">tune</span>Your plan</h3>
+        <dl class="plan">
+          <div><dt>Vlog</dt><dd id="sumVlog" class="todo">Not added yet</dd></div>
+          <div><dt>Shorts</dt><dd id="sumCount">5</dd></div>
+          <div><dt>Must-have moments</dt><dd id="sumMust">None</dd></div>
+          <div><dt>Captions</dt><dd id="sumStyle">Bold yellow</dd></div>
+          <div><dt>Posting</dt><dd id="sumSched">One a day, 6 PM</dd></div>
+        </dl>
+        <div class="yt1" id="yt1"></div>
+        <button class="primary big" id="make" type="button">Make my 5 Shorts</button>
+        <div class="bar" id="upBar" hidden><i></i></div>
+        <div class="err" id="err1" role="alert"></div>
+        <p class="fine"><span class="ms" aria-hidden="true">schedule</span>Nothing is posted until you review and approve each Short.</p>
+      </aside>
+    </div>
+  </section>

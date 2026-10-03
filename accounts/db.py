@@ -1,8 +1,8 @@
 """
-Clipline's accounts: who can sign in, and each person's YouTube connection.
+Accounts database (SQLite): who can sign in, and each person's YouTube connection.
 
-SQLite from Python's standard library, in data/clipline.db (DATABASE_PATH changes it). Every query goes
-through the small functions below, so moving to a server database later only changes this file.
+SQLite from Python's standard library, in data/clipline.db (DATABASE_PATH). One row per user;
+the YouTube token is stored per user so every creator posts to their own channel.
 """
 import json
 import os
@@ -11,8 +11,11 @@ import sqlite3
 import time
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+from settings import ROOT
+
+
 DB_PATH = Path(os.getenv("DATABASE_PATH") or ROOT / "data" / "clipline.db")
+
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
@@ -59,7 +62,6 @@ def secret_key():
     return path.read_text().strip()
 
 
-# --------------------------------------------------------------------------- users
 def _user(row):
     return dict(row) if row else None
 
@@ -105,7 +107,6 @@ def link_google(user_id, sub, name, clear_password):
                         "WHERE id = ?", (user_id,))
 
 
-# --------------------------------------------------------------------------- YouTube connections
 def youtube_token(user_id):
     with connect() as con:
         row = con.execute("SELECT token_json FROM youtube_tokens WHERE user_id = ?", (user_id,)).fetchone()

@@ -1,0 +1,21 @@
+/* Posting: the sticky upload bar, YouTube account line, upload progress, posted marks. */
+/* sticky bottom bar */
+.dock{position:sticky;bottom:0;z-index:20;margin:28px calc(-1 * clamp(16px,3.5vw,48px)) -48px;padding:14px clamp(16px,3.5vw,48px) calc(14px + env(safe-area-inset-bottom,0px));background:var(--glass);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-top:1px solid var(--line);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.dock .grow{flex:1;color:var(--muted);font-size:.9rem;font-weight:600;display:flex;align-items:center;gap:8px;min-width:12ch}
+.dock select{width:auto;min-width:220px}
+.dock input[type=datetime-local]{width:auto}
+.dock .custom{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dock .custom[hidden]{display:none}
+.dock .custom select{min-width:150px}
+.acct{display:flex;align-items:center;gap:8px;font-size:.86rem;color:var(--muted);flex-basis:100%}
+.acct img{width:22px;height:22px;border-radius:50%;flex:none}
+.acct b{color:var(--ink);font-weight:600}
+.acct[hidden]{display:none}
+.short .keep.posted{color:var(--good);font-weight:600}
+#upPanel{margin-top:20px}
+.ytinfo{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border-radius:12px;background:var(--good-soft);font-size:.86rem;color:var(--ink)}
+.ytinfo .ghost{align-self:flex-start;padding:7px 12px;font-size:.86rem}
+.ytinfo small{color:var(--muted)}
+.dock .soon{opacity:.55;cursor:not-allowed}
+.dock .soon small{font-size:.72rem;font-weight:600;margin-left:4px;padding:2px 6px;border-radius:999px;background:var(--line)}
+#upMsg{font-weight:600}

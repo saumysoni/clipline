@@ -1,0 +1,16 @@
+/* Cards, section headings, tags and banners. */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px}
+.card+.card{margin-top:16px}
+.sec-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.badge{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--primary-soft);color:var(--primary-text);font:700 12px var(--mono);flex:none}
+.sec-head .tag{margin-left:auto}
+.tag{display:inline-flex;align-items:center;gap:5px;font:700 10.5px/1 var(--mono);letter-spacing:.07em;text-transform:uppercase;padding:5px 8px;border-radius:999px;background:var(--raised);color:var(--muted);white-space:nowrap}
+.tag.cap{background:var(--cap-soft);color:var(--ink)}
+.tag.good{background:var(--good-soft);color:var(--good)}
+.tag .ms{font-size:13px}
+.banner{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-radius:14px;background:var(--primary-soft);border:1px solid var(--line);font-size:.92rem}
+.banner .ms{color:var(--primary-text);margin-top:1px}
+.banner.warn{background:var(--cap-soft)}
+.banner.warn .ms{color:var(--warn)}
+
+.tag.bad{background:rgba(220,38,38,.12);color:var(--bad)}

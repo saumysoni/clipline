@@ -1,0 +1,18 @@
+/* Sign-in screen (email + password, Continue with Google). */
+.auth{min-height:100vh;display:grid;place-items:center;padding:24px 16px;background:var(--bg)}
+.auth[hidden]{display:none}
+.app[hidden]{display:none}
+.auth-card [hidden]{display:none!important}
+.auth-card{width:min(400px,100%);background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:28px;display:flex;flex-direction:column;gap:14px}
+.auth-card .brand{margin-bottom:6px}
+.auth-card h1{font-size:1.5rem;margin:0}
+.auth-card .lede{margin:0;font-size:.92rem}
+.auth-card label{display:flex;flex-direction:column;gap:6px;font-size:.86rem;font-weight:600;color:var(--ink)}
+.auth-card input{width:100%;padding:11px 13px;border-radius:12px;border:1px solid var(--line-2);background:var(--raised);color:var(--ink);font:inherit}
+.auth-card input:focus{outline:none;border-color:var(--primary)}
+.auth-card .primary,.auth-card .ghost{width:100%;text-decoration:none}
+.auth-card a.ghost{color:var(--ink)}
+.auth-or{display:flex;align-items:center;gap:10px;color:var(--faint);font-size:.78rem;font-weight:700;letter-spacing:.08em}
+.auth-or::before,.auth-or::after{content:"";flex:1;height:1px;background:var(--line)}
+.auth-card .switch{font-size:.88rem;color:var(--muted);text-align:center}
+.gmark{width:18px;height:18px;flex:none}

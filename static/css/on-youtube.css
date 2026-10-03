@@ -1,0 +1,15 @@
+/* On YouTube page: the list of uploaded Shorts. */
+.plist{list-style:none;margin:0;padding:0}
+.plist>li{display:grid;grid-template-columns:54px minmax(0,1fr);gap:16px;padding:16px 0;border-bottom:1px solid var(--line)}
+.plist>li:last-child{border-bottom:0}
+.plist img{width:54px;height:96px;object-fit:cover;border-radius:8px;background:var(--raised)}
+.plist .pt{font-weight:600;color:var(--ink)}
+.plist .pv{font-size:.82rem;color:var(--faint);margin-top:2px}
+.plist .pw{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;font-size:.88rem;color:var(--muted)}
+.plist .pa{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;align-items:center}
+.plist .pa .linkbtn{display:inline-flex;align-items:center;gap:4px;font-size:.88rem;font-weight:600}
+.plist .pa .ms{font-size:17px}
+.plist .pa a{display:inline-flex;align-items:center;gap:4px;font-size:.88rem;color:var(--primary-text);text-decoration:none;font-weight:600}
+.plist .pform{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.plist .pform[hidden]{display:none}
+.plist .pform input{width:auto}
