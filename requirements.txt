@@ -2,6 +2,7 @@ flask>=3.0
 python-dotenv>=1.0
 faster-whisper>=1.0
 google-genai>=1.0
+openai>=1.40  # only used when AI_PROVIDER=openai
 opencv-python-headless>=4.8,<5  # OpenCV 5 removed the face finder Clipline uses
 pillow>=10.0
 gdown>=5.0

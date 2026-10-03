@@ -3,9 +3,9 @@ Thumbnails: a sticker-style cut-out of the creator with a bright outline, plus a
 ("vision board") of the other things the Short shows: cut-out objects and tilted photo cards.
 
   1. sample_frames()   ~10 frames spread across the clip
-  2. plan()            Gemini looks at the frames and picks the best face frame, up to 3 things
-                       worth showing (with their position in the frame), the text and an accent
-                       colour. Without Gemini, plan_without_ai() uses face detection instead.
+  2. plan()            the AI (Gemini or OpenAI) looks at the frames and picks the best face frame,
+                       up to 3 things worth showing (with their position in the frame), the text and an accent
+                       colour. Without the AI, plan_without_ai() uses face detection instead.
   3. cut_out()         rembg removes backgrounds (runs on the processor; no GPU needed)
   4. compose()         lays everything out on a 1080x1920 canvas
 
@@ -94,8 +94,6 @@ Prefer fewer, clearer items over many weak ones. Use [] if nothing besides the c
 
 
 def plan(frames, moment, words=None, context=None):
-    from google.genai import types
-
     said = ""
     if words:
         said = " ".join(w["w"] for w in words if moment["start"] - 0.1 <= w["s"] <= moment["end"])[:1500]
@@ -109,8 +107,8 @@ def plan(frames, moment, words=None, context=None):
         small.thumbnail((512, 512))
         buf = io.BytesIO()
         small.save(buf, "JPEG", quality=80)
-        contents += [f"Frame {k}:", types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg")]
-    raw = P.gemini_json(contents, temperature=0.5)
+        contents += [f"Frame {k}:", P.image_part(buf.getvalue())]
+    raw = P.ai_json(contents, temperature=0.5)
     return clean_plan(raw, frames, moment)
 
 
