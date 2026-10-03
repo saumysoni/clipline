@@ -1,0 +1,18 @@
+/* Hook controls on each Short card. */
+/* hook box */
+.hookbox{background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:10px 11px;font-size:.88rem}
+.hk-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.hk-head .small-lab{margin:0;display:flex;align-items:center;gap:5px}
+.hk-head .small-lab .ms{font-size:14px;color:var(--cap-line)}
+.hk-now{font-weight:700;margin-top:4px}
+.hk-now.none{font-weight:500;color:var(--muted);font-style:italic}
+.hk-opts{list-style:none;padding:0;margin:10px 0 0;display:grid;gap:6px}
+.hk-opts label{display:flex;gap:9px;align-items:flex-start;cursor:pointer;line-height:1.35;padding:8px 9px;border-radius:9px;border:1px solid var(--line);background:var(--panel)}
+.hk-opts label:has(input:checked){border-color:var(--cap-line);box-shadow:0 0 0 1px var(--cap-line)}
+.hk-opts input{margin-top:3px;flex:none}
+.hk-opts small{display:block;font:700 10px/1.3 var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}
+.hk-edit input[type=text]{margin-top:8px;font-size:.88rem;padding:9px 10px}
+.hk-edit .redo-row input[type=text]{margin-top:0;flex:1;min-width:0}
+.hk-edit .redo-row .ghost{flex:none}
+.hk-thumb{display:flex;align-items:center;gap:8px;margin-top:10px;cursor:pointer;font-size:.86rem}
+.hk-emoji{font-size:.78rem;color:var(--muted);margin-top:5px}

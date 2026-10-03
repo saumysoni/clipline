@@ -1,0 +1,42 @@
+  <!-- 3. Review -->
+  <section id="s3" hidden>
+    <div class="page-head">
+      <div>
+        <div class="eyebrow">Step 3 of 4 · Review</div>
+        <h1 id="resTitle">Your Shorts are ready</h1>
+        <p class="lede">Play each one, edit the title and hook, flip to see the thumbnail, and untick anything you don't want posted. Not happy with one? <b>Try again</b>. Missing a moment? <b>Add a Short</b>.</p>
+      </div>
+      <button class="ghost" id="newBtn" type="button"><span class="ms" aria-hidden="true">add</span>New vlog</button>
+    </div>
+    <div class="banner warn" id="fewNote" role="status" hidden></div>
+    <div id="reel"></div>
+    <div id="upPanel" class="card" hidden>
+      <p id="upMsg"></p>
+      <div class="bar"><i id="upPct"></i></div>
+    </div>
+    <div class="err" id="err3" role="alert"></div>
+    <div class="dock">
+      <span class="grow"><span class="ms" aria-hidden="true">checklist</span><span id="dockText"></span></span>
+      <select id="sched2" aria-label="Posting schedule">
+        <option value="d18">One a day at 6:00 PM</option>
+        <option value="d12">One a day at 12:00 PM</option>
+        <option value="two">Two a day, 12 PM and 6 PM</option>
+        <option value="custom">Starting on a day and time I choose</option>
+        <option value="now">All at once, right away</option>
+      </select>
+      <span class="custom" id="customWhen" hidden>
+        <input type="datetime-local" id="schStart" aria-label="Date and time of the first Short">
+        <select id="schEvery" aria-label="Time between Shorts">
+          <option value="6">then every 6 hours</option>
+          <option value="12">then every 12 hours</option>
+          <option value="24" selected>then one a day</option>
+          <option value="48">then every 2 days</option>
+          <option value="72">then every 3 days</option>
+          <option value="168">then one a week</option>
+        </select>
+      </span>
+      <button class="ghost soon" id="igBtn" type="button" disabled title="Instagram posting is coming soon"><span class="ms" aria-hidden="true">photo_camera</span>Upload to Instagram<small>Soon</small></button>
+      <button class="primary" id="schedBtn" type="button">Upload to YouTube</button>
+      <div class="acct" id="acct" hidden></div>
+    </div>
+  </section>

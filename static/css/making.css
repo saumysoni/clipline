@@ -1,0 +1,18 @@
+/* Step 2, Making: progress steps and the moments timeline. */
+.work{max-width:820px}
+.timeline{padding:26px 18px 16px}
+.track{position:relative;height:52px;border-radius:10px;background:repeating-linear-gradient(90deg,var(--line-2) 0 2px,transparent 2px 6px)}
+.seg{position:absolute;top:0;bottom:0;border-radius:7px;background:var(--cap-soft);border:2px solid var(--cap-line)}
+.seg i{position:absolute;top:-24px;left:50%;transform:translateX(-50%);font:700 11px var(--mono);font-style:normal;background:var(--ink);color:var(--bg);width:20px;height:20px;border-radius:50%;display:grid;place-items:center}
+.times{display:flex;justify-content:space-between;color:var(--faint);font:600 12px var(--mono);margin-top:8px}
+ul.tasks{list-style:none;padding:0;margin:0}
+ul.tasks li{display:flex;align-items:center;gap:14px;padding:14px 4px;border-bottom:1px solid var(--line);color:var(--faint);font-weight:500}
+ul.tasks li:last-child{border-bottom:0}
+.tick{width:30px;height:30px;border-radius:50%;border:1.5px solid var(--line-2);flex:none;display:grid;place-items:center;font:700 12px var(--mono)}
+.tick .ms{font-size:17px}
+ul.tasks li.active{color:var(--ink);font-weight:700}
+ul.tasks li.active .tick{border-color:var(--primary);border-top-color:transparent;animation:spin .8s linear infinite}
+ul.tasks li.done{color:var(--ink)}
+ul.tasks li.done .tick{background:var(--good-soft);border-color:transparent;color:var(--good)}
+.sub{font-weight:500;color:var(--muted);font-size:.85rem;margin-left:auto;text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+@keyframes spin{to{transform:rotate(360deg)}}
