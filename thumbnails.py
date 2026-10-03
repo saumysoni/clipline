@@ -341,7 +341,7 @@ def fit_font(draw, text, max_size, max_w):
 def draw_text(canvas, line1, line2, accent, top=110):
     """Line 1 in white, line 2 on an accent-coloured block, centred at the top (away from the face)."""
     d = ImageDraw.Draw(canvas)
-    l1, l2 = (line1 or "").upper().strip(), (line2 or "").upper().strip()
+    l1, l2 = P.without_emoji(line1).upper().strip(), P.without_emoji(line2).upper().strip()
     y = top
     if l1:
         f1 = fit_font(d, l1, 130, W - 140)
@@ -425,6 +425,20 @@ def save(img, path):
         img.save(path, "JPEG", quality=q, optimize=True)
         if Path(path).stat().st_size <= MAX_BYTES:
             return
+
+
+def retext(job_dir, work_name, line1, line2, out_name):
+    """Redraw a collage thumbnail with new text, from the frames and layout saved when it was made."""
+    import json
+
+    work = Path(job_dir) / work_name
+    pl = json.loads((work / "plan.json").read_text(encoding="utf-8"))
+    paths = sorted(work.glob("frame_*.jpg"), key=lambda f: int(f.stem.split("_")[1]))
+    frames = [Image.open(f).convert("RGB") for f in paths]
+    pl.update(line1=line1, line2=line2)
+    save(compose(frames, pl), Path(job_dir) / out_name)
+    (work / "plan.json").write_text(json.dumps(pl, indent=1), encoding="utf-8")
+    return out_name
 
 
 def make_collage_thumbnail(video_path, moment, idx, job_dir, words=None, context=None):
