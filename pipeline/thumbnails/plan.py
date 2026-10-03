@@ -34,6 +34,8 @@ Return ONLY a JSON object:
                 of the frame, so overlapping people spoil it), or null if no frame shows a clear face,
   "face_box": [ymin, xmin, ymax, xmax] tightly around the creator's face in that frame, scaled 0-1000
               (the creator, not anyone else in the frame), or null,
+  "person_box": [ymin, xmin, ymax, xmax] around the creator's whole visible body (head, hair, arms) in
+                that frame, scaled 0-1000, not including anyone else, or null,
   "items": up to 3 distinct things this Short is about (food, animal, vehicle, landmark, product,
            view...), never the creator. They must match the title, hook or what is said: if the title
            names something (a dish, a place, a price), show THAT thing, first. Never pick random
@@ -120,14 +122,20 @@ def clean_plan(raw, frames, moment):
         items.append({"frame": k, "label": str(it.get("label", ""))[:40], "box": (y0, x0, y1, x1),
                       "kind": "object" if it.get("kind") == "object" else "scene"})
     accent = raw.get("accent") if raw.get("accent") in ACCENTS else pick_accent(moment)
-    face_frame, face_box = frame_no(raw.get("face_frame")), None
-    try:
-        y0, x0, y1, x1 = [min(1000.0, max(0.0, float(v))) for v in raw.get("face_box")]
-        if face_frame is not None and y1 - y0 >= 20 and x1 - x0 >= 20:
-            face_box = (y0, x0, y1, x1)
-    except (TypeError, ValueError):
-        pass
-    return {"face_frame": face_frame, "face_box": face_box, "items": items, "accent": accent,
+    face_frame = frame_no(raw.get("face_frame"))
+
+    def box_of(key, least):
+        try:
+            y0, x0, y1, x1 = [min(1000.0, max(0.0, float(v))) for v in raw.get(key)]
+        except (TypeError, ValueError):
+            return None
+        return (y0, x0, y1, x1) if face_frame is not None and y1 - y0 >= least and x1 - x0 >= least else None
+
+    face_box, person_box = box_of("face_box", 20), box_of("person_box", 60)
+    if face_box and person_box and not (person_box[0] <= (face_box[0] + face_box[2]) / 2 <= person_box[2]
+                                        and person_box[1] <= (face_box[1] + face_box[3]) / 2 <= person_box[3]):
+        person_box = None  # the two boxes disagree about who the creator is: trust only the face
+    return {"face_frame": face_frame, "face_box": face_box, "person_box": person_box, "items": items, "accent": accent,
             "line1": str(raw.get("line1") or moment.get("thumb_line1") or "")[:30],
             "line2": str(raw.get("line2") or moment.get("thumb_line2") or moment.get("hook") or "")[:30]}
 

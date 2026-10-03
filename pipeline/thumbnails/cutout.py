@@ -12,9 +12,10 @@ from pipeline.thumbnails.frames import find_faces
 _REMBG = {}
 
 
-def rembg_session():
-    """Background remover, loaded once per process. None if rembg isn't installed."""
-    name = os.getenv("THUMB_CUTOUT_MODEL", "isnet-general-use")
+def rembg_session(name=None):
+    """Background remover, loaded once per process. None if rembg isn't installed.
+    Objects use THUMB_CUTOUT_MODEL; the creator uses the people-only THUMB_PERSON_MODEL."""
+    name = name or os.getenv("THUMB_CUTOUT_MODEL", "isnet-general-use")
     if name not in _REMBG:
         try:
             from rembg import new_session
@@ -111,28 +112,89 @@ def crop_box(img, box, pad=0.08):
     return img.crop((l, t, r, b))
 
 
-def face_cutout(img, face_box=None):
-    """The creator from the chest up, cut out. Crops around the face first so other people
-    and the background confuse the cut-out less. face_box (from the AI, 0-1000 scale) says where the
-    creator's face is; without it the face finder guesses (and can pick a wrong "face" on a wall)."""
+PERSON_MODEL = "u2net_human_seg"  # people only: no plates, chairs or tables stuck to the creator
+BUST = 4.0  # keep the creator down to this many face-heights below the top of the face (chest level)
+
+
+def find_face(img, face_box=None):
+    """(x, y, w, h) of the creator's face in pixels: the AI's face_box (0-1000 scale) if given, else the
+    face finder's guess (which can pick a wrong "face" on a wall), else None."""
     if face_box:
         y0, x0, y1, x1 = face_box
-        face = (int(x0 / 1000 * img.width), int(y0 / 1000 * img.height),
+        return (int(x0 / 1000 * img.width), int(y0 / 1000 * img.height),
                 max(1, int((x1 - x0) / 1000 * img.width)), max(1, int((y1 - y0) / 1000 * img.height)))
+    face, _ = find_faces(img)
+    return face
+
+
+def face_cutout(img, face_box=None, person_box=None):
+    """The creator from the chest up, cut out of the whole frame, as (cut-out, photo crop, info) or
+    (None, photo crop, None). info["sides"] says which edges of the cut-out are straight cuts (the camera
+    frame, the chest line, or the edge of the creator's area), e.g. {"left", "bottom"}: the layout pushes
+    those past the thumbnail's edges so the outline never shows a straight edge. info["face"] is the
+    face's (x, y, w, h) inside the cut-out, so the layout can keep the face where it wants it.
+
+    The creator's area is the AI's person_box (so someone standing right behind isn't included), or
+    without it: from just above the head down, and within a few face-widths either side.
+
+    Cutting out the whole frame (instead of a box around the face) keeps shoulders and arms complete.
+    The people-only model ignores objects; people touching the creator are split off (erode -> keep the
+    blob under the face -> grow back) and everything below chest level is dropped."""
+    face = find_face(img, face_box)
+    if not face:
+        return None, img, None
+    x, y, w, h = face
+    crop = img.crop((max(0, int(x - 1.5 * w)), max(0, int(y - 0.9 * h)),
+                     min(img.width, int(x + 2.5 * w)), min(img.height, int(y + BUST * h))))
+    sess = rembg_session(os.getenv("THUMB_PERSON_MODEL", PERSON_MODEL)) or rembg_session()
+    if sess is None:
+        return None, crop, None
+    from rembg import remove
+    from scipy import ndimage
+
+    alpha = np.asarray(remove(img, session=sess).getchannel("A"), dtype=np.float32) / 255.0
+    solid = alpha > 0.5
+    cx, cy = min(img.width - 1, x + w // 2), min(img.height - 1, y + h // 2)
+    r = max(2, int(w * 0.12))
+    core = ndimage.binary_erosion(solid, iterations=r)
+    labels, count = ndimage.label(core if core[cy, cx] else solid)
+    keep = labels[cy, cx]
+    if not keep:  # nothing under the face itself: the blob nearest to it
+        if count == 0:
+            return None, crop, None
+        dist = ndimage.distance_transform_edt(labels == 0, return_indices=True)[1]
+        keep = labels[dist[0][cy, cx], dist[1][cy, cx]]
+    mask = ndimage.binary_dilation(labels == keep, iterations=r + 1) & solid
+    # the creator's area: the AI's person_box (a little wider), else around the face
+    if person_box:
+        py0, px0, py1, px1 = person_box
+        pad_x, pad_y = 0.03 * (px1 - px0), 0.03 * (py1 - py0)
+        left, right = int((px0 - pad_x) / 1000 * img.width), int((px1 + pad_x) / 1000 * img.width)
+        top = int((py0 - pad_y) / 1000 * img.height)
     else:
-        face, _ = find_faces(img)
-    if face:
-        x, y, w, h = face
-        # head and shoulders only: about 1.2 face-widths either side, so people sitting next to
-        # the creator (a driver, a friend) don't get pulled into the cut-out
-        box = (max(0, int(x - 1.2 * w)), max(0, int(y - 0.9 * h)),
-               min(img.width, int(x + 2.2 * w)), min(img.height, int(y + 4.2 * h)))
-        crop = img.crop(box)
-        point = (x + w // 2 - box[0], y + h // 2 - box[1])
-    else:
-        crop, point = img, None
-    cut = cut_out(crop, keep_point=point, strict=False)
-    return cut, crop
+        left, right, top = int(x - 3.0 * w), int(x + w + 3.0 * w), int(y - 1.1 * h)
+    left, right, top = max(0, left), min(img.width, right), max(0, min(top, y))
+    bottom = min(img.height, int(y + BUST * h))
+    area = np.zeros_like(mask)
+    area[top:bottom, left:right] = True
+    mask = smooth_mask(ndimage.binary_fill_holes(mask & area))
+    if mask.sum() < 0.5 * w * h:  # less than half a face: the cut-out missed the creator
+        return None, crop, None
+    ys, xs = np.nonzero(mask)
+    edge = max(2, int(img.width * 0.004))
+    sides = set()
+    if ys.max() >= bottom - 1 - edge:
+        sides.add("bottom")
+    if xs.min() <= left + edge:
+        sides.add("left")
+    if xs.max() >= right - 1 - edge:
+        sides.add("right")
+    if ys.min() <= top + edge and top > 0:
+        sides.add("top")
+    out = img.convert("RGBA")
+    out.putalpha(Image.fromarray((mask * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(1.0)))
+    box = out.getbbox()
+    return out.crop(box), crop, {"sides": sides, "face": (x - box[0], y - box[1], w, h)}
 
 
 def face_size(img):

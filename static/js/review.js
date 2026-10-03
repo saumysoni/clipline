@@ -5,10 +5,11 @@ function cardHTML(s){
     '<div class="phone"><div class="busy" aria-live="polite"><span class="spin" aria-hidden="true"></span><span class="bmsg"></span></div></div>'+
     '<div class="meta"><span class="tc"><span class="ms" aria-hidden="true">movie</span>New Short</span></div></article>';
   const v="/media/"+job.id+"/"+s.video, t="/media/"+job.id+"/"+s.thumb;
-  return '<article class="short" data-idx="'+s.idx+'" data-video="'+esc(s.video)+'">'+
+  return '<article class="short" data-idx="'+s.idx+'" data-video="'+esc(s.video+"|"+s.thumb)+'">'+
     '<div class="phone"><video src="'+v+'" poster="'+t+'" controls playsinline preload="metadata"></video><img src="'+t+'" alt="Thumbnail for '+esc(s.title)+'">'+
       '<div class="busy" aria-live="polite"><span class="spin" aria-hidden="true"></span><span class="bmsg"></span></div></div>'+
     '<div class="toggle" role="group" aria-label="Preview"><button type="button" aria-pressed="true" data-v="v"><span class="ms" aria-hidden="true">play_circle</span>Short</button><button type="button" aria-pressed="false" data-v="t"><span class="ms" aria-hidden="true">image</span>Thumbnail</button></div>'+
+    lookHTML(s)+
     '<div class="meta"><span class="tc"><span class="ms" aria-hidden="true">schedule</span>'+fmt(s.start)+'–'+fmt(s.end)+' · '+Math.round(s.end-s.start)+'s</span>'+(s.manual?'<span class="tag cap">Your pick</span>':'')+'</div>'+
     '<div><label class="fld-lab" for="title'+s.idx+'">YouTube title</label><input class="title" id="title'+s.idx+'" type="text" value="'+esc(s.title)+'" maxlength="95"></div>'+
     hookHTML(s)+

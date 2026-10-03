@@ -11,18 +11,25 @@ from pipeline.thumbnails.layout import compose, save
 from pipeline.thumbnails.plan import fresh_accent, plan, plan_without_ai
 
 
-def retext(job_dir, work_name, line1, line2, out_name):
-    """Redraw a collage thumbnail with new text, from the frames and layout saved when it was made."""
+def redraw(job_dir, work_name, out_name, **changes):
+    """Redraw a collage thumbnail from the frames and plan saved when it was made (no AI, no new frames),
+    with `changes` applied to the plan (new text: line1/line2, another look: look)."""
     import json
 
     work = Path(job_dir) / work_name
     pl = json.loads((work / "plan.json").read_text(encoding="utf-8"))
+    pl.setdefault("look", "burst")  # plans from before looks existed were all burst
     paths = sorted(work.glob("frame_*.jpg"), key=lambda f: int(f.stem.split("_")[1]))
     frames = [Image.open(f).convert("RGB") for f in paths]
-    pl.update(line1=line1, line2=line2)
+    pl.update(changes)
     save(compose(frames, pl), Path(job_dir) / out_name)
     (work / "plan.json").write_text(json.dumps(pl, indent=1), encoding="utf-8")
     return out_name
+
+
+def retext(job_dir, work_name, line1, line2, out_name):
+    """Redraw a collage thumbnail with new text."""
+    return redraw(job_dir, work_name, out_name, line1=line1, line2=line2)
 
 
 def make_collage_thumbnail(video_path, moment, idx, job_dir, words=None, context=None):
@@ -39,4 +46,5 @@ def make_collage_thumbnail(video_path, moment, idx, job_dir, words=None, context
     name = f"thumb_{idx}.jpg"
     save(img, job_dir / name)
     (work / "plan.json").write_text(__import__("json").dumps(pl, indent=1), encoding="utf-8")
+    moment["thumb_look"], moment["thumb_work"] = pl["look"], work.name  # so the page can show and change it
     return name

@@ -32,3 +32,18 @@ def retext_thumbnail(video_path, meta, moment, cx, num, job_dir):
         except Exception as e:  # noqa: BLE001
             print(f"Couldn't redraw the collage thumbnail ({e}); using the simple style.")
     return make_simple_thumbnail(video_path, meta, moment, cx, num, job_dir), None
+
+
+def relook_thumbnail(moment, num, job_dir, look):
+    """The Short's collage thumbnail redrawn in another look (burst, scene or bold) as thumb_<num>.jpg,
+    from its saved frames and plan: no AI, a few seconds. Returns (file name, work folder name)."""
+    from pipeline.thumbnails import collage
+    from pipeline.thumbnails.layout import LOOKS
+
+    if look not in LOOKS:
+        raise RuntimeError("That look doesn't exist. Choose Scene, Burst or Bold.")
+    work = moment.get("thumb_work") or "thumbwork_" + re.sub(r"\D", "", moment.get("thumb", ""))
+    if not (Path(job_dir) / work / "plan.json").exists():
+        raise RuntimeError("This thumbnail was made in the simple style, so its look can't be changed. "
+                           "Use Try again to remake the Short with a new thumbnail.")
+    return collage.redraw(job_dir, work, f"thumb_{num}.jpg", look=look), work
