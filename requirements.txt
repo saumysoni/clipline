@@ -10,3 +10,4 @@ google-api-python-client>=2.100
 google-auth-oauthlib>=1.2
 imageio-ffmpeg>=0.5  # complete FFmpeg, used if the installed one can't add captions
 rembg>=2.0.60  # cuts people and objects out of frames for thumbnails
+tzdata>=2024.1  # time-zone names for scheduling (Windows and slim servers have none built in)
