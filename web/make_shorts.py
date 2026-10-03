@@ -86,7 +86,8 @@ def make_shorts(job_id, src, link, count, style, vlog=None, note="", must=()):
             for i, (m, (video, cx), thumb) in enumerate(zip(moments, rendered, thumbs), 1):
                 update(job_id, stage=4, pct=(i - 1) / len(moments) * 100,
                        msg=f"Thumbnail {i} of {len(moments)}")
-                shorts.append({**m, "idx": i, "video": video, "thumb": thumb.result(), "keep": True, "cx": cx})
+                name = thumb.result()  # first: making the thumbnail also notes its look and folder on m
+                shorts.append({**m, "idx": i, "video": video, "thumb": name, "keep": True, "cx": cx})
                 update(job_id, shorts=shorts)
         update(job_id, stage=5, pct=100, msg="Done", status="ready", shorts=shorts)
         start_preview(job_id)  # ready by the time the creator wants to choose a scene on the video
