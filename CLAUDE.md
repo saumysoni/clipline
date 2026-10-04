@@ -141,7 +141,11 @@ The code is split so two people can work on different features without touching 
    faster-whisper's `BatchedInferencePipeline` (about 2× faster; `WHISPER_BATCH_SIZE=0` turns it off and
    falls back to one-at-a-time). Batched mode guesses the language from too little audio: an English
    vlog with car noise came out as **Welsh**. So `detect_language()` votes over 8 clips spread across
-   the video and passes the winner in, unless `WHISPER_LANGUAGE` is set (`*.en` models skip this).
+   the video and passes the winner in, but only with `WHISPER_LANGUAGE=auto`: **Clipline is English-only for
+   now** and transcribes as English by default (a Hinglish vlog was guessed as English and came out as
+   invented text; Hindi support was tried with large-v3-turbo + Roman transliteration and dropped).
+   `drop_repeats()` keeps any phrase at most twice in a row (Whisper gets stuck over music or noise:
+   "It's snowing everywhere" 40 times), and a letter repeated 4+ times is cut to two.
    Batched output comes in ~30-second chunks, so `sentence_segments()` rebuilds sentence-sized lines
    from word timings. Gemini needs those to choose good start points. The model is loaded once per
    process (`whisper_model()`), and the GPU is used automatically when present.
