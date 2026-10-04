@@ -172,12 +172,13 @@ The code is organised by feature, one file each (see `CLAUDE.md` for the full ma
 ## Working on the code
 
 Start with [`CLAUDE.md`](CLAUDE.md). It explains the architecture, the problems already solved (and why),
-and how to test without using up Gemini or YouTube quota. Work on a branch and open a pull request:
+and how to test without using up Gemini or YouTube quota. Each person has one branch (Saumya `saumya`,
+Nesh `nesh`; no other branches) and changes reach `main` only through a pull request:
 
 ```bash
-git pull --rebase
-git checkout -b my-change
+git checkout saumya                # or nesh
+git fetch origin && git merge origin/main   # level with main first
 # ...edit, then try it with: bash start-mac.command
 git add -A && git commit -m "Describe the change"
-git push -u origin my-change     # then open the pull request on GitHub
+git push                           # then open the pull request (saumya -> main) on GitHub
 ```
