@@ -32,7 +32,7 @@ async function openPosted(){
       '<div class="pa">'+(canMove?'<button type="button" class="linkbtn mv"><span class="ms" aria-hidden="true">schedule</span>Change time</button>':'')+
         '<button type="button" class="linkbtn ed"><span class="ms" aria-hidden="true">edit</span>Edit Short</button>'+
         (gone?'<button type="button" class="linkbtn um">Unmark it so I can upload it again</button>':'')+
-        (gone||other?'':thumbLink(u.job,u)+'<a href="https://studio.youtube.com/video/'+esc(u.video_id)+'/edit" target="_blank" rel="noopener">Open in Studio<span class="ms" aria-hidden="true">open_in_new</span></a>')+'</div>'+
+        (gone||other?'':thumbLink(u.job,u)+'<a href="'+esc(studioLink(u.video_id))+'" target="_blank" rel="noopener">Open in Studio<span class="ms" aria-hidden="true">open_in_new</span></a>')+'</div>'+
       '<div class="pform" hidden><input type="datetime-local" aria-label="New date and time"><button type="button" class="primary sv">Save time</button><button type="button" class="ghost cn">Cancel</button></div>'+
       '<div class="err" role="alert"></div></div></li>';
   }).join("");

@@ -40,6 +40,7 @@ async function boot(){
   if(booted){ if(jobId) startPolling(jobId); return; }  // signed in again mid-session: pick the job back up
   booted=true;
   if(location.hash==="#youtube") openPosted();
+  else if(location.hash==="#analytics") openAnalytics();
   else if(location.hash.length>1) startPolling(location.hash.slice(1));
 }
 boot();

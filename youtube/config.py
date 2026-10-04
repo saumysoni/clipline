@@ -20,7 +20,13 @@ CLIENT_SECRET = ROOT / "client_secret.json"
 YOUTUBE_SCOPE = "https://www.googleapis.com/auth/youtube"
 
 
-SCOPES = [YOUTUBE_SCOPE]
+SCOPES = [YOUTUBE_SCOPE]  # what a connection must have (posting, scheduling, editing)
+
+
+# Read-only analytics (watch time, retention, traffic sources, audience). Asked for when connecting, but
+# optional: a connection without it still posts, and the Analytics page asks to reconnect for the rest.
+ANALYTICS_SCOPE = "https://www.googleapis.com/auth/yt-analytics.readonly"
+CONNECT_SCOPES = SCOPES + [ANALYTICS_SCOPE]
 
 
 LOGIN_SCOPES = ["openid", "https://www.googleapis.com/auth/userinfo.email",

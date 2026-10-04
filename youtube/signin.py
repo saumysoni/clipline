@@ -6,7 +6,7 @@ import os
 import secrets
 import urllib.request
 
-from youtube.config import LOGIN_SCOPES, NET_TIMEOUT, SCOPES, YOUTUBE_SCOPE, client_config, client_id
+from youtube.config import CONNECT_SCOPES, LOGIN_SCOPES, NET_TIMEOUT, YOUTUBE_SCOPE, client_config, client_id
 from youtube.connection import _CHANNEL, _lookup_channel, _quick_request, _save_token
 
 
@@ -28,7 +28,7 @@ def start_google(purpose, redirect_uri, next_id="", popup=False):
         raise RuntimeError("Google sign-in isn't set up yet: Clipline has no Google client. "
                            "Follow README step 5, then try again.")
     _allow_http(redirect_uri)
-    scopes = LOGIN_SCOPES if purpose == "login" else SCOPES
+    scopes = LOGIN_SCOPES if purpose == "login" else CONNECT_SCOPES
     flow = Flow.from_client_config(client_config(), scopes, redirect_uri=redirect_uri)
     extra = ({"prompt": "select_account"} if purpose == "login"
              else {"access_type": "offline", "prompt": "consent select_account"})
@@ -79,7 +79,7 @@ def finish_login(args, pending):
 def finish_youtube(args, pending, user_id):
     """Google's reply to Connect YouTube: save the connection for this user and return their channel
     ({"id", "title", "thumb"}). Raises RuntimeError with a plain message."""
-    flow, token = _exchange(args, pending, SCOPES)
+    flow, token = _exchange(args, pending, CONNECT_SCOPES)
     granted = token.get("scope") or []
     granted = set(granted.split() if isinstance(granted, str) else granted)
     if YOUTUBE_SCOPE not in granted:

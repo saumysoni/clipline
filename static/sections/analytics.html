@@ -1,0 +1,32 @@
+  <!-- Analytics: how the creator's Shorts are doing -->
+  <section id="s6" hidden>
+    <div class="work an-root">
+      <div class="page-head">
+        <div>
+          <div class="eyebrow">Analytics</div>
+          <h1>How your Shorts are doing</h1>
+          <p class="lede" id="anLede">Every Short on your channel, not only the ones Clipline made.</p>
+        </div>
+        <button class="ghost" id="anRefresh" type="button"><span class="ms" aria-hidden="true">refresh</span>Refresh</button>
+      </div>
+
+      <div class="an-filters" role="group" aria-label="Time range">
+        <div class="an-seg" id="anRange">
+          <button type="button" data-days="7">7 days</button>
+          <button type="button" data-days="28" aria-pressed="true">28 days</button>
+          <button type="button" data-days="90">90 days</button>
+          <button type="button" data-days="365">Year</button>
+          <button type="button" data-days="0">All time</button>
+        </div>
+        <span class="an-asof" id="anAsof"></span>
+      </div>
+
+      <div class="banner warn" id="anNote" role="status" hidden></div>
+      <div id="anBody" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <dialog id="anDetail" aria-labelledby="anDTitle">
+    <button type="button" class="an-x" id="anDClose" aria-label="Close"><span class="ms" aria-hidden="true">close</span></button>
+    <div id="anDBody"></div>
+  </dialog>
