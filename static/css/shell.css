@@ -74,3 +74,5 @@ button.pill:hover{border-color:var(--line-2);color:var(--ink)}
 .navlink .st-ic .ms{font-size:16px}
 .navlink b{display:block;font-weight:600;font-size:.92rem}
 .navlink small{display:block;font-size:.78rem;color:var(--faint)}
+.steps.away{cursor:pointer;border-radius:12px}
+.steps.away:hover li{color:var(--muted)}

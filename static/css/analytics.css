@@ -132,3 +132,4 @@ a.top-row{color:inherit;text-decoration:none}
 .top-row.ig .tr i{background:var(--c-ig)}
 .top-row .noimg{width:44px;height:78px;border-radius:7px;background:var(--raised)}
 #anIgMix .bar-row .tr i{background:var(--c-ig)}
+.an-top.flat{align-items:start}

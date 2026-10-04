@@ -63,8 +63,9 @@ function renderAnalytics(j){
   const daily=y.daily||[], B=['<div class="an-plat"><i style="background:var(--c-yt)"></i><h2>YouTube</h2><span>Shorts</span></div>'];
   // headline + tiles
   const d=k=>p&&p[k]!=null&&p[k]>0 ? deltaHTML((t[k]-p[k])/p[k]*100) : "";
-  B.push('<div class="an-top"><div class="an-card an-hero"><div><div class="lab">Shorts views</div><div class="big">'+full(t.views)+'</div>'+d("views")+
-    (p?'<div class="vs">Arrows compare with the '+(y.range.days)+' days before</div>':'')+'</div>'+
+  B.push('<div class="an-top'+(daily.length>1?'':' flat')+'"><div class="an-card an-hero"><div><div class="lab">Shorts views</div><div class="big">'+full(t.views)+'</div>'+d("views")+
+    (p?'<div class="vs">Arrows compare with the '+(y.range.days)+' days before</div>':'')+
+    (!y.full?'<div class="vs">Lifetime views of the '+(y.shorts||[]).length+' Shorts Clipline uploaded</div>':'')+'</div>'+
     (daily.length>1?'<div class="spark an-viz" id="anSpark"></div>':'')+'</div><div class="an-tiles">'+
     tile("schedule","Watch time",t.watch_hours!=null?compact(t.watch_hours)+" h":"–",d("watch_hours"))+
     tile("percent","Avg. viewed",t.avg_pct!=null&&y.full?pct(t.avg_pct):"–",d("avg_pct"))+

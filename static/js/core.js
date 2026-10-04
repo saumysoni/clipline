@@ -13,6 +13,7 @@ function show(n){
   [1,2,3,4,5,6].forEach(i=>$("s"+i).hidden = i!==n);
   $("postedNav").classList.toggle("now", n===5);
   $("analyticsNav").classList.toggle("now", n===6);
+  $("steps").classList.toggle("away", n>=5);  // on Analytics / On YouTube, the steps lead back to making Shorts
   document.querySelectorAll("#steps li").forEach(li=>{
     const k=+li.dataset.step, ic=li.querySelector(".st-ic");
     li.classList.toggle("done",n<5&&k<n); li.classList.toggle("now",k===n);
