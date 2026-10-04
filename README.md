@@ -102,6 +102,8 @@ and YouTube channel. Vlogs made before Clipline had accounts belong to the first
 
 **Connect YouTube, then post.** Click **Connect YouTube** on the start page (or the sidebar badge). If you skip it, **Upload to YouTube** (on the **Post** page you reach with **Next: post** after reviewing) asks you to connect first. (**Upload to Instagram** is shown but not available yet.) A small Google window opens: choose the channel's account, leave every box ticked, and click Allow. The window closes and Clipline shows "Posting to *your channel*". The connection is saved with your Clipline account, so you only connect once. The YouTube account can be a different Google account from the one you sign in to Clipline with.
 
+**Thumbnails on Shorts.** YouTube doesn't let apps set the picture shown in the Shorts feed, so Clipline does three things: it sets the thumbnail through YouTube (used in search, on the home page and in subscriptions; this needs a phone-verified channel, which takes a minute at youtube.com/verify), it puts the thumbnail in as the very first frame of each uploaded Short (a tenth of a second, too short for viewers to notice), and the Posted page has a **Download thumbnail** button next to **Open in Studio**. Then, per Short: in the YouTube app open the Short, tap **Edit**, then the thumbnail, and pick the first frame (works on every channel); or, on Partner Program channels, upload the downloaded image in YouTube Studio.
+
 Then tick the Shorts you want and choose when they go out:
 - **One a day / two a day**: starting tomorrow, at 12 PM and/or 6 PM your time.
 - **Starting on a day and time I choose**: pick the first Short's date and time, and how far apart the rest are.

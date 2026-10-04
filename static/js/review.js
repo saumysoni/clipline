@@ -15,7 +15,7 @@ function cardHTML(s){
     hookHTML(s)+
     '<div class="why">'+esc(s.why)+'</div>'+
     '<div class="row"><label class="keep"><input type="checkbox"'+(s.keep===false?'':' checked')+'> Post this</label>'+
-      '<span class="links"><button type="button" class="linkbtn retry"><span class="ms" aria-hidden="true">refresh</span>Try again</button><a href="'+v+'" download title="Download the Short (video)"><span class="ms" aria-hidden="true">download</span>Save</a></span></div>'+
+      '<span class="links"><button type="button" class="linkbtn retry"><span class="ms" aria-hidden="true">refresh</span>Try again</button><a href="'+v+'?cover=1&thumb='+encodeURIComponent(s.thumb||"")+'&dl='+encodeURIComponent(String(s.title||"Short "+s.idx).replace(/[\\/:*?"<>|]+/g,"").slice(0,60)+".mp4")+'" download title="Download the Short, with its thumbnail as the first frame"><span class="ms" aria-hidden="true">download</span>Save</a></span></div>'+
     '<div class="redo" hidden>'+
       '<textarea rows="3" maxlength="500" aria-label="What would you like instead for Short '+s.idx+'?" placeholder="Optional: what would you like instead? For example: the part where we reach the top, or around 3:20"></textarea>'+
       '<div class="pick-row"><button type="button" class="ghost pick"><span class="ms" aria-hidden="true">movie</span>Choose on the video</button></div><span class="small-lab">Or type the exact times</span>'+timesHTML()+

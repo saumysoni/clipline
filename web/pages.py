@@ -6,6 +6,7 @@ from datetime import date
 
 from flask import Response, abort, jsonify, request, send_from_directory
 
+import pipeline
 import youtube as yt
 from settings import JOBS_DIR, ROOT
 
@@ -16,6 +17,13 @@ from web.server import app
 def media(job_id, name):
     if not re.fullmatch(r"[0-9a-f]{10}", job_id) or not re.fullmatch(r"(short|thumb)_\d+\.(mp4|jpg)|preview\.mp4", name):
         abort(404)
+    if request.args.get("cover") == "1" and name.startswith("short_"):  # Save: with the thumbnail first
+        thumb = request.args.get("thumb", "")
+        if re.fullmatch(r"thumb_\d+\.jpg", thumb) and (JOBS_DIR / job_id / thumb).exists():
+            try:
+                name = pipeline.covered_video(JOBS_DIR / job_id, name, thumb).name
+            except Exception as e:  # noqa: BLE001  (fall back to the plain Short)
+                print("Couldn't add the thumbnail as the first frame:", repr(e)[:300])
     dl = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', "", request.args.get("dl", "")).strip()[:80]
     if dl:  # a download button: save it under a readable name (e.g. "Rainy taxi - thumbnail.jpg")
         ext = name.rsplit(".", 1)[1]

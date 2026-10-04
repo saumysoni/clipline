@@ -66,7 +66,7 @@ The code is split so two people can work on different features without touching 
 | Review cards | | `web/job_status.py`, `web/pages.py` (`/media`) | `js/review.js`, `js/review-cards.js`, `sections/review.html`, `css/review.css` |
 | Hooks | `pipeline/hooks.py` | `web/hooks.py` | `js/hooks.js`, `css/hooks.css` |
 | Thumbnail look (Frame / Duotone switch) and download | `pipeline/thumbnails/looks/` (one file per look), `make.py` (`relook_thumbnail`) | `web/thumbnail_look.py` | `js/thumbnail-look.js`, `css/thumbnail-look.css` |
-| Post page (after review: list, when, where, upload) | | `web/posting.py` | `sections/review.html` (`#postView`), `js/posting.js` (`showPost()`), `css/posting.css` |
+| Post page (after review: list, when, where, upload; thumbnail as first frame) | `pipeline/cover.py` | `web/posting.py` | `sections/review.html` (`#postView`), `js/posting.js` (`showPost()`), `css/posting.css` |
 | Try again | `pipeline/try_again.py` | `web/try_again.py` | `js/review-cards.js` |
 | Add a Short / must-have moments | `pipeline/manual_moment.py` | `web/add_short.py` | `js/review-cards.js` |
 | Choose on the video | `pipeline/preview.py` | `web/preview.py` | `js/picker.js`, `sections/picker.html`, `css/picker.css` |
@@ -187,6 +187,15 @@ The code is split so two people can work on different features without touching 
       busy waits), and thumbnail planning has an overall `AI_DEADLINE` (120 s) after which `plan_without_ai()` is
       used. Without these, one Gemini request that never answered left a job stuck on "Thumbnail 2 of 6".
     Output stays under YouTube's 2 MB thumbnail limit. `THUMB_STYLE=simple` (or a failure) uses `simple.py`.
+    - **Shorts feed thumbnail:** the API can't set it (thumbnails.set only covers search, home and
+      subscriptions, and needs a phone-verified channel: youtube.com/verify). So `pipeline/cover.py` puts the
+      thumbnail in as the first 0.1 s (3 frames) when uploading (`web/posting.upload_file()`) and for the
+      Save button (`/media/...?cover=1`); the creator picks that frame in the YouTube app (any channel), or
+      uses Download thumbnail + Open in Studio (Partner Program). The cover clip is encoded with the Short's
+      own settings and joined without re-encoding (~1 s); if the decode check finds a bad join, it re-encodes.
+      Measured: audio and video stay within 0.3 ms. The Short in the job stays clean (Review plays it
+      without the flash; upload records keep its name), and `cover_<short>_<thumb>.mp4` is cached.
+      `COVER_FRAME=0` turns it off.
 
 13. **Hooks must be true.** Each Short has `hooks` (curiosity / bold / story, plus "custom" if the creator typed
     one), the chosen `hook`, `hook_style` and `hook_mode` ("text" or "none" = no banner, the original audio opens

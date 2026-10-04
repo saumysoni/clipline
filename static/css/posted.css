@@ -8,3 +8,8 @@
 .cal a{color:var(--primary-text);font-weight:600;font-size:.88rem;display:inline-flex;align-items:center;gap:4px;text-decoration:none}
 .cal a .ms{font-size:16px}
 @media (max-width:640px){ .cal li{grid-template-columns:90px 1fr}.cal a{grid-column:2} }
+.cal .acts{display:flex;gap:14px;flex-wrap:wrap;justify-content:flex-end}
+.thumbhelp{margin-top:16px;font-size:.92rem}
+.thumbhelp .sec-head .ms{color:var(--primary-text)}
+.thumbhelp ol{margin:8px 0;padding-left:20px;display:grid;gap:6px}
+.thumbhelp .muted-note{color:var(--muted);font-size:.86rem;margin-bottom:0}
