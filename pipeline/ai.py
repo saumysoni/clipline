@@ -11,7 +11,7 @@ import time
 
 
 # Current Flash models, newest first (checked October 2026).
-FALLBACK_MODELS = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.5-flash", "gemini-2.5-flash"]
+FALLBACK_MODELS = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.5-flash"]  # 2.5 was retired (404) in Oct 2026
 
 
 OPENAI_FALLBACK_MODELS = ["gpt-5.4-mini", "gpt-5-mini", "gpt-4.1-mini"]

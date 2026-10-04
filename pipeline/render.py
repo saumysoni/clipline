@@ -24,7 +24,7 @@ def render_short(video_path, meta, moment, words, idx, style, job_dir, cx="find"
     run([
         ffmpeg_exe(), "-y", "-ss", f"{s:.2f}", "-i", str(Path(video_path).resolve()), "-t", f"{e - s:.2f}",
         "-vf", vf,
-        "-c:v", "libx264", "-preset", os.getenv("X264_PRESET", "medium"), "-crf", "18",
+        "-c:v", "libx264", "-preset", os.getenv("X264_PRESET", "veryfast"), "-crf", "18",
         "-pix_fmt", "yuv420p", "-r", "30",
         "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", out_name,
     ], cwd=job_dir)
