@@ -10,12 +10,23 @@ function renderDone(){
     const day=d?d.toLocaleDateString(undefined,{weekday:"short"}):"Now";
     const sub=d?d.toLocaleDateString(undefined,{month:"short",day:"numeric"})+", "+d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}):"Posting now";
     return '<li><div class="day">'+day+'<small>'+sub+'</small></div><div>'+esc(u.title)+(u.note?'<div class="from">'+esc(u.note)+'</div>':'')+'</div>'+
-      '<span class="acts">'+thumbLink(job.id,u)+
+      '<span class="acts">'+thumbLink(job.id,u)+relatedLink()+
       '<a href="https://studio.youtube.com/video/'+u.video_id+'/edit" target="_blank" rel="noopener">Open in Studio<span class="ms" aria-hidden="true">open_in_new</span></a></span></li>';
   }).join("");
   show(4);
 }
 
+// "Copy vlog title": for the Related video search in Studio (there's no way to set it from an app).
+function relatedLink(){
+  const t=job && job.vlog && job.vlog.title;
+  return t ? '<button type="button" class="linkbtn cprel" data-t="'+esc(t)+'"><span class="ms" aria-hidden="true">content_copy</span>Copy vlog title</button>' : "";
+}
+document.addEventListener("click",async e=>{
+  const b=e.target.closest(".cprel"); if(!b) return;
+  try{ await navigator.clipboard.writeText(b.dataset.t); }
+  catch(err){ const ta=document.createElement("textarea"); ta.value=b.dataset.t; document.body.appendChild(ta); ta.select(); try{ document.execCommand("copy"); }catch(x){} ta.remove(); }
+  const lab=b.lastChild; const was=lab.textContent; lab.textContent="Copied"; setTimeout(()=>{ lab.textContent=was; },1500);
+});
 // "Download thumbnail" next to "Open in Studio": the image to upload in YouTube Studio.
 function thumbLink(jid,u){
   if(!u.thumb) return "";
