@@ -111,7 +111,7 @@ Then tick the Shorts you want and choose when they go out:
 
 If posting stops halfway (no internet, YouTube's daily limit), press the button again: Shorts already on YouTube are marked "On YouTube" and are never posted twice.
 
-**Your scheduled Shorts.** **My scheduled Shorts** on the start page (or **On YouTube** in the sidebar) lists every Short Clipline has uploaded, with its live status on YouTube:
+**Your scheduled Shorts.** **My scheduled posts** on the start page (or **Scheduled** in the sidebar, which also lists Reels planned for Instagram) lists every Short Clipline has uploaded, with its live status on YouTube:
 - **Change time** moves a scheduled Short to another date and time.
 - **Edit Short** opens it on its review screen. Change the title, hook or moment there, then press **Update on YouTube**. A new title is just changed on YouTube. A changed video is uploaded again with the same time and the old upload is deleted, so the link to the Short changes. Clipline won't replace a Short that's already public (it would lose its views and comments).
 - A Short Clipline can't find on your channel (deleted in YouTube Studio?) shows **Not found on YouTube**. Click **Unmark it** to upload it again. Shorts on another channel are left alone.

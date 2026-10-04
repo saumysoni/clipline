@@ -1,4 +1,4 @@
-// On YouTube page: every uploaded Short (change time, edit, unmark).
+// Scheduled page, YouTube part: every uploaded Short (change time, edit, unmark). Instagram: scheduled-instagram.js.
 // ---- On YouTube: every uploaded Short, with Change time / Edit Short / Open in Studio
 function stateTag(u){
   const st=u.state;
@@ -12,6 +12,7 @@ function stateTag(u){
 function localInput(d){ const p=x=>String(x).padStart(2,"0"); return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+"T"+p(d.getHours())+":"+p(d.getMinutes()); }
 async function openPosted(){
   clearInterval(poll); location.hash="youtube"; show(5);
+  if(typeof loadIgScheduled==="function") loadIgScheduled();
   $("plist").innerHTML='<li><span></span><span class="pv">Checking YouTube...</span></li>'; $("ptNote").hidden=true;
   let j; try{ j=await (await fetch("/api/posted")).json(); }catch(e){ j={items:[],note:"Couldn't reach Clipline. Is the app window still open?"}; }
   const notes=[];

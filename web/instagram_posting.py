@@ -237,3 +237,24 @@ def clipline_reel_ids(user_id):
     return ids
 
 
+
+
+@app.get("/api/instagram/posts")
+def instagram_posts():
+    """Every Reel Clipline posted or planned for this user, newest vlog first (for the Scheduled page)."""
+    uid, out = g.user["id"], []
+    for path in sorted(JOBS_DIR.glob("*/job.json"), key=lambda p: p.stat().st_mtime, reverse=True):
+        if not re.fullmatch(r"[0-9a-f]{10}", path.parent.name) or '"ig_posts"' not in path.read_text(encoding="utf-8"):
+            continue
+        with LOCK:
+            job = load_job(path.parent.name)
+            if not job or job.get("owner") != uid:
+                continue
+            job = json.loads(json.dumps(job, default=str))
+        shorts = {s["idx"]: s for s in job.get("shorts", [])}
+        vlog = (job.get("vlog") or {}).get("title") or job.get("name") or "Your vlog"
+        for p in job.get("ig_posts") or []:
+            s = shorts.get(p["idx"], {})
+            out.append({**p, "job": job["id"], "vlog": vlog, "thumb": s.get("thumb", ""),
+                        "title": p.get("title") or s.get("title", "")})
+    return jsonify(items=out, account=ig.account(uid))

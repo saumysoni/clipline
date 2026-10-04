@@ -6,7 +6,15 @@ async function loadIg(){
 }
 const IG_SWITCH='In the Instagram app: <b>Profile › ☰ › Settings › Account type and tools › Switch to professional account</b> '+
   '(Creator or Business, free; you keep your followers and posts). Then click <b>Connect again</b>.';
+function paintPill(){
+  $("igDot").classList.toggle("on", !!ig.signed_in && !!ig.can_post);
+  $("igText").textContent = ig.signed_in ? "@"+(ig.username||"") : "Connect Instagram";
+  $("igPill").title = !ig.configured ? "Instagram posting isn't set up yet (README step 6)"
+    : !ig.signed_in ? "Connect Instagram to post Reels" : !ig.can_post ? "Personal account: switch to professional to post" : "Posting Reels to @"+ig.username;
+}
+$("igPill").onclick=()=>{ if(!ig.signed_in || !ig.can_post) igSignIn(); else if(typeof openPosted==="function") openPosted(); };
 function paintIg(){
+  paintPill();
   const box=$("igAcct"); if(!box) return;
   const pic=ig.picture ? '<img src="'+esc(ig.picture)+'" alt="" referrerpolicy="no-referrer">' : '<span class="ms" aria-hidden="true">photo_camera</span>';
   box.innerHTML = !ig.configured
@@ -45,4 +53,4 @@ async function igSignOut(){
   try{ await fetch("/api/instagram/signout",{method:"POST"}); }catch(e){}
   ig={configured:ig.configured,signed_in:false}; paintIg();
 }
-loadIg();
+

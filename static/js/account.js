@@ -36,7 +36,7 @@ async function boot(){
   if(!m.user){ showLogin(); return; }
   $("meEmail").textContent=m.user.email; $("meEmail").title=m.user.email;
   $("auth").hidden=true; $("app").hidden=false;
-  loadAccount();
+  loadAccount(); loadIg();
   if(booted){ if(jobId) startPolling(jobId); return; }  // signed in again mid-session: pick the job back up
   booted=true;
   if(location.hash==="#youtube") openPosted();

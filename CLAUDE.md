@@ -72,7 +72,7 @@ The code is split so two people can work on different features without touching 
 | Choose on the video | `pipeline/preview.py` | `web/preview.py` | `js/picker.js`, `sections/picker.html`, `css/picker.css` |
 | Upload / schedule | `youtube/upload.py`, `youtube/schedule_times.py` | `web/posting.py` | `js/posting.js`, `css/posting.css` |
 | Posted list (step 4) | | | `js/posted.js`, `sections/posted.html`, `css/posted.css` |
-| On YouTube page | `youtube/manage.py` | `web/on_youtube.py` | `js/on-youtube.js`, `sections/on-youtube.html`, `css/on-youtube.css` |
+| Scheduled page (sidebar "Scheduled"; YouTube + Instagram lists) | `youtube/manage.py` | `web/on_youtube.py`, `web/instagram_posting.py` (`/api/instagram/posts`) | `js/on-youtube.js`, `js/scheduled-instagram.js`, `js/nav.js` (Make Shorts link), `sections/on-youtube.html`, `sections/sidebar.html`, `css/on-youtube.css` |
 | Analytics page (YouTube Shorts + Instagram Reels) | `youtube/analytics.py`, `instagram/insights.py` | `web/analytics.py` | `js/analytics.js` (charts), `js/analytics-instagram.js`, `sections/analytics.html`, `css/analytics.css` |
 | Connect Instagram | `instagram/connection.py`, `instagram/config.py`, `instagram/http.py` | `web/instagram_connect.py`, `web/google_redirect.py` | `js/instagram-connect.js` |
 | Post to Instagram (own schedule, Clipline posts at the time) | `instagram/publish.py` | `web/instagram_posting.py` (scheduler thread) | `js/instagram-posting.js`, `sections/review.html` (Instagram card), `css/posting.css` |
