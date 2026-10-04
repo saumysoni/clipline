@@ -12,8 +12,19 @@
 .ytinfo{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border-radius:12px;background:var(--good-soft);font-size:.86rem;color:var(--ink)}
 .ytinfo .ghost{align-self:flex-start;padding:7px 12px;font-size:.86rem}
 .ytinfo small{color:var(--muted)}
-.post-btns .soon{opacity:.55;cursor:not-allowed}
-.post-btns .soon small{font-size:.72rem;font-weight:600;margin-left:4px;padding:2px 6px;border-radius:999px;background:var(--line)}
+/* the YouTube and Instagram cards on the Post view */
+.when-lab{display:block;font-size:.8rem;font-weight:600;color:var(--muted);margin:2px 0 6px}
+.plat .post-btns{margin-top:14px}
+.plat.ig .hint{margin:10px 0 0}
+#igWhenBox[hidden]{display:none}
+.ig-btn{background:linear-gradient(135deg,#a92d74,#c8285e 50%,#d4581f);color:#fff}
+.ig-warn{display:flex;gap:8px;align-items:flex-start;width:100%;margin-top:6px;padding:10px 12px;border-radius:12px;background:var(--warn-soft,var(--raised));color:var(--ink);font-size:.84rem;line-height:1.45}
+.ig-warn .ms{color:var(--warn,#d97706);font-size:20px}
+.post-list .igst{display:flex;align-items:center;gap:5px;margin-top:2px;flex-wrap:wrap}
+.post-list .igst .ms{font-size:15px}
+.post-list .igst.done{color:var(--good)}
+.post-list .igst.error,.post-list .igst.check{color:var(--bad)}
+.post-list .igst a,.post-list .igst .linkbtn{font:inherit;margin-left:6px}
 #upMsg{font-weight:600}
 /* Post view (step 3, after review): the chosen Shorts, when, where */
 .post-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,380px);gap:20px;align-items:start;margin-top:20px}

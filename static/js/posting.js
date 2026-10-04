@@ -4,7 +4,7 @@
 function showPost(on){
   closeTile();
   $("reviewView").hidden=on; $("postView").hidden=!on;
-  if(on){ document.querySelectorAll("#reel video").forEach(v=>v.pause()); paintPostList(); }
+  if(on){ document.querySelectorAll("#reel video").forEach(v=>v.pause()); paintPostList(); if(typeof igRefresh==="function") igRefresh(); }
   $("err3r").textContent="";
   window.scrollTo(0,0); dock();
 }
@@ -15,7 +15,7 @@ function paintPostList(){
   $("postList").innerHTML = rows.length ? rows.map(el=>{
     const s=job.shorts.find(x=>x.idx===+el.dataset.idx)||{}, u=ups.get(s.idx);
     return '<li><img src="/media/'+job.id+'/'+esc(s.thumb||"")+'" alt=""><span><b>'+esc(el.querySelector("input.title").value)+'</b>'+
-      '<small'+(u?' class="done"':'')+'>'+(u ? esc(whenText(u.when)) : fmt(s.end-s.start)+" long")+'</small></span></li>';
+      '<small'+(u?' class="done"':'')+'>'+(u ? "YouTube: "+esc(whenText(u.when)) : fmt(s.end-s.start)+" long")+'</small>'+(typeof igLine==="function"?igLine(s.idx):"")+'</span></li>';
   }).join("") : '<li class="post-empty">No Shorts ticked. Go back to review and tick the ones to post.</li>';
 }
 function dock(){
@@ -28,6 +28,7 @@ function dock(){
   $("schedBtn").innerHTML = '<span class="ms" aria-hidden="true">smart_display</span>Upload '+(k>1?k+" ":"")+'to YouTube';
   $("schedBtn").title = !yt.signed_in ? "You'll connect YouTube first" : now ? "Posts "+n+" now" : "Schedules "+n;
   $("schedBtn").disabled = !k || busy>0 || POSTING_NOW();
+  if(typeof igDock==="function") igDock();
 }
 function POSTING_NOW(){ return !!job && ["starting","connecting","uploading"].includes(job.upload_status); }
 // The custom schedule starts tomorrow at 6 PM unless the creator picks something else.

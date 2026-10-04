@@ -26,7 +26,7 @@ $("anRange").querySelectorAll("button").forEach(b=>b.onclick=()=>{
 
 async function loadAnalytics(){
   anLoading=true; $("anBody").classList.add("loading");
-  if(!$("anBody").children.length) $("anBody").innerHTML='<div class="an-card an-empty"><span class="spin" aria-hidden="true"></span><p>Getting your numbers from YouTube...</p></div>';
+  if(!$("anBody").children.length) $("anBody").innerHTML='<div class="an-card an-empty"><span class="spin" aria-hidden="true"></span><p>Getting your numbers...</p></div>';
   let r,j;
   try{ r=await fetch("/api/analytics?days="+anDays); j=await r.json(); }
   catch(e){ j={error:"Couldn't reach Clipline. Is the app window still open?"}; }
@@ -37,15 +37,18 @@ async function loadAnalytics(){
 
 function renderAnalytics(j){
   const note=$("anNote"); note.hidden=true;
-  if(j.connected===false){
+  if(j.connected===false || j.error){
     $("anAsof").textContent="";
-    $("anBody").innerHTML='<div class="an-card an-empty"><span class="ms" aria-hidden="true">insights</span><h2>Connect YouTube to see your analytics</h2>'+
+    const B=[];
+    if(j.connected===false) B.push('<div class="an-card an-empty"><span class="ms" aria-hidden="true">insights</span><h2>Connect YouTube to see your analytics</h2>'+
       '<p>Views, likes, comments, watch time, who watches and how they find your Shorts, all in one place.</p>'+
-      '<button type="button" class="primary" id="anConnect"><span class="ms" aria-hidden="true">smart_display</span>Connect YouTube</button></div>';
-    $("anConnect").onclick=()=>signIn(()=>loadAnalytics());
+      '<button type="button" class="primary" id="anConnect"><span class="ms" aria-hidden="true">smart_display</span>Connect YouTube</button></div>');
+    else { note.hidden=false; note.innerHTML='<span class="ms" aria-hidden="true">error</span><span></span>'; note.lastChild.textContent=j.error; }
+    B.push(igAnalyticsHTML(j));
+    $("anBody").innerHTML=B.join(""); wireCards(); igAnalyticsWire();
+    if($("anConnect")) $("anConnect").onclick=()=>signIn(()=>loadAnalytics());
     return;
   }
-  if(j.error){ note.hidden=false; note.innerHTML='<span class="ms" aria-hidden="true">error</span><span></span>'; note.lastChild.textContent=j.error; return; }
   const y=j.youtube, t=y.totals||{}, p=y.previous||null;
   $("anLede").textContent=(y.channel&&y.channel.title ? y.channel.title+" · "+full(y.channel.subscribers)+" subscribers. " : "")+
     "Every Short on your channel, not only the ones Clipline made.";
@@ -57,7 +60,7 @@ function renderAnalytics(j){
       '<button type="button" class="ghost" id="anRecon">Connect again</button>';
     $("anRecon").onclick=()=>signIn(()=>{ anData=null; loadAnalytics(); });
   }
-  const daily=y.daily||[], B=[];
+  const daily=y.daily||[], B=['<div class="an-plat"><i style="background:var(--c-yt)"></i><h2>YouTube</h2><span>Shorts</span></div>'];
   // headline + tiles
   const d=k=>p&&p[k]!=null&&p[k]>0 ? deltaHTML((t[k]-p[k])/p[k]*100) : "";
   B.push('<div class="an-top"><div class="an-card an-hero"><div><div class="lab">Shorts views</div><div class="big">'+full(t.views)+'</div>'+d("views")+
@@ -91,8 +94,9 @@ function renderAnalytics(j){
   if((y.genders||[]).length) g2.push(card("anGender","Gender","Share of your channel's viewers",splitHTML(y.genders),
     table(["Gender","Viewers"],y.genders.map(r=>[GENDER[r.gender]||r.gender,pct(r.pct)]),[1])));
   if(g2.length) B.push('<div class="an-grid2">'+g2.join("")+'</div>');
+  B.push(igAnalyticsHTML(j));
   $("anBody").innerHTML=B.join("");
-  wireCards();
+  wireCards(); igAnalyticsWire();
   if($("anSpark")) lineChart($("anSpark"),{x:daily.map(r=>r.day),series:[{name:"Views",color:"var(--c-yt)",values:daily.map(r=>r.views)}],height:Math.max(70,$("anSpark").clientHeight||120),bare:true});
   if($("anDailyViz")){
     const draw=m=>lineChart($("anDailyViz"),{x:daily.map(r=>r.day),fmtX:dayLabel,series:[{name:{views:"Views",likes:"Likes",subs:"Subscribers"}[m],color:"var(--c-yt)",values:daily.map(r=>r[m])}],height:220});
@@ -228,4 +232,4 @@ function shortHead(s){
     '<div class="links"><a href="https://www.youtube.com/shorts/'+esc(s.id)+'" target="_blank" rel="noopener">Watch on YouTube</a>'+
     '<a href="'+esc(studioLink(s.id))+'" target="_blank" rel="noopener">Open in Studio</a></div></div></div>';
 }
-window.addEventListener("resize",()=>{ if(!$("s6").hidden && anData && !anData.error && anData.youtube){ clearTimeout(window._anRs); window._anRs=setTimeout(()=>renderAnalytics(anData),200); } });
+window.addEventListener("resize",()=>{ if(!$("s6").hidden && anData && anData.youtube){ clearTimeout(window._anRs); window._anRs=setTimeout(()=>renderAnalytics(anData),200); } });

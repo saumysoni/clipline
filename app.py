@@ -31,6 +31,8 @@ from web import (  # noqa: E402,F401
     add_short,
     analytics,
     hooks,
+    instagram_connect,
+    instagram_posting,
     job_status,
     make_shorts,
     on_youtube,

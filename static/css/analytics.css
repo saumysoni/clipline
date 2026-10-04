@@ -79,7 +79,7 @@
 
 /* top Shorts */
 .tops{display:grid;gap:6px}
-.top-row{display:grid;grid-template-columns:22px 44px minmax(0,1fr) minmax(80px,200px) auto;align-items:center;gap:12px;
+.top-row{display:grid;grid-template-columns:22px 44px minmax(0,1fr) minmax(80px,200px) 140px;align-items:center;gap:12px;
   padding:6px 8px;border-radius:12px;cursor:pointer;border:0;background:transparent;color:inherit;font:inherit;text-align:left;width:100%}
 .top-row:hover,.top-row:focus-visible{background:var(--raised);outline:none}
 .top-row .rk{color:var(--faint);font-weight:700;font-size:.85rem;text-align:right}
@@ -114,5 +114,21 @@ dialog#anDetail::backdrop{background:rgba(8,10,18,.62)}
   .an-top{grid-template-columns:minmax(0,1fr)}
   .top-row{grid-template-columns:18px 40px minmax(0,1fr) auto}
   .top-row .tr{display:none}
+  .top-row .vv{max-width:96px}
   .an-hero .big{font-size:2.8rem}
 }
+
+/* platform headings, Instagram parts */
+.an-plat{display:flex;align-items:center;gap:10px;margin:14px 0 -4px}
+.an-plat:first-child{margin-top:0}
+.an-plat i{width:10px;height:10px;border-radius:3px;flex:none}
+.an-plat h2{font-size:1.05rem;margin:0}
+.an-plat span{color:var(--muted);font-size:.84rem}
+.an-mini{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.an-mini>.ms{font-size:28px;color:var(--c-ig)}
+.an-mini p{margin:0;flex:1;min-width:220px;color:var(--muted);font-size:.9rem}
+.an-tiles.ig .an-tile .lab .ms,.an-ins.ig .ms{color:var(--c-ig)}
+a.top-row{color:inherit;text-decoration:none}
+.top-row.ig .tr i{background:var(--c-ig)}
+.top-row .noimg{width:44px;height:78px;border-radius:7px;background:var(--raised)}
+#anIgMix .bar-row .tr i{background:var(--c-ig)}

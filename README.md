@@ -92,7 +92,7 @@ and YouTube channel. Vlogs made before Clipline had accounts belong to the first
 ### 5. Turn on Google sign-in and automatic YouTube posting
 
 1. Go to https://console.cloud.google.com and create a project (free, no card needed).
-2. **APIs & Services → Library**: search **YouTube Data API v3** and click **Enable**.
+2. **APIs & Services → Library**: search **YouTube Data API v3** and click **Enable**. Do the same for **YouTube Analytics API** (for the Analytics page).
 3. **OAuth consent screen**: choose **External**, fill in the app name and your email. Under **Test users**, add the Gmail address of the creator's YouTube channel.
 4. **Credentials → Create credentials → OAuth client ID → Web application**. Under **Authorised redirect URIs** add `http://localhost:8000/api/youtube/callback`. Download the JSON file and put it in the Clipline folder (Google's long file name `client_secret_….json` works as it is). On a server, put `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env` instead. (An older **Desktop app** client may also work; if Google says `redirect_uri_mismatch`, make a Web application client as above.)
 5. **Let anyone sign in: publish the app.** On the OAuth consent screen (newer consoles: **Google Auth Platform → Audience**), click **Publish app** so the status is **In production**. While it's in **Testing**, Google only lets in the Gmail addresses listed under Test users, even for Continue with Google. Publishing doesn't start a review.
@@ -100,7 +100,7 @@ and YouTube channel. Vlogs made before Clipline had accounts belong to the first
    - **Connect YouTube** asks to manage the creator's videos, a "sensitive" permission. Until Google verifies Clipline, people see a "Google hasn't verified this app" screen (they click **Advanced → Go to Clipline**), and at most **100 people** in total can connect a channel. To lift both, apply for verification under **Verification Center**: you need a home page on your own domain, a privacy policy, and a short video showing why Clipline needs YouTube access.
 6. Restart Clipline. The badge in the sidebar should say "Connect YouTube".
 
-**Connect YouTube, then post.** Click **Connect YouTube** on the start page (or the sidebar badge). If you skip it, **Upload to YouTube** (on the **Post** page you reach with **Next: post** after reviewing) asks you to connect first. (**Upload to Instagram** is shown but not available yet.) A small Google window opens: choose the channel's account, leave every box ticked, and click Allow. The window closes and Clipline shows "Posting to *your channel*". The connection is saved with your Clipline account, so you only connect once. The YouTube account can be a different Google account from the one you sign in to Clipline with.
+**Connect YouTube, then post.** Click **Connect YouTube** on the start page (or the sidebar badge). If you skip it, **Upload to YouTube** (on the **Post** page you reach with **Next: post** after reviewing) asks you to connect first. A small Google window opens: choose the channel's account, leave every box ticked, and click Allow. The window closes and Clipline shows "Posting to *your channel*". The connection is saved with your Clipline account, so you only connect once. The YouTube account can be a different Google account from the one you sign in to Clipline with.
 
 **Thumbnails and links on Shorts.** Each Short's description links the full vlog and @mentions the channel (YouTube only lets the @mention be tapped on Shorts). Clipline sets the thumbnail through YouTube for search, the home page and subscriptions (this needs a phone-verified channel, which takes a minute at youtube.com/verify) and puts it in as the first frames of each Short (a fifth of a second). YouTube doesn't let apps set the Shorts-feed picture or the tappable **Related video**, so the Posted page lists two quick Studio steps per Short, with **Download thumbnail** next to **Open in Studio**.
 
@@ -118,12 +118,28 @@ If posting stops halfway (no internet, YouTube's daily limit), press the button 
 
 Open Clipline at `http://localhost:8000`, the address it opens by itself. Google only sends you back to the exact address registered in step 4, so `http://127.0.0.1:8000` won't work for Google sign-in. Continue with Google and Connect YouTube both use that one address. When Clipline runs on a server, register that server's address instead (for example `https://clipline.example.com/api/youtube/callback`), set `YOUTUBE_REDIRECT_URI` to the same address, and set `SECRET_KEY`, `DATABASE_PATH` and `SESSION_COOKIE_SECURE=1` in `.env`.
 
+**Analytics.** **Analytics** in the sidebar shows how every Short on your channel is doing: views, watch time, likes, comments, shares, subscribers, a views-per-day chart, top Shorts (click one for its retention curve), how viewers find you, countries, age and gender, plus Instagram Reels once Instagram is connected. If you connected YouTube before Analytics existed, click **Connect again** there once so Clipline can read YouTube Analytics.
+
 **Things to know about posting**
 - **Uploads stay private until your project passes YouTube's API audit.** This is YouTube's rule for new projects. During a trial, open each upload in YouTube Studio and set it to public or scheduled there (Clipline shows an "Open in Studio" link for each one). To lift the limit, apply for the free audit from the YouTube API Services page; you'll need a short privacy policy and a description of the app.
 - While the app is in **Testing** mode, a YouTube connection expires after about a week; just connect again when asked. Publishing the app (step 5.5) ends that.
 - Each account's YouTube connection is stored in `data/clipline.db` and can post to that channel. Keep the `data` folder private (it's git-ignored). **Disconnect** (under your Shorts) removes it and withdraws the permission at Google; **Switch channel** connects another account.
 - Clipline asks to **manage your YouTube videos**, which it needs to show your channel's name, change a scheduled time and replace an edited Short. It only ever touches the Shorts it uploaded. An old `token.json` from earlier versions isn't used any more and can be deleted.
 - Custom Shorts thumbnails are rolling out to YouTube Partner Program channels first (since July 2026), and need a phone-verified channel. On other channels YouTube may refuse them. If YouTube refuses, Clipline still uploads the Short and tells you to add the thumbnail in Studio (the file is in the `jobs` folder).
+
+### 6. Post to Instagram too (optional)
+
+Clipline posts Reels with the **Instagram API with Instagram Login**: the creator signs in with Instagram itself (no Facebook Page needed).
+
+1. **The Instagram account must be professional** (Business or Creator, free). In the Instagram app: **Profile › ☰ › Settings › Account type and tools › Switch to professional account**. Followers and posts stay. Clipline checks this when you connect and shows these steps if needed.
+2. Go to https://developers.facebook.com/apps, **Create app**, choose the **Instagram** use case (or **Other → Business**, then add the **Instagram** product).
+3. Under **Instagram → API setup with Instagram login**:
+   - Note the **Instagram app ID** and **Instagram app secret** and put them in `.env` as `INSTAGRAM_APP_ID` and `INSTAGRAM_APP_SECRET`.
+   - **Set up Instagram business login → Business login settings → OAuth redirect URIs**: add `http://localhost:8000/api/instagram/callback`. If Meta only accepts `https://` addresses, run Clipline behind an https tunnel (or on a server) and put that address both here and in `INSTAGRAM_REDIRECT_URI` in `.env`.
+   - Under **Roles → Instagram testers**, add the creator's Instagram username, then accept the invite in the Instagram app (**Settings › Website permissions › Apps and websites › Tester invites**). Until Meta reviews the app, only testers can connect.
+4. Restart Clipline. On the **Post** page, the **Instagram** card now has **Connect Instagram**.
+
+**Posting Reels.** Each Short gets its own Instagram schedule: **Same times as YouTube**, the same presets, a custom start and spacing, or right away. Instagram doesn't let apps schedule posts, so Clipline posts each Reel itself at its time: keep Clipline running (Reels that came due while it was closed go out when it starts again). The caption has the title, the hook, the full video's name on YouTube and the hashtags; the Short's thumbnail frame becomes the Reel cover. Instagram allows 100 posts by app per account per day. If posting stops, the Reel shows **Try again**; if Clipline was closed in the middle of posting, check Instagram first so nothing is posted twice.
 
 ---
 
@@ -161,8 +177,9 @@ The code is organised by feature, one file each (see `CLAUDE.md` for the full ma
 
 - `app.py`: starts Clipline (loads settings, adds every web feature, runs the server)
 - `pipeline/`: making Shorts: transcription, finding moments, editing, captions, hooks, thumbnails
-- `youtube/`: Google sign-in, connecting YouTube, uploading, scheduling, reading a vlog's title/description
-- `accounts/`: the accounts database (users and their YouTube connections), stored in `data/`
+- `youtube/`: Google sign-in, connecting YouTube, uploading, scheduling, reading a vlog's title/description, analytics
+- `instagram/`: connecting Instagram, posting Reels, Reel insights
+- `accounts/`: the accounts database (users and their YouTube and Instagram connections), stored in `data/`
 - `web/`: the web routes, one file per feature
 - `static/`: the interface: `index.html`, plus `sections/`, `css/` and `js/` (one file per screen or feature)
 - `jobs/`: everything Clipline makes, one folder per vlog
