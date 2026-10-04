@@ -12,10 +12,32 @@ import youtube as yt
 from settings import JOBS_DIR
 
 from web.server import app
-from web.store import LOCK, load_job, update
+from web.store import JOBS, LOCK, load_job, update
 
 
 POSTING = set()  # jobs whose Shorts are being uploaded right now (in this process)
+
+
+def short_description(it, vlog, own_channel=None):
+    """The Short's YouTube description: its hook (or title), a link to the full vlog, the channel as an
+    @mention, and hashtags. Links in Shorts descriptions can't be tapped (YouTube's rule since 2023) but
+    show and can be copied; @mentions can be tapped. The tappable link is "Related video" (set in Studio)."""
+    tags = it.get("hashtags", [])
+    lead = it.get("hook", "") if it.get("hook_mode", "text") != "none" else it.get("title", "")
+    parts = [lead]
+    vid = (vlog or {}).get("video_id")
+    if not vid and (vlog or {}).get("youtube_url"):
+        vid = yt.video_id_from_url(vlog["youtube_url"])
+    if vid:
+        parts.append(f"Watch the full video: https://www.youtube.com/watch?v={vid}")
+    handle = (vlog or {}).get("channel_handle") or (own_channel or {}).get("handle") or ""
+    name = (vlog or {}).get("channel") or (own_channel or {}).get("title") or ""
+    if handle:
+        parts.append(f"More from {handle}")
+    elif name:
+        parts.append(f"More from {name}")
+    parts.append(" ".join("#" + t for t in tags + ["Shorts"]))
+    return "\n\n".join(p for p in parts if p.strip())
 
 
 def youtube_title(title):
@@ -30,15 +52,17 @@ def do_upload(user_id, job_id, items, mode, times, earlier):
     try:
         update(job_id, upload_status="connecting", upload_msg="Connecting to YouTube")
         service = yt.get_service(user_id)
-        channel = (yt.account(user_id).get("channel") or {}).get("id")
+        own = yt.account(user_id).get("channel") or {}
+        channel = own.get("id")
+        with LOCK:
+            vlog = dict((JOBS.get(job_id) or {}).get("vlog") or {})
         for k, (it, when) in enumerate(zip(items, times)):
             old = it.get("replace")
             label = (f"Uploading the new version of Short {it['idx']}" if old
                      else f"Uploading Short {k + 1} of {len(items)}")
             update(job_id, upload_status="uploading", upload_msg=label, upload_pct=0)
             tags = it.get("hashtags", [])
-            lead = it.get("hook", "") if it.get("hook_mode", "text") != "none" else it.get("title", "")
-            desc = (lead + "\n\n" + " ".join("#" + t for t in tags + ["Shorts"])).strip()
+            desc = short_description(it, vlog, own)
             vid, note = yt.upload_short(
                 service, upload_file(job_dir, it), youtube_title(it["title"]), desc, tags, when, job_dir / it["thumb"],
                 progress=lambda p: update(job_id, upload_pct=p),

@@ -2,6 +2,7 @@
 // Step 3 has two views: #reviewView (the cards) and #postView (when and where). The cards stay in the
 // page while posting, so the titles and ticks are read from them.
 function showPost(on){
+  closeTile();
   $("reviewView").hidden=on; $("postView").hidden=!on;
   if(on){ document.querySelectorAll("#reel video").forEach(v=>v.pause()); paintPostList(); }
   $("err3r").textContent="";

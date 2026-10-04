@@ -102,7 +102,7 @@ and YouTube channel. Vlogs made before Clipline had accounts belong to the first
 
 **Connect YouTube, then post.** Click **Connect YouTube** on the start page (or the sidebar badge). If you skip it, **Upload to YouTube** (on the **Post** page you reach with **Next: post** after reviewing) asks you to connect first. (**Upload to Instagram** is shown but not available yet.) A small Google window opens: choose the channel's account, leave every box ticked, and click Allow. The window closes and Clipline shows "Posting to *your channel*". The connection is saved with your Clipline account, so you only connect once. The YouTube account can be a different Google account from the one you sign in to Clipline with.
 
-**Thumbnails on Shorts.** YouTube doesn't let apps set the picture shown in the Shorts feed, so Clipline does three things: it sets the thumbnail through YouTube (used in search, on the home page and in subscriptions; this needs a phone-verified channel, which takes a minute at youtube.com/verify), it puts the thumbnail in as the very first frame of each uploaded Short (a tenth of a second, too short for viewers to notice), and the Posted page has a **Download thumbnail** button next to **Open in Studio**. Then, per Short: in the YouTube app open the Short, tap **Edit**, then the thumbnail, and pick the first frame (works on every channel); or, on Partner Program channels, upload the downloaded image in YouTube Studio.
+**Thumbnails and links on Shorts.** Each Short's description links the full vlog and @mentions the channel (YouTube only lets the @mention be tapped on Shorts). Clipline sets the thumbnail through YouTube for search, the home page and subscriptions (this needs a phone-verified channel, which takes a minute at youtube.com/verify) and puts it in as the first frames of each Short (a fifth of a second). YouTube doesn't let apps set the Shorts-feed picture or the tappable **Related video**, so the Posted page lists two quick Studio steps per Short, with **Download thumbnail** next to **Open in Studio**.
 
 Then tick the Shorts you want and choose when they go out:
 - **One a day / two a day**: starting tomorrow, at 12 PM and/or 6 PM your time.
@@ -131,7 +131,7 @@ Open Clipline at `http://localhost:8000`, the address it opens by itself. Google
 
 - **Use the original export**, not a video downloaded from YouTube. 4K sources give the sharpest vertical crops; a 1080p source works but is softer once cropped.
 - Videos where the creator talks to camera give the best results, because both the moment-picking and the face-centred crop rely on speech and a visible face.
-- For non-English or mixed-language vlogs, set `WHISPER_LANGUAGE` in `.env`, or use `WHISPER_MODEL=medium` for better accuracy.
+- Clipline is made for English vlogs for now. Vlogs in other languages, or mixing Hindi and English, don't come out well yet.
 - A 45-minute vlog takes roughly 5–20 minutes on a typical laptop, mostly transcription and editing. On a computer with an NVIDIA graphics card, transcription uses it automatically. The transcript is saved, so it's never transcribed twice for the same job.
 
 ## If something goes wrong

@@ -7,6 +7,7 @@ const ADD_CARD='<article class="short addcard" id="addCard">'+
     '<div class="redo-row"><button type="button" class="primary go">Make this Short</button><button type="button" class="ghost cancel">Cancel</button></div>'+
   '</div>'+
   '<div class="err rerr" role="alert"></div>'+
+  '<button type="button" class="tile-x" aria-label="Close"><span class="ms" aria-hidden="true">close</span></button>'+
 '</article>';
 // Reads a moment form (description and/or From/To). Returns null and shows why if the times don't make sense.
 function readMoment(box,errEl){
@@ -39,6 +40,7 @@ function wire(el){
   el.querySelector(".pick").onclick=()=>openPicker(redo,+el.dataset.idx);
   wireHook(el,job.shorts.find(x=>x.idx===+el.dataset.idx));
   wireLook(el,job.shorts.find(x=>x.idx===+el.dataset.idx));
+  wireTile(el);
   el.querySelector(".cancel").onclick=()=>{ redo.hidden=true; err.textContent=""; };
   el.querySelector(".go").onclick=async()=>{
     err.textContent="";
@@ -48,15 +50,16 @@ function wire(el){
 }
 function wireAdd(){
   const card=$("addCard"), form=card.querySelector(".redo"), err=card.querySelector(".rerr");
-  $("addOpen").onclick=()=>{ form.hidden=false; form.querySelector("textarea").focus(); };
+  $("addOpen").onclick=()=>{ openTile(card); form.hidden=false; form.querySelector("textarea").focus(); };
+  card.querySelector(".tile-x").onclick=()=>{ form.hidden=true; err.textContent=""; closeTile(); };
   card.querySelector(".pick").onclick=()=>openPicker(form,null);
-  card.querySelector(".cancel").onclick=()=>{ form.hidden=true; err.textContent=""; };
+  card.querySelector(".cancel").onclick=()=>{ form.hidden=true; err.textContent=""; closeTile(); };
   card.querySelector(".go").onclick=async()=>{
     err.textContent="";
     const m=readMoment(form,err); if(!m) return;
     if(!m.note&&!m.start){ err.textContent="Describe the moment you want, or type its From and To times."; return; }
     if(await sendMoment("/api/add/"+jobId,m,err)){
-      form.hidden=true; form.querySelector("textarea").value=""; form.querySelectorAll("input").forEach(i=>i.value="");
+      form.hidden=true; form.querySelector("textarea").value=""; form.querySelectorAll("input").forEach(i=>i.value=""); closeTile();
     }
   };
 }

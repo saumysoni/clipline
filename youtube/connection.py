@@ -76,8 +76,18 @@ def _lookup_channel(access_token):
     if not items:
         return None
     sn = items[0]["snippet"]
-    return {"id": items[0]["id"], "title": sn.get("title", ""),
-            "thumb": ((sn.get("thumbnails") or {}).get("default") or {}).get("url", "")}
+    handle = sn.get("customUrl", "")
+    return {"id": items[0]["id"], "title": sn.get("title", ""), "handle": handle if handle.startswith("@") or not handle
+            else "@" + handle, "thumb": ((sn.get("thumbnails") or {}).get("default") or {}).get("url", "")}
+
+
+def access_token(user_id):
+    """A fresh access token for this user's YouTube connection, or None if not connected or offline."""
+    try:
+        creds = load_creds(user_id)
+    except OSError:
+        return None
+    return creds.token if creds else None
 
 
 def account(user_id):

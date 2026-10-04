@@ -3,9 +3,14 @@ Transcription: every word of the vlog with exact timings (faster-whisper).
 
 Runs the same on a laptop or a cloud server: an NVIDIA GPU is used automatically when present.
 Tune with WHISPER_MODEL / WHISPER_DEVICE / WHISPER_BATCH_SIZE / WHISPER_THREADS / WHISPER_LANGUAGE.
+
+Clipline is English-only for now: WHISPER_LANGUAGE defaults to "en", so the language is never guessed
+(guessing once turned an English vlog into Welsh, and a Hinglish vlog into invented English). Set
+WHISPER_LANGUAGE=auto to let Whisper work it out instead.
 """
 import json
 import os
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -126,7 +131,8 @@ def transcribe(video_path, out_json, progress=lambda pct, msg: None):
     progress(0, f"Loading speech model ({model_name})")
     started = time.time()
     model = whisper_model(model_name)
-    language = os.getenv("WHISPER_LANGUAGE") or None
+    language = (os.getenv("WHISPER_LANGUAGE") or "en").strip().lower()
+    language = None if language == "auto" else language
     if not language and not model_name.endswith(".en"):
         progress(0, "Working out the language")
         language = detect_language(model, audio)
@@ -149,6 +155,9 @@ def transcribe(video_path, out_json, progress=lambda pct, msg: None):
         words = _collect_words(segments, total, progress)
         engine = f"faster-whisper:{model_name}"
 
+    words = drop_repeats(words)
+    for w in words:  # a stuck letter ("sooooooo", "hmmmmmmm") is cut to two
+        w["w"] = re.sub(r"(.)\1{3,}", r"\1\1", w["w"])
     print(f"Transcribed {fmt_mmss(total)} with {engine} in {time.time() - started:.0f}s.")
     data = {"duration": total, "language": language or info.language,
             "segments": sentence_segments(words), "words": words, "engine": engine}
@@ -166,3 +175,30 @@ def _collect_words(segments, total, progress):
         progress(min(99, s.end / max(total, 1) * 100), f"Transcribed {fmt_mmss(s.end)} of {fmt_mmss(total)}")
     words.sort(key=lambda w: w["s"])
     return words
+
+
+def drop_repeats(words, most=2):
+    """Whisper sometimes gets stuck and repeats a phrase over a quiet or noisy stretch ("It's snowing
+    everywhere" 40 times, "तीवा तीवा तीवा..."). Any phrase of 1-8 words said more than `most` times in a
+    row is kept only `most` times."""
+    key = lambda w: "".join(c for c in w["w"].lower() if c.isalnum())  # noqa: E731
+    out, i = [], 0
+    while i < len(words):
+        best = None
+        for n in range(1, 9):
+            phrase = [key(w) for w in words[i:i + n]]
+            if len(phrase) < n or not any(phrase):
+                break
+            reps = 1
+            while [key(w) for w in words[i + reps * n:i + (reps + 1) * n]] == phrase:
+                reps += 1
+            if reps > most and (best is None or reps * n > best[0] * best[1]):
+                best = (reps, n)
+        if best:
+            reps, n = best
+            out += words[i:i + most * n]
+            i += reps * n
+        else:
+            out.append(words[i])
+            i += 1
+    return out

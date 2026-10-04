@@ -8,10 +8,11 @@ function cardHTML(s){
   return '<article class="short" data-idx="'+s.idx+'" data-video="'+esc(s.video+"|"+s.thumb)+'">'+
     '<div class="phone"><video src="'+v+'" poster="'+t+'" controls playsinline preload="metadata"></video><img src="'+t+'" alt="Thumbnail for '+esc(s.title)+'">'+
       '<div class="busy" aria-live="polite"><span class="spin" aria-hidden="true"></span><span class="bmsg"></span></div></div>'+
+    tileCapHTML(s)+
     '<div class="toggle" role="group" aria-label="Preview"><button type="button" aria-pressed="true" data-v="v"><span class="ms" aria-hidden="true">play_circle</span>Short</button><button type="button" aria-pressed="false" data-v="t"><span class="ms" aria-hidden="true">image</span>Thumbnail</button></div>'+
     lookHTML(s)+
     '<div class="meta"><span class="tc"><span class="ms" aria-hidden="true">schedule</span>'+fmt(s.start)+'–'+fmt(s.end)+' · '+Math.round(s.end-s.start)+'s</span>'+(s.manual?'<span class="tag cap">Your pick</span>':'')+'</div>'+
-    '<div><label class="fld-lab" for="title'+s.idx+'">YouTube title</label><input class="title" id="title'+s.idx+'" type="text" value="'+esc(s.title)+'" maxlength="95"></div>'+
+    '<div class="tfield"><label class="fld-lab" for="title'+s.idx+'">YouTube title</label><input class="title" id="title'+s.idx+'" type="text" value="'+esc(s.title)+'" maxlength="95"></div>'+
     hookHTML(s)+
     '<div class="why">'+esc(s.why)+'</div>'+
     '<div class="row"><label class="keep"><input type="checkbox"'+(s.keep===false?'':' checked')+'> Post this</label>'+

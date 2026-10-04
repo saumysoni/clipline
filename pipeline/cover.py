@@ -1,5 +1,5 @@
 """
-The thumbnail as the Short's first frame (a tenth of a second, too short for viewers to notice), so the
+The thumbnail as the Short's first frames (a fifth of a second), so the
 creator can pick it as the thumbnail in the YouTube app on any channel, Partner Program or not.
 
 covered_video() makes "cover_<short>_<thumb>.mp4" next to the Short: a 0.1 s clip of the thumbnail, encoded
@@ -15,7 +15,7 @@ from pathlib import Path
 from pipeline.ffmpeg import ffmpeg_exe, run
 
 
-COVER_SECS = 0.1  # 3 frames at 30 fps
+COVER_SECS = 0.2  # 6 frames at 30 fps
 
 
 def audio_format(path):
@@ -38,7 +38,7 @@ def covered_video(job_dir, video, thumb):
     """Path of the Short `video` with the thumbnail `thumb` as its first frame (made once, then reused)."""
     job_dir = Path(job_dir)
     src, img = job_dir / video, job_dir / thumb
-    out = job_dir / f"cover_{Path(video).stem}_{Path(thumb).stem}.mp4"
+    out = job_dir / f"cover_{Path(video).stem}_{Path(thumb).stem}_{int(COVER_SECS * 1000)}ms.mp4"
     if out.exists() and out.stat().st_mtime >= max(src.stat().st_mtime, img.stat().st_mtime):
         return out
     for old in job_dir.glob(f"cover_{Path(video).stem}_*.mp4"):  # an older thumbnail's cover
