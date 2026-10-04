@@ -13,7 +13,7 @@ function paintAccount(){
     : yt.signed_in ? "Posting to "+name : "Connect your YouTube channel to post your Shorts";
   $("acct").hidden = false;
   $("acct").innerHTML = !yt.configured
-    ? '<span class="ms" aria-hidden="true">info</span><span>YouTube posting isn\'t set up yet: <b>client_secret.json</b> is missing from the Clipline folder. Follow README step 5, then restart Clipline. You can still Save each Short.</span>'
+    ? '<span class="ms" aria-hidden="true">info</span><span>YouTube posting isn\'t set up yet: the Google client file is missing from the Clipline folder (README step 5). Drop it in and click <b>Connect YouTube</b>; no restart needed. You can still Save each Short.</span>'
     : yt.signed_in
     ? (yt.channel&&yt.channel.thumb ? '<img src="'+esc(yt.channel.thumb)+'" alt="" referrerpolicy="no-referrer">' : '<span class="ms" aria-hidden="true">smart_display</span>')+
       '<span>Posting to <b>'+esc(name)+'</b>'+(yt.offline?' (offline right now)':'')+'</span>'+
@@ -32,7 +32,7 @@ function paintAccount(){
   if(typeof dock==="function" && jobId) dock();
 }
 // Opens Google's sign-in in a small window. Must run straight from a click, or the browser blocks it.
-function ytError(msg){ if($("s3").hidden) $("err1").textContent=msg; else $("err3").textContent=msg; }
+function ytError(msg){ if(!$("s1").hidden) $("err1").textContent=msg; else if(!$("reviewView").hidden) $("err3r").textContent=msg; else $("err3").textContent=msg; }
 // What to do once the sign-in lands (e.g. the upload the creator asked for before signing in).
 let ytThen=null;
 function signedIn(a){
@@ -42,11 +42,11 @@ function signedIn(a){
 function signIn(then){
   ytThen = then || null;
   if(!yt.configured){
-    const msg="YouTube posting isn't set up yet: the file client_secret.json is missing from the Clipline folder. "+
-      "Create it in Google Cloud (README step 5), put it in the Clipline folder, then click Connect YouTube again. No restart needed.";
+    const msg="YouTube posting isn't set up yet: Clipline needs the Google client file (README step 5). "+
+      "Download it from Google Cloud and put it in the Clipline folder as it is (no need to rename it), then click Connect YouTube again.";
     // Check again first: the file may have been added since the page loaded (then one more click signs in).
     loadAccount().then(()=>{
-      const m = yt.configured ? "Found client_secret.json. Click Connect YouTube again." : msg;
+      const m = yt.configured ? "Found the Google client file. Click Connect YouTube again." : msg;
       if(!$("s1").hidden && $("ytSetup1")) $("ytSetup1").textContent=m; else if(!$("s1").hidden) $("err1").textContent=m; else ytError(m);
     });
     return;

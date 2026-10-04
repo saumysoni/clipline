@@ -44,6 +44,9 @@ def upload_error_message(e):
 
 def upload_short(youtube, video_path, title, description, tags, publish_at=None,
                  thumb_path=None, progress=lambda pct: None):
+    """Upload one Short and set its thumbnail through the API. On Shorts, that thumbnail shows in search,
+    on the home page and in subscriptions; the Shorts feed uses a frame the creator picks in the YouTube app
+    (the first frame, see pipeline/cover.py) or, on Partner Program channels, an image set in Studio."""
     from googleapiclient.http import MediaFileUpload
 
     status = {"selfDeclaredMadeForKids": False}
@@ -76,9 +79,9 @@ def upload_short(youtube, video_path, title, description, tags, publish_at=None,
     if thumb_path and Path(thumb_path).exists():
         try:
             youtube.thumbnails().set(videoId=video_id, media_body=MediaFileUpload(str(thumb_path))).execute()
-        except Exception as e:  # custom Shorts thumbnails are not available on every channel yet
+        except Exception as e:  # noqa: BLE001  (never fail an upload over the thumbnail)
             print("Thumbnail upload refused:", repr(e)[:300])
-            thumb_note = (f"YouTube didn't accept the custom thumbnail (it needs a phone-verified channel with custom "
-                          f"thumbnails turned on). Add it in YouTube Studio; the file is {Path(thumb_path).name} "
-                          f"in this job's folder.")
+            thumb_note = ("YouTube didn't take the custom thumbnail, usually because the channel isn't phone-verified "
+                          "yet: verify it in a minute at youtube.com/verify. Until then, pick the first frame as "
+                          "the thumbnail in the YouTube app, or use Download thumbnail and add it in YouTube Studio.")
     return video_id, thumb_note

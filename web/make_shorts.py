@@ -2,10 +2,12 @@
 Make my Shorts: receives the upload and runs the whole pipeline for a new job in the background.
 """
 import json
+import os
 import shutil
 import threading
 import traceback
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from flask import g, jsonify, request
@@ -67,19 +69,25 @@ def make_shorts(job_id, src, link, count, style, vlog=None, note="", must=()):
         update(job_id, moments_found=[{"start": m["start"], "end": m["end"]} for m in moments])
 
         pipeline.prepare_job_fonts(job_dir)
-        # All the editing first, then all the thumbnails, so the steps on the page only move forward.
-        rendered = []
-        for i, m in enumerate(moments, 1):
-            update(job_id, stage=3, pct=(i - 1) / len(moments) * 100,
-                   msg=f"Editing Short {i} of {len(moments)}")
-            rendered.append(pipeline.render_short(src, meta, m, tr["words"], i, style, job_dir))
-        shorts = []
-        for i, (m, (video, cx)) in enumerate(zip(moments, rendered), 1):
-            update(job_id, stage=4, pct=(i - 1) / len(moments) * 100,
-                   msg=f"Thumbnail {i} of {len(moments)}")
-            thumb = pipeline.make_thumbnail(src, meta, m, cx, i, job_dir, tr["words"], vlog)
-            shorts.append({**m, "idx": i, "video": video, "thumb": thumb, "keep": True, "cx": cx})
-            update(job_id, shorts=shorts)
+        # Each Short's thumbnail starts as soon as that Short is edited, and a few are designed side by
+        # side (nearly all of a thumbnail's time is waiting for the AI), so they're mostly done when the
+        # editing is. The page still shows editing first, then thumbnails.
+        workers = max(1, int(os.getenv("THUMB_WORKERS", "3")))
+        rendered, thumbs = [], []
+        with ThreadPoolExecutor(workers) as pool:
+            for i, m in enumerate(moments, 1):
+                update(job_id, stage=3, pct=(i - 1) / len(moments) * 100,
+                       msg=f"Editing Short {i} of {len(moments)}")
+                video, cx = pipeline.render_short(src, meta, m, tr["words"], i, style, job_dir)
+                rendered.append((video, cx))
+                thumbs.append(pool.submit(pipeline.make_thumbnail, src, meta, m, cx, i, job_dir, tr["words"], vlog))
+            shorts = []
+            for i, (m, (video, cx), thumb) in enumerate(zip(moments, rendered, thumbs), 1):
+                update(job_id, stage=4, pct=(i - 1) / len(moments) * 100,
+                       msg=f"Thumbnail {i} of {len(moments)}")
+                name = thumb.result()  # first: making the thumbnail also notes its look and folder on m
+                shorts.append({**m, "idx": i, "video": video, "thumb": name, "keep": True, "cx": cx})
+                update(job_id, shorts=shorts)
         update(job_id, stage=5, pct=100, msg="Done", status="ready", shorts=shorts)
         start_preview(job_id)  # ready by the time the creator wants to choose a scene on the video
     except Exception as e:

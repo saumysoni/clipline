@@ -1,7 +1,13 @@
 """
-YouTube/Google settings: the OAuth client (client_secret.json) and the permissions Clipline asks for.
+YouTube/Google settings: the OAuth client and the permissions Clipline asks for.
+
+The OAuth client comes from (first found wins):
+  1. GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET in .env / the server's environment (use this in the cloud)
+  2. client_secret.json in the Clipline folder
+  3. Google's own download name, client_secret_<numbers>.apps.googleusercontent.com.json, in the Clipline folder
 """
 import json
+import os
 
 from settings import ROOT
 
@@ -24,10 +30,35 @@ LOGIN_SCOPES = ["openid", "https://www.googleapis.com/auth/userinfo.email",
 NET_TIMEOUT = 15  # seconds; a slow network must never freeze the page
 
 
+def _secret_file():
+    if CLIENT_SECRET.exists():
+        return CLIENT_SECRET
+    found = sorted(ROOT.glob("client_secret*.json"))
+    return found[0] if found else None
+
+
+def client_config():
+    """The OAuth client as the dict google_auth_oauthlib wants, or None if it isn't set up."""
+    cid, secret = os.getenv("GOOGLE_CLIENT_ID", "").strip(), os.getenv("GOOGLE_CLIENT_SECRET", "").strip()
+    if cid and secret:
+        return {"web": {"client_id": cid, "client_secret": secret,
+                        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                        "token_uri": "https://oauth2.googleapis.com/token"}}
+    f = _secret_file()
+    if not f:
+        return None
+    try:
+        info = json.loads(f.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        print(f"{f.name} isn't a valid Google client file; download it again from Google Cloud.")
+        return None
+    return info if (info.get("web") or info.get("installed")) else None
+
+
 def is_configured():
-    return CLIENT_SECRET.exists()
+    return client_config() is not None
 
 
 def client_id():
-    info = json.loads(CLIENT_SECRET.read_text(encoding="utf-8"))
+    info = client_config() or {}
     return (info.get("web") or info.get("installed") or {}).get("client_id", "")

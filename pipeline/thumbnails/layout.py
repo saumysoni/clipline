@@ -1,16 +1,17 @@
 """
-Thumbnails, step 4: drawing the collage on a 1080x1920 canvas (sticker outlines, photo cards,
-sunburst background, text), kept under YouTube's 2 MB limit.
+Thumbnails, step 3: drawing on a 1080x1920 canvas. Shared helpers (crop to 9:16 around what matters,
+colour grade, creator-style text) and compose(), which hands the plan to looks/<look>.py.
+Output stays under YouTube's 2 MB thumbnail limit.
 """
+import importlib
+import os
 from pathlib import Path
 
-import numpy as np
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
 
 from pipeline.constants import OUT_H, OUT_W
 from pipeline.fonts import find_font_file
 from pipeline.text import without_emoji
-from pipeline.thumbnails.cutout import crop_box, cut_out, face_cutout
 
 
 W, H = OUT_W, OUT_H
@@ -19,193 +20,165 @@ W, H = OUT_W, OUT_H
 MAX_BYTES = 2 * 1024 * 1024  # YouTube's thumbnail size limit
 
 
+LOOKS = ("frame", "duotone")  # one file each in looks/; the first is the default
+
+
 def hex_rgb(c):
     c = c.lstrip("#")
     return tuple(int(c[i:i + 2], 16) for i in (0, 2, 4))
 
 
-def scale_to(img, max_w, max_h):
-    s = min(max_w / img.width, max_h / img.height)
-    return img.resize((max(1, int(img.width * s)), max(1, int(img.height * s))), Image.LANCZOS)
+# ------------------------------------------------------------------ the picture
+ZOOM = 1.12      # crop a little tighter than the full frame height, so the face can be moved under the text
+FACE_AT = 0.56   # where the subject's centre goes, as a share of the height (the text sits above it)
 
 
-def sticker(rgba, outline, color, glow=0):
-    """Thick outline around a cut-out (like a sticker), with an optional neon glow."""
-    pad = outline + glow * 2 + 8
-    canvas = Image.new("RGBA", (rgba.width + 2 * pad, rgba.height + 2 * pad), (0, 0, 0, 0))
-    a = Image.new("L", canvas.size, 0)
-    a.paste(rgba.getchannel("A"), (pad, pad))
-    grown = a.filter(ImageFilter.GaussianBlur(outline / 2)).point(lambda v: 255 if v > 6 else 0)
-    grown = grown.filter(ImageFilter.GaussianBlur(1))
-    if glow:
-        halo = grown.filter(ImageFilter.GaussianBlur(glow)).point(lambda v: min(255, int(v * 1.6)))
-        canvas.paste(Image.new("RGBA", canvas.size, color + (255,)), (0, 0), halo)
-    canvas.paste(Image.new("RGBA", canvas.size, color + (255,)), (0, 0), grown)
-    canvas.alpha_composite(rgba, (pad, pad))
-    return canvas
-
-
-def photo_card(img, size, border=18):
-    """A white-bordered photo, like a print pinned to a vision board."""
-    card = scale_to(img, size, size)
-    framed = Image.new("RGBA", (card.width + 2 * border, card.height + 2 * border), (255, 255, 255, 255))
-    framed.paste(card, (border, border))
-    mask = Image.new("L", framed.size, 0)
-    ImageDraw.Draw(mask).rounded_rectangle((0, 0, framed.width - 1, framed.height - 1), radius=22, fill=255)
-    framed.putalpha(mask)
-    return framed
-
-
-def with_shadow(rgba, angle=0, blur=14, offset=(10, 16), opacity=150):
-    rot = rgba.rotate(angle, resample=Image.BICUBIC, expand=True)
-    pad = blur * 3
-    out = Image.new("RGBA", (rot.width + 2 * pad, rot.height + 2 * pad), (0, 0, 0, 0))
-    sh = Image.new("RGBA", out.size, (0, 0, 0, 0))
-    alpha = rot.getchannel("A").point(lambda v: v * opacity // 255)
-    sh.paste(Image.new("RGBA", rot.size, (0, 0, 0, 255)), (pad + offset[0], pad + offset[1]), alpha)
-    out.alpha_composite(sh.filter(ImageFilter.GaussianBlur(blur)))
-    out.alpha_composite(rot, (pad, pad))
+def portrait(img, focus=None, w=W, h=H):
+    """A 9:16 crop of `img` scaled to w x h, with `focus` (box_2d [ymin, xmin, ymax, xmax] on a 0-1000
+    scale, usually the creator's face) centred across and placed at FACE_AT down the picture."""
+    cx, cy = 0.5, 0.42
+    if focus:
+        cy, cx = (focus[0] + focus[2]) / 2000, (focus[1] + focus[3]) / 2000
+    ch = min(img.height, round(img.height / ZOOM))
+    cw = min(img.width, round(ch * w / h))
+    ch = round(cw * h / w)
+    left = min(max(0, round(cx * img.width - cw / 2)), img.width - cw)
+    top = min(max(0, round(cy * img.height - ch * FACE_AT)), img.height - ch)
+    out = img.crop((left, top, left + cw, top + ch)).resize((w, h), Image.LANCZOS)
+    if cw < w * 0.7:  # blown up a lot (a low-resolution vlog): sharpen the edges back a little
+        out = out.filter(ImageFilter.UnsharpMask(3, 70, 2))
     return out
 
 
-def place(canvas, rgba, cx, cy):
-    canvas.alpha_composite(rgba, (int(cx - rgba.width / 2), int(cy - rgba.height / 2)))
+def subject_span(img, focus=None):
+    """(top, bottom) of the focus box in portrait()'s picture, as shares of the height."""
+    if not focus:
+        return FACE_AT - 0.1, FACE_AT + 0.1
+    cy = (focus[0] + focus[2]) / 2000
+    ch = min(img.height, round(img.height / ZOOM))
+    ch = round(min(img.width, round(ch * W / H)) * H / W)
+    top = min(max(0, round(cy * img.height - ch * FACE_AT)), img.height - ch)
+    return ((focus[0] / 1000 * img.height - top) / ch, (focus[2] / 1000 * img.height - top) / ch)
 
 
-def background(img, accent, blur=26):
-    """The frame itself, blurred, darkened and tinted: busy enough to feel real, calm enough for text."""
-    s = max(W / img.width, H / img.height)
-    big = img.resize((int(img.width * s) + 1, int(img.height * s) + 1), Image.LANCZOS)
-    l, t = (big.width - W) // 2, (big.height - H) // 2
-    bg = big.crop((l, t, l + W, t + H)).filter(ImageFilter.GaussianBlur(blur))
-    bg = ImageEnhance.Brightness(ImageEnhance.Color(bg).enhance(1.35)).enhance(0.55).convert("RGBA")
-    tint = Image.new("RGBA", (W, H), accent + (0,))
-    grad = Image.linear_gradient("L").resize((W, H)).point(lambda v: int(v * 0.35))
-    tint.putalpha(grad.transpose(Image.FLIP_TOP_BOTTOM))
-    bg.alpha_composite(tint)
-    bg.alpha_composite(sunburst(accent, (W // 2, int(H * 0.62))))
+def grade(img, sat=1.2, con=1.1, bright=1.0):
+    img = ImageEnhance.Color(img).enhance(sat)
+    img = ImageEnhance.Contrast(img).enhance(con)
+    return ImageEnhance.Brightness(img).enhance(bright) if bright != 1 else img
+
+
+def shade(canvas, at_top=True, strength=210):
+    """A soft dark gradient where the text goes, so white text reads on any picture."""
     ramp = Image.linear_gradient("L").resize((W, H))
-    top = ramp.transpose(Image.FLIP_TOP_BOTTOM).point(lambda v: int(max(0, v - 150) * 1.9))
-    shade = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    shade.putalpha(top)
-    bg.alpha_composite(shade)  # darker at the top, where the text goes
-    return bg
-
-
-def sunburst(color, centre, rays=18, opacity=70):
-    """Comic-style rays of light behind the face, in the accent colour."""
+    if at_top:
+        ramp = ramp.transpose(Image.FLIP_TOP_BOTTOM)
     layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    d = ImageDraw.Draw(layer)
-    cx, cy = centre
-    r = 2 * H
-    step = 2 * np.pi / rays
-    for k in range(0, rays, 2):
-        a0, a1 = k * step, (k + 1) * step
-        d.polygon([(cx, cy), (cx + r * np.cos(a0), cy + r * np.sin(a0)), (cx + r * np.cos(a1), cy + r * np.sin(a1))],
-                  fill=color + (opacity,))
-    glow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    ImageDraw.Draw(glow).ellipse((cx - 420, cy - 420, cx + 420, cy + 420), fill=color + (120,))
-    layer.alpha_composite(glow.filter(ImageFilter.GaussianBlur(160)))
-    return layer.filter(ImageFilter.GaussianBlur(3))
+    layer.putalpha(ramp.point(lambda v: int(max(0, v - 115) / 140 * strength)))
+    canvas.alpha_composite(layer)
 
 
-def font(size):
-    path = find_font_file()
-    return ImageFont.truetype(path, size) if path else ImageFont.load_default()
+# ------------------------------------------------------------------ text
+# Thumbnail fonts, bundled (SIL Open Font License, see fonts/OFL-*.txt), in the style creators use:
+# a tall, condensed, heavy headline (Anton) and a classy serif for the small line (DM Serif Display).
+# They cover Latin letters only; other scripts fall back to the system's bold font.
+FONTS = Path(__file__).parent / "fonts"
+FONT_FILES = {"head": FONTS / "Anton-Regular.ttf", "kicker": FONTS / "DMSerifDisplay-Regular.ttf"}
 
 
-def fit_font(draw, text, max_size, max_w):
+def font(size, kind="head", text=""):
+    path = FONT_FILES.get(kind)
+    if not path or not path.exists() or any(ord(c) > 0x24F for c in text):
+        path = find_font_file()
+    return ImageFont.truetype(str(path), size) if path else ImageFont.load_default()
+
+
+def fit_font(draw, text, max_size, max_w, kind="head", min_size=48):
     size = max_size
-    while size > 48:
-        f = font(size)
+    while size > min_size:
+        f = font(size, kind, text)
         if draw.textlength(text, font=f) <= max_w:
             return f
         size -= 6
-    return font(size)
+    return font(size, kind, text)
 
 
-def draw_text(canvas, line1, line2, accent, top=110):
-    """Line 1 in white, line 2 on an accent-coloured block, centred at the top (away from the face)."""
-    d = ImageDraw.Draw(canvas)
-    l1, l2 = without_emoji(line1).upper().strip(), without_emoji(line2).upper().strip()
-    y = top
+def text_lines(draw, line1, line2, scale=1.0):
+    """[(text, font, y offset, stroke)] for a small serif line and a huge condensed headline (split in
+    two lines when one line would have to be small), and the total height."""
+    l1, l2 = without_emoji(line1).strip().upper(), without_emoji(line2).strip().upper()
+    lines, y = [], 0
     if l1:
-        f1 = fit_font(d, l1, 130, W - 140)
-        tw = d.textlength(l1, font=f1)
-        d.text(((W - tw) / 2, y), l1, font=f1, fill="white", stroke_width=11, stroke_fill="black")
-        y += f1.size + 34
+        f1 = fit_font(draw, l1, int(104 * scale), W - 200, "kicker", int(48 * scale))
+        lines.append((l1, f1, y, 3)); y += int(f1.size * 1.12)
     if l2:
-        f2 = fit_font(d, l2, 160, W - 170)
-        tw = d.textlength(l2, font=f2)
-        x = (W - tw) / 2
-        box = (x - 32, y - 12, x + tw + 32, y + f2.size + 34)
-        shadow = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
-        ImageDraw.Draw(shadow).rounded_rectangle(tuple(v + o for v, o in zip(box, (8, 12, 8, 12))),
-                                                 radius=26, fill=(0, 0, 0, 160))
-        canvas.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(10)))
-        d = ImageDraw.Draw(canvas)
-        d.rounded_rectangle(box, radius=26, fill=accent)
-        d.text((x, y), l2, font=f2, fill=(17, 17, 17))
-        y = box[3]
-    return y
+        f2 = fit_font(draw, l2, int(300 * scale), W - 110, "head", int(110 * scale))
+        parts = [l2]
+        if f2.size < 170 * scale and " " in l2:  # long headline: two lines read bigger than one squeezed line
+            words = l2.split()
+            half = max(1, len(words) // 2)
+            parts = [" ".join(words[:half]), " ".join(words[half:])]
+            f2 = min((fit_font(draw, t, int(260 * scale), W - 110, "head", int(110 * scale)) for t in parts),
+                     key=lambda f: f.size)
+        for t in parts:
+            lines.append((t, f2, y - int(f2.size * 0.08), 5)); y += int(f2.size * 1.08)
+    return lines, y
 
 
-# collage slots (centre x, centre y, size, tilt) for 1-3 items. With a face, the items sit in the
-# middle band around the head; the face sticker fills the bottom; the text is at the top.
-SLOTS_WITH_FACE = {1: [(790, 760, 520, 7)],
-                   2: [(250, 720, 470, -8), (830, 800, 470, 7)],
-                   3: [(240, 680, 430, -8), (840, 700, 430, 7), (200, 1120, 360, -5)]}
+TEXT_TOP = 90       # pixels from the top for text at the top
+TEXT_BOTTOM = 230   # pixels kept clear at the bottom (YouTube draws the title over it)
+GAP = 30            # pixels between the text and the face
 
 
-SLOTS_NO_FACE = {1: [(540, 1120, 940, -3)],
-                 2: [(360, 900, 660, -6), (720, 1380, 660, 5)],
-                 3: [(330, 820, 580, -7), (760, 1140, 580, 6), (360, 1480, 540, -4)]}
+def text_spot(canvas, line1, line2, span):
+    """Where the text goes: (at_top, scale). At the top if it fits above the face, else at the bottom if it
+    fits below; otherwise on whichever side has more room, made smaller to fit (never below half size)."""
+    d = ImageDraw.Draw(canvas)
+    _, height = text_lines(d, line1, line2)
+    above = span[0] * H - TEXT_TOP - GAP
+    below = H - TEXT_BOTTOM - span[1] * H - GAP
+    if height <= above:
+        return True, 1.0
+    if height <= below:
+        return False, 1.0
+    room = max(above, below)
+    return above >= below, max(0.5, min(1.0, room / max(1, height)))
 
 
+def draw_text(canvas, line1, line2, at_top=True, scale=1.0):
+    """The creator style from real channels: a small serif line, then a huge condensed headline, both
+    plain white with a soft shadow (no boxes), at the top or the bottom (see text_spot())."""
+    d = ImageDraw.Draw(canvas)
+    lines, height = text_lines(d, line1, line2, scale)
+    top = TEXT_TOP if at_top else H - height - TEXT_BOTTOM
+    shadow = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+    sd = ImageDraw.Draw(shadow)
+    for text, f, ly, stroke in lines:
+        x = (W - d.textlength(text, font=f)) / 2
+        sd.text((x + 4, top + ly + 8), text, font=f, fill=(0, 0, 0, 210), stroke_width=stroke + 8,
+                stroke_fill=(0, 0, 0, 210))
+    canvas.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(12)))
+    d = ImageDraw.Draw(canvas)
+    for text, f, ly, stroke in lines:
+        x = (W - d.textlength(text, font=f)) / 2
+        d.text((x, top + ly), text, font=f, fill="white", stroke_width=stroke, stroke_fill=(20, 20, 20))
+    return top + height
+
+
+def add_text(canvas, img, pl, shade_strength=210):
+    """Shade and text for a look drawn from `img` with portrait(img, pl["focus"]), kept off the face."""
+    at_top, scale = text_spot(canvas, pl.get("line1", ""), pl.get("line2", ""), subject_span(img, pl.get("focus")))
+    shade(canvas, at_top=at_top, strength=shade_strength)
+    draw_text(canvas, pl.get("line1", ""), pl.get("line2", ""), at_top, scale)
+
+
+# ------------------------------------------------------------------ putting it together
 def compose(frames, pl):
-    accent = hex_rgb(pl["accent"])
-    face_img = frames[pl["face_frame"]] if pl["face_frame"] is not None else None
-    face_cut, face_crop = face_cutout(face_img) if face_img is not None else (None, None)
-
-    pieces = []
-    for it in pl["items"]:
-        crop = crop_box(frames[it["frame"]], it["box"])
-        cut = cut_out(crop) if it["kind"] == "object" else None
-        pieces.append(("cut", cut) if cut is not None else ("card", crop))
-    if face_img is None and not pieces:
-        raise RuntimeError("nothing to put on the thumbnail")
-
-    scene = next((frames[it["frame"]] for it in pl["items"] if it["kind"] == "scene"), None)
-    if scene is not None:
-        canvas = background(scene, accent)
-    elif face_img is not None:
-        canvas = background(face_img, accent, blur=70)  # heavy blur: no ghost of the face
-    else:
-        canvas = background(frames[pl["items"][0]["frame"]], accent)
-
-    have_face = face_img is not None
-    slots = (SLOTS_WITH_FACE if have_face else SLOTS_NO_FACE).get(len(pieces), [])
-    for (kind, img), (cx, cy, size, tilt) in zip(pieces, slots):
-        if kind == "cut":
-            art = sticker(scale_to(img, size, size), outline=16, color=(255, 255, 255))
-        else:
-            art = photo_card(img, size)
-        place(canvas, with_shadow(art, tilt), cx, cy)
-
-    if have_face:
-        if face_cut is not None:
-            target_h = H * 0.60
-            s_ = min(target_h / face_cut.height, W * 1.15 / face_cut.width)
-            face = face_cut.resize((int(face_cut.width * s_), int(face_cut.height * s_)), Image.LANCZOS)
-            art = sticker(face, outline=24, color=accent, glow=30)
-            pad = 24 + 60 + 8
-            canvas.alpha_composite(art, (int((W - art.width) / 2), int(H - art.height + pad)))
-        else:  # the cut-out didn't work: show the face as a big framed photo instead
-            art = with_shadow(photo_card(face_crop, 820, border=24), -3)
-            place(canvas, art, W // 2, int(H * 0.70))
-
-    draw_text(canvas, pl["line1"], pl["line2"], accent)
-    return canvas.convert("RGB")
+    """The thumbnail in the look saved in the plan (or THUMB_LOOK in .env, default frame)."""
+    look = pl.get("look") or os.getenv("THUMB_LOOK", LOOKS[0]).strip().lower()
+    if look not in LOOKS:  # plans from before (scene, burst, bold) are redrawn as frame
+        look = LOOKS[0]
+    pl["look"] = look
+    return importlib.import_module(f"pipeline.thumbnails.looks.{look}").render(frames, pl)
 
 
 def save(img, path):

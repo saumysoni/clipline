@@ -38,6 +38,7 @@ function wire(el){
   el.querySelector(".retry").onclick=()=>{ redo.hidden=!redo.hidden; if(!redo.hidden) redo.querySelector("textarea").focus(); };
   el.querySelector(".pick").onclick=()=>openPicker(redo,+el.dataset.idx);
   wireHook(el,job.shorts.find(x=>x.idx===+el.dataset.idx));
+  wireLook(el,job.shorts.find(x=>x.idx===+el.dataset.idx));
   el.querySelector(".cancel").onclick=()=>{ redo.hidden=true; err.textContent=""; };
   el.querySelector(".go").onclick=async()=>{
     err.textContent="";
@@ -96,7 +97,7 @@ function refreshResults(){
   document.querySelectorAll(".short[data-idx]").forEach(el=>{ if(!ids.has(el.dataset.idx)) el.remove(); });
   job.shorts.forEach(s=>{
     let el=document.querySelector('.short[data-idx="'+s.idx+'"]');
-    if(!el || el.dataset.video!==(s.pending?"":s.video)){
+    if(!el || el.dataset.video!==(s.pending?"":s.video+"|"+s.thumb)){
       if(el){ el.insertAdjacentHTML("afterend",cardHTML(s)); el.remove(); }
       else $("addCard").insertAdjacentHTML("beforebegin",cardHTML(s));
       el=document.querySelector('.short[data-idx="'+s.idx+'"]'); wire(el);

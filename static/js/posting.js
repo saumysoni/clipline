@@ -1,8 +1,27 @@
-// Posting: the upload bar, uploading, marking posted Shorts, updating them on YouTube.
+// Posting: the Post view (after review), uploading, marking posted Shorts, updating them on YouTube.
+// Step 3 has two views: #reviewView (the cards) and #postView (when and where). The cards stay in the
+// page while posting, so the titles and ticks are read from them.
+function showPost(on){
+  $("reviewView").hidden=on; $("postView").hidden=!on;
+  if(on){ document.querySelectorAll("#reel video").forEach(v=>v.pause()); paintPostList(); }
+  $("err3r").textContent="";
+  window.scrollTo(0,0); dock();
+}
+function paintPostList(){
+  const ups=new Map((job&&job.uploads||[]).map(u=>[u.idx,u]));
+  const rows=[...document.querySelectorAll(".short[data-idx]:not(.pending)")].filter(el=>el.querySelector(".keep input").checked || ups.has(+el.dataset.idx));
+  $("postCount").textContent = rows.length===1 ? "1 Short" : rows.length+" Shorts";
+  $("postList").innerHTML = rows.length ? rows.map(el=>{
+    const s=job.shorts.find(x=>x.idx===+el.dataset.idx)||{}, u=ups.get(s.idx);
+    return '<li><img src="/media/'+job.id+'/'+esc(s.thumb||"")+'" alt=""><span><b>'+esc(el.querySelector("input.title").value)+'</b>'+
+      '<small'+(u?' class="done"':'')+'>'+(u ? esc(whenText(u.when)) : fmt(s.end-s.start)+" long")+'</small></span></li>';
+  }).join("") : '<li class="post-empty">No Shorts ticked. Go back to review and tick the ones to post.</li>';
+}
 function dock(){
   const total=document.querySelectorAll(".short[data-idx]:not(.pending)").length, k=document.querySelectorAll(".short .keep input:checked").length;
   const busy=document.querySelectorAll(".short.redoing").length;
   $("dockText").textContent = busy ? "Making "+(busy===1?"a Short":busy+" Shorts")+"..." : k ? k+" of "+total+" will be posted" : "Tick at least one Short";
+  $("nextBtn").disabled = !k || busy>0;
   const now=$("sched2").value==="now", n=k===1 ? "1 Short" : k+" Shorts";
   $("customWhen").hidden = $("sched2").value!=="custom";
   $("schedBtn").innerHTML = '<span class="ms" aria-hidden="true">smart_display</span>Upload '+(k>1?k+" ":"")+'to YouTube';
@@ -15,6 +34,8 @@ function POSTING_NOW(){ return !!job && ["starting","connecting","uploading"].in
   const p=x=>String(x).padStart(2,"0");
   $("schStart").value=d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+"T18:00";
   const m=new Date(Date.now()+16*60000); $("schStart").min=m.getFullYear()+"-"+p(m.getMonth()+1)+"-"+p(m.getDate())+"T"+p(m.getHours())+":"+p(m.getMinutes()); })();
+$("nextBtn").onclick=()=>showPost(true);
+$("backReview").onclick=()=>{ if(!POSTING_NOW()) showPost(false); };
 $("sched2").addEventListener("change",()=>{ $("err3").textContent=""; dock(); });
 $("schStart").addEventListener("input",()=>$("schStart").classList.remove("bad"));
 $("schedBtn").onclick=()=>{
@@ -47,8 +68,9 @@ async function postShorts(){
 function renderUpload(){
   if($("reel").children.length===0) renderResults();
   if($("s3").hidden && job.upload_status!=="done") show(3);
+  if($("postView").hidden && job.upload_status!=="done") showPost(true);
   $("upPanel").hidden=false; $("upMsg").textContent=job.upload_msg||""; $("upPct").style.width=(job.upload_pct||0)+"%";
-  markPosted();
+  markPosted(); paintPostList();
   if(job.upload_status==="error"){ clearInterval(poll); $("err3").textContent="Posting stopped: "+job.upload_msg; }
   if(job.upload_status==="done"){ clearInterval(poll); renderDone(); }
 }

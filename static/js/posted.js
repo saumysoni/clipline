@@ -10,12 +10,20 @@ function renderDone(){
     const day=d?d.toLocaleDateString(undefined,{weekday:"short"}):"Now";
     const sub=d?d.toLocaleDateString(undefined,{month:"short",day:"numeric"})+", "+d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}):"Posting now";
     return '<li><div class="day">'+day+'<small>'+sub+'</small></div><div>'+esc(u.title)+(u.note?'<div class="from">'+esc(u.note)+'</div>':'')+'</div>'+
-      '<a href="https://studio.youtube.com/video/'+u.video_id+'/edit" target="_blank" rel="noopener">Open in Studio<span class="ms" aria-hidden="true">open_in_new</span></a></li>';
+      '<span class="acts">'+thumbLink(job.id,u)+
+      '<a href="https://studio.youtube.com/video/'+u.video_id+'/edit" target="_blank" rel="noopener">Open in Studio<span class="ms" aria-hidden="true">open_in_new</span></a></span></li>';
   }).join("");
   show(4);
 }
 
+// "Download thumbnail" next to "Open in Studio": the image to upload in YouTube Studio.
+function thumbLink(jid,u){
+  if(!u.thumb) return "";
+  const name=thumbFileName({title:u.title,idx:u.idx});
+  return '<a href="/media/'+esc(jid)+'/'+esc(u.thumb)+'?dl='+encodeURIComponent(name)+'" download="'+esc(name)+'"><span class="ms" aria-hidden="true">download</span>Download thumbnail</a>';
+}
+
 // From the Posted page back to the Shorts, e.g. to upload ones that were left unticked. Posted ones stay marked.
 let onReview=false;
-$("backBtn").onclick=()=>{ onReview=true; $("upPanel").hidden=true; $("err3").textContent=""; renderResults(); show(3); markPosted(); };
+$("backBtn").onclick=()=>{ onReview=true; $("upPanel").hidden=true; $("err3").textContent=""; renderResults(); show(3); showPost(false); markPosted(); };
 $("newBtn").onclick=$("againBtn").onclick=()=>{ location.hash=""; location.reload(); };

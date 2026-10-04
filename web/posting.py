@@ -1,11 +1,13 @@
 """
 Upload to YouTube: posts or schedules the ticked Shorts in the background.
 """
+import os
 import threading
 import traceback
 
 from flask import abort, g, jsonify, request
 
+import pipeline
 import youtube as yt
 from settings import JOBS_DIR
 
@@ -38,7 +40,7 @@ def do_upload(user_id, job_id, items, mode, times, earlier):
             lead = it.get("hook", "") if it.get("hook_mode", "text") != "none" else it.get("title", "")
             desc = (lead + "\n\n" + " ".join("#" + t for t in tags + ["Shorts"])).strip()
             vid, note = yt.upload_short(
-                service, job_dir / it["video"], youtube_title(it["title"]), desc, tags, when, job_dir / it["thumb"],
+                service, upload_file(job_dir, it), youtube_title(it["title"]), desc, tags, when, job_dir / it["thumb"],
                 progress=lambda p: update(job_id, upload_pct=p),
             )
             rec = {"idx": it["idx"], "title": it["title"], "video_id": vid, "video": it["video"],
@@ -67,6 +69,17 @@ def do_upload(user_id, job_id, items, mode, times, earlier):
     finally:
         with LOCK:
             POSTING.discard(job_id)
+
+
+def upload_file(job_dir, it):
+    """The Short with its thumbnail as the first frame (pipeline/cover.py), so the creator can pick it in
+    the YouTube app; the plain Short if that can't be made or COVER_FRAME=0."""
+    if os.getenv("COVER_FRAME", "1") != "0" and it.get("thumb"):
+        try:
+            return pipeline.covered_video(job_dir, it["video"], it["thumb"])
+        except Exception as e:  # noqa: BLE001  (never fail an upload over the cover frame)
+            print("Couldn't add the thumbnail as the first frame:", repr(e)[:300])
+    return job_dir / it["video"]
 
 
 @app.post("/api/schedule/<job_id>")

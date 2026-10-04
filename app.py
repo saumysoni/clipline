@@ -36,6 +36,7 @@ from web import (  # noqa: E402,F401
     pages,
     posting,
     preview,
+    thumbnail_look,
     try_again,
     vlog_info,
     youtube_connect,

@@ -62,9 +62,11 @@ The code is split so two people can work on different features without touching 
 | Transcription (+ saved transcripts) | `pipeline/transcribe.py`, `pipeline/transcript_cache.py` | | |
 | Finding moments | `pipeline/moments.py` | | |
 | Editing a Short (reframe, captions, render) | `pipeline/reframe.py`, `pipeline/captions.py`, `pipeline/render.py`, `pipeline/fonts.py` | | |
-| Thumbnails | `pipeline/thumbnails/` (`make.py` → `collage.py`: `frames` → `plan` → `cutout` → `layout`; `simple.py`) | | |
+| Thumbnails | `pipeline/thumbnails/` (`make.py` → `design.py`: `frames` → `plan` → `layout` → `looks/<look>.py`; `simple.py`) | | |
 | Review cards | | `web/job_status.py`, `web/pages.py` (`/media`) | `js/review.js`, `js/review-cards.js`, `sections/review.html`, `css/review.css` |
 | Hooks | `pipeline/hooks.py` | `web/hooks.py` | `js/hooks.js`, `css/hooks.css` |
+| Thumbnail look (Frame / Duotone switch) and download | `pipeline/thumbnails/looks/` (one file per look), `make.py` (`relook_thumbnail`) | `web/thumbnail_look.py` | `js/thumbnail-look.js`, `css/thumbnail-look.css` |
+| Post page (after review: list, when, where, upload; thumbnail as first frame) | `pipeline/cover.py` | `web/posting.py` | `sections/review.html` (`#postView`), `js/posting.js` (`showPost()`), `css/posting.css` |
 | Try again | `pipeline/try_again.py` | `web/try_again.py` | `js/review-cards.js` |
 | Add a Short / must-have moments | `pipeline/manual_moment.py` | `web/add_short.py` | `js/review-cards.js` |
 | Choose on the video | `pipeline/preview.py` | `web/preview.py` | `js/picker.js`, `sections/picker.html`, `css/picker.css` |
@@ -155,23 +157,52 @@ The code is split so two people can work on different features without touching 
     accept a dict wrapping the list (as `pick_moments()` does). OpenAI's reasoning models reject
     `temperature`, so `openai_json()` retries without it. `OPENAI_FALLBACK_MODELS` needs the same care as
     `FALLBACK_MODELS` (check https://platform.openai.com/docs/models).
-12. **Thumbnails:** Gemini's `box_2d` is `[ymin, xmin, ymax, xmax]` on a 0-1000 scale. `clean_plan()` validates
-    everything Gemini returns. The face cut-out crops ~1.2 face-widths either side first and splits thin
-    bridges (erode → pick the blob under the face → dilate), so people next to the creator aren't included;
-    overlapping people can still leak in, which is why the prompt asks for frames with the creator alone.
-    "scene" items become photo cards and "object" items become stickers; a cut-out covering <4% or >92% of
-    the crop counts as failed and becomes a card. Output stays under YouTube's 2 MB thumbnail limit.
-    Gemini is trained on `box_2d`; OpenAI models are asked for the same format but place boxes less
-    precisely, so expect looser item cut-outs with `AI_PROVIDER=openai`.
-    rembg downloads its model (~180 MB) on first use into `U2NET_HOME` (default `~/.u2net`); bake it into the
-    server image in the cloud.
+12. **Thumbnails:** one frame of the Short, chosen by the AI, in one of two looks: **Frame** (default,
+    colour-graded) or **Duotone** (two-colour poster in the Short's accent). Cut-out collages were dropped in
+    October 2026 after a side-by-side test of 8 styles on real Shorts: uneven cut-outs made some thumbnails
+    look bad, and they cost a 180 MB model, 2 GB of memory and seconds per thumbnail.
+    - **Plan** (`plan.py`): 12 frames (up to 1920 px wide, grabbed 4 at a time) go to the AI, which returns
+      `frame`, `focus` (box_2d `[ymin, xmin, ymax, xmax]`, 0-1000, around what must stay in view, usually the
+      face), `line1`, `line2` and `accent`. `clean_plan()` validates everything; a missing frame falls back to
+      `plan_without_ai()` (biggest sharp face from the face finder, else the sharpest frame).
+      **Thumbnails use Gemini whatever `AI_PROVIDER` says** (`THUMB_AI_PROVIDER`): Gemini is trained on box_2d.
+      A provider that fails is skipped by every thumbnail for `REST` (180 s) so the others go straight to the
+      next one (Gemini was overloaded for minutes in a real run), then no AI.
+    - **Text:** `tidy_lines()` drops words from line1 that the headline already has ("Rice Older? / Older
+      Than Me" -> "Rice / Older Than Me"), and the prompt asks for that too. `text_spot()` puts the text above
+      the face if it fits, else below it (clear of the bottom 230 px where YouTube draws the title), else on
+      the roomier side, smaller. Fonts are bundled in `pipeline/thumbnails/fonts/` (OFL): Anton for the
+      headline, DM Serif Display for the small line; Latin only, other scripts use the system bold font.
+    - **Crop** (`layout.portrait()`): 9:16 around `focus`, a little tighter than the frame height (`ZOOM`) so
+      the face can sit at `FACE_AT`; sharpened when blown up a lot (low-resolution vlogs).
+    - **Looks:** `compose()` hands the plan to `looks/<look>.py` (`LOOKS`, `THUMB_LOOK`). The look is saved
+      in `plan.json`; a creator switches it on the card (`/api/look/...`, redrawn from `thumbwork_N/`, no AI,
+      about a second) and can download the thumbnail there. `upgrade_plan()` reads collage-era plans
+      (`face_frame`/`face_box`/`items`), which are redrawn as Frame.
+    - **Colours:** `fresh_accent()` gives each Short of a vlog a different accent (it reads the other
+      `thumbwork_*/plan.json`), chosen under a lock because thumbnails are made side by side.
+    - **Speed:** `make_shorts` starts each thumbnail as soon as its Short is edited, `THUMB_WORKERS` (3) at
+      once; nearly all of a thumbnail's time is the AI call. Drawing takes ~0.15 s.
+    - **Never wait forever on the AI:** every request has a timeout (`ai.TIMEOUT`, 180 s; thumbnails 60 s, no
+      busy waits), and thumbnail planning has an overall `AI_DEADLINE` (120 s) after which `plan_without_ai()` is
+      used. Without these, one Gemini request that never answered left a job stuck on "Thumbnail 2 of 6".
+    Output stays under YouTube's 2 MB thumbnail limit. `THUMB_STYLE=simple` (or a failure) uses `simple.py`.
+    - **Shorts feed thumbnail:** the API can't set it (thumbnails.set only covers search, home and
+      subscriptions, and needs a phone-verified channel: youtube.com/verify). So `pipeline/cover.py` puts the
+      thumbnail in as the first 0.1 s (3 frames) when uploading (`web/posting.upload_file()`) and for the
+      Save button (`/media/...?cover=1`); the creator picks that frame in the YouTube app (any channel), or
+      uses Download thumbnail + Open in Studio (Partner Program). The cover clip is encoded with the Short's
+      own settings and joined without re-encoding (~1 s); if the decode check finds a bad join, it re-encodes.
+      Measured: audio and video stay within 0.3 ms. The Short in the job stays clean (Review plays it
+      without the flash; upload records keep its name), and `cover_<short>_<thumb>.mp4` is cached.
+      `COVER_FRAME=0` turns it off.
 
 13. **Hooks must be true.** Each Short has `hooks` (curiosity / bold / story, plus "custom" if the creator typed
     one), the chosen `hook`, `hook_style` and `hook_mode` ("text" or "none" = no banner, the original audio opens
     it). Every prompt carries `HOOK_RULE` (no invented facts), and `hook_fields()` drops any hook with a number
     that isn't said in the moment ("I lost $2,000" from a clip that never says it). Keep both when changing prompts.
     Applying a hook can also redraw the thumbnail text (`hook_to_lines()` → `retext_thumbnail()`), which reuses
-    the collage's saved `thumbwork_N/` frames and `plan.json` (no AI, no new frames).
+    the thumbnail's saved `thumbwork_N/` frames and `plan.json` (no AI, no new frames).
 14. **No emoji in burned-in text.** The caption and thumbnail fonts have no emoji, so they'd show as empty boxes;
     `without_emoji()` strips them in `ass_escape()` and the thumbnail drawers. Titles/descriptions keep them.
 15. **YouTube sign-in redirects to `/api/youtube/callback` and must match the OAuth client exactly.** Locally that's
@@ -219,7 +250,9 @@ There are no automated tests yet. These manual checks work well:
   returns `types.SimpleNamespace(text='[{"start": 17.5, "end": 45.8, "hook": "...", "title": "...",
   "thumb_line1": "...", "thumb_line2": "...", "why": "...", "hashtags": ["a","b","c"]}]')`, then call
   `pipeline.pick_moments(transcript, n)` or drive the whole app with `app.app.test_client()`.
-- **Faster renders while testing:** `X264_PRESET=veryfast` (or `ultrafast`) and `WHISPER_MODEL=base`.
+- **Encoder speed:** `X264_PRESET` defaults to `veryfast` (CRF 18): measured 2.5x faster than `medium` with a
+  slightly smaller file and SSIM 0.994 against it (no visible difference). `ultrafast` and `WHISPER_MODEL=base`
+  speed up testing further.
 - **Look at the output:** grab frames with `ffmpeg -ss 1.2 -i jobs/<id>/short_1.mp4 -frames:v 1 f.jpg`
   and check that the captions, yellow word highlight, hook banner and face crop are all present.
 
@@ -229,7 +262,11 @@ Good first automated tests to add: `clean_moments()` (overlaps, length limits, w
 ## Working together (two people)
 
 - `main` should always run. Work on a branch (`git checkout -b fix-captions`), push it, open a pull
-  request, and let the other person look before merging.
+  request, and let the other person look before merging. Never merge into `main` locally or push to it
+  directly: changes reach `main` only through a pull request that Saumya or Nesh merges on GitHub.
+- **No AI attribution in git.** Commits and pull requests are authored by Saumya or Nesh only: never add
+  `Co-Authored-By: Claude ...`, `Claude-Session: ...`, "Generated with Claude Code" or similar lines to
+  commit messages or PR descriptions. (This repo's history was cleaned of them in October 2026.)
 - Pull before you start: `git pull --rebase`.
 - If you change `requirements.txt`, say so in the PR. The other person's start script will reinstall
   automatically on the next launch.

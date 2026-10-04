@@ -1,3 +1,3 @@
 """
-Thumbnails: make.py decides the style; collage.py runs frames -> plan -> cutout -> layout.
+Thumbnails: make.py decides the style; design.py runs frames -> plan -> layout -> looks/<look>.py.
 """
