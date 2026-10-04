@@ -131,13 +131,18 @@ Open Clipline at `http://localhost:8000`, the address it opens by itself. Google
 
 Clipline posts Reels with the **Instagram API with Instagram Login**: the creator signs in with Instagram itself (no Facebook Page needed).
 
-1. **The Instagram account must be professional** (Business or Creator, free). In the Instagram app: **Profile › ☰ › Settings › Account type and tools › Switch to professional account**. Followers and posts stay. Clipline checks this when you connect and shows these steps if needed.
-2. Go to https://developers.facebook.com/apps, **Create app**, choose the **Instagram** use case (or **Other → Business**, then add the **Instagram** product).
-3. Under **Instagram → API setup with Instagram login**:
-   - Note the **Instagram app ID** and **Instagram app secret** and put them in `.env` as `INSTAGRAM_APP_ID` and `INSTAGRAM_APP_SECRET`.
-   - **Set up Instagram business login → Business login settings → OAuth redirect URIs**: add `http://localhost:8000/api/instagram/callback`. If Meta only accepts `https://` addresses, run Clipline behind an https tunnel (or on a server) and put that address both here and in `INSTAGRAM_REDIRECT_URI` in `.env`.
-   - Under **Roles → Instagram testers**, add the creator's Instagram username, then accept the invite in the Instagram app (**Settings › Website permissions › Apps and websites › Tester invites**). Until Meta reviews the app, only testers can connect.
-4. Restart Clipline. On the **Post** page, the **Instagram** card now has **Connect Instagram**.
+1. **Make the Instagram account professional** (Business or Creator, free). In the Instagram app: **Profile › ☰ › Settings › Account type and tools › Switch to professional account**. Followers and posts stay. Clipline checks this when you connect and shows these steps if needed.
+2. **Create the Meta app.** Go to https://developers.facebook.com/apps (log in with Facebook; register as a developer if asked), click **Create app**, give it a name (e.g. Clipline), choose the use case **Manage messaging & content on Instagram**, and skip connecting a business portfolio.
+3. **Get the Instagram keys.** In the app: **Instagram → API setup with Instagram login**. Copy the **Instagram app ID** and **Instagram app secret** (not the Facebook App ID at the top) into `.env`:
+   ```
+   INSTAGRAM_APP_ID=...
+   INSTAGRAM_APP_SECRET=...
+   ```
+4. **Add yourself as a tester.** **App roles → Roles → Instagram testers → Add people**, type the Instagram username. Then accept it in the Instagram app: **Settings › Website permissions › Apps and websites › Tester invites** (on the web: instagram.com › Settings › Apps and websites). Until Meta reviews the app, only testers can connect.
+5. **Add the redirect address.** In **API setup with Instagram login → 3. Set up Instagram business login → Business login settings → OAuth redirect URIs**, add `http://localhost:8000/api/instagram/callback` and save.
+   - **If Meta refuses it** (it may accept only `https://` addresses), give your computer a temporary https address with a free tunnel. Install it once with `brew install cloudflared` (Windows: `winget install Cloudflare.cloudflared`). With Clipline running, open a second Terminal window and run `cloudflared tunnel --url http://localhost:8000`. It prints an address like `https://random-words.trycloudflare.com`. Add `https://random-words.trycloudflare.com/api/instagram/callback` as the redirect URI on Meta, put the same address in `.env` as `INSTAGRAM_REDIRECT_URI=...`, and restart Clipline. Keep using `http://localhost:8000` as usual; only Instagram's reply goes through the tunnel.
+   - The tunnel is only needed while you click **Connect Instagram**; close it afterwards. The connection lasts 60 days and Clipline renews it on its own whenever it runs. The tunnel address changes every time you start it, so if you connect again later, update both places.
+6. **Restart Clipline**, open the **Post** page (or click **Connect Instagram** in the sidebar), and connect. The sidebar badge then shows your @username.
 
 **Posting Reels.** Each Short gets its own Instagram schedule: **Same times as YouTube**, the same presets, a custom start and spacing, or right away. Instagram doesn't let apps schedule posts, so Clipline posts each Reel itself at its time: keep Clipline running (Reels that came due while it was closed go out when it starts again). The caption has the title, the hook, the full video's name on YouTube and the hashtags; the Short's thumbnail frame becomes the Reel cover. Instagram allows 100 posts by app per account per day. If posting stops, the Reel shows **Try again**; if Clipline was closed in the middle of posting, check Instagram first so nothing is posted twice.
 

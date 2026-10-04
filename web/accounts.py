@@ -43,7 +43,7 @@ background:#0e1018;color:#e8eaf2;padding:16px}}main{{max-width:420px;text-align:
 # Anyone can make an account: email + password, or Sign in with Google (name and email only).
 # Every /api and /media address needs a signed-in user, and a job is only reachable by its owner.
 PUBLIC = {"index", "static", "config", "me", "auth_signup", "auth_login", "auth_logout", "auth_google",
-          "youtube_callback"}  # instagram_callback needs a signed-in user
+          "youtube_callback", "instagram_callback"}  # instagram_callback: its one-time state names the user
 
 
 EMAIL_RE = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
