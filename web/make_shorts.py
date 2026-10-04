@@ -50,9 +50,11 @@ def make_shorts(job_id, src, link, count, style, vlog=None, note="", must=()):
 
         update(job_id, stage=2, pct=0, msg="Finding the best moments")
         vlog = dict(vlog or {})
-        if vlog.get("youtube_url") and not (vlog.get("title") and vlog.get("description")):
-            try:  # the page normally fills these in already; this covers a skipped lookup
-                info = yt.fetch_video_info(vlog["youtube_url"])
+        if vlog.get("youtube_url"):
+            try:  # the page fills in title and description; this adds the video id and the channel's @handle
+                with LOCK:
+                    owner = JOBS[job_id].get("owner")
+                info = yt.fetch_video_info(vlog["youtube_url"], yt.access_token(owner) if owner else None)
                 vlog = {**info, **{k: v for k, v in vlog.items() if v}}
                 update(job_id, vlog=vlog)
             except Exception as e:  # noqa: BLE001  (never fail a job over optional context)

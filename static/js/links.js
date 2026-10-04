@@ -65,7 +65,7 @@ async function fillVlogInfo(){
     if(j.description) $("vDesc").value=j.description;
     $("vTitle").dataset.tags=JSON.stringify(j.tags||[]);
     $("ytHint").textContent = j.complete ? "Filled in from YouTube. Edit anything you like."
-      : "Got the title. To fetch the description too, add a YOUTUBE_API_KEY (see README), or paste it below.";
+      : "Got the title. Click Connect YouTube, then paste the link again to fetch the description too (or paste it below).";
   }catch(e){ $("ytHint").textContent="Couldn't reach Clipline to read that link."; }
 }
 $("ytFill").onclick=fillVlogInfo;

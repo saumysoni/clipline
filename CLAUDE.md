@@ -57,13 +57,13 @@ The code is split so two people can work on different features without touching 
 | Accounts (email + Google sign-in), `gate()` | `accounts/db.py` | `web/accounts.py` | `js/account.js`, `sections/auth.html`, `css/auth.css` |
 | Connect YouTube | `youtube/signin.py`, `youtube/connection.py`, `youtube/config.py` | `web/youtube_connect.py`, `web/google_redirect.py` | `js/youtube-connect.js` |
 | Setup form (count, style, must-have moments, file, links) | `youtube/links.py` | `web/make_shorts.py` (`start`), `web/times.py` | `js/setup-form.js`, `js/must-have.js`, `js/video-file.js`, `js/links.js`, `js/start.js`, `sections/setup.html`, `css/setup.css` |
-| Vlog title/description from a YouTube link | `youtube/vlog_info.py`, `pipeline/vlog_context.py` | `web/vlog_info.py` | `js/links.js` |
+| Vlog title/description from a YouTube link (API key, else the creator's YouTube connection, else title only) | `youtube/vlog_info.py`, `pipeline/vlog_context.py` | `web/vlog_info.py` | `js/links.js` |
 | Making Shorts (the whole run) | all of `pipeline/` | `web/make_shorts.py` | `js/progress.js`, `sections/making.html`, `css/making.css` |
 | Transcription (+ saved transcripts) | `pipeline/transcribe.py`, `pipeline/transcript_cache.py` | | |
 | Finding moments | `pipeline/moments.py` | | |
 | Editing a Short (reframe, captions, render) | `pipeline/reframe.py`, `pipeline/captions.py`, `pipeline/render.py`, `pipeline/fonts.py` | | |
 | Thumbnails | `pipeline/thumbnails/` (`make.py` → `design.py`: `frames` → `plan` → `layout` → `looks/<look>.py`; `simple.py`) | | |
-| Review cards | | `web/job_status.py`, `web/pages.py` (`/media`) | `js/review.js`, `js/review-cards.js`, `sections/review.html`, `css/review.css` |
+| Review cards (YouTube-sized tiles; click opens the full card as a panel) | | `web/job_status.py`, `web/pages.py` (`/media`) | `js/review.js`, `js/review-cards.js`, `js/review-tiles.js`, `sections/review.html`, `css/review.css`, `css/review-tiles.css` |
 | Hooks | `pipeline/hooks.py` | `web/hooks.py` | `js/hooks.js`, `css/hooks.css` |
 | Thumbnail look (Frame / Duotone switch) and download | `pipeline/thumbnails/looks/` (one file per look), `make.py` (`relook_thumbnail`) | `web/thumbnail_look.py` | `js/thumbnail-look.js`, `css/thumbnail-look.css` |
 | Post page (after review: list, when, where, upload; thumbnail as first frame) | `pipeline/cover.py` | `web/posting.py` | `sections/review.html` (`#postView`), `js/posting.js` (`showPost()`), `css/posting.css` |
@@ -189,13 +189,18 @@ The code is split so two people can work on different features without touching 
     Output stays under YouTube's 2 MB thumbnail limit. `THUMB_STYLE=simple` (or a failure) uses `simple.py`.
     - **Shorts feed thumbnail:** the API can't set it (thumbnails.set only covers search, home and
       subscriptions, and needs a phone-verified channel: youtube.com/verify). So `pipeline/cover.py` puts the
-      thumbnail in as the first 0.1 s (3 frames) when uploading (`web/posting.upload_file()`) and for the
+      thumbnail in as the first 0.2 s (6 frames) when uploading (`web/posting.upload_file()`) and for the
       Save button (`/media/...?cover=1`); the creator picks that frame in the YouTube app (any channel), or
       uses Download thumbnail + Open in Studio (Partner Program). The cover clip is encoded with the Short's
       own settings and joined without re-encoding (~1 s); if the decode check finds a bad join, it re-encodes.
       Measured: audio and video stay within 0.3 ms. The Short in the job stays clean (Review plays it
       without the flash; upload records keep its name), and `cover_<short>_<thumb>.mp4` is cached.
       `COVER_FRAME=0` turns it off.
+    - **Links on Shorts:** each description (`web/posting.short_description()`) has the hook, "Watch the full
+      video: <vlog link>", "More from @handle" (the vlog's channel, else the uploading channel) and hashtags.
+      Links in Shorts descriptions can't be tapped (YouTube, since Aug 2023); @mentions can. The tappable
+      "Related video" and the Shorts-feed thumbnail can't be set through the API, so the Posted page lists
+      them as manual Studio steps.
 
 13. **Hooks must be true.** Each Short has `hooks` (curiosity / bold / story, plus "custom" if the creator typed
     one), the chosen `hook`, `hook_style` and `hook_mode` ("text" or "none" = no banner, the original audio opens
