@@ -262,7 +262,11 @@ Good first automated tests to add: `clean_moments()` (overlaps, length limits, w
 ## Working together (two people)
 
 - `main` should always run. Work on a branch (`git checkout -b fix-captions`), push it, open a pull
-  request, and let the other person look before merging.
+  request, and let the other person look before merging. Never merge into `main` locally or push to it
+  directly: changes reach `main` only through a pull request that Saumya or Nesh merges on GitHub.
+- **No AI attribution in git.** Commits and pull requests are authored by Saumya or Nesh only: never add
+  `Co-Authored-By: Claude ...`, `Claude-Session: ...`, "Generated with Claude Code" or similar lines to
+  commit messages or PR descriptions. (This repo's history was cleaned of them in October 2026.)
 - Pull before you start: `git pull --rebase`.
 - If you change `requirements.txt`, say so in the PR. The other person's start script will reinstall
   automatically on the next launch.
