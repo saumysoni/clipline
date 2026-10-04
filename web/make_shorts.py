@@ -69,9 +69,8 @@ def make_shorts(job_id, src, link, count, style, vlog=None, note="", must=()):
         update(job_id, moments_found=[{"start": m["start"], "end": m["end"]} for m in moments])
 
         pipeline.prepare_job_fonts(job_dir)
-        pipeline.warm_up_thumbnails()  # the cut-out models load while the Shorts are edited
         # Each Short's thumbnail starts as soon as that Short is edited, and a few are designed side by
-        # side (most of a thumbnail's time is waiting for the AI), so they're mostly done when the
+        # side (nearly all of a thumbnail's time is waiting for the AI), so they're mostly done when the
         # editing is. The page still shows editing first, then thumbnails.
         workers = max(1, int(os.getenv("THUMB_WORKERS", "3")))
         rendered, thumbs = [], []

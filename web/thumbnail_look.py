@@ -1,6 +1,6 @@
 """
-Thumbnail look: switch one Short's thumbnail between Scene, Burst and Bold. Redrawn from the frames and
-plan saved when it was made (pipeline.relook_thumbnail): no AI, a few seconds, in the background.
+Thumbnail look: switch one Short's thumbnail between Frame and Duotone. Redrawn from the frames and
+plan saved when it was made (pipeline.relook_thumbnail): no AI, about a second, in the background.
 """
 import json
 import threading
@@ -35,10 +35,10 @@ def redraw_look(job_id, idx, look):
 
 @app.post("/api/look/<job_id>/<int:idx>")
 def set_look(job_id, idx):
-    """Redraw this Short's thumbnail in another look (scene, burst or bold)."""
+    """Redraw this Short's thumbnail in another look (frame or duotone)."""
     look = str((request.get_json(silent=True) or {}).get("look", "")).strip().lower()
-    if look not in ("scene", "burst", "bold"):
-        return jsonify(error="Choose Scene, Burst or Bold."), 400
+    if look not in pipeline.THUMB_LOOKS:
+        return jsonify(error="Choose Frame or Duotone."), 400
     with LOCK:
         job, problem = editable_job(job_id)
         if problem:

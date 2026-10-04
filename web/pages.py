@@ -4,7 +4,7 @@ The page itself, finished files (Shorts, thumbnails, preview) and basic config.
 import re
 from datetime import date
 
-from flask import Response, abort, jsonify, send_from_directory
+from flask import Response, abort, jsonify, request, send_from_directory
 
 import youtube as yt
 from settings import JOBS_DIR, ROOT
@@ -16,6 +16,11 @@ from web.server import app
 def media(job_id, name):
     if not re.fullmatch(r"[0-9a-f]{10}", job_id) or not re.fullmatch(r"(short|thumb)_\d+\.(mp4|jpg)|preview\.mp4", name):
         abort(404)
+    dl = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', "", request.args.get("dl", "")).strip()[:80]
+    if dl:  # a download button: save it under a readable name (e.g. "Rainy taxi - thumbnail.jpg")
+        ext = name.rsplit(".", 1)[1]
+        dl = dl if dl.lower().endswith("." + ext) else f"{dl}.{ext}"
+        return send_from_directory(JOBS_DIR / job_id, name, conditional=True, as_attachment=True, download_name=dl)
     return send_from_directory(JOBS_DIR / job_id, name, conditional=True)
 
 

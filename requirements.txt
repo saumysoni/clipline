@@ -5,9 +5,9 @@ google-genai>=1.0
 openai>=1.40  # only used when AI_PROVIDER=openai
 opencv-python-headless>=4.8,<5  # OpenCV 5 removed the face finder Clipline uses
 pillow>=10.0
+numpy>=1.24
 gdown>=5.0
 google-api-python-client>=2.100
 google-auth-oauthlib>=1.2
 imageio-ffmpeg>=0.5  # complete FFmpeg, used if the installed one can't add captions
-rembg>=2.0.60  # cuts people and objects out of frames for thumbnails
 tzdata>=2024.1  # time-zone names for scheduling (Windows and slim servers have none built in)

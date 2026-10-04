@@ -14,7 +14,7 @@ Everything runs on your own computer with free tools. The only accounts you need
 1. **Transcribe.** faster-whisper (open-source Whisper) writes down every word with exact timings. Runs on your computer.
 2. **Find moments.** Gemini reads the full transcript (plus the vlog's title and description, if you give them) and picks the strongest stand-alone moments, with a hook, title, thumbnail text and hashtags for each, written in the creator's tone.
 3. **Edit.** FFmpeg cuts each moment, crops to 9:16 centred on the face, and burns in captions in the style you chose. Output is 1080×1920, high quality (CRF 18).
-4. **Thumbnails.** Gemini (always Gemini, even when OpenAI picks the moments) looks at frames from each Short and picks the best reaction shot plus the things the Short is about (the dish, the place, the room). Clipline cuts the creator out and lays everything out in one of three looks: **Scene** (the real location behind them, the default), **Burst** (comic-style rays and a neon outline) or **Bold** (a colour gradient with round badges). Each Short gets its own colour, and you can switch a Short's look on its card in Review.
+4. **Thumbnails.** Gemini (always Gemini, even when OpenAI picks the moments) looks at frames from each Short, picks the best moment (sharp, a strong reaction, or the thing the Short is about) and writes a short two-line text. Clipline crops it to the Shorts shape around the face and adds the text in the style creators use. Each Short has two looks you can switch between on its card in Review: **Frame** (the moment itself, colour-graded, the default) and **Duotone** (a two-colour poster in that Short's own colour). The download button next to them saves the thumbnail.
 5. **Review.** You play every Short in the browser, edit titles, untick any you don't want. Not happy with one? **Try again** picks a different moment (optionally from your description or exact times). **Add a Short** makes one from a moment the AI missed. Under **Hook**, choose between three opening texts (Curiosity, Bold, Story), type your own, ask for new ones, or turn the text off so your own words open the Short. In both, **Choose on the video** lets you play through the vlog and mark the start and end yourself, which is the way to get scenes without talking (the AI only knows what's said).
 
 Before you start, you can also tell Clipline what you want ("include the summit, skip the drive") and add **must-have moments** by their times; those always become Shorts and the AI picks the rest.
@@ -80,7 +80,7 @@ Download **Montserrat** from Google Fonts and put `Montserrat-ExtraBold.ttf` in 
 - **Windows:** double-click `start-windows.bat`
 - **Mac:** double-click `start-mac.command` (first time: right-click, Open)
 
-The first run installs everything and downloads the speech model (around 500 MB) and, at the first thumbnail, the cut-out model (around 180 MB), so give it a few minutes. Your browser then opens **http://localhost:8000**. Keep the black window open while you use it.
+The first run installs everything and downloads the speech model (around 500 MB) so give it a few minutes. Your browser then opens **http://localhost:8000**. Keep the black window open while you use it.
 
 At this point you can already make, play, and download Shorts. Step 5 only adds automatic posting.
 

@@ -1,7 +1,10 @@
-/* Thumbnail look switch on each Short's card (Scene / Burst / Bold). */
+/* Thumbnail look switch (Frame / Duotone) and download on each Short's card. */
 .looks{display:flex;align-items:center;gap:6px;margin-top:8px}
 .looks .small-lab{margin-right:2px}
 .looks button{flex:1;padding:5px 0;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--muted);font:inherit;font-weight:600;font-size:.8rem;cursor:pointer}
 .looks button:hover{color:var(--ink);border-color:var(--line-2)}
 .looks button[aria-pressed=true]{background:var(--primary-soft);color:var(--ink);border-color:var(--primary)}
 .short.redoing .looks button{pointer-events:none;opacity:.5}
+.looks .dl{flex:none;display:grid;place-items:center;width:30px;height:28px;border-radius:8px;border:1px solid var(--line);color:var(--muted);text-decoration:none}
+.looks .dl:hover{color:var(--ink);border-color:var(--line-2);text-decoration:none}
+.looks .dl .ms{font-size:17px}

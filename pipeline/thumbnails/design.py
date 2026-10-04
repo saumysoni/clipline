@@ -1,6 +1,6 @@
 """
-The collage thumbnail from start to finish (frames -> plan -> cut-outs -> layout), and redrawing
-one with new text from its saved thumbwork_N/ folder (no AI, no new frames).
+The designed thumbnail from start to finish (frames -> AI plan -> layout in a look), and redrawing one
+with new text or in another look from its saved thumbwork_N/ folder (no AI, no new frames).
 """
 import json
 import threading
@@ -12,32 +12,32 @@ from PIL import Image
 
 from pipeline.thumbnails.frames import sample_frames
 from pipeline.thumbnails.layout import compose, save
-from pipeline.thumbnails.plan import AI_DEADLINE, fresh_accent, plan, plan_without_ai
+from pipeline.thumbnails.plan import AI_DEADLINE, fresh_accent, plan, plan_without_ai, upgrade_plan
 
 
 _ACCENT_LOCK = threading.Lock()  # thumbnails made side by side must not pick the same colour
 
 
 def redraw(job_dir, work_name, out_name, **changes):
-    """Redraw a collage thumbnail from the frames and plan saved when it was made (no AI, no new frames),
+    """Redraw a thumbnail from the frames and plan saved when it was made (no AI, no new frames),
     with `changes` applied to the plan (new text: line1/line2, another look: look)."""
     work = Path(job_dir) / work_name
-    pl = json.loads((work / "plan.json").read_text(encoding="utf-8"))
-    pl.setdefault("look", "burst")  # plans from before looks existed were all burst
+    pl = upgrade_plan(json.loads((work / "plan.json").read_text(encoding="utf-8")))
     paths = sorted(work.glob("frame_*.jpg"), key=lambda f: int(f.stem.split("_")[1]))
     frames = [Image.open(f).convert("RGB") for f in paths]
     pl.update(changes)
+    pl = upgrade_plan(pl)  # tidies new text too
     save(compose(frames, pl), Path(job_dir) / out_name)
     (work / "plan.json").write_text(json.dumps(pl, indent=1), encoding="utf-8")
     return out_name
 
 
 def retext(job_dir, work_name, line1, line2, out_name):
-    """Redraw a collage thumbnail with new text."""
+    """Redraw a thumbnail with new text."""
     return redraw(job_dir, work_name, out_name, line1=line1, line2=line2)
 
 
-def make_collage_thumbnail(video_path, moment, idx, job_dir, words=None, context=None):
+def make_designed_thumbnail(video_path, moment, idx, job_dir, words=None, context=None):
     job_dir = Path(job_dir)
     work = job_dir / f"thumbwork_{idx}"
     frames = sample_frames(video_path, moment["start"], moment["end"], work)

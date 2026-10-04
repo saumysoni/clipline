@@ -62,10 +62,10 @@ The code is split so two people can work on different features without touching 
 | Transcription (+ saved transcripts) | `pipeline/transcribe.py`, `pipeline/transcript_cache.py` | | |
 | Finding moments | `pipeline/moments.py` | | |
 | Editing a Short (reframe, captions, render) | `pipeline/reframe.py`, `pipeline/captions.py`, `pipeline/render.py`, `pipeline/fonts.py` | | |
-| Thumbnails | `pipeline/thumbnails/` (`make.py` → `collage.py`: `frames` → `plan` → `cutout` → `layout` → `looks/<look>.py`; `simple.py`) | | |
+| Thumbnails | `pipeline/thumbnails/` (`make.py` → `design.py`: `frames` → `plan` → `layout` → `looks/<look>.py`; `simple.py`) | | |
 | Review cards | | `web/job_status.py`, `web/pages.py` (`/media`) | `js/review.js`, `js/review-cards.js`, `sections/review.html`, `css/review.css` |
 | Hooks | `pipeline/hooks.py` | `web/hooks.py` | `js/hooks.js`, `css/hooks.css` |
-| Thumbnail look (Scene / Burst / Bold switch) | `pipeline/thumbnails/looks/` (one file per look), `make.py` (`relook_thumbnail`) | `web/thumbnail_look.py` | `js/thumbnail-look.js`, `css/thumbnail-look.css` |
+| Thumbnail look (Frame / Duotone switch) and download | `pipeline/thumbnails/looks/` (one file per look), `make.py` (`relook_thumbnail`) | `web/thumbnail_look.py` | `js/thumbnail-look.js`, `css/thumbnail-look.css` |
 | Post page (after review: list, when, where, upload) | | `web/posting.py` | `sections/review.html` (`#postView`), `js/posting.js` (`showPost()`), `css/posting.css` |
 | Try again | `pipeline/try_again.py` | `web/try_again.py` | `js/review-cards.js` |
 | Add a Short / must-have moments | `pipeline/manual_moment.py` | `web/add_short.py` | `js/review-cards.js` |
@@ -157,59 +157,43 @@ The code is split so two people can work on different features without touching 
     accept a dict wrapping the list (as `pick_moments()` does). OpenAI's reasoning models reject
     `temperature`, so `openai_json()` retries without it. `OPENAI_FALLBACK_MODELS` needs the same care as
     `FALLBACK_MODELS` (check https://platform.openai.com/docs/models).
-12. **Thumbnails:** Gemini's `box_2d` is `[ymin, xmin, ymax, xmax]` on a 0-1000 scale. `clean_plan()` validates
-    everything the AI returns. **Thumbnails use Gemini whatever `AI_PROVIDER` says** (`THUMB_AI_PROVIDER`, default
-    gemini): Gemini is trained on `box_2d`, OpenAI places boxes less precisely. `ask_ai()` tries that provider, then
-    the other one, skipping any without a key; if none answers, `plan_without_ai()` (face finder only).
-    - **Face:** the AI also returns `face_box` (the creator's face in `face_frame`). The face finder alone once took a
-      "face" on a wall for the creator, so the AI's box is used for its frame; other frames use the face finder.
-      `pick_face()` tries the AI's frame, then the biggest faces (`FACE_TRIES`); if no cut-out works, a framed photo
-      only if the face is ≥ `MIN_FACE_CARD` of the frame width, else no face at all (never an unrelated frame).
-      The cut-out crops ~1.2 face-widths either side and splits thin bridges (erode → pick the blob under the
-      face → dilate), then `smooth_mask()` rounds the outline and drops loose bits. Overlapping people can still
-      leak in, which is why the prompt asks for frames with the creator alone.
-    - **Items** must be what the title/hook/speech is about, big and sharp. "scene" items become photo cards;
-      "object" items become stickers only if the edge is clean (`edge_quality()`: soft/solidity/ragged limits,
-      measured on real frames), else a card. A cut-out covering <4% or >92% of the crop fails. No piece is blown
-      up more than `MAX_UPSCALE`; one that would end up under `MIN_PIECE` pixels is left out.
-    - **Edges:** cut-outs keep a hard mask; `resize_cutout()` scales it softly to the final size, re-smooths in
-      proportion to the zoom and cuts it sharp again (scaling a hard mask up gave staircase outlines).
-      `fill_small_holes()` fills only pinholes: filling every hole put dark patches of background (the gap
-      between an arm and the body) inside the outline. Every cut-out goes through `scale_to()`/`resize_cutout()`.
-    - **The creator** is cut out with the people-only model (`THUMB_PERSON_MODEL`, default
-      `u2net_human_seg`: no plates or chairs stuck to her), run on her area plus a margin only (the model sees
-      320x320, so the whole frame gave a coarse outline), limited to the AI's `person_box` (else from just
-      above the head and a few face-widths wide) and cut below the chest. `face_cutout()` reports which sides
-      are straight cuts; `place_person()` makes her big enough that those run past the canvas edge, keeping
-      the face central, so the outline only follows her real shape; if the 55%-face cap stops that, she slides
-      toward the cut side (face kept between 24% and 76% of the width). A frame where someone is right above her
-      is only a backup, except the AI's own frame (the face finder's alternatives can be wrong).
-    - **Looks:** `compose()` hands the plan to `looks/<look>.py` (`burst`, `scene`, `bold`; `THUMB_LOOK`, default
-      burst). Burst fills `SLOTS_AROUND_FACE` (6) with the AI's items first (up to 6), then `other_moments()`:
-      sharp, mutually different frames of the Short, as shaped photos (`shaped_card()`: circle, rounded,
-      arch, polaroid); the creator is drawn last, on top and biggest.
-    - **Fonts:** bundled in `pipeline/thumbnails/fonts/` (OFL): Anton for headlines, DM Serif Display for the
-      small line, matching the creator's own channel style. Latin only; other scripts use the system bold font.
-    - **Speed:** frames are grabbed 4 at a time; `make_shorts` starts each thumbnail as soon as its Short is
-      edited, `THUMB_WORKERS` (3) at once, after `warm_up_thumbnails()` loaded the models in the background.
-      `rembg_session()` is locked (one load per model) and the accent is chosen under a lock.
+12. **Thumbnails:** one frame of the Short, chosen by the AI, in one of two looks: **Frame** (default,
+    colour-graded) or **Duotone** (two-colour poster in the Short's accent). Cut-out collages were dropped in
+    October 2026 after a side-by-side test of 8 styles on real Shorts: uneven cut-outs made some thumbnails
+    look bad, and they cost a 180 MB model, 2 GB of memory and seconds per thumbnail.
+    - **Plan** (`plan.py`): 12 frames (up to 1920 px wide, grabbed 4 at a time) go to the AI, which returns
+      `frame`, `focus` (box_2d `[ymin, xmin, ymax, xmax]`, 0-1000, around what must stay in view, usually the
+      face), `line1`, `line2` and `accent`. `clean_plan()` validates everything; a missing frame falls back to
+      `plan_without_ai()` (biggest sharp face from the face finder, else the sharpest frame).
+      **Thumbnails use Gemini whatever `AI_PROVIDER` says** (`THUMB_AI_PROVIDER`): Gemini is trained on box_2d.
+      A provider that fails is skipped by every thumbnail for `REST` (180 s) so the others go straight to the
+      next one (Gemini was overloaded for minutes in a real run), then no AI.
+    - **Text:** `tidy_lines()` drops words from line1 that the headline already has ("Rice Older? / Older
+      Than Me" -> "Rice / Older Than Me"), and the prompt asks for that too. `text_spot()` puts the text above
+      the face if it fits, else below it (clear of the bottom 230 px where YouTube draws the title), else on
+      the roomier side, smaller. Fonts are bundled in `pipeline/thumbnails/fonts/` (OFL): Anton for the
+      headline, DM Serif Display for the small line; Latin only, other scripts use the system bold font.
+    - **Crop** (`layout.portrait()`): 9:16 around `focus`, a little tighter than the frame height (`ZOOM`) so
+      the face can sit at `FACE_AT`; sharpened when blown up a lot (low-resolution vlogs).
+    - **Looks:** `compose()` hands the plan to `looks/<look>.py` (`LOOKS`, `THUMB_LOOK`). The look is saved
+      in `plan.json`; a creator switches it on the card (`/api/look/...`, redrawn from `thumbwork_N/`, no AI,
+      about a second) and can download the thumbnail there. `upgrade_plan()` reads collage-era plans
+      (`face_frame`/`face_box`/`items`), which are redrawn as Frame.
+    - **Colours:** `fresh_accent()` gives each Short of a vlog a different accent (it reads the other
+      `thumbwork_*/plan.json`), chosen under a lock because thumbnails are made side by side.
+    - **Speed:** `make_shorts` starts each thumbnail as soon as its Short is edited, `THUMB_WORKERS` (3) at
+      once; nearly all of a thumbnail's time is the AI call. Drawing takes ~0.15 s.
     - **Never wait forever on the AI:** every request has a timeout (`ai.TIMEOUT`, 180 s; thumbnails 60 s, no
       busy waits), and thumbnail planning has an overall `AI_DEADLINE` (120 s) after which `plan_without_ai()` is
-      used. Without these, one Gemini request that never answered left a job stuck on "Thumbnail 2 of 6". `prepare()` does the shared work (cut-outs, sharp pieces, a "quiet" frame for backgrounds). The
-      look is saved in `plan.json`; plans from before looks existed are treated as burst. A creator can switch
-      a Short's look on its card (`/api/look/...`, redrawn from `thumbwork_N/`, no AI).
-    - **Colours:** `fresh_accent()` gives each Short of a vlog a different accent (it reads the other
-      `thumbwork_*/plan.json`). The accent and `face_box` are saved in `plan.json`, so a hook change redraws the
-      same thumbnail. 12 frames are sampled at up to 1920 px wide, so close-ups have detail.
-    Output stays under YouTube's 2 MB thumbnail limit. rembg downloads its model (~180 MB) on first use into
-    `U2NET_HOME` (default `~/.u2net`); bake it into the server image in the cloud.
+      used. Without these, one Gemini request that never answered left a job stuck on "Thumbnail 2 of 6".
+    Output stays under YouTube's 2 MB thumbnail limit. `THUMB_STYLE=simple` (or a failure) uses `simple.py`.
 
 13. **Hooks must be true.** Each Short has `hooks` (curiosity / bold / story, plus "custom" if the creator typed
     one), the chosen `hook`, `hook_style` and `hook_mode` ("text" or "none" = no banner, the original audio opens
     it). Every prompt carries `HOOK_RULE` (no invented facts), and `hook_fields()` drops any hook with a number
     that isn't said in the moment ("I lost $2,000" from a clip that never says it). Keep both when changing prompts.
     Applying a hook can also redraw the thumbnail text (`hook_to_lines()` → `retext_thumbnail()`), which reuses
-    the collage's saved `thumbwork_N/` frames and `plan.json` (no AI, no new frames).
+    the thumbnail's saved `thumbwork_N/` frames and `plan.json` (no AI, no new frames).
 14. **No emoji in burned-in text.** The caption and thumbnail fonts have no emoji, so they'd show as empty boxes;
     `without_emoji()` strips them in `ass_escape()` and the thumbnail drawers. Titles/descriptions keep them.
 15. **YouTube sign-in redirects to `/api/youtube/callback` and must match the OAuth client exactly.** Locally that's
