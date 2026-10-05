@@ -1,0 +1,67 @@
+  <!-- Shorts & Reels: every clip from every vlog, with where it stands on YouTube and Instagram -->
+  <section id="s9" hidden>
+    <div class="work wide">
+      <div class="page-head">
+        <div>
+          <div class="eyebrow">Shorts &amp; Reels</div>
+          <h1 id="clTitle">Your Shorts &amp; Reels</h1>
+          <p class="lede" id="clLede">Every clip Pit Crew made, from all your vlogs. Tick drafts to schedule several at once.</p>
+        </div>
+        <div class="cl-head-acts">
+          <button class="ghost" id="clAdd" type="button" hidden><span class="ms" aria-hidden="true">add</span>Add a Short</button>
+          <button class="ghost" id="clNew" type="button"><span class="ms" aria-hidden="true">add</span>New vlog</button>
+        </div>
+      </div>
+      <div class="cl-bar">
+        <div class="cl-chips" id="clChips" role="group" aria-label="Show"></div>
+        <div class="cl-selects">
+          <select id="clPlat" aria-label="Platform"><option value="">All platforms</option><option value="youtube">YouTube</option><option value="instagram">Instagram</option></select>
+          <select id="clVlog" aria-label="Vlog"><option value="">All vlogs</option></select>
+          <select id="clSort" aria-label="Sort"><option value="vlog">Newest vlog first</option><option value="posted">Recently posted first</option></select>
+        </div>
+      </div>
+      <div class="card ask-card" id="clAsk" hidden></div>
+      <div class="err" id="clErr" role="alert"></div>
+      <div class="cl-grid" id="clGrid"></div>
+    </div>
+    <div class="cl-dock" id="clDock" hidden>
+      <span id="clSel"></span>
+      <button type="button" class="linkbtn" id="clClear">Clear</button>
+      <button type="button" class="ghost cl-del-many" id="clDelMany"><span class="ms" aria-hidden="true">delete</span>Delete</button>
+      <button type="button" class="primary" id="clSchedOpen"><span class="ms" aria-hidden="true">schedule</span>Schedule</button>
+    </div>
+    <dialog id="clPlayer" aria-labelledby="clPlayTitle">
+      <div class="cl-play-head"><b id="clPlayTitle"></b><button type="button" class="iconbtn" id="clPlayX" aria-label="Close"><span class="ms" aria-hidden="true">close</span></button></div>
+      <video id="clVideo" controls playsinline></video>
+    </dialog>
+    <dialog id="clSched" aria-labelledby="clSchedTitle">
+      <h2 id="clSchedTitle">Schedule</h2>
+      <p class="lede" id="clSchedLede"></p>
+      <fieldset class="cl-where"><legend>Where</legend>
+        <label class="cl-plat"><input type="checkbox" id="clToYt"><span class="ms yt" aria-hidden="true">smart_display</span><span><b>YouTube</b><small id="clYtWho"></small></span></label>
+        <label class="cl-plat"><input type="checkbox" id="clToIg"><span class="ms ig" aria-hidden="true">photo_camera</span><span><b>Instagram</b><small id="clIgWho"></small></span></label>
+      </fieldset>
+      <label class="when-lab" for="clWhen">When</label>
+      <select id="clWhen">
+        <option value="d18">One a day at 6:00 PM</option>
+        <option value="d12">One a day at 12:00 PM</option>
+        <option value="two">Two a day, 12 PM and 6 PM</option>
+        <option value="custom">Starting on a day and time I choose</option>
+        <option value="now">All at once, right away</option>
+      </select>
+      <div class="custom" id="clCustom" hidden>
+        <input type="datetime-local" id="clStart" aria-label="Date and time of the first clip">
+        <select id="clEvery" aria-label="Time between clips">
+          <option value="6">then every 6 hours</option>
+          <option value="12">then every 12 hours</option>
+          <option value="24" selected>then one a day</option>
+          <option value="48">then every 2 days</option>
+          <option value="72">then every 3 days</option>
+          <option value="168">then one a week</option>
+        </select>
+      </div>
+      <p class="hint">Both platforms get the same times. Instagram can't schedule posts made by apps, so Pit Crew posts each Reel itself at its time: keep Pit Crew running.</p>
+      <div class="err" id="clSchedErr" role="alert"></div>
+      <div class="cl-sched-acts"><button type="button" class="ghost" id="clSchedX">Cancel</button><button type="button" class="primary" id="clSchedGo">Schedule</button></div>
+    </dialog>
+  </section>

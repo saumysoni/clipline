@@ -4,4 +4,5 @@ function openCreate(){ clearInterval(poll); jobId=null; location.hash="new"; sho
 $("createBtn").onclick=openCreate;
 $("vlNew").onclick=openCreate;
 $("vlogsNav").onclick=()=>openVlogs();
-$("settingsNav").onclick=$("accountNav").onclick=()=>openSettings();
+$("clipsNav").onclick=()=>openClips();
+$("settingsNav").onclick=()=>openSettings();

@@ -40,6 +40,13 @@ CREATE TABLE IF NOT EXISTS connections (
     created_at REAL NOT NULL,
     UNIQUE (user_id, platform, account_id)
 );
+CREATE TABLE IF NOT EXISTS reel_snapshots (
+    media_id TEXT NOT NULL,
+    day TEXT NOT NULL,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    numbers_json TEXT NOT NULL,
+    PRIMARY KEY (media_id, day)
+);
 CREATE TABLE IF NOT EXISTS password_resets (
     token_hash TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -257,3 +264,25 @@ def drop_connection(conn_id):
         if me["active"]:
             con.execute("UPDATE connections SET active = 1 WHERE id = (SELECT id FROM connections WHERE user_id = ? "
                         "AND platform = ? ORDER BY created_at DESC, id DESC LIMIT 1)", (me["user_id"], me["platform"]))
+
+
+# Instagram only gives a Reel's running totals, so Pit Crew saves them once a day (instagram/insights.py) to know
+# how many views a Reel had after its first 7 days.
+
+def save_reel_snapshot(user_id, media_id, day, numbers):
+    with connect() as con:
+        con.execute("INSERT INTO reel_snapshots (media_id, day, user_id, numbers_json) VALUES (?, ?, ?, ?) "
+                    "ON CONFLICT(media_id, day) DO UPDATE SET numbers_json = excluded.numbers_json",
+                    (media_id, day, user_id, json.dumps(numbers)))
+
+
+def reel_snapshots(user_id, media_ids):
+    """{media_id: [(day, numbers), ...] oldest first} for this user's Reels."""
+    if not media_ids:
+        return {}
+    out = {m: [] for m in media_ids}
+    with connect() as con:
+        q = "SELECT media_id, day, numbers_json FROM reel_snapshots WHERE user_id = ? AND media_id IN (%s) ORDER BY day"
+        for r in con.execute(q % ",".join("?" * len(media_ids)), (user_id, *media_ids)):
+            out[r["media_id"]].append((r["day"], json.loads(r["numbers_json"])))
+    return out

@@ -1,6 +1,6 @@
 // Settings: the account (change password, sign out), every connected YouTube channel and Instagram account
 // (use / disconnect / add), and appearance (theme.js handles its buttons).
-function openSettings(){ clearInterval(poll); location.hash="settings"; show(8); $("setPassOk").textContent=""; paintSettings(); loadAccount(); loadIg(); }
+function openSettings(){ clearInterval(poll); location.hash="settings"; show(8); $("setEmail").textContent=myEmail; $("setPassOk").textContent=""; paintSettings(); loadAccount(); loadIg(); }
 function setRows(list, kind){
   const isYt=kind==="yt", conf=(isYt?yt:ig).configured;
   if(!conf) return '<p class="set-note"><span class="ms" aria-hidden="true">info</span>'+(isYt
@@ -16,7 +16,6 @@ function setRows(list, kind){
 }
 function paintSettings(){
   if($("s8").hidden) return;
-  $("setEmail").textContent=myEmail;
   for(const kind of ["yt","ig"]){
     const box=$(kind==="yt"?"setYt":"setIg"), isYt=kind==="yt";
     box.innerHTML=setRows(swItems(kind), kind);

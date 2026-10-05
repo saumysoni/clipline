@@ -151,6 +151,21 @@ Pit Crew posts Reels with the **Instagram API with Instagram Login**: the creato
 
 **Posting Reels.** Each Short gets its own Instagram schedule: **Same times as YouTube**, the same presets, a custom start and spacing, or right away. Instagram doesn't let apps schedule posts, so Pit Crew posts each Reel itself at its time: keep Pit Crew running (Reels that came due while it was closed go out when it starts again). The caption has the title, the hook, the full video's name on YouTube and the hashtags; the Short's thumbnail frame becomes the Reel cover. Instagram allows 100 posts by app per account per day. If posting stops, the Reel shows **Try again**; if Pit Crew was closed in the middle of posting, check Instagram first so nothing is posted twice.
 
+### Ask your vlog
+
+- **Search every vlog** by meaning from the box on the Vlogs page: "where I found something ancient" finds "this village has 700 years of history", even with no words in common. Each result says why it matches. (Two quick AI requests per search; each vlog is indexed once.)
+- **Ask about one vlog** on its Shorts & Reels view: "when was I climbing the mountain?" gets an answer with times. **Watch** plays the moment (or opens it on YouTube once the video is deleted, if the vlog is there); **Make a Short** opens Add a Short with the times filled in.
+- Answers use what was said and short notes of what's *seen* in the video, which Pit Crew writes in the background after the Shorts are made (a few small AI requests). Older vlogs show **Read the video too** while their video is still kept. The notes are text, so they stay after the video is deleted. `SCENE_NOTES=0` in `.env` turns them off.
+
+### Storage: what Pit Crew deletes, and when
+
+To keep storage free, Pit Crew deletes:
+- **a vlog's video 72 hours after you last edited it** (any change to one of its Shorts restarts the clock). Its Shorts, thumbnails, transcript and posts stay; Try again, hooks and new Shorts then need the vlog uploaded again (the same file skips transcribing);
+- **Shorts you never posted, 30 days after you last edited them;**
+- **a posted Short's video file 30 days after it went out** (download it from YouTube Studio after that; its record and numbers stay).
+
+A day before a video or draft goes, its card says so and you get an email (step 7; until email is set up, the email is printed in the Terminal window). Change the times in `.env` (`KEEP_ORIGINAL_HOURS`, `KEEP_DRAFT_DAYS`, `KEEP_POSTED_DAYS`); `0` keeps forever. The 🗑 on a vlog card deletes its video straight away.
+
 ### 7. Send password reset emails (optional)
 
 When someone clicks **Forgot password?** on the sign-in screen, Pit Crew emails them a link to choose a new password (it works once, for 1 hour). Until email is set up, no email goes out and the link is printed in the Terminal window instead, which is fine on your own computer.

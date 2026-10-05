@@ -15,7 +15,21 @@ const TRAFFIC={SHORTS:"Shorts feed",YT_SEARCH:"YouTube search",SUBSCRIBER:"Home 
   LIVE_REDIRECT:"Live redirects",PROMOTED:"Promoted"};
 const GENDER={female:"Women",male:"Men",user_specified:"Other"};
 
-function openAnalytics(){ clearInterval(poll); location.hash="analytics"; show(6); if(!anData||anData.days!==anDays) loadAnalytics(); }
+// vlog: open on one vlog's clips (from its card); platform: "youtube" / "instagram" to start on one.
+function openAnalytics(vlog,platform){
+  clearInterval(poll); anVlog=typeof vlog==="string"?vlog:""; if(platform!==undefined) anSetPlat(platform);
+  location.hash="analytics"+(anVlog?"/"+anVlog:""); show(6); anVlogMenu();
+  if(!anData||anData.days!==anDays) loadAnalytics(); else loadClipStats();
+}
+function anSetPlat(p){ anPlat=p||""; $("anPlat").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.p===anPlat)); }
+$("anPlat").querySelectorAll("button").forEach(b=>b.onclick=()=>{ anSetPlat(b.dataset.p); paintClipStats(); });
+// The vlog menu lists every vlog (newest first); picking one shows only its clips.
+async function anVlogMenu(){
+  if(!vlData){ try{ vlData=(await (await fetch("/api/vlogs")).json()).items||[]; }catch(e){ vlData=[]; } }
+  $("anVlog").innerHTML='<option value="">All vlogs</option>'+vlData.filter(v=>v.status==="ready").map(v=>'<option value="'+esc(v.id)+'">'+esc(v.title)+' · '+esc(vlDate(v.created))+'</option>').join("");
+  $("anVlog").value=anVlog;
+}
+$("anVlog").onchange=()=>{ anVlog=$("anVlog").value; location.hash="analytics"+(anVlog?"/"+anVlog:""); loadClipStats(); };
 $("analyticsNav").onclick=openAnalytics;
 $("anRefresh").onclick=()=>loadAnalytics(true);
 $("anRange").querySelectorAll("button").forEach(b=>b.onclick=()=>{
@@ -25,6 +39,7 @@ $("anRange").querySelectorAll("button").forEach(b=>b.onclick=()=>{
 });
 
 async function loadAnalytics(){
+  loadClipStats();
   anLoading=true; $("anBody").classList.add("loading");
   if(!$("anBody").children.length) $("anBody").innerHTML='<div class="an-card an-empty"><span class="spin" aria-hidden="true"></span><p>Getting your numbers...</p></div>';
   let r,j;
@@ -44,8 +59,7 @@ function renderAnalytics(j){
       '<p>Views, likes, comments, watch time, who watches and how they find your Shorts, all in one place.</p>'+
       '<button type="button" class="primary" id="anConnect"><span class="ms" aria-hidden="true">smart_display</span>Connect YouTube</button></div>');
     else { note.hidden=false; note.innerHTML='<span class="ms" aria-hidden="true">error</span><span></span>'; note.lastChild.textContent=j.error; }
-    B.push(igAnalyticsHTML(j));
-    $("anBody").innerHTML=B.join(""); wireCards(); igAnalyticsWire();
+    $("anBody").innerHTML='<div class="an-yt">'+B.join("")+'</div><div class="an-ig">'+igAnalyticsHTML(j)+'</div>'; wireCards(); igAnalyticsWire();
     if($("anConnect")) $("anConnect").onclick=()=>signIn(()=>loadAnalytics());
     return;
   }
@@ -53,7 +67,12 @@ function renderAnalytics(j){
   $("anLede").textContent=(y.channel&&y.channel.title ? y.channel.title+" · "+full(y.channel.subscribers)+" subscribers. " : "")+
     "Every Short on your channel, not only the ones Pit Crew made.";
   $("anAsof").textContent=(y.range.days?"Last "+y.range.days+" days":"All time")+" · YouTube's numbers are about 2 days behind";
-  if(!y.full){
+  if(!y.full && y.enable_url){  // the API is off in Google Cloud: reconnecting won't help, enabling it will
+    note.hidden=false;
+    note.innerHTML='<span class="ms" aria-hidden="true">lock_open</span><span>These are the live counts for the Shorts Pit Crew uploaded. To see views per day, watch time, retention, '+
+      'first-week numbers and who watches, turn on <b>YouTube Analytics API</b> in Google Cloud (one click: <b>Enable</b>), wait a few minutes, then press Refresh.</span>'+
+      '<a class="ghost" id="anEnable" href="'+esc(y.enable_url)+'" target="_blank" rel="noopener">Turn it on<span class="ms" aria-hidden="true">open_in_new</span></a>';
+  } else if(!y.full){
     note.hidden=false;
     note.innerHTML='<span class="ms" aria-hidden="true">lock_open</span><span>These are the live counts for the Shorts Pit Crew uploaded. <b>Connect YouTube once more</b> '+
       '(and switch on <b>YouTube Analytics API</b> in Google Cloud, README step 5) to see watch time, retention, trends, how viewers find you and who they are.</span>'+
@@ -95,8 +114,7 @@ function renderAnalytics(j){
   if((y.genders||[]).length) g2.push(card("anGender","Gender","Share of your channel's viewers",splitHTML(y.genders),
     table(["Gender","Viewers"],y.genders.map(r=>[GENDER[r.gender]||r.gender,pct(r.pct)]),[1])));
   if(g2.length) B.push('<div class="an-grid2">'+g2.join("")+'</div>');
-  B.push(igAnalyticsHTML(j));
-  $("anBody").innerHTML=B.join("");
+  $("anBody").innerHTML='<div class="an-yt">'+B.join("")+'</div><div class="an-ig">'+igAnalyticsHTML(j)+'</div>';
   wireCards(); igAnalyticsWire();
   if($("anSpark")) lineChart($("anSpark"),{x:daily.map(r=>r.day),series:[{name:"Views",color:"var(--c-yt)",values:daily.map(r=>r.views)}],height:Math.max(70,$("anSpark").clientHeight||120),bare:true});
   if($("anDailyViz")){

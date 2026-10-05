@@ -132,3 +132,9 @@ button.pill:hover{border-color:var(--line-2);color:var(--ink)}
   .side .create .cr-t,.side-me .navlink b,.side-me .navlink small,.side-me .theme,.pill .pl-more,.pill .pl-caret{display:none}
   .navlink.sm{padding:5px;gap:0}
 }
+
+/* grid pages (Vlogs, Shorts & Reels) use the page's full width; .work alone keeps text screens narrow */
+.work.wide{max-width:none}
+.page:has(> section:not([hidden]) .work.wide){max-width:none}
+.navlink.static{cursor:default}
+.navlink.static:hover{background:none;color:var(--muted)}

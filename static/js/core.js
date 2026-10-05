@@ -9,13 +9,14 @@ const studioLink = id => "https://accounts.google.com/ServiceLogin?service=youtu
 const esc = t => String(t).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 let count = 5, jobId = null, poll = null, job = null;
 
-// Screens: 1 New vlog, 2 Making, 3 Review/Post, 4 Posted, 5 Scheduled, 6 Analytics, 7 Vlogs, 8 Settings.
+// Screens: 1 New vlog, 2 Making, 3 Review/Post, 4 Posted, 5 Scheduled, 6 Analytics, 7 Vlogs, 8 Settings, 9 Shorts & Reels.
 // The sidebar marks where the creator is (a vlog's own screens count as Vlogs).
-const NAV_FOR = {1:"createBtn", 2:"vlogsNav", 3:"vlogsNav", 4:"vlogsNav", 5:"postedNav", 6:"analyticsNav", 7:"vlogsNav", 8:"settingsNav"};
+const NAV_FOR = {1:"createBtn", 2:"vlogsNav", 3:"clipsNav", 4:"clipsNav", 5:"postedNav", 6:"analyticsNav", 7:"vlogsNav", 8:"settingsNav", 9:"clipsNav"};
 function show(n){
-  [1,2,3,4,5,6,7,8].forEach(i=>$("s"+i).hidden = i!==n);
+  [1,2,3,4,5,6,7,8,9].forEach(i=>$("s"+i).hidden = i!==n);
   document.querySelectorAll(".side .navlink,.side .create").forEach(b=>{ b.classList.remove("now"); b.removeAttribute("aria-current"); });
   const on=$(NAV_FOR[n]); if(on){ on.classList.add("now"); on.setAttribute("aria-current","page"); }
+  if(typeof clDock==="function") clDock();  // the Shorts & Reels selection bar shows only on that page
   window.scrollTo(0,0);
 }
 show(1);

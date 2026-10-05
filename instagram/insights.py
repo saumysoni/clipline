@@ -5,6 +5,7 @@ comments, shares, saves and watch time, for the active account. Cached for 10 mi
 import time
 from concurrent.futures import ThreadPoolExecutor
 
+from accounts import db
 from instagram.config import API_VERSION, GRAPH
 from instagram.connection import account, load
 from instagram.http import InstagramError, call
@@ -68,3 +69,25 @@ def dashboard(user_id, clipline_ids=(), limit=30):
 def forget(user_id):
     for key in [k for k in _CACHE if k[0] == user_id]:
         _CACHE.pop(key, None)
+
+
+def snapshot_reels(user_id, posts):
+    """Save today's numbers for each of these Reels (posts = [{"media_id", "ig_id"}]), once a day. Instagram only
+    reports running totals, so these daily rows are how "views in the first 7 days" is known later."""
+    from datetime import date
+    today = date.today().isoformat()
+    have = db.reel_snapshots(user_id, [p["media_id"] for p in posts])
+    for p in posts:
+        if any(day == today for day, _ in have.get(p["media_id"], [])):
+            continue
+        info = load(user_id, p.get("ig_id"))
+        if not info:
+            continue  # that account isn't connected any more
+        try:
+            row = _reel_numbers(f"{GRAPH}/{API_VERSION}", info["token"], {"id": p["media_id"]})
+        except InstagramError as e:
+            print("Couldn't read a Reel's numbers:", e)
+            continue
+        if "error" not in row:
+            db.save_reel_snapshot(user_id, p["media_id"], today,
+                                  {k: row.get(k, 0) for k in ("views", "reach", "likes", "comments", "shares", "saved")})

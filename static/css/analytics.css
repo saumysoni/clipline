@@ -133,3 +133,31 @@ a.top-row{color:inherit;text-decoration:none}
 .top-row .noimg{width:44px;height:78px;border-radius:7px;background:var(--raised)}
 #anIgMix .bar-row .tr i{background:var(--c-ig)}
 .an-top.flat{align-items:start}
+
+/* "Your clips" (js/analytics-clips.js) and the platform switch */
+.an-filters select#anVlog{width:auto;max-width:260px;padding:7px 10px;font-size:.86rem}
+#anBody[data-plat=youtube] .an-ig,#anBody[data-plat=instagram] .an-yt{display:none}
+#anClips .an-plat .linkbtn{margin-left:auto;font-size:.86rem}
+.an-sub{font-size:1rem;margin:22px 0 10px}
+.an-ins.wait{opacity:.85}
+.an-ins small{color:var(--faint);font-weight:400}
+.an-legend i.hollow{background:transparent!important;border:2px solid var(--muted);box-sizing:border-box}
+.an-tip .ac-t{display:flex;gap:8px;align-items:center;max-width:260px}
+.an-tip .ac-t img{width:30px;height:53px;object-fit:cover;border-radius:4px;flex:none}
+.an-tip .ac-t span{display:flex;flex-direction:column;min-width:0}
+.an-tip .ac-t b{white-space:normal;line-height:1.25}
+.an-tip .ac-t small{color:var(--muted);font-weight:400}
+.ac-row{width:100%;border:0;background:none;font:inherit;color:inherit;text-align:left;cursor:pointer}
+.ac-row .nm{margin-left:auto;font:700 .9rem var(--mono)}
+.ac-wait{display:flex;gap:8px;align-items:flex-start;line-height:1.5}
+.ac-wait .ms{color:var(--warn);font-size:20px;flex:none}
+#anClips{margin-top:14px}
+/* the switch wraps the YouTube and Instagram parts: their sections keep the page's spacing */
+.an-yt,.an-ig,#anClips{display:grid;gap:16px;align-content:start}
+.an-yt:empty,.an-ig:empty{display:none}
+#anClips:not(:empty){margin-bottom:12px}
+.an-plat{margin:22px 0 2px}
+.an-sub{margin:10px 0 0}
+#anBody .banner{margin:0}
+/* the "Pit Crew" tag inside a clamped title would stretch to the full width */
+.top-row .tt .tag.clip{width:max-content;margin:4px 0 0}

@@ -62,7 +62,13 @@ def summary(job):
             "msg": job.get("msg", ""), "error": job.get("error", ""), "cover": cover,
             "shorts": len(shorts), "posted": posted, "scheduled": scheduled, "drafts": drafts,
             "remaking": any(s.get("retrying") for s in job.get("shorts", [])),
-            "youtube_url": vlog.get("youtube_url", ""), "video_deleted": bool(job.get("video_deleted_at"))}
+            "youtube_url": vlog.get("youtube_url", ""), "video_deleted": bool(job.get("video_deleted_at")),
+            "video_expires": _video_expires(job)}
+
+
+def _video_expires(job):
+    from web.retention import video_expires  # (retention imports this file)
+    return video_expires(job) if job.get("status") == "ready" else None
 
 
 def user_jobs(user_id):
@@ -94,15 +100,23 @@ def delete_video(job_id):
             return jsonify(error="A Short from this vlog is being remade. Wait until it's ready."), 400
         if job.get("upload_status") in ("starting", "connecting", "uploading"):
             return jsonify(error="Wait until posting has finished."), 400
-        job_dir = JOBS_DIR / job_id
+    remove_video(job_id)
+    return jsonify(ok=True)
+
+
+def remove_video(job_id):
+    """Delete a vlog's video and the small copy for choosing scenes (by the creator, or by web/retention.py).
+    Its transcript is remembered first, so uploading the same vlog again skips transcribing."""
+    job_dir = JOBS_DIR / job_id
+    with LOCK:
+        job = load_job(job_id)
         src = next(job_dir.glob("source.*"), None)
         uploaded = created_at(job)  # older vlogs date from their video file: keep that date before it goes
         PREVIEWS.pop(job_id, None)
         PREVIEW_PCT.pop(job_id, None)
     if src:
-        remember_transcript(src, job_dir / "transcript.json")  # so uploading it again skips transcribing
+        remember_transcript(src, job_dir / "transcript.json")
     for f in (src, job_dir / "preview.mp4", job_dir / "preview.part.mp4"):
         if f:
             f.unlink(missing_ok=True)
     update(job_id, video_deleted_at=time.time(), created_at=uploaded)
-    return jsonify(ok=True)

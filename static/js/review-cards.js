@@ -67,8 +67,10 @@ function paintState(el,s){
   el.classList.toggle("redoing",!!s.retrying);
   el.querySelector(".bmsg").textContent = s.retrying ? (s.retry_msg||"Making this Short") : "";
   if(s.pending) return;
-  el.querySelector(".retry").disabled = !!s.retrying;
-  el.querySelectorAll(".hk-change,.hk-apply,.hk-rewrite").forEach(b=>b.disabled=!!s.retrying);
+  const gone=!!job.video_deleted_at;  // the vlog's video is deleted: nothing can be re-cut (titles and looks still work)
+  el.querySelector(".retry").disabled = !!s.retrying || gone;
+  el.querySelectorAll(".hk-change,.hk-apply,.hk-rewrite").forEach(b=>b.disabled=!!s.retrying || gone);
+  if(gone) el.querySelector(".retry").title="Needs the vlog's video, which was deleted";
   el.querySelector(".rerr").textContent = s.retry_error ? "Try again stopped: "+s.retry_error : "";
 }
 function paintTitle(){
@@ -81,6 +83,8 @@ function paintTitle(){
     (job.little_speech ? "Pit Crew picks moments from what's said, and this vlog doesn't have much talking. "
                        : "The rest of the vlog didn't have strong stand-alone moments. ")+
     "Use <b>Add a Short</b> at the end to pick more moments yourself, by describing them or by their times.</span>";
+  $("goneNote").hidden=!job.video_deleted_at;
+  $("addCard").hidden=!!job.video_deleted_at;
   const err=$("addCard").querySelector(".rerr");
   if(job.add_error) err.textContent="Couldn't add the Short: "+job.add_error;
   else if(err.textContent.startsWith("Couldn't add the Short")) err.textContent="";

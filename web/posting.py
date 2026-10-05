@@ -4,6 +4,7 @@ Upload to YouTube: posts or schedules the ticked Shorts in the background.
 import os
 import threading
 import traceback
+from datetime import datetime, timezone
 
 from flask import abort, g, jsonify, request
 
@@ -72,7 +73,8 @@ def do_upload(user_id, job_id, items, mode, times, earlier, channel=None):
             )
             rec = {"idx": it["idx"], "title": it["title"], "video_id": vid, "video": it["video"],
                    "thumb": it["thumb"], "when": when.isoformat() if when else None, "note": note,
-                   "channel": channel, "channel_title": own.get("title", "")}
+                   "channel": channel, "channel_title": own.get("title", ""),
+                   "uploaded_at": datetime.now(timezone.utc).isoformat()}
             if old:
                 update(job_id, upload_msg="Removing the old version from YouTube")
                 try:
@@ -158,7 +160,8 @@ def schedule(job_id):
         if job_id in POSTING:
             return jsonify(error="These Shorts are already being posted."), 400
         POSTING.add(job_id)
-    update(job_id, upload_status="starting", upload_msg="Starting", uploads=earlier, schedule=mode)
+    update(job_id, upload_status="starting", upload_msg="Starting", uploads=earlier, schedule=mode,
+           upload_queue=[it["idx"] for it in items])  # which Shorts this upload is for (Shorts & Reels page)
     threading.Thread(target=do_upload, args=(g.user["id"], job_id, items, mode, times, earlier, channel),
                      daemon=True).start()
     return jsonify(ok=True)

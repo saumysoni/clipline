@@ -41,7 +41,8 @@ async function boot(){
     $("authErr").textContent=m.auth_error.error; return;
   }
   if(!m.user){ showLogin(); return; }
-  myEmail=m.user.email; $("meEmail").textContent=myEmail; $("accountNav").title=myEmail;
+  myEmail=m.user.email;  // the sidebar's Account row: the person's name (email when there's no name), email on hover
+  $("meEmail").textContent=(m.user.name||"").trim()||myEmail; $("accountNav").title="Signed in as "+myEmail;
   $("auth").hidden=true; $("app").hidden=false;
   loadAccount(); loadIg(); refreshJobsNow();
   if(booted){ if(jobId) startPolling(jobId); return; }  // signed in again mid-session: pick the job back up
@@ -51,8 +52,9 @@ async function boot(){
 // The screen for an address (#vlogs, #new, #youtube, #analytics, #settings, or a vlog's id). The Vlogs page is home.
 function openRoute(h){
   if(h==="youtube") openPosted();
-  else if(h==="analytics") openAnalytics();
-  else if(h==="settings") openSettings();
+  else if(h==="clips" || h.startsWith("clips/")) openClips(h.slice(6));
+  else if(h==="analytics" || h.startsWith("analytics/")) openAnalytics(h.slice(10));
+  else if(h==="settings" || h==="account") openSettings();
   else if(h==="new") openCreate();
   else if(/^[0-9a-f]{10}$/.test(h)) startPolling(h);
   else openVlogs();
@@ -63,7 +65,7 @@ window.addEventListener("hashchange",()=>{
   if(!booted || $("app").hidden) return;
   const h=location.hash.slice(1);
   if(h.startsWith("reset=")) return;
-  const at = !$("s7").hidden?"vlogs" : !$("s5").hidden?"youtube" : !$("s6").hidden?"analytics" : !$("s8").hidden?"settings" : !$("s1").hidden?"new" : jobId;
+  const at = !$("s9").hidden?"clips"+(clVlog?"/"+clVlog:"") : !$("s7").hidden?"vlogs" : !$("s5").hidden?"youtube" : !$("s6").hidden?"analytics"+(anVlog?"/"+anVlog:"") : !$("s8").hidden?"settings" : !$("s1").hidden?"new" : jobId;
   if(h===at || (!h && at==="vlogs")) return;
   openRoute(h);
 });

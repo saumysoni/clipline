@@ -33,3 +33,18 @@ def send_email(to, subject, text):
             if user:
                 s.login(user, password)
             s.send_message(msg)
+
+
+def notify(to, subject, text):
+    """Send an email if email is set up; otherwise print it in the terminal (fine on your own computer).
+    Never raises: a notice that can't be sent is logged, not shown to the creator."""
+    if not is_configured():
+        print(f"Email isn't set up (SMTP_HOST is empty in .env), so this wasn't sent to {to}:\n"
+              f"  {subject}\n  " + text.replace("\n", "\n  "))
+        return False
+    try:
+        send_email(to, subject, text)
+        return True
+    except Exception as e:  # noqa: BLE001
+        print(f"Couldn't send '{subject}' to {to}: {e!r}")
+        return False

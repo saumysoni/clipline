@@ -59,9 +59,11 @@ The code is split so two people can work on different features without touching 
 | Accounts (email + Google sign-in), `gate()` | `accounts/db.py` | `web/accounts.py` | `js/account.js`, `sections/auth.html`, `css/auth.css` |
 | Forgot password (reset link by email) | `accounts/db.py` (`password_resets`), `accounts/mail.py` | `web/password_reset.py` | `js/password-reset.js`, `sections/auth.html` |
 | Sidebar (+ Create, Workspace, Channels, Account / Settings / Appearance) | | | `sections/sidebar.html`, `js/nav.js`, `css/shell.css` |
-| Vlogs page (home: every vlog as a card) | | `web/vlogs.py` (`/api/vlogs`) | `js/vlogs.js`, `sections/vlogs.html`, `css/vlogs.css` |
+| Vlogs page (home: every vlog as a card; delete a vlog's video, its Shorts stay) | | `web/vlogs.py` (`/api/vlogs`, `delete-video`) | `js/vlogs.js`, `sections/vlogs.html`, `css/vlogs.css` |
+| Shorts & Reels page (every clip from every vlog; filters; Analytics / Download / Edit; schedule several at once on one plan of times; titles saved as typed) | | `web/clips.py` | `js/clips.js`, `sections/clips.html`, `css/clips.css` |
+| Ask your vlog (search all vlogs; ask one vlog; Watch / Make a Short from a moment) | `pipeline/scene_notes.py` (`scenes.json`) | `web/ask.py` | `js/ask.js`, `css/ask.css` |
 | Progress card (vlog being sent / made, "Shorts ready" pop-up) | | `web/vlogs.py` | `js/jobs-now.js`, `css/jobs-now.css` |
-| Settings page (account, connected channels, appearance) | | | `js/settings.js`, `sections/settings.html`, `css/settings.css` |
+| Settings page (account: change password, sign out; connected channels; appearance) | | | `js/settings.js`, `sections/settings.html`, `css/settings.css` |
 | Connect YouTube | `youtube/signin.py`, `youtube/connection.py`, `youtube/config.py` | `web/youtube_connect.py`, `web/google_redirect.py` | `js/youtube-connect.js` |
 | Setup form (count, style, must-have moments, file, links) | `youtube/links.py` | `web/make_shorts.py` (`start`), `web/times.py` | `js/setup-form.js`, `js/must-have.js`, `js/video-file.js`, `js/links.js`, `js/start.js`, `sections/setup.html`, `css/setup.css` |
 | Vlog title/description from a YouTube link (API key, else the creator's YouTube connection, else title only) | `youtube/vlog_info.py`, `pipeline/vlog_context.py` | `web/vlog_info.py` | `js/links.js` |
@@ -80,6 +82,7 @@ The code is split so two people can work on different features without touching 
 | Upload / schedule | `youtube/upload.py`, `youtube/schedule_times.py` | `web/posting.py` | `js/posting.js`, `css/posting.css` |
 | Posted list (step 4) | | | `js/posted.js`, `sections/posted.html`, `css/posted.css` |
 | Scheduled page (sidebar "Scheduled"; YouTube + Instagram lists) | `youtube/manage.py` | `web/on_youtube.py`, `web/instagram_posting.py` (`/api/instagram/posts`) | `js/on-youtube.js`, `js/scheduled-instagram.js`, `js/nav.js` (Make Shorts link), `sections/on-youtube.html`, `sections/sidebar.html`, `css/on-youtube.css` |
+| Analytics "Your clips" (each Pit Crew clip's first-week views per platform, What's working, top clips; All / YouTube / Instagram switch; vlog filter) | `youtube/analytics.py` (`first_week_views`), `instagram/insights.py` (`snapshot_reels`), `accounts/db.py` (`reel_snapshots`) | `web/analytics_clips.py` | `js/analytics-clips.js` |
 | Analytics page (YouTube Shorts + Instagram Reels) | `youtube/analytics.py`, `instagram/insights.py` | `web/analytics.py` | `js/analytics.js` (charts), `js/analytics-instagram.js`, `sections/analytics.html`, `css/analytics.css` |
 | Connect Instagram | `instagram/connection.py`, `instagram/config.py`, `instagram/http.py` | `web/instagram_connect.py`, `web/google_redirect.py` | `js/instagram-connect.js` |
 | Post to Instagram (own schedule, Pit Crew posts at the time) | `instagram/publish.py` | `web/instagram_posting.py` (scheduler thread) | `js/instagram-posting.js`, `sections/review.html` (Instagram card), `css/posting.css` |
@@ -282,6 +285,30 @@ The code is split so two people can work on different features without touching 
     tables (`PRAGMA user_version` 0 → 1; the old tables stay, unused) get their YouTube channel id on first
     `yt.account()` (`_fill_channel`); Reels planned before this get the first-connected account (`_stamp_account`).
     "Add account" for Instagram sends `force_reauth=true`, so Instagram asks who to log in as.
+21. **Storage is deleted on a timer (`web/retention.py`, checked every 15 minutes).** A vlog's video: `KEEP_ORIGINAL_HOURS`
+    (72) after `job["last_edit_at"]`; a draft (on neither platform, nor planned): `KEEP_DRAFT_DAYS` (30) after the Short's
+    `edited_at`; a posted Short's video file: `KEEP_POSTED_DAYS` (30) after it went out everywhere it was planned (then
+    `file_deleted_at`, Download points at Studio). 0 = keep forever. Every `update_short()` counts as an edit (stamps
+    both clocks), so route Short changes through it. Warnings a day before: on the card (`video_expires` / `expires` in
+    the APIs) and by email (`mail.notify`, printed when SMTP isn't set). Nothing is touched while a vlog is being made,
+    remade or posted, or while a Reel is still waiting. `remove_video()` (`web/vlogs.py`) is shared with the 🗑 button;
+    after it, the editor locks Try again / hooks / Add a Short (`job.video_deleted_at`). `RETENTION_OFF=1` stops the
+    timer (tests). In the cloud this becomes a scheduled job.
+22. **Compare clips by their first 7 days, never by lifetime totals** (older clips have had longer). YouTube:
+    `first_week_views()` asks each Short's own channel (`video==id`, first 7 days; final after 9 days because of the
+    ~2-day delay; cached). Instagram only gives running totals, so `snapshot_reels()` saves each Pit Crew Reel's numbers
+    once a day (`reel_snapshots`, also every 6 h in the background): first week = the saved day 7–9 days after posting,
+    else "still counting" (< 7 days) or "not enough history" (saving began later). "What's working" (`takeaways()`) only
+    compares groups of 2+ clips, needs 4+ finished clips per platform and a 20% difference, and says what it's based on.
+23. **Ask your vlog answers only from what was said and seen.** Scene notes (`pipeline/scene_notes.py`): keyframe-only
+    decode (`-skip_frame nokey`, fps=1/SCENE_EVERY, 320px; a 40-min vlog in ~2 s), 20 frames per AI request, saved as
+    `scenes.json` after the Shorts are ready (`start_scene_notes`, background, never fails a job). They and
+    `transcript.json` are kept forever (text), so asking and search keep working after the video is deleted. The ask
+    prompt forbids inventing; moments are clamped to the vlog and to 90 s. **Search is by meaning, not words**
+    (`/api/search`): the AI widens the search into phrases (`EXPAND`), each vlog's passages (~15 s of talk, each scene
+    note) are compared as embeddings (`pipeline/search_index.py`, `ai_embed()` for OpenAI or Gemini, saved per vlog in
+    `search_index.npz` and rebuilt when passages or `EMBED_MODEL` change), and the AI keeps only real matches with a
+    reason (`PICK`: sharing a word isn't enough). If the AI can't be reached it falls back to `keyword_search()`.
 
 ## Conventions
 

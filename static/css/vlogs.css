@@ -34,12 +34,5 @@
 @media (hover:none){ .vl-del{opacity:1} }
 .vl-gone{display:inline-flex;align-items:center;gap:4px;font-size:.76rem;color:var(--faint)}
 .vl-gone .ms{font-size:14px}
-.vl-gone-list{grid-column:1/-1;margin-top:8px;border-top:1px solid var(--line);padding-top:14px}
-.vl-gone-list summary{display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--muted);font-weight:600;font-size:.9rem;list-style:none;width:max-content;max-width:100%;flex-wrap:wrap}
-.vl-gone-list summary::-webkit-details-marker{display:none}
-.vl-gone-list summary .ms{font-size:18px}
-.vl-gone-list summary small{font-weight:400;color:var(--faint);font-size:.8rem}
-.vl-gone-list summary::after{content:"expand_more";font-family:"Material Symbols Outlined";font-size:20px;transition:transform .2s}
-.vl-gone-list[open] summary::after{transform:rotate(180deg)}
-.vl-gone-list .vlog-grid{margin-top:14px}
-.vl-gone-list .vl-cover img{filter:grayscale(.5)}
+.vl-warn{display:inline-flex;align-items:center;gap:4px;font-size:.76rem;color:var(--warn);font-weight:600}
+.vl-warn .ms{font-size:14px}

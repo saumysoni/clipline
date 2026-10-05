@@ -173,7 +173,7 @@ def repost(job_id, idx):
         POSTING.add(job_id)
         earlier = list(JOBS[job_id].get("uploads") or [])
     update_short(job_id, idx, title=title)
-    update(job_id, upload_status="starting", upload_msg="Starting")
+    update(job_id, upload_status="starting", upload_msg="Starting", upload_queue=[idx])
     item = {**short, "title": title, "replace": rec}
     threading.Thread(target=do_upload, args=(g.user["id"], job_id, [item], "replace", [when], earlier,
                                              rec.get("channel")), daemon=True).start()

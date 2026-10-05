@@ -14,7 +14,13 @@ async function tick(){
   if(job.status==="ready"){
     if($("s3").hidden || !$("reel").children.length){ renderResults(); show(3); showPost(job.upload_status==="error"); } else refreshResults();
     if((job.uploads||[]).length) markPosted();
-    if(focusIdx!=null){ const el=document.querySelector('.short[data-idx="'+focusIdx+'"]'); focusIdx=null; if(el) el.scrollIntoView({block:"center"}); }
+    if(focusIdx!=null){  // opened from Shorts & Reels or Scheduled: open that Short's editor (or Add a Short)
+      const add=focusIdx==="add", el=add?$("addCard"):document.querySelector('.short[data-idx="'+focusIdx+'"]'); focusIdx=null;
+      if(el){ el.scrollIntoView({block:"center"}); if(add) $("addOpen").click(); else openTile(el); }
+      if(add && addPrefill){  // from Ask your vlog: the moment's times are already filled in
+        const f=$("addCard"); f.querySelector(".t0").value=fmtExact(addPrefill.start); f.querySelector(".t1").value=fmtExact(addPrefill.end); addPrefill=null;
+      }
+    }
     if(job.upload_status==="error"){ markPosted(); if(!$("err3").textContent) $("err3").textContent="Posting stopped: "+job.upload_msg; }
     if(!job.shorts.some(s=>s.retrying)) clearInterval(poll);
     return;

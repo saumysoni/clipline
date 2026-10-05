@@ -4,6 +4,7 @@ Jobs: their state in memory (JOBS), saved to jobs/<id>/job.json, and helpers to 
 import json
 import re
 import threading
+import time
 
 from flask import abort, jsonify
 
@@ -53,9 +54,13 @@ RETRY_LOCKS = {}  # one remake at a time per job, so two new picks can't land on
 
 
 def update_short(job_id, idx, **kw):
+    """Change one Short. Every change counts as an edit: it restarts the clocks for keeping the vlog's video and
+    this draft (web/retention.py)."""
     with LOCK:
         job = JOBS[job_id]
-        job["shorts"] = [{**s, **kw} if s["idx"] == idx else s for s in job["shorts"]]
+        now = time.time()
+        job["last_edit_at"] = now
+        job["shorts"] = [{**s, **kw, "edited_at": now} if s["idx"] == idx else s for s in job["shorts"]]
         (JOBS_DIR / job_id / "job.json").write_text(json.dumps(job, default=str), encoding="utf-8")
 
 

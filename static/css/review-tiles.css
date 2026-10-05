@@ -38,3 +38,6 @@ body.tile-open{overflow:hidden}
   .short.open > .phone{margin-bottom:12px}
   .short.open > .phone{max-width:260px;justify-self:center;width:100%}
 }
+/* a tile's error stays readable above the bottom bar */
+.short:not(.open) .rerr{font-size:.78rem;line-height:1.35}
+#reel{padding-bottom:120px}
