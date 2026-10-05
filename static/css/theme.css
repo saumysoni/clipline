@@ -1,5 +1,5 @@
 /* Pit Crew look: carbon glass panels, YouTube-red light, pit-lane details (start lights, checkered
-   flags, speed lines, hazard stripes). Loaded after every screen's CSS (only motion.css comes later),
+   flags, hazard stripes). Loaded after every screen's CSS (only motion.css comes later),
    so it restyles shared pieces in one place. Colours come from tokens.css. */
 
 /* ---------- page backdrop: carbon, a red glow, a faint telemetry grid */
@@ -36,14 +36,9 @@ h1{font-family:var(--display);font-weight:700;letter-spacing:-.025em;font-size:c
 /* ---------- brand: logo tile + wordmark */
 .brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink)}
 .brand-logo{display:inline-flex;color:var(--primary-text)}
-.logo{width:42px;height:28px;overflow:visible;filter:drop-shadow(0 4px 14px rgba(255,0,51,.45))}
-.logo .speed line{stroke-dasharray:10;stroke-dashoffset:0;animation:pc-speed 2.8s var(--ease) infinite}
-.logo .speed line:nth-child(2){animation-delay:.12s}.logo .speed line:nth-child(3){animation-delay:.24s}
-.logo .shine{animation:pc-shine 5s var(--ease) infinite}
-.wm{font:800 1.02rem/1 var(--display);letter-spacing:.02em;text-transform:uppercase;transform:skewX(-8deg);display:inline-flex;gap:.32em;white-space:nowrap}
-.wm b{font-weight:800;color:var(--primary-text)}
-@keyframes pc-speed{0%,55%{stroke-dashoffset:0;opacity:1}70%{stroke-dashoffset:10;opacity:.2}71%{stroke-dashoffset:-10;opacity:.2}100%{stroke-dashoffset:0;opacity:1}}
-@keyframes pc-shine{0%,70%{transform:skewX(-20deg) translateX(0)}100%{transform:skewX(-20deg) translateX(90px)}}
+.logo{width:30px;height:30px;flex:none;filter:drop-shadow(0 6px 16px rgba(255,0,51,.35))}
+.wm{font:700 .98rem/1 var(--display);letter-spacing:.06em;text-transform:uppercase;display:inline-flex;gap:.34em;white-space:nowrap}
+.wm b{font-weight:700;color:var(--primary-text)}
 
 /* ---------- glass panels */
 .card,.an-card,.auth-card,.side,.dock,dialog,.an-tile,.an-hero{
@@ -152,7 +147,7 @@ ul.tasks li.active{color:var(--ink)}
 @keyframes pc-lane{to{background-position:0 60px}}
 .auth-card{position:relative;z-index:1;border-radius:24px;box-shadow:var(--shadow),0 0 0 1px rgba(255,0,51,.12)}
 .auth-card::before{content:"";position:absolute;left:24px;right:24px;top:-1px;height:2px;border-radius:2px;background:linear-gradient(90deg,transparent,var(--primary),transparent);box-shadow:0 0 18px var(--primary-glow)}
-.auth-card .brand .logo{width:52px;height:34px}
+.auth-card .brand .logo{width:38px;height:38px}
 .auth-card .brand .wm{font-size:1.25rem;display:inline-flex!important}
 
 /* ---------- phones and small laptops */
