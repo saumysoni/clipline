@@ -9,13 +9,12 @@
         </div>
         <button class="ghost" id="vlNew" type="button"><span class="ms" aria-hidden="true">add</span>New vlog</button>
       </div>
-      <form class="ask-search" id="vlSearchForm" role="search">
-        <span class="ms" aria-hidden="true">search</span>
-        <input id="vlSearch" type="search" maxlength="200" aria-label="Search your vlogs" placeholder="Search what you said or showed in any vlog: night market, snow, sunset...">
-        <button class="primary" type="submit">Search</button>
-      </form>
-      <div class="ask-results" id="vlResults" hidden></div>
+      <div class="vl-bar" id="vlBar" hidden>
+        <label class="vl-all"><input type="checkbox" id="vlAll"><span id="vlAllT">Select all</span></label>
+        <button type="button" class="ghost vl-del-many" id="vlDelMany" hidden><span class="ms" aria-hidden="true">delete</span><span>Delete videos</span></button>
+        <div class="vl-find"><span class="ms" aria-hidden="true">search</span><input id="vlFind" type="search" maxlength="120" aria-label="Find a vlog by title" placeholder="Find a vlog by title"></div>
+      </div>
       <div class="err" id="vlErr" role="alert"></div>
-      <div class="vlog-grid" id="vlGrid"></div>
+      <div class="vlog-list" id="vlGrid"></div>
     </div>
   </section>

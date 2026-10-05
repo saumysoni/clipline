@@ -100,8 +100,6 @@ def make_shorts(job_id, src, link, count, style, vlog=None, note="", must=()):
                shorts=[{**s, "edited_at": done} for s in shorts])
         if not pipeline.plays_everywhere(src, meta):
             start_preview(job_id)  # in case it failed earlier: tries once more (nothing if it's ready or under way)
-        from web.ask import start_scene_notes  # what's seen in the vlog, for Ask your vlog (in the background)
-        start_scene_notes(job_id)
     except Exception as e:
         traceback.print_exc()
         update(job_id, status="error", error=str(e))

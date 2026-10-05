@@ -70,7 +70,6 @@ function paintClips(){
   $("clLede").textContent = one ? "The Shorts and Reels from this vlog. Tick drafts to schedule several at once."
                                 : "Every clip Pit Crew made, from all your vlogs. Tick drafts to schedule several at once.";
   $("clAdd").hidden = !one || one.video_deleted;
-  if(typeof paintAsk==="function" && askJob!==(one?clVlog:"")) paintAsk(one?clVlog:"");  // Ask about this vlog
   // status chips with counts
   const base=clFiltered(), n=st=>base.filter(c=>!st||c.status===st).length;
   const chips=[["","All"],["draft","Drafts"],["scheduled","Scheduled"],["posted","Posted"],["failed","Failed"]].filter(([st])=>!st||st!=="failed"||n("failed"));
@@ -93,8 +92,18 @@ function paintClips(){
   });
   clDock();
 }
+// Select all: every clip shown (with the current filters) that can be ticked.
+function clShown(){ return clSorted(clFiltered().filter(c=>!clStatus||c.status===clStatus)); }
+$("clAll").onchange=()=>{
+  const can=clShown().filter(clPickable);
+  if($("clAll").checked) can.forEach(c=>clPicked.add(clKey(c))); else can.forEach(c=>clPicked.delete(clKey(c)));
+  paintClips();
+};
 function clDock(){
   const n=clPicked.size;
+  const can=clShown().filter(clPickable), all=can.length>0 && can.every(c=>clPicked.has(clKey(c)));
+  $("clAll").checked=all; $("clAll").indeterminate=!all && can.some(c=>clPicked.has(clKey(c))); $("clAll").disabled=!can.length;
+  $("clAllT").textContent = n ? n+" selected" : "Select all";
   $("clDock").hidden=!n || $("s9").hidden;
   $("clSel").textContent=n+" clip"+(n===1?"":"s")+" selected";
   const drafts=clData.filter(c=>clPicked.has(clKey(c))&&c.status==="draft").length;

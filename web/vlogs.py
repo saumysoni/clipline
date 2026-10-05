@@ -5,11 +5,14 @@ state (being made / ready / stopped), how many Shorts it has and where they are.
 """
 import json
 import re
+import threading
 import time
+import traceback
 from datetime import datetime, timezone
 
-from flask import abort, g, jsonify
+from flask import abort, g, jsonify, request
 
+import pipeline
 from pipeline.transcript_cache import remember_transcript
 from settings import JOBS_DIR
 
@@ -55,15 +58,43 @@ def summary(job):
         else:
             scheduled += 1
     cover = next((s["thumb"] for s in shorts if s.get("thumb")), "")
+    vid = re.search(r"(?:v=|youtu\.be/|/shorts/|/live/)([\w-]{11})", (job.get("vlog") or {}).get("youtube_url") or "")
     vlog = job.get("vlog") or {}
     return {"id": job["id"], "title": vlog.get("title") or job.get("name") or "Your vlog",
             "duration": job.get("duration"), "created": created_at(job), "status": job.get("status"),
             "stage": job.get("stage", 0), "stages": len(job.get("stages") or []), "pct": job.get("pct"),
-            "msg": job.get("msg", ""), "error": job.get("error", ""), "cover": cover,
+            "msg": job.get("msg", ""), "error": job.get("error", ""), "cover": cover, "poster": _poster(job),
+            "yt_thumb": f"https://i.ytimg.com/vi/{vid.group(1)}/mqdefault.jpg" if vid else "",
             "shorts": len(shorts), "posted": posted, "scheduled": scheduled, "drafts": drafts,
             "remaking": any(s.get("retrying") for s in job.get("shorts", [])),
             "youtube_url": vlog.get("youtube_url", ""), "video_deleted": bool(job.get("video_deleted_at")),
             "video_expires": _video_expires(job)}
+
+
+POSTERING = set()  # vlogs whose poster is being made right now
+
+
+def _poster(job):
+    """The vlog's landscape poster (pipeline/poster.py) if it exists. Made once in the background, the first time the
+    list is shown while the vlog's video is still here; until then the list shows a Short's thumbnail."""
+    job_dir = JOBS_DIR / job["id"]
+    if (job_dir / "poster.jpg").exists():
+        return "poster.jpg"
+    if job.get("status") == "ready" and not job.get("video_deleted_at") and job["id"] not in POSTERING:
+        src = next(job_dir.glob("source.*"), None)
+        if src:
+            POSTERING.add(job["id"])
+            threading.Thread(target=_make_poster, args=(job["id"], src, job.get("duration")), daemon=True).start()
+    return ""
+
+
+def _make_poster(job_id, src, duration):
+    try:
+        pipeline.make_poster(src, JOBS_DIR / job_id / "poster.jpg", duration)
+    except Exception:  # noqa: BLE001  (the list just keeps showing a Short's thumbnail)
+        traceback.print_exc()
+    finally:
+        POSTERING.discard(job_id)
 
 
 def _video_expires(job):
@@ -85,6 +116,17 @@ def vlogs():
     return jsonify(items=items)
 
 
+def _cant_delete(job):
+    """Why this vlog's video can't be deleted right now, or None."""
+    if job.get("status") == "working":
+        return "Pit Crew is still making Shorts from this vlog. Wait until they're ready."
+    if any(s.get("retrying") for s in job.get("shorts", [])):
+        return "A Short from this vlog is being remade. Wait until it's ready."
+    if job.get("upload_status") in ("starting", "connecting", "uploading"):
+        return "Wait until posting has finished."
+    return None
+
+
 @app.post("/api/vlogs/<job_id>/delete-video")
 def delete_video(job_id):
     """Delete the vlog's video (and the small copy for choosing scenes). Everything made from it stays: Shorts,
@@ -94,14 +136,31 @@ def delete_video(job_id):
         job = load_job(job_id)
         if not job:
             abort(404)
-        if job.get("status") == "working":
-            return jsonify(error="Pit Crew is still making Shorts from this vlog. Wait until they're ready."), 400
-        if any(s.get("retrying") for s in job.get("shorts", [])):
-            return jsonify(error="A Short from this vlog is being remade. Wait until it's ready."), 400
-        if job.get("upload_status") in ("starting", "connecting", "uploading"):
-            return jsonify(error="Wait until posting has finished."), 400
+        why = _cant_delete(job)
+    if why:
+        return jsonify(error=why), 400
     remove_video(job_id)
     return jsonify(ok=True)
+
+
+@app.post("/api/vlogs/delete-videos")
+def delete_videos():
+    """Several at once (Select all on the Vlogs page). Only this creator's vlogs; busy ones are skipped and listed."""
+    ids = [i for i in (request.get_json(force=True).get("ids") or []) if isinstance(i, str) and re.fullmatch(r"[0-9a-f]{10}", i)]
+    deleted, skipped = [], []
+    for job_id in dict.fromkeys(ids):
+        with LOCK:
+            job = load_job(job_id)
+            if not job or job.get("owner") != g.user["id"]:
+                continue
+            why = None if not job.get("video_deleted_at") else "already deleted"
+            why = why or _cant_delete(job)
+        if why:
+            skipped.append(job_id)
+            continue
+        remove_video(job_id)
+        deleted.append(job_id)
+    return jsonify(ok=True, deleted=deleted, skipped=skipped)
 
 
 def remove_video(job_id):

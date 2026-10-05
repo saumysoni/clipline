@@ -77,3 +77,4 @@ dialog#clSched .hint{font-size:.8rem;color:var(--muted);margin:12px 0 0}
 @media (hover:none){ .cl-del{opacity:1} }
 .cl-dock .cl-del-many{gap:6px;padding:8px 12px;color:var(--bad)}
 .cl-dock .cl-del-many[hidden]{display:none}
+.cl-bar .cl-all{flex:none;padding:6px 4px}

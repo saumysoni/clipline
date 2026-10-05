@@ -59,9 +59,8 @@ The code is split so two people can work on different features without touching 
 | Accounts (email + Google sign-in), `gate()` | `accounts/db.py` | `web/accounts.py` | `js/account.js`, `sections/auth.html`, `css/auth.css` |
 | Forgot password (reset link by email) | `accounts/db.py` (`password_resets`), `accounts/mail.py` | `web/password_reset.py` | `js/password-reset.js`, `sections/auth.html` |
 | Sidebar (+ Create, Workspace, Channels, Account / Settings / Appearance) | | | `sections/sidebar.html`, `js/nav.js`, `css/shell.css` |
-| Vlogs page (home: every vlog as a card; delete a vlog's video, its Shorts stay) | | `web/vlogs.py` (`/api/vlogs`, `delete-video`) | `js/vlogs.js`, `sections/vlogs.html`, `css/vlogs.css` |
-| Shorts & Reels page (every clip from every vlog; filters; Analytics / Download / Edit; schedule several at once on one plan of times; titles saved as typed) | | `web/clips.py` | `js/clips.js`, `sections/clips.html`, `css/clips.css` |
-| Ask your vlog (search all vlogs; ask one vlog; Watch / Make a Short from a moment) | `pipeline/scene_notes.py` (`scenes.json`) | `web/ask.py` | `js/ask.js`, `css/ask.css` |
+| Vlogs page (home: every vlog as a row like YouTube's search results, landscape picture = the vlog's YouTube thumbnail, else `poster.jpg`, else a Short's thumbnail on a blur; find by title; tick or Select all to delete several videos, their Shorts stay) | `pipeline/poster.py` | `web/vlogs.py` (`/api/vlogs`, `delete-video`, `delete-videos`) | `js/vlogs.js`, `sections/vlogs.html`, `css/vlogs.css` |
+| Shorts & Reels page (every clip from every vlog; filters; Select all; Analytics / Download / Edit; schedule several at once on one plan of times; titles saved as typed) | | `web/clips.py` | `js/clips.js`, `sections/clips.html`, `css/clips.css` |
 | Progress card (vlog being sent / made, "Shorts ready" pop-up) | | `web/vlogs.py` | `js/jobs-now.js`, `css/jobs-now.css` |
 | Settings page (account: change password, sign out; connected channels; appearance) | | | `js/settings.js`, `sections/settings.html`, `css/settings.css` |
 | Connect YouTube | `youtube/signin.py`, `youtube/connection.py`, `youtube/config.py` | `web/youtube_connect.py`, `web/google_redirect.py` | `js/youtube-connect.js` |
@@ -300,15 +299,6 @@ The code is split so two people can work on different features without touching 
     once a day (`reel_snapshots`, also every 6 h in the background): first week = the saved day 7–9 days after posting,
     else "still counting" (< 7 days) or "not enough history" (saving began later). "What's working" (`takeaways()`) only
     compares groups of 2+ clips, needs 4+ finished clips per platform and a 20% difference, and says what it's based on.
-23. **Ask your vlog answers only from what was said and seen.** Scene notes (`pipeline/scene_notes.py`): keyframe-only
-    decode (`-skip_frame nokey`, fps=1/SCENE_EVERY, 320px; a 40-min vlog in ~2 s), 20 frames per AI request, saved as
-    `scenes.json` after the Shorts are ready (`start_scene_notes`, background, never fails a job). They and
-    `transcript.json` are kept forever (text), so asking and search keep working after the video is deleted. The ask
-    prompt forbids inventing; moments are clamped to the vlog and to 90 s. **Search is by meaning, not words**
-    (`/api/search`): the AI widens the search into phrases (`EXPAND`), each vlog's passages (~15 s of talk, each scene
-    note) are compared as embeddings (`pipeline/search_index.py`, `ai_embed()` for OpenAI or Gemini, saved per vlog in
-    `search_index.npz` and rebuilt when passages or `EMBED_MODEL` change), and the AI keeps only real matches with a
-    reason (`PICK`: sharing a word isn't enough). If the AI can't be reached it falls back to `keyword_search()`.
 
 ## Conventions
 
