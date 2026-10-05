@@ -65,9 +65,11 @@ dialog#clSched .hint{font-size:.8rem;color:var(--muted);margin:12px 0 0}
 @media (max-width:560px){
   .cl-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
   .cl-acts{flex-wrap:wrap;gap:4px 10px}
-  .cl-dock{left:8px;right:8px;transform:none;bottom:76px;justify-content:space-between}
+  .cl-dock{left:8px;right:8px;transform:none;bottom:76px;justify-content:space-between;flex-wrap:wrap;gap:10px}
+  .cl-dock #clSel{flex-basis:100%}
 }
-@media (min-width:1024px){ .cl-dock{left:calc(50% + 124px)} }  /* centred on the page, beside the 248px sidebar */
+@media (min-width:1024px){ .cl-dock{left:264px;right:16px;transform:none;width:max-content;max-width:calc(100% - 280px);margin-inline:auto;flex-wrap:wrap} }  /* centred on the page beside the 248px sidebar, never past the edge */
+.cl-dock #clSel,.cl-dock button{white-space:nowrap}
 .cl-pl.warn{color:var(--warn);font-weight:600}
 .cl-acts .cl-dl.off{color:var(--faint);font-weight:600}
 .cl-del{position:absolute;top:8px;right:8px;width:30px;height:30px;border-radius:50%;border:0;display:grid;place-items:center;background:rgba(0,0,0,.6);color:#fff;cursor:pointer;opacity:0;transition:opacity .2s,background .2s}

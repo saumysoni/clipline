@@ -15,6 +15,7 @@ from settings import JOBS_DIR
 from web.posting import POSTING, do_upload, youtube_title
 from web.server import app
 from web.store import JOBS, LOCK, load_job, update, update_short
+from web.youtube_sync import sync_deleted
 
 
 def posted_shorts(user_id):
@@ -39,6 +40,7 @@ def posted_shorts(user_id):
 @app.get("/api/posted")
 def posted():
     uid = g.user["id"]
+    sync_deleted(uid)  # Shorts deleted in YouTube Studio are forgotten (drafts again)
     items, live, note = posted_shorts(uid), False, None
     acct = yt.account(uid)
     me = (acct.get("channel") or {}).get("id")

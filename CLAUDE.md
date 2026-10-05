@@ -95,6 +95,7 @@ The code is split so two people can work on different features without touching 
 | `web/server.py` | The one Flask `app` every `web/` file adds routes to; cookie/session settings. |
 | `web/store.py` | Job state: `JOBS` (in memory) mirrored to `jobs/<id>/job.json`, `LOCK`, `update()`, `update_short()`, `load_job()`, `editable_job()`. |
 | `pipeline/ai.py` | `ai_json()`: every AI call (Gemini or OpenAI), with retries and model fallbacks. |
+| `web/youtube_sync.py` | `sync_deleted()`: Shorts deleted in YouTube Studio (e.g. a cancelled scheduled one) are forgotten when Shorts & Reels or Scheduled opens (once a minute per creator; only records with a connected `channel`; any YouTube error changes nothing), so they're drafts again. |
 | `web/errors.py` | `plain_error()`: one plain sentence for a failed vlog (AI busy, AI limit, video editor stopped...). The raw text goes to `job["error_detail"]` and the terminal, never to the page. |
 | `pipeline/ffmpeg.py`, `pipeline/text.py`, `pipeline/constants.py` | FFmpeg (`ffmpeg_exe()`, `run()`, `probe()`), small text helpers, shared numbers. |
 | `pipeline/__init__.py`, `youtube/__init__.py`, `instagram/__init__.py` | Only re-export what `web/` uses, so web code can write `pipeline.render_short(...)` / `yt.upload_short(...)` / `ig.post_reel(...)`. |

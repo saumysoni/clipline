@@ -9,7 +9,9 @@ async function openClips(vlog){
 }
 async function loadClips(){
   clearTimeout(clTimer);
-  try{ const r=await fetch("/api/clips"); if(!r.ok) throw 0; clData=(await r.json()).items||[]; }
+  try{ const r=await fetch("/api/clips"); if(!r.ok) throw 0; const j=await r.json(); clData=j.items||[];
+    if(j.removed_on_youtube) clToast(j.removed_on_youtube===1?"1 Short was deleted on YouTube":j.removed_on_youtube+" Shorts were deleted on YouTube",
+      "So "+(j.removed_on_youtube===1?"it's a draft":"they're drafts")+" again: schedule or delete "+(j.removed_on_youtube===1?"it":"them")+" here."); }
   catch(e){ $("clErr").textContent="Couldn't load your clips. Is Pit Crew still running?"; return; }
   $("clErr").textContent="";
   const live=new Set(clData.map(clKey)); clPicked.forEach(k=>{ if(!live.has(k)) clPicked.delete(k); });
