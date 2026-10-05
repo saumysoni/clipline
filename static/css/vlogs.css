@@ -52,3 +52,6 @@
   .vr-pick{grid-row:1/3;max-height:none}
   .vl-find{margin-left:0;flex:1}
 }
+.vr-err{align-items:flex-start;max-width:70ch}
+.vr-err span:last-child{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.vr-err .ms{margin-top:1px}

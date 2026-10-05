@@ -18,7 +18,8 @@ const vlDate=t=>t ? new Date(t*1000).toLocaleString([], {month:"short", day:"num
 // Overall progress of a vlog being made: finished stages plus the current stage's share.
 const vlPct=v=>v.stages ? Math.min(99, Math.round(((v.stage||0)+(v.pct||0)/100)/v.stages*100)) : 0;
 // A vlog's video can be deleted when it's still here and nothing is running on it.
-const vlDeletable=v=>!v.video_deleted && v.status!=="working" && !v.remaking;
+// (a vlog that stopped before making any Shorts is removed completely instead: there's nothing to keep)
+const vlDeletable=v=>(!v.video_deleted || v.removable) && v.status!=="working" && !v.remaking;
 function vlStats(v){
   if(v.status==="working") return "";
   if(!v.shorts) return v.status==="error" ? "" : "No Shorts yet";
@@ -36,7 +37,7 @@ function vlRow(v){
   const pic = v.yt_thumb ? '<img src="'+esc(v.yt_thumb)+'" alt="" loading="lazy" referrerpolicy="no-referrer">'
     : v.poster ? '<img src="/media/'+esc(v.id)+'/'+esc(v.poster)+'" alt="" loading="lazy">'
     : v.cover ? '<span class="vl-blur" style="background-image:url(\'/media/'+esc(v.id)+'/'+esc(v.cover)+'\')"></span><img class="vl-tall" src="/media/'+esc(v.id)+'/'+esc(v.cover)+'" alt="" loading="lazy">'
-    : '<span class="ms vl-ph" aria-hidden="true">movie</span>';
+    : v.status==="error" ? '' : '<span class="ms vl-ph" aria-hidden="true">movie</span>';
   const over = v.status==="working"
     ? '<div class="vl-over"><span class="spin" aria-hidden="true"></span><b>'+vlPct(v)+'%</b><small>'+esc(v.msg||"Working")+'</small></div>'
     : v.status==="error" ? '<div class="vl-over bad"><span class="ms" aria-hidden="true">error</span><small>Stopped</small></div>' : "";
@@ -51,13 +52,14 @@ function vlRow(v){
       '<div class="vr-meta">'+esc(meta)+'</div>'+
       vlBadges(v)+
       (v.status==="working"?'<div class="vr-note">Making your Shorts · '+esc(v.msg||"")+'</div>':'')+
-      (v.status==="error"?'<div class="vr-note bad">'+esc(v.error||"Something went wrong.")+'</div>':'')+
+      (v.status==="error"?'<div class="vr-note bad vr-err"><span class="ms" aria-hidden="true">error</span><span>'+esc(v.error||"Something went wrong. Upload the vlog again.")+'</span></div>':'')+
       (v.video_expires && v.video_expires*1000-Date.now()<86400000 ? '<div class="vr-note warn" title="To keep storage free, a vlog\'s video is deleted after it hasn\'t been edited for a while. Its Shorts stay. Edit one of its Shorts to keep it longer."><span class="ms" aria-hidden="true">schedule</span>Video deleted '+esc(vlSoon(v.video_expires))+'</div>':'')+
       '<div class="vr-acts">'+
-        '<button type="button" class="ghost sm vl-open">'+(busy?"See progress":"Shorts &amp; Reels")+'</button>'+
-        '<button type="button" class="ghost sm vl-an"'+(v.posted?'':' disabled title="Post a Short to see its numbers"')+'>Analytics</button>'+
+        (v.removable?'':'<button type="button" class="ghost sm vl-open">'+(busy?"See progress":"Shorts &amp; Reels")+'</button>'+
+        (v.status==="ready"?'<button type="button" class="ghost sm vl-an"'+(v.posted?'':' disabled title="Post a Short to see its numbers"')+'>Analytics</button>':''))+
         (v.youtube_url?'<a class="ghost sm" href="'+esc(v.youtube_url)+'" target="_blank" rel="noopener">On YouTube<span class="ms" aria-hidden="true">open_in_new</span></a>':'')+
-        (vlDeletable(v)?'<button type="button" class="ghost sm vl-del" title="Delete this vlog\'s video (its Shorts stay)"><span class="ms" aria-hidden="true">delete</span>Delete video</button>':'')+
+        (vlDeletable(v)?(v.removable?'<button type="button" class="ghost sm vl-del" title="It stopped before making any Shorts, so there\'s nothing to keep"><span class="ms" aria-hidden="true">delete</span>Remove</button>'
+          :'<button type="button" class="ghost sm vl-del" title="Delete this vlog\'s video (its Shorts stay)"><span class="ms" aria-hidden="true">delete</span>Delete video</button>'):'')+
       '</div>'+
     '</div></article>';
 }
@@ -80,7 +82,7 @@ function paintVlogs(){
   g.querySelectorAll(".vrow").forEach(el=>{
     const id=el.dataset.id, v=vlData.find(x=>x.id===id);  // ready: its Shorts & Reels; still being made (or stopped): its progress
     el.querySelectorAll(".vl-open").forEach(b=>b.onclick=()=>v.status==="ready"?openClips(id):startPolling(id));
-    el.querySelector(".vl-an").onclick=()=>openAnalytics(id);
+    const an=el.querySelector(".vl-an"); if(an) an.onclick=()=>openAnalytics(id);
     const del=el.querySelector(".vl-del"); if(del) del.onclick=()=>vlDelete([v]);
     const pick=el.querySelector(".vr-pick input");
     pick.onchange=()=>{ pick.checked?vlPicked.add(id):vlPicked.delete(id); el.classList.toggle("on",pick.checked); vlBar(); };
@@ -93,7 +95,8 @@ function vlBar(){
   $("vlAll").checked=all; $("vlAll").indeterminate=n>0 && !all; $("vlAll").disabled=!can.length;
   $("vlAllT").textContent = n ? n+" selected" : "Select all";
   $("vlDelMany").hidden=!n;
-  $("vlDelMany").lastChild.textContent = n===1 ? "Delete video" : "Delete "+n+" videos";
+  const rm=vlData?vlData.filter(v=>vlPicked.has(v.id)&&v.removable).length:0;
+  $("vlDelMany").lastChild.textContent = rm===n ? (n===1?"Remove":"Remove "+n) : n===1 ? "Delete video" : "Delete "+n;
 }
 $("vlAll").onchange=()=>{
   const can=vlShown().filter(vlDeletable);
@@ -105,10 +108,13 @@ $("vlDelMany").onclick=()=>vlDelete(vlData.filter(v=>vlPicked.has(v.id)));
 // Deletes only the vlogs' videos: their Shorts, thumbnails, transcripts and posts stay.
 async function vlDelete(list){
   list=list.filter(vlDeletable); if(!list.length) return;
-  const one=list.length===1, shorts=list.reduce((a,v)=>a+(v.shorts||0),0);
-  if(!confirm((one?'Delete the video of "'+list[0].title+'"?':'Delete the videos of '+list.length+' vlogs?')+'\n\n'+
-    (shorts?'Their '+shorts+' Short'+(shorts===1?'':'s')+', thumbnails and posts stay (in Shorts & Reels). ':'')+
-    "You won't be able to make new Shorts from "+(one?"it":"them")+", or change a Short's hook or moment, unless you upload "+(one?"it":"them")+" again.")) return;
+  const rm=list.filter(v=>v.removable), del=list.filter(v=>!v.removable), shorts=del.reduce((a,v)=>a+(v.shorts||0),0);
+  const lines=[];
+  if(del.length) lines.push((del.length===1?'The video of "'+del[0].title+'" is deleted':'The videos of '+del.length+' vlogs are deleted')+
+    (shorts?'; '+(del.length===1?'its ':'their ')+shorts+' Short'+(shorts===1?'':'s')+', thumbnails and posts stay (in Shorts & Reels)':'')+
+    ". New Shorts, or changing a Short's hook or moment, will need the vlog uploaded again.");
+  if(rm.length) lines.push((rm.length===1?'"'+rm[0].title+'" stopped':rm.length+' vlogs stopped')+" before making any Shorts, so "+(rm.length===1?"it's":"they're")+" removed from the list.");
+  if(!confirm((list.length===1?(rm.length?'Remove "'+list[0].title+'"?':'Delete the video of "'+list[0].title+'"?'):'Delete '+list.length+' vlogs?')+'\n\n'+lines.join('\n\n'))) return;
   $("vlDelMany").disabled=true;
   let r,j; try{ r=await fetch("/api/vlogs/delete-videos",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ids:list.map(v=>v.id)})}); j=await r.json(); }
   catch(e){ r={ok:false}; j={error:"Couldn't reach Pit Crew. Is the app window still open?"}; }
