@@ -93,6 +93,7 @@ The code is split so two people can work on different features without touching 
 | `static/index.html` | The page skeleton: lists the CSS and JS files and includes each `sections/*.html` (the `/` route fills them in). |
 | `static/js/core.js` | `$()`, `fmt()`, `esc()`, `show(step)` and the shared page state (`job`, `jobId`, `poll`, `count`). |
 | `static/css/tokens.css`, `base.css`, `buttons.css`, `fields.css`, `cards.css`, `shell.css` | The look shared by every screen. |
+| `static/css/theme.css` | The Pit Crew look on top of everything (loads after every screen's CSS): carbon glass panels, YouTube-red buttons and glow, the checkered eyebrow, the sidebar rail, F1 start lights on Making, hazard-stripe progress bars, the pit-lane sign-in backdrop. Colours only from `tokens.css` (contrast-checked). Fonts: Unbounded (headings, wordmark), Plus Jakarta Sans (text), JetBrains Mono (numbers, labels). The logo is inline SVG in `sections/sidebar.html` and `sections/auth.html` (give each copy its own ids). |
 
 **Rules for keeping it modular**
 
