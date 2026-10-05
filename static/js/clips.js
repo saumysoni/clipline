@@ -5,7 +5,8 @@ let clData=[], clStatus="", clVlog="", clPicked=new Set(), clTimer=null;
 const clKey=c=>c.job+":"+c.idx;
 async function openClips(vlog){
   clearInterval(poll); clVlog=vlog||""; clStatus=""; location.hash="clips"+(clVlog?"/"+clVlog:"");
-  show(9); await loadClips();
+  show(9); $("s9").classList.remove("selecting"); clPicked.clear(); $("clSelect").lastChild.textContent="Select"; $("clSelect").setAttribute("aria-pressed",false);
+  await loadClips();
 }
 async function loadClips(){
   clearTimeout(clTimer);
@@ -69,8 +70,8 @@ function paintClips(){
   $("clVlog").value=clVlog;
   const one=vlogs.find(c=>c.job===clVlog);
   $("clTitle").textContent = one ? one.vlog : "Your Shorts & Reels";
-  $("clLede").textContent = one ? "The Shorts and Reels from this vlog. Tick drafts to schedule several at once."
-                                : "Every clip Pit Crew made, from all your vlogs. Tick drafts to schedule several at once.";
+  $("clLede").textContent = one ? "The Shorts and Reels from this vlog. Use Select to schedule or delete several at once."
+                                : "Every clip Pit Crew made, from all your vlogs. Use Select to schedule or delete several at once.";
   $("clAdd").hidden = !one || one.video_deleted;
   // status chips with counts
   const base=clFiltered(), n=st=>base.filter(c=>!st||c.status===st).length;
@@ -87,7 +88,7 @@ function paintClips(){
     const pick=el.querySelector(".cl-pick input");
     if(pick) pick.onchange=()=>{ pick.checked?clPicked.add(el.dataset.k):clPicked.delete(el.dataset.k); el.classList.toggle("on",pick.checked); clDock(); };
     el.querySelector(".cl-an").onclick=()=>{
-      if(c.youtube&&c.youtube.video_id&&c.youtube.state==="posted") openShortAnalytics(c.youtube.video_id); else openAnalytics(c.job,"instagram");
+      if(c.youtube&&c.youtube.video_id&&c.youtube.state==="posted") openShortAnalytics(c.youtube.video_id,c.youtube.channel); else openAnalytics(c.job,"instagram");
     };
     el.querySelector(".cl-ed").onclick=()=>openJob(c.job,c.idx);
     const del=el.querySelector(".cl-del"); if(del) del.onclick=()=>clDelete([c]);
@@ -145,7 +146,14 @@ async function clDelete(list){
   loadClips();
 }
 $("clDelMany").onclick=()=>clDelete(clData.filter(c=>clPicked.has(clKey(c))));
-$("clClear").onclick=()=>{ clPicked.clear(); paintClips(); };
+$("clClear").onclick=()=>clSelecting(false);
+// Ticking clips (to schedule or delete several) is a mode: the tick boxes only show after Select.
+function clSelecting(on){
+  $("s9").classList.toggle("selecting",on); if(!on) clPicked.clear();
+  $("clSelect").lastChild.textContent=on?"Cancel":"Select"; $("clSelect").setAttribute("aria-pressed",on);
+  paintClips();
+}
+$("clSelect").onclick=()=>clSelecting(!$("s9").classList.contains("selecting"));
 // ---- schedule several
 $("clSchedOpen").onclick=()=>{
   const n=clPicked.size;
@@ -177,7 +185,7 @@ $("clSchedGo").onclick=async()=>{
   catch(e){ r={ok:false}; j={error:"Couldn't reach Pit Crew. Is the app window still open?"}; }
   $("clSchedGo").disabled=false;
   if(!r.ok){ $("clSchedErr").textContent=j.error||"Couldn't schedule them."; if(j.signin==="youtube") signIn(); else if(j.signin==="instagram") igSignIn(); return; }
-  $("clSched").close(); clPicked.clear();
+  $("clSched").close(); clPicked.clear(); $("s9").classList.remove("selecting"); $("clSelect").lastChild.textContent="Select"; $("clSelect").setAttribute("aria-pressed",false);
   const parts=[j.youtube&&j.youtube+" to YouTube", j.instagram&&j.instagram+" to Instagram"].filter(Boolean);
   clToast("Scheduled "+parts.join(" and "), $("clWhen").value==="now"?"They're going out now.":"See them under Scheduled.");
   loadClips();

@@ -179,13 +179,15 @@ def dashboard(user_id, days=28, clipline_ids=()):
     return out
 
 
-def short_detail(user_id, video_id, days=28):
-    """One Short: day-by-day views, the audience-retention curve and how viewers found it."""
-    yt3, ya = _services(user_id)
+def short_detail(user_id, video_id, channel=None):
+    """One Short over its whole life, asked on its own channel: day-by-day views, the audience-retention curve, how
+    viewers found it. Views, likes and comments are YouTube's live counts (what Studio shows); the Analytics API's
+    totals are ~2 days behind, so they're only used for what has no live count (average view, % viewed, subscribers)."""
+    yt3, ya = _services(user_id, channel)
     end = date.today()
     meta = _videos(yt3, [video_id]).get(video_id, {})
-    start = end - timedelta(days=days - 1) if days else \
-        (datetime.fromisoformat(meta["published"].replace("Z", "+00:00")).date() if meta.get("published") else date(2005, 4, 23))
+    start = (datetime.fromisoformat(meta["published"].replace("Z", "+00:00")).date() - timedelta(days=1)
+             if meta.get("published") else date(2005, 4, 23))
     f = f"video=={video_id}"
     out = {"short": meta, "full": True}
     try:
@@ -202,6 +204,8 @@ def short_detail(user_id, video_id, days=28):
         out["totals"] = tot[0] if tot else {}
     except NeedsReconnect:
         out["full"] = False
+    if meta:  # live counts: up to date, and the same numbers YouTube Studio shows
+        out.setdefault("totals", {}).update(views=meta["live_views"], likes=meta["live_likes"], comments=meta["live_comments"])
     return out
 
 
@@ -260,9 +264,17 @@ def first_week_views(user_id, videos):
         by_channel.setdefault(v.get("channel"), []).append(v)
     for channel, vids in by_channel.items():
         try:
-            _, ya = _services(user_id, channel)
+            yt3, ya = _services(user_id, channel)
         except RuntimeError:
             continue  # that channel isn't connected any more
+        # Analytics numbers are ~2 days behind, so a Short in its first days would show 0. Until its first week (and
+        # the delay) is over, use YouTube's live count instead: for a Short under 7 days old that *is* its first week so far.
+        young = [v["id"] for v in vids if today - v["published"] < timedelta(days=9)]
+        try:
+            live = {k: m["live_views"] for k, m in _videos(yt3, young).items()} if young else {}
+        except Exception as e:  # noqa: BLE001
+            print("Couldn't get live view counts:", repr(e)[:200])
+            live = {}
         for v in vids:
             key = (channel, v["id"])
             hit = _WEEK.get(key)
@@ -280,6 +292,8 @@ def first_week_views(user_id, videos):
                 continue
             views = int((rows[0] if rows else {}).get("views", 0) or 0)
             complete = today - start >= timedelta(days=9)  # 7 days + YouTube's delay
+            if not complete and v["id"] in live:
+                views = max(views, live[v["id"]]) if today - start < timedelta(days=7) else max(views, 0) or live[v["id"]]
             _WEEK[key] = (time.time(), views, complete)
             out[v["id"]] = {"views": views, "complete": complete}
     return out

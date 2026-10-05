@@ -10,8 +10,10 @@
         <button class="ghost" id="vlNew" type="button"><span class="ms" aria-hidden="true">add</span>New vlog</button>
       </div>
       <div class="vl-bar" id="vlBar" hidden>
-        <label class="vl-all"><input type="checkbox" id="vlAll"><span id="vlAllT">Select all</span></label>
-        <button type="button" class="ghost vl-del-many" id="vlDelMany" hidden><span class="ms" aria-hidden="true">delete</span><span>Delete videos</span></button>
+        <button type="button" class="ghost sm sel-toggle" id="vlSelect"><span class="ms" aria-hidden="true">checklist</span><span>Select</span></button>
+        <label class="vl-all sel-only"><input type="checkbox" id="vlAll"><span id="vlAllT">Select all</span></label>
+        <div class="cl-chips vl-chips" id="vlChips" role="group" aria-label="Show"></div>
+        <button type="button" class="ghost vl-del-many sel-only" id="vlDelMany" hidden><span class="ms" aria-hidden="true">delete</span><span>Delete videos</span></button>
         <div class="vl-find"><span class="ms" aria-hidden="true">search</span><input id="vlFind" type="search" maxlength="120" aria-label="Find a vlog by title" placeholder="Find a vlog by title"></div>
       </div>
       <div class="err" id="vlErr" role="alert"></div>

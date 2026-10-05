@@ -2,6 +2,7 @@
 Analytics page: how the creator's Shorts are doing (YouTube now; Instagram once connected).
 The numbers come from youtube/analytics.py; this file only serves them to the page.
 """
+import re
 import traceback
 
 from flask import g, jsonify, request
@@ -59,7 +60,10 @@ def analytics_short(video_id):
     if not video_id.replace("-", "").replace("_", "").isalnum() or len(video_id) > 20:
         return jsonify(error="That isn't a YouTube video."), 400
     try:
-        return jsonify(yt.analytics_short(g.user["id"], video_id, _days()))
+        channel = request.args.get("channel") or None  # the channel it went up on (several can be connected)
+        if channel and not re.fullmatch(r"UC[\w-]{22}", channel):
+            channel = None
+        return jsonify(yt.analytics_short(g.user["id"], video_id, channel=channel))
     except Exception as e:  # noqa: BLE001
         traceback.print_exc()
         return jsonify(error=yt.upload_error_message(e)), 502

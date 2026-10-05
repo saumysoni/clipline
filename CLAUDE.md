@@ -258,7 +258,9 @@ The code is split so two people can work on different features without touching 
     asked on connect but optional. Without it (or without "YouTube Analytics API" enabled in Google Cloud),
     `youtube/analytics.py` falls back to live counts of Pit Crew's Shorts and adds `notes=["reconnect"]`, and the page
     shows "Connect again". Shorts are filtered with `creatorContentType==SHORTS`; numbers lag ~2 days. Results are
-    cached 10 minutes per channel. Charts: one axis, colours from `css/analytics.css` tokens (validated), text never in
+    cached 10 minutes per channel. One Short's window (`short_detail`) is its whole life on its own channel (`?channel=`),
+    with YouTube's **live** views/likes/comments (what Studio shows; Analytics lags ~2 days). First-week views use the live
+    count until the week + delay is over, so new clips never show a false 0. Count axes use whole-number steps (`countMax`). Charts: one axis, colours from `css/analytics.css` tokens (validated), text never in
     series colours, a Table button on every chart.
 18. **Open in Studio goes through Google sign-in** (`studioLink()` in `js/core.js`:
     `accounts.google.com/ServiceLogin?service=youtube&continue=<studio link>`), so a signed-out creator lands on the

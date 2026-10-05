@@ -1,8 +1,11 @@
 // Vlogs page (home): every vlog uploaded, newest first, as a list like YouTube's search results (web/vlogs.py):
 // a landscape picture on the left, title and details on the right. Tick vlogs (or Select all) to delete several
 // videos at once; their Shorts stay.
-let vlData=null, vlPicked=new Set();
-async function openVlogs(){ clearInterval(poll); location.hash="vlogs"; show(7); await loadVlogs(); }
+let vlData=null, vlPicked=new Set(), vlStatus="";
+// Status filter: a vlog shows under Drafts / Scheduled / Posted when at least one of its Shorts is in that state.
+const VL_STATUS=[["","All",()=>true],["drafts","Drafts",v=>v.drafts>0],["scheduled","Scheduled",v=>v.scheduled>0],
+  ["posted","Posted",v=>v.posted>0],["making","Being made",v=>v.status==="working"],["stopped","Stopped",v=>v.status==="error"]];
+async function openVlogs(){ clearInterval(poll); location.hash="vlogs"; show(7); vlSelecting(false); await loadVlogs(); }
 async function loadVlogs(){
   try{ const r=await fetch("/api/vlogs"); if(!r.ok) throw 0; vlData=(await r.json()).items||[]; }
   catch(e){ if(!vlData) $("vlErr").textContent="Couldn't load your vlogs. Is Pit Crew still running?"; return; }
@@ -64,8 +67,16 @@ function vlRow(v){
     '</div></article>';
 }
 function vlShown(){
-  const q=$("vlFind").value.trim().toLowerCase();
-  return vlData.filter(v=>!v.video_deleted).filter(v=>!q || v.title.toLowerCase().includes(q));
+  const q=$("vlFind").value.trim().toLowerCase(), f=(VL_STATUS.find(s=>s[0]===vlStatus)||VL_STATUS[0])[2];
+  return vlBase().filter(f).filter(v=>!q || v.title.toLowerCase().includes(q));
+}
+function vlBase(){ return vlData.filter(v=>!v.video_deleted); }
+function vlChips(){
+  const base=vlBase(), n=f=>base.filter(f).length;
+  if(vlStatus && !n(VL_STATUS.find(s=>s[0]===vlStatus)[2])) vlStatus="";
+  $("vlChips").innerHTML=VL_STATUS.filter(([st,,f])=>!st||n(f)||["drafts","scheduled","posted"].includes(st))
+    .map(([st,lab,f])=>'<button type="button" class="cl-chip" data-st="'+st+'" aria-pressed="'+(vlStatus===st)+'">'+lab+' <span>'+n(f)+'</span></button>').join("");
+  $("vlChips").querySelectorAll(".cl-chip").forEach(b=>b.onclick=()=>{ vlStatus=b.dataset.st; paintVlogs(); });
 }
 function paintVlogs(){
   const g=$("vlGrid");
@@ -77,8 +88,10 @@ function paintVlogs(){
       '<span>Upload a vlog and Pit Crew turns it into Shorts and Reels.</span><button type="button" class="primary" id="vlFirst"><span class="ms" aria-hidden="true">add</span>Upload your first vlog</button></div>';
     $("vlFirst").onclick=openCreate; vlBar(); return;
   }
+  vlChips();
   const list=vlShown();
-  g.innerHTML = list.length ? list.map(vlRow).join("") : '<div class="card vl-empty"><span class="ms" aria-hidden="true">search</span><b>No vlog matches</b><span>Try another word from its title.</span></div>';
+  g.innerHTML = list.length ? list.map(vlRow).join("") : '<div class="card vl-empty"><span class="ms" aria-hidden="true">search</span><b>No vlog matches</b><span>'+
+    (vlStatus?'Try another filter'+($("vlFind").value.trim()?' or word':'')+'.':'Try another word from its title.')+'</span></div>';
   g.querySelectorAll(".vrow").forEach(el=>{
     const id=el.dataset.id, v=vlData.find(x=>x.id===id);  // ready: its Shorts & Reels; still being made (or stopped): its progress
     el.querySelectorAll(".vl-open").forEach(b=>b.onclick=()=>v.status==="ready"?openClips(id):startPolling(id));
@@ -103,6 +116,13 @@ $("vlAll").onchange=()=>{
   if($("vlAll").checked) can.forEach(v=>vlPicked.add(v.id)); else vlPicked.clear();
   paintVlogs();
 };
+// Ticking vlogs (to delete several) is a mode: the tick boxes only show after Select.
+function vlSelecting(on){
+  $("s7").classList.toggle("selecting",on); if(!on) vlPicked.clear();
+  $("vlSelect").lastChild.textContent=on?"Cancel":"Select"; $("vlSelect").setAttribute("aria-pressed",on);
+  if(vlData) paintVlogs();
+}
+$("vlSelect").onclick=()=>vlSelecting(!$("s7").classList.contains("selecting"));
 $("vlFind").oninput=()=>{ if(vlData) paintVlogs(); };
 $("vlDelMany").onclick=()=>vlDelete(vlData.filter(v=>vlPicked.has(v.id)));
 // Deletes only the vlogs' videos: their Shorts, thumbnails, transcripts and posts stay.
@@ -122,5 +142,6 @@ async function vlDelete(list){
   if(!r.ok){ $("vlErr").textContent=j.error||"Couldn't delete the videos."; return; }
   $("vlErr").textContent = j.skipped.length ? j.skipped.length+" couldn't be deleted right now (being made, remade or posted). Try again when they're done." : "";
   j.deleted.forEach(id=>{ vlPicked.delete(id); if(typeof pkVideoReset==="function") pkVideoReset(id); });
+  if(!vlPicked.size) vlSelecting(false);
   loadVlogs();
 }

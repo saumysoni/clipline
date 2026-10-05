@@ -172,11 +172,14 @@ function dayLabel(s){ const d=new Date(s+"T00:00:00"); return d.toLocaleDateStri
 
 // ---------- line chart (one axis; series share it)
 const tip=document.createElement("div"); tip.className="an-tip"; tip.hidden=true; document.body.appendChild(tip);
+// Counts (views, likes...) get whole-number axis steps: 4 steps of at least 1, never 0.25 shown as "0".
+function countMax(v){ const m=niceMax(v); return m<40 ? Math.max(1,Math.ceil(m/4))*4 : m; }
 function niceMax(v){ if(v<=0) return 1; const p=Math.pow(10,Math.floor(Math.log10(v))), f=v/p; return (f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10)*p; }
 function lineChart(el,o){
   const W=Math.max(240,el.clientWidth||600), H=o.height||220, bare=!!o.bare;
   const L=bare?2:46, R=bare?6:54, T=bare?6:12, Bm=bare?4:26, n=o.x.length;
-  const max=niceMax(Math.max(...o.series.flatMap(s=>s.values),0)*(o.headroom||1.08));
+  const top=Math.max(...o.series.flatMap(s=>s.values),0)*(o.headroom||1.08);
+  const max=o.series.every(s=>s.values.every(Number.isInteger)) && !o.fmtY ? countMax(top) : niceMax(top);
   const X=i=>L+(n<2?0:i*(W-L-R)/(n-1)), Y=v=>T+(H-T-Bm)*(1-v/max);
   const fy=o.fmtY||compact, fx=o.fmtX||(v=>v);
   let s='<svg viewBox="0 0 '+W+' '+H+'" height="'+H+'" role="img" tabindex="0" aria-label="'+esc(o.series.map(x=>x.name).join(", "))+' chart">';
@@ -224,20 +227,22 @@ function lineChart(el,o){
 // ---------- one Short
 $("anDClose").onclick=()=>$("anDetail").close();
 $("anDetail").addEventListener("close",()=>{ tip.hidden=true; });
-async function openShortAnalytics(id){
+async function openShortAnalytics(id,channel){
   const s=((anData&&anData.youtube&&anData.youtube.shorts)||[]).find(x=>x.id===id)||{id};
   $("anDBody").innerHTML=shortHead(s)+'<div class="an-card an-empty"><span class="spin" aria-hidden="true"></span><p>Getting this Short\'s numbers...</p></div>';
   $("anDetail").showModal();
-  let j; try{ j=await (await fetch("/api/analytics/short/"+encodeURIComponent(id)+"?days="+anDays)).json(); }catch(e){ j={error:"Couldn't reach Pit Crew."}; }
+  let j; try{ j=await (await fetch("/api/analytics/short/"+encodeURIComponent(id)+(channel?"?channel="+encodeURIComponent(channel):""))).json(); }catch(e){ j={error:"Couldn't reach Pit Crew."}; }
   if(j.error){ $("anDBody").innerHTML=shortHead(s)+'<p class="err"></p>'; $("anDBody").querySelector(".err").textContent=j.error; return; }
   const m={...s,...(j.short||{})}, t=j.totals||{}, B=[shortHead(m)];
   B.push('<div class="an-tiles">'+tile("visibility","Views",compact(t.views!=null?t.views:m.views),"")+tile("percent","Avg. viewed",t.averageViewPercentage!=null?pct(t.averageViewPercentage):"–","")+
     tile("timer","Avg. view",t.averageViewDuration!=null?secs(t.averageViewDuration):"–","")+tile("favorite","Likes",compact(t.likes!=null?t.likes:m.likes),"")+
     tile("chat_bubble","Comments",compact(t.comments!=null?t.comments:m.comments),"")+tile("person_add","Subscribers",t.subscribersGained!=null?"+"+compact(t.subscribersGained):"–","")+'</div>');
   if(!j.full) B.push('<p class="sub">Connect YouTube once more to see this Short\'s retention curve and where its viewers came from.</p>');
-  const ret=j.retention||[], dd=j.daily||[], tr=j.traffic||[];
+  B.push('<p class="sub an-d-note">Since it was posted. Views, likes and comments are live; the rest come from YouTube Analytics, about 2 days behind.</p>');
+  const ret=j.retention||[], dd=j.daily||[], tr=j.traffic||[], len=m.secs||0;
+  const at=p=>len?secs(len*p/100)+" ("+Math.round(p)+"%)":Math.round(p)+"%";  // a point in the Short: its time, and how far in
   if(ret.length>1) B.push(card("anRet","Audience retention","How many viewers are still watching at each point of the Short (over 100% means people rewatch)",'<div class="an-viz" id="anRetViz"></div>',
-    table(["Point in the Short","Still watching"],ret.map(r=>[r.at+"%",pct(r.watching)]),[1])));
+    table(["Point in the Short","Still watching"],ret.filter((r,i)=>i%5===0||i===ret.length-1).map(r=>[at(r.at),pct(r.watching)]),[1])));
   if(dd.length>1) B.push(card("anDDaily","Views per day","",'<div class="an-viz" id="anDDailyViz"></div>',table(["Day","Views"],dd.map(r=>[r.day,full(r.views)]),[1])));
   if(tr.length){ const tot=tr.reduce((a,r)=>a+r.views,0)||1;
     B.push(card("anDTraffic","How viewers found it","",barsHTML(tr.slice(0,6).map(r=>({nm:TRAFFIC[r.source]||r.source,v:r.views/tot*100,lab:pct(r.views/tot*100)}))),
