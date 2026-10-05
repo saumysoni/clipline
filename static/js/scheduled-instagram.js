@@ -20,7 +20,7 @@ async function loadIgScheduled(){
     const when=p.status==="done"?p.posted_at:p.when;
     const line=p.status==="waiting"?(p.when?whenText(p.when):"Going out in a moment"):p.status==="done"?(when?whenText(when):"Posted"):p.status==="posting"?(p.step||"Posting")+"...":p.error||"";
     return '<li data-i="'+i+'"><img src="/media/'+esc(p.job)+'/'+esc(p.thumb)+'" alt="">'+
-      '<div><div class="pt">'+esc(p.title)+'</div><div class="pv">From '+esc(p.vlog)+'</div>'+
+      '<div><div class="pt">'+esc(p.title)+'</div><div class="pv">From '+esc(p.vlog)+((ig.accounts||[]).length>1&&p.username?' · @'+esc(p.username):'')+'</div>'+
       '<div class="pw">'+(tag[p.status]||"")+'<span>'+esc(line)+'</span></div>'+
       '<div class="pa">'+(p.permalink?'<a href="'+esc(p.permalink)+'" target="_blank" rel="noopener">Open on Instagram<span class="ms" aria-hidden="true">open_in_new</span></a>':'')+
         (["error","check"].includes(p.status)?'<button type="button" class="linkbtn rt"><span class="ms" aria-hidden="true">refresh</span>Try again</button>':'')+

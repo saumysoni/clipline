@@ -1,8 +1,8 @@
-// Going back to making Shorts from Analytics or On YouTube: the "Make Shorts" link and the step list return
-// to the vlog that was open (its review or progress), or to Set up when none was.
-function openMaking(){
-  if(jobId) startPolling(jobId);
-  else { location.hash=""; show(1); }
-}
-$("makeNav").onclick=openMaking;
-$("steps").addEventListener("click",()=>{ if($("steps").classList.contains("away")) openMaking(); });
+// Sidebar: + Create (a new vlog), Vlogs, Settings and the Account row. Scheduled and Analytics are wired in
+// on-youtube.js and analytics.js.
+function openCreate(){ clearInterval(poll); jobId=null; location.hash="new"; show(1); }
+$("createBtn").onclick=openCreate;
+$("vlNew").onclick=openCreate;
+$("vlogsNav").onclick=()=>openVlogs();
+$("clipsNav").onclick=()=>openClips();
+$("settingsNav").onclick=()=>openSettings();

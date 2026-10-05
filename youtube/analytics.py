@@ -16,6 +16,7 @@ import threading
 import time
 from datetime import date, datetime, timedelta
 
+from accounts import db
 from youtube.connection import load_creds
 
 
@@ -25,13 +26,17 @@ _CACHE, _LOCK = {}, threading.Lock()
 
 
 class NeedsReconnect(Exception):
-    """The connection can't read analytics: connect YouTube again (and enable the API)."""
+    """The connection can't read analytics. enable_url is set when the cause is the YouTube Analytics API being
+    switched off in the Google Cloud project (reconnecting won't help then: it has to be enabled there)."""
+    def __init__(self, msg, enable_url=""):
+        super().__init__(msg)
+        self.enable_url = enable_url
 
 
-def _services(user_id):
+def _services(user_id, channel=None):
     from googleapiclient.discovery import build
 
-    creds = load_creds(user_id)
+    creds = load_creds(user_id, channel)
     if not creds:
         raise RuntimeError("Your YouTube channel isn't connected. Click Connect YouTube, then try again.")
     return (build("youtube", "v3", credentials=creds, cache_discovery=False),
@@ -50,7 +55,12 @@ def _report(ya, start, end, metrics, dimensions=None, filters=SHORTS, sort=None,
         resp = ya.reports().query(**q).execute()
     except HttpError as e:
         if e.resp.status in (401, 403):
-            raise NeedsReconnect(str(e)) from e
+            body = e.content.decode("utf-8", "replace") if isinstance(e.content, bytes) else str(e.content)
+            off = "has not been used in project" in body or "SERVICE_DISABLED" in body or "accessNotConfigured" in body
+            proj = re.search(r"project[= ](\d+)", body)
+            url = ("https://console.developers.google.com/apis/api/youtubeanalytics.googleapis.com/overview"
+                   + (f"?project={proj.group(1)}" if proj else "")) if off else ""
+            raise NeedsReconnect(str(e), url) from e
         raise
     names = [h["name"] for h in resp.get("columnHeaders", [])]
     return [dict(zip(names, row)) for row in resp.get("rows") or []]
@@ -109,8 +119,9 @@ def _totals(ya, start, end):
 
 
 def dashboard(user_id, days=28, clipline_ids=()):
-    """Everything for the Analytics page, for the last `days` days (0 = since the channel started)."""
-    key = (user_id, days)
+    """Everything for the Analytics page (the active channel), for the last `days` days (0 = since the channel
+    started)."""
+    key = (user_id, (db.connection(user_id, "youtube") or {}).get("account_id"), days)  # per channel
     with _LOCK:
         hit = _CACHE.get(key)
         if hit and time.time() - hit[0] < CACHE_SECS:
@@ -151,9 +162,10 @@ def dashboard(user_id, days=28, clipline_ids=()):
             genders[r["gender"]] = genders.get(r["gender"], 0) + r["viewerPercentage"]
         out["ages"] = [{"group": a.replace("age", "").replace("-", "–"), "pct": round(p, 1)} for a, p in sorted(ages.items())]
         out["genders"] = [{"gender": g, "pct": round(p, 1)} for g, p in sorted(genders.items(), key=lambda x: -x[1])]
-    except NeedsReconnect:
+    except NeedsReconnect as e:
         out["full"] = False
         out["notes"].append("reconnect")
+        out["enable_url"] = e.enable_url  # the API is switched off in Google Cloud: say exactly that
         meta = _videos(yt3, list(clip))
         out["shorts"] = sorted(({**m, "views": m["live_views"], "likes": m["live_likes"],
                                  "comments": m["live_comments"], "clipline": True} for m in meta.values()),
@@ -232,3 +244,42 @@ def insights(d):
         shorts_feed = sum(r["views"] for r in d["traffic"] if r["source"] == "SHORTS")
         tips.append({"kind": "feed", "text": f"{100 * shorts_feed / total:.0f}% of your Shorts views come from the Shorts feed."})
     return tips
+
+
+_WEEK = {}  # (channel, video id) -> (time asked, views in its first 7 days, complete?)
+
+
+def first_week_views(user_id, videos):
+    """Views each Short got in its first 7 days on YouTube: {video_id: {"views", "complete"}} for
+    videos = [{"id", "published" (date), "channel"}]. "complete" is False while the 7 days (plus YouTube's ~2-day
+    delay) aren't over yet: the number is still growing. Each Short is asked on its own channel; finished numbers
+    are kept, the rest re-asked after CACHE_SECS."""
+    out, today = {}, date.today()
+    by_channel = {}
+    for v in videos:
+        by_channel.setdefault(v.get("channel"), []).append(v)
+    for channel, vids in by_channel.items():
+        try:
+            _, ya = _services(user_id, channel)
+        except RuntimeError:
+            continue  # that channel isn't connected any more
+        for v in vids:
+            key = (channel, v["id"])
+            hit = _WEEK.get(key)
+            if hit and (hit[2] or time.time() - hit[0] < CACHE_SECS):
+                out[v["id"]] = {"views": hit[1], "complete": hit[2]}
+                continue
+            start = v["published"]
+            end = min(start + timedelta(days=6), today)
+            try:
+                rows = _report(ya, start, end, "views", filters=f"video=={v['id']}")
+            except NeedsReconnect:
+                return out
+            except Exception as e:  # noqa: BLE001  (one Short's numbers never stop the rest)
+                print("Couldn't get first-week views for", v["id"], repr(e)[:200])
+                continue
+            views = int((rows[0] if rows else {}).get("views", 0) or 0)
+            complete = today - start >= timedelta(days=9)  # 7 days + YouTube's delay
+            _WEEK[key] = (time.time(), views, complete)
+            out[v["id"]] = {"views": views, "complete": complete}
+    return out

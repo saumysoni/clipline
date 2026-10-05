@@ -54,7 +54,8 @@ async function postShorts(){
   let r, j;
   try{
     r=await fetch("/api/schedule/"+jobId,{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({shorts,schedule:mode,tz,start:$("schStart").value,every:+$("schEvery").value})});
+      body:JSON.stringify({shorts,schedule:mode,tz,start:$("schStart").value,every:+$("schEvery").value,
+        channel:yt.channel&&yt.channel.id})});  // the channel this page says it's posting to
     j=await r.json();
   }catch(e){ $("schedBtn").disabled=false; $("err3").textContent="Couldn't reach Pit Crew. Is the app window still open?"; return; }
   if(!r.ok){

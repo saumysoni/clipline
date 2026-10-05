@@ -1,0 +1,21 @@
+  <!-- Vlogs: every vlog uploaded to Pit Crew, newest first -->
+  <section id="s7" hidden>
+    <div class="work wide">
+      <div class="page-head">
+        <div>
+          <div class="eyebrow">Vlogs</div>
+          <h1>Your vlogs</h1>
+          <p class="lede">Every vlog you've uploaded, and the Shorts and Reels made from it.</p>
+        </div>
+        <button class="ghost" id="vlNew" type="button"><span class="ms" aria-hidden="true">add</span>New vlog</button>
+      </div>
+      <form class="ask-search" id="vlSearchForm" role="search">
+        <span class="ms" aria-hidden="true">search</span>
+        <input id="vlSearch" type="search" maxlength="200" aria-label="Search your vlogs" placeholder="Search what you said or showed in any vlog: night market, snow, sunset...">
+        <button class="primary" type="submit">Search</button>
+      </form>
+      <div class="ask-results" id="vlResults" hidden></div>
+      <div class="err" id="vlErr" role="alert"></div>
+      <div class="vlog-grid" id="vlGrid"></div>
+    </div>
+  </section>

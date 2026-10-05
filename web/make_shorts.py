@@ -5,6 +5,7 @@ import json
 import os
 import shutil
 import threading
+import time
 import traceback
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -49,6 +50,10 @@ def make_shorts(job_id, src, link, count, style, vlog=None, note="", must=()):
         update(job_id, little_speech=len(tr["words"]) < 60 * tr["duration"] / 60)
 
         update(job_id, stage=2, pct=0, msg="Finding the best moments")
+        # The copy for "Choose on the video" starts now (the AI's turn is mostly waiting), so it's ready by Review.
+        # Not needed when every browser can play the original as it is (the picker plays that instead).
+        if not pipeline.plays_everywhere(src, meta):
+            start_preview(job_id)
         vlog = dict(vlog or {})
         if vlog.get("youtube_url"):
             try:  # the page fills in title and description; this adds the video id and the channel's @handle
@@ -90,8 +95,13 @@ def make_shorts(job_id, src, link, count, style, vlog=None, note="", must=()):
                 name = thumb.result()  # first: making the thumbnail also notes its look and folder on m
                 shorts.append({**m, "idx": i, "video": video, "thumb": name, "keep": True, "cx": cx})
                 update(job_id, shorts=shorts)
-        update(job_id, stage=5, pct=100, msg="Done", status="ready", shorts=shorts)
-        start_preview(job_id)  # ready by the time the creator wants to choose a scene on the video
+        done = time.time()  # the vlog's video and these drafts are kept from here (web/retention.py)
+        update(job_id, stage=5, pct=100, msg="Done", status="ready", last_edit_at=done,
+               shorts=[{**s, "edited_at": done} for s in shorts])
+        if not pipeline.plays_everywhere(src, meta):
+            start_preview(job_id)  # in case it failed earlier: tries once more (nothing if it's ready or under way)
+        from web.ask import start_scene_notes  # what's seen in the vlog, for Ask your vlog (in the background)
+        start_scene_notes(job_id)
     except Exception as e:
         traceback.print_exc()
         update(job_id, status="error", error=str(e))
@@ -138,7 +148,8 @@ def start():
     elif not link:
         return jsonify(error="Add a video file or a Google Drive link."), 400
     with LOCK:
-        JOBS[job_id] = {"id": job_id, "owner": g.user["id"], "status": "working", "stage": 0, "pct": 0, "msg": "",
+        JOBS[job_id] = {"id": job_id, "owner": g.user["id"], "created_at": time.time(),
+                        "status": "working", "stage": 0, "pct": 0, "msg": "",
                         "count": count, "style": style, "schedule": schedule, "name": name,
                         "stages": STAGES, "shorts": [], "vlog": vlog, "note": note,
                         "must": [{"start": a, "end": b} for a, b in must]}

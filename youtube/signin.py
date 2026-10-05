@@ -7,7 +7,7 @@ import secrets
 import urllib.request
 
 from youtube.config import CONNECT_SCOPES, LOGIN_SCOPES, NET_TIMEOUT, YOUTUBE_SCOPE, client_config, client_id
-from youtube.connection import _CHANNEL, _lookup_channel, _quick_request, _save_token
+from youtube.connection import _lookup_channel, _quick_request, save_connection
 
 
 def _allow_http(redirect_uri):
@@ -100,6 +100,5 @@ def finish_youtube(args, pending, user_id):
     if not channel:
         raise RuntimeError("This Google account has no YouTube channel. Create one at youtube.com, or connect "
                            "with the account that owns your channel.")
-    _save_token(user_id, creds)
-    _CHANNEL[user_id] = channel
+    save_connection(user_id, creds, channel)
     return channel

@@ -33,6 +33,12 @@ function wireTile(el){
   if(x) x.onclick=e=>{ e.stopPropagation(); closeTile(); };
   const title=el.querySelector("input.title"), tt=el.querySelector(".tile-title");
   if(title && tt) title.addEventListener("input",()=>{ tt.textContent=title.value; });
+  // Saved as it's edited (a second after typing stops), so the new title is used wherever the Short is posted from.
+  if(title) title.addEventListener("input",()=>{ clearTimeout(title._save); title._save=setTimeout(()=>{
+    const s=job.shorts.find(x=>x.idx===+el.dataset.idx), v=title.value.trim();
+    if(!s || !v || v===s.title) return;
+    s.title=v; fetch("/api/clips/"+job.id+"/"+s.idx+"/title",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({title:v})}).catch(()=>{});
+  },1000); });
   if(openIdx===el.dataset.idx) openTile(el);  // redrawn while open (a new thumbnail, a remade Short)
 }
 $("tileShade").onclick=closeTile;

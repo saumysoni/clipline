@@ -1,0 +1,20 @@
+/* Channel switcher menu (js/account-switcher.js). */
+.switcher{position:fixed;z-index:60;width:min(300px,calc(100vw - 16px));background:var(--panel);border:1px solid var(--line-2);border-radius:14px;padding:6px;box-shadow:0 16px 40px rgba(0,0,0,.35);display:flex;flex-direction:column;gap:2px}
+.switcher .sw-head{font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);padding:8px 10px 4px}
+.switcher button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:0;background:transparent;color:var(--ink);font:inherit;font-size:.88rem;padding:8px 10px;border-radius:10px;cursor:pointer}
+.switcher button:hover,.switcher button:focus-visible{background:var(--raised);outline:none}
+.switcher .sw-item.on{background:var(--primary-soft)}
+.switcher img,.switcher .sw-pic{width:28px;height:28px;border-radius:50%;flex:none;object-fit:cover}
+.switcher .sw-pic{display:grid;place-items:center;font-size:18px;background:var(--raised);color:var(--muted)}
+.switcher .sw-t{display:flex;flex-direction:column;min-width:0;flex:1}
+.switcher .sw-t b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.switcher .sw-t small{font-size:.76rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.switcher .sw-t small.warn{color:var(--warn)}
+.switcher .sw-check{color:var(--primary-text);font-size:20px;flex:none}
+.switcher .sw-sep{height:1px;background:var(--line);margin:4px 6px}
+.switcher .sw-act .ms{font-size:20px;width:28px;text-align:center;color:var(--muted)}
+.switcher .sw-out{color:var(--bad)}
+.switcher .sw-out .ms{color:var(--bad)}
+.switcher .sw-note{margin:4px 10px 6px;font-size:.74rem;color:var(--faint);line-height:1.4}
+.switcher .sw-setup{display:flex;gap:10px;margin:4px 10px 8px;font-size:.84rem;color:var(--muted);line-height:1.45}
+.switcher .sw-setup .ms{font-size:20px;color:var(--warn);flex:none}

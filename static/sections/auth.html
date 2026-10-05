@@ -8,8 +8,28 @@
     <label id="nameRow" hidden>Your name <input id="authName" type="text" autocomplete="name" maxlength="100" placeholder="Optional"></label>
     <label>Email <input id="authEmail" type="email" autocomplete="email" required maxlength="200"></label>
     <label>Password <input id="authPass" type="password" autocomplete="current-password" required minlength="8" maxlength="200"></label>
+    <button type="button" class="linkbtn forgot" id="forgotBtn">Forgot password?</button>
     <div class="err" id="authErr" role="alert"></div>
     <button class="primary" id="authGo" type="submit">Sign in</button>
     <p class="switch" id="authSwitchRow"><span id="authSwitchText">New to Pit Crew?</span> <button type="button" class="linkbtn" id="authSwitch">Create an account</button></p>
+  </form>
+  <form class="auth-card" id="forgotForm" novalidate hidden>
+    <div class="brand" aria-label="Pit Crew"><span class="brand-logo" aria-hidden="true"><svg class="logo" viewBox="0 0 32 32"><defs><linearGradient id="pcRedF" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF3358"/><stop offset="1" stop-color="#B3001F"/></linearGradient></defs><rect x="1" y="1" width="30" height="30" rx="8" fill="url(#pcRedF)"/><rect x="1.5" y="1.5" width="29" height="29" rx="7.5" fill="none" stroke="#fff" stroke-opacity=".18"/><g transform="translate(16 16) skewX(-14) translate(-16 -16)" fill="#fff"><rect x="8.6" y="17" width="4.4" height="7.5" rx="1.1" opacity=".55"/><rect x="14.3" y="12.5" width="4.4" height="12" rx="1.1" opacity=".8"/><rect x="20" y="7.5" width="4.4" height="17" rx="1.1"/></g></svg></span><span class="wm">Pit<b>Crew</b></span></div>
+    <h1>Reset your password</h1>
+    <p class="lede">Type the email you signed up with and we'll send you a link to choose a new password.</p>
+    <label>Email <input id="forgotEmail" type="email" autocomplete="email" required maxlength="200"></label>
+    <div class="err" id="forgotErr" role="alert"></div>
+    <div class="ok-note" id="forgotOk" role="status"></div>
+    <button class="primary" id="forgotGo" type="submit">Send reset link</button>
+    <p class="switch"><button type="button" class="linkbtn" id="forgotBack">Back to sign in</button></p>
+  </form>
+  <form class="auth-card" id="resetForm" novalidate hidden>
+    <div class="brand" aria-label="Pit Crew"><span class="brand-logo" aria-hidden="true"><svg class="logo" viewBox="0 0 32 32"><defs><linearGradient id="pcRedR" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF3358"/><stop offset="1" stop-color="#B3001F"/></linearGradient></defs><rect x="1" y="1" width="30" height="30" rx="8" fill="url(#pcRedR)"/><rect x="1.5" y="1.5" width="29" height="29" rx="7.5" fill="none" stroke="#fff" stroke-opacity=".18"/><g transform="translate(16 16) skewX(-14) translate(-16 -16)" fill="#fff"><rect x="8.6" y="17" width="4.4" height="7.5" rx="1.1" opacity=".55"/><rect x="14.3" y="12.5" width="4.4" height="12" rx="1.1" opacity=".8"/><rect x="20" y="7.5" width="4.4" height="17" rx="1.1"/></g></svg></span><span class="wm">Pit<b>Crew</b></span></div>
+    <h1>Choose a new password</h1>
+    <p class="lede">You'll be signed in straight after. Other devices are signed out.</p>
+    <label>New password <input id="resetPass" type="password" autocomplete="new-password" required minlength="8" maxlength="200" placeholder="At least 8 characters"></label>
+    <div class="err" id="resetErr" role="alert"></div>
+    <button class="primary" id="resetGo" type="submit">Save new password</button>
+    <p class="switch"><button type="button" class="linkbtn" id="resetBack">Back to sign in</button></p>
   </form>
 </div>

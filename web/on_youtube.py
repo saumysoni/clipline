@@ -42,13 +42,21 @@ def posted():
     items, live, note = posted_shorts(uid), False, None
     acct = yt.account(uid)
     me = (acct.get("channel") or {}).get("id")
-    if items and acct["signed_in"]:
+    names = {c["id"]: c.get("title", "") for c in acct["channels"]}
+    for u in items:
+        u["channel_title"] = names.get(u.get("channel")) or u.get("channel_title", "")
+    if items and acct["channels"]:
         try:
-            states = yt.video_states(yt.get_service(uid), [u["video_id"] for u in items])
+            groups = {}  # each Short is checked on the channel it went up on
             for u in items:
-                if u.get("channel") and me and u["channel"] != me:
-                    u["state"] = {"privacy": "other_channel"}
-                else:  # not found: deleted in Studio, or (older records) uploaded to another channel.
+                ch = u.get("channel") or me  # older records don't say: the active channel
+                if not ch or ch not in names:
+                    u["state"] = {"privacy": "other_channel"}  # that channel isn't connected
+                else:
+                    groups.setdefault(ch, []).append(u)
+            for ch, group in groups.items():
+                states = yt.video_states(yt.get_service(uid, ch), [u["video_id"] for u in group])
+                for u in group:  # not found: deleted in Studio, or (older records) uploaded to another channel.
                     u["state"] = states.get(u["video_id"]) or {"privacy": "missing"}  # the creator decides
             live = True
         except Exception as e:
@@ -91,7 +99,7 @@ def forget_upload(job_id, idx):
 
 GONE = ("Pit Crew can't find this Short on the YouTube channel you connected. If you deleted it in YouTube "
         "Studio, use Unmark it on the My scheduled Shorts page, then upload it again. If it's on another "
-        "channel, connect that channel first.")
+        "channel, add that channel (Channels › Add channel) first.")
 
 
 @app.post("/api/reschedule/<job_id>/<int:idx>")
@@ -104,7 +112,7 @@ def reschedule(job_id, idx):
         return jsonify(error="Wait until posting has finished."), 400
     try:
         when = yt.plan_times(1, "custom", data.get("tz"), data.get("start"))[0]
-        service = yt.get_service(g.user["id"])
+        service = yt.get_service(g.user["id"], rec.get("channel"))  # the channel it's on, not the active one
         if not yt.video_states(service, [rec["video_id"]]):
             return jsonify(error=GONE), 400
         yt.reschedule(service, rec["video_id"], when)
@@ -132,7 +140,7 @@ def repost(job_id, idx):
         return jsonify(error="Wait until posting has finished."), 400
     title = (data.get("title") or short["title"]).strip()[:95]
     try:
-        service = yt.get_service(g.user["id"])
+        service = yt.get_service(g.user["id"], rec.get("channel"))  # the channel it's on, not the active one
         state = yt.video_states(service, [rec["video_id"]]).get(rec["video_id"])
         if not state:
             return jsonify(error=GONE), 400
@@ -165,8 +173,8 @@ def repost(job_id, idx):
         POSTING.add(job_id)
         earlier = list(JOBS[job_id].get("uploads") or [])
     update_short(job_id, idx, title=title)
-    update(job_id, upload_status="starting", upload_msg="Starting")
+    update(job_id, upload_status="starting", upload_msg="Starting", upload_queue=[idx])
     item = {**short, "title": title, "replace": rec}
-    threading.Thread(target=do_upload, args=(g.user["id"], job_id, [item], "replace", [when], earlier),
-                     daemon=True).start()
+    threading.Thread(target=do_upload, args=(g.user["id"], job_id, [item], "replace", [when], earlier,
+                                             rec.get("channel")), daemon=True).start()
     return jsonify(ok=True, done="replace")

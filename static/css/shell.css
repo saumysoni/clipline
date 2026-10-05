@@ -110,3 +110,31 @@ button.pill:hover{border-color:var(--line-2);color:var(--ink)}
   .side-foot,.side-me,.who-am-i{gap:6px}
   .theme-seg button{padding:5px 6px}
 }
+/* sidebar: + Create, Account / Settings / Appearance rows, channel rows with the active account */
+.side .create{width:100%;gap:8px;padding:11px 14px;flex:none}
+.side .create .ms{font-size:20px}
+.navlink:disabled{opacity:.55;cursor:default}
+.navlink:disabled:hover{background:none;color:var(--muted)}
+.navlink.sm{padding:5px 10px}
+.navlink.sm .st-ic{width:26px;height:26px}
+.me-t{min-width:0;display:flex;flex-direction:column}
+.me-t small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pill .pl-t{flex:0 1 auto}
+.pill .pl-more{font:600 .72rem var(--mono);color:var(--faint);flex:none}
+.pill .pl-caret{margin-left:auto;font-size:18px;color:var(--faint);flex:none}
+.pill:not(.has) .pl-caret{display:none}
+.side-me .theme{padding:4px 0 0 10px}
+.th-t{display:inline-flex;align-items:center;gap:12px;white-space:nowrap}
+.th-t .ms{display:none}
+.side-me .theme-seg{flex:none}
+@media (max-width:1023px){
+  .side .create{width:auto;padding:9px}
+  .side .create .cr-t,.side-me .navlink b,.side-me .navlink small,.side-me .theme,.pill .pl-more,.pill .pl-caret{display:none}
+  .navlink.sm{padding:5px;gap:0}
+}
+
+/* grid pages (Vlogs, Shorts & Reels) use the page's full width; .work alone keeps text screens narrow */
+.work.wide{max-width:none}
+.page:has(> section:not([hidden]) .work.wide){max-width:none}
+.navlink.static{cursor:default}
+.navlink.static:hover{background:none;color:var(--muted)}

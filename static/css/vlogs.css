@@ -1,0 +1,38 @@
+/* Vlogs page: small square cards (js/vlogs.js). */
+.vlog-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(184px,1fr));gap:16px}
+.vlog{display:flex;flex-direction:column;min-width:0;border-radius:16px;overflow:hidden;border:1px solid var(--line);background:var(--glass);box-shadow:var(--shadow);transition:border-color .2s,transform .2s var(--ease)}
+.vlog:hover{border-color:var(--line-2);transform:translateY(-2px)}
+.vl-cover{position:relative;display:block;width:100%;aspect-ratio:1;border:0;padding:0;background:#0b0b10;cursor:pointer;overflow:hidden}
+.vl-cover img{width:100%;height:100%;object-fit:cover;display:block}
+.vl-ph{position:absolute;inset:0;display:grid;place-items:center;font-size:40px;color:var(--faint)}
+.vl-dur{position:absolute;right:8px;bottom:8px;background:rgba(0,0,0,.72);color:#fff;font:600 .72rem var(--mono);padding:3px 6px;border-radius:6px}
+.vl-over{position:absolute;inset:0;background:rgba(10,10,14,.66);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:12px;text-align:center}
+.vl-over b{font:700 1.35rem var(--mono)}
+.vl-over small{font-size:.76rem;opacity:.85}
+.vl-over.bad .ms{color:#ff6b7a;font-size:30px}
+.vl-body{padding:11px 12px 6px;display:flex;flex-direction:column;gap:3px;min-width:0}
+.vl-title{font-weight:650;font-size:.95rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vl-when{font-size:.76rem;color:var(--faint)}
+.vl-stats{font-size:.8rem;color:var(--muted)}
+.vl-err{font-size:.78rem;color:var(--bad);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.vl-yt{display:inline-flex;align-items:center;gap:4px;font-size:.78rem;font-weight:600;margin-top:2px;text-decoration:none}
+.vl-yt .ms{font-size:15px;color:#e5484d}
+.vl-acts{display:flex;justify-content:space-between;gap:8px;padding:9px 12px 11px;margin-top:auto;border-top:1px solid var(--line)}
+.vl-acts .linkbtn{display:inline-flex;align-items:center;gap:4px;font-size:.8rem;white-space:nowrap}
+.vl-acts .ms{font-size:16px}
+.vl-acts .linkbtn:disabled{color:var(--faint);cursor:default;text-decoration:none}
+.vl-empty{grid-column:1/-1;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;padding:44px 20px}
+.vl-empty>.ms{font-size:42px;color:var(--faint)}
+.vl-empty>span{color:var(--muted)}
+.vl-empty .primary{margin-top:8px;gap:6px}
+@media (max-width:560px){ .vlog-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px} .vl-acts{flex-direction:column;gap:6px} }
+.vl-top{position:relative}
+.vl-del{position:absolute;top:8px;right:8px;width:32px;height:32px;border-radius:50%;border:0;display:grid;place-items:center;background:rgba(0,0,0,.6);color:#fff;cursor:pointer;opacity:0;transition:opacity .2s,background .2s}
+.vl-del .ms{font-size:18px}
+.vlog:hover .vl-del,.vl-del:focus-visible{opacity:1}
+.vl-del:hover{background:var(--bad)}
+@media (hover:none){ .vl-del{opacity:1} }
+.vl-gone{display:inline-flex;align-items:center;gap:4px;font-size:.76rem;color:var(--faint)}
+.vl-gone .ms{font-size:14px}
+.vl-warn{display:inline-flex;align-items:center;gap:4px;font-size:.76rem;color:var(--warn);font-weight:600}
+.vl-warn .ms{font-size:14px}

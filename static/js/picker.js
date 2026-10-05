@@ -1,6 +1,8 @@
 // Choose on the video: the scene picker dialog.
 // ---- choose a scene on the video (plays preview.mp4, a small copy every browser can play)
 let pkBox=null, pkIdx=null, pkStart=null, pkEnd=null, pkStopAt=null, pkLoad=0;
+// The buttons that move through the video do nothing until it has loaded.
+function pkReady(on){ ["pkBack","pkFwd","pkSetStart","pkSetEnd","pkPlaySel"].forEach(id=>$(id).disabled=!on); }
 const fmtExact=t=>{ const m=Math.floor(t/60), r=(t-m*60).toFixed(1); return m+":"+r.padStart(4,"0"); };
 function openPicker(box,idx){
   pkBox=box; pkIdx=idx;
@@ -9,28 +11,50 @@ function openPicker(box,idx){
   $("pkTitle").textContent = idx ? "Choose a new moment for Short "+idx : "Choose a moment for a new Short";
   $("picker").showModal(); paintPick(); loadPreview(false);
 }
+// What the picker plays: the original itself when this browser can play it (no waiting), else the small copy
+// web/preview.py makes (shown with its progress).
 async function loadPreview(retry){
   const v=$("pkVideo"), mine=++pkLoad;
-  if(v.dataset.job===jobId && v.getAttribute("src")){ if(pkStart!=null) v.currentTime=pkStart; return; }
-  v.removeAttribute("src"); v.load();
-  $("pkWait").hidden=false; $("pkWait").innerHTML='<span class="spin" aria-hidden="true"></span> Getting your vlog ready to play. For a long vlog this takes a minute or two.';
+  if(v.dataset.job===jobId && v.getAttribute("src")){ pkReady(true); if(pkStart!=null) v.currentTime=pkStart; return; }
+  pkReady(false);
+  v.removeAttribute("src"); v.load(); v.controls=false;  // no play button until there's something to play
+  const wait=pct=>'<span class="spin" aria-hidden="true"></span><span>Getting your vlog ready to play'+(pct?': <b>'+pct+'%</b>':'')+
+    '.<br><small>You can type the From and To times on the card instead, or close this and come back.</small></span>';
+  $("pkWait").hidden=false; $("pkWait").innerHTML=wait(0);
+  let sourceFailed=false;
   while($("picker").open && mine===pkLoad){
     let j;
-    try{ const r=await fetch("/api/preview/"+jobId,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({retry})}); j=await r.json(); }
+    try{ const r=await fetch("/api/preview/"+jobId,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({retry,source_failed:sourceFailed})}); j=await r.json(); }
     catch(e){ j={status:"error",error:"Couldn't reach Pit Crew. Is the app window still open?"}; }
     retry=false;
     if(mine!==pkLoad) return;
-    if(j.status==="ready"){
-      v.dataset.job=jobId; v.src=j.url; $("pkWait").hidden=true;
-      v.addEventListener("loadedmetadata",()=>{ if(pkStart!=null) v.currentTime=pkStart; paintPick(); },{once:true});
-      return;
+    if(j.status==="source"){  // try the original; if this browser can't show it, ask for the copy instead
+      if(await pkTry(v,j.url) && mine===pkLoad){ pkPlaying(v); return; }
+      if(mine!==pkLoad) return;
+      sourceFailed=true; v.removeAttribute("src"); v.load(); continue;
     }
+    if(j.status==="ready"){ v.src=j.url; pkPlaying(v); return; }
     if(j.status==="error"){
       $("pkWait").innerHTML=esc(j.error)+' <button type="button" class="linkbtn" id="pkRetry">Try again</button>';
       $("pkRetry").onclick=()=>loadPreview(true); return;
     }
+    $("pkWait").innerHTML=wait(j.pct||0);
     await new Promise(r=>setTimeout(r,1500));
   }
+}
+// Resolves true once the video shows a picture (some browsers play the sound of a format they can't show).
+function pkTry(v,url){
+  return new Promise(done=>{
+    const end=ok=>{ clearTimeout(t); v.removeEventListener("loadedmetadata",meta); v.removeEventListener("error",bad); done(ok); };
+    const meta=()=>end(v.videoWidth>0), bad=()=>end(false), t=setTimeout(()=>end(false),10000);
+    v.addEventListener("loadedmetadata",meta); v.addEventListener("error",bad);
+    v.preload="metadata"; v.src=url;
+  });
+}
+function pkPlaying(v){
+  v.dataset.job=jobId; v.controls=true; $("pkWait").hidden=true; pkReady(true);
+  const go=()=>{ if(pkStart!=null) v.currentTime=pkStart; paintPick(); };
+  if(v.readyState>=1) go(); else v.addEventListener("loadedmetadata",go,{once:true});
 }
 function pkDuration(){ const d=$("pkVideo").duration; return isFinite(d)&&d>0 ? d : (job.duration||0); }
 function paintPick(){
@@ -83,3 +107,5 @@ $("pkUse").onclick=()=>{
 };
 $("pkCancel").onclick=()=>$("picker").close();
 $("picker").addEventListener("close",()=>{ $("pkVideo").pause(); pkStopAt=null; pkLoad++; });
+// The vlog's video was deleted: forget the one loaded here, so the picker doesn't try to play it.
+function pkVideoReset(id){ const v=$("pkVideo"); if(v.dataset.job===id){ v.removeAttribute("src"); v.load(); delete v.dataset.job; } }

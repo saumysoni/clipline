@@ -1,0 +1,36 @@
+/* Ask your vlog (js/ask.js): search on the Vlogs page, "Ask about this vlog" on a vlog's Shorts & Reels. */
+.ask-search{display:flex;align-items:center;gap:8px;margin:0 0 16px;padding:6px 6px 6px 14px;border:1px solid var(--line-2);border-radius:14px;background:var(--panel)}
+.ask-search>.ms{color:var(--faint);font-size:20px}
+.ask-search input{flex:1;min-width:0;border:0!important;background:transparent!important;box-shadow:none!important;padding:8px 4px;font:inherit}
+.ask-search .primary{padding:9px 16px}
+.ask-results{margin:0 0 18px}
+.ask-results[hidden]{display:none}
+.ask-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:.9rem}
+.ask-group{margin-bottom:14px}
+.ask-group h3{font-size:.92rem;margin:0 0 6px;color:var(--muted)}
+.ask-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.ask-m{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;padding:9px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.ask-t{font:600 .8rem var(--mono);color:var(--primary-text);background:var(--primary-soft);padding:4px 8px;border-radius:8px;white-space:nowrap}
+.ask-x{font-size:.88rem;line-height:1.4;min-width:0;display:flex;gap:6px;align-items:flex-start}
+.ask-x .ms{font-size:16px;color:var(--faint);margin-top:2px;flex:none}
+.ask-x mark{background:var(--cap-soft,rgba(255,214,0,.35));color:inherit;border-radius:3px;padding:0 2px}
+.ask-acts{display:flex;gap:14px;white-space:nowrap}
+.ask-acts .linkbtn{font-size:.82rem}
+.ask-acts .linkbtn:disabled{color:var(--faint);cursor:default;text-decoration:none}
+.ask-wait{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:.9rem}
+.ask-wait .spin{width:16px;height:16px}
+.ask-none{color:var(--muted);font-size:.9rem}
+.ask-card{margin-bottom:18px}
+.ask-top{display:flex;gap:10px;align-items:flex-start;margin-bottom:10px}
+.ask-top>.ms{color:var(--primary-text);font-size:22px}
+.ask-top small{display:block;color:var(--muted);font-size:.82rem;margin-top:2px}
+.ask-top small .spin{width:12px;height:12px;display:inline-block;vertical-align:-1px}
+.ask-card .ask-search{margin-bottom:10px}
+.ask-answer{font-size:.95rem;line-height:1.5;margin:4px 0 10px}
+dialog#clPlayer.wide{width:min(900px,calc(100vw - 32px))}
+dialog#clPlayer.wide #clVideo{aspect-ratio:16/9}
+@media (max-width:560px){ .ask-m{grid-template-columns:auto minmax(0,1fr)} .ask-acts{grid-column:1/-1} }
+.ask-q{display:flex;flex-direction:column;gap:2px;min-width:0}
+.ask-qt{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.ask-why{display:block;color:var(--muted);font-size:.78rem;font-style:normal;margin-top:2px}
+.ask-mode{color:var(--warn);font-size:.78rem;margin-left:10px;flex:1}

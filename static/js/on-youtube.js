@@ -27,8 +27,8 @@ async function openPosted(){
     const when=st.publish_at && st.privacy==="private" ? st.publish_at : u.when;
     const canMove=!gone && !other && (!st.privacy || st.privacy==="private");
     return '<li data-i="'+i+'"><img src="/media/'+esc(u.job)+'/'+esc(u.thumb)+'" alt="">'+
-      '<div><div class="pt">'+esc(u.title)+'</div><div class="pv">From '+esc(u.vlog)+'</div>'+
-      '<div class="pw">'+stateTag(u)+'<span>'+(gone?"Deleted in YouTube Studio, or uploaded to a different channel?":other?"Connect that channel to change it.":esc(whenText(st.privacy&&st.privacy!=="private"?null:when)))+'</span>'+
+      '<div><div class="pt">'+esc(u.title)+'</div><div class="pv">From '+esc(u.vlog)+((yt.channels||[]).length>1&&u.channel_title?' · on '+esc(u.channel_title):'')+'</div>'+
+      '<div class="pw">'+stateTag(u)+'<span>'+(gone?"Deleted in YouTube Studio, or uploaded to a different channel?":other?"On a channel that isn't connected. Add it (Channels › YouTube › Add channel) to change this Short.":esc(whenText(st.privacy&&st.privacy!=="private"?null:when)))+'</span>'+
         (u.changed?'<span class="tag cap">Edited, not updated on YouTube</span>':'')+'</div>'+
       '<div class="pa">'+(canMove?'<button type="button" class="linkbtn mv"><span class="ms" aria-hidden="true">schedule</span>Change time</button>':'')+
         '<button type="button" class="linkbtn ed"><span class="ms" aria-hidden="true">edit</span>Edit Short</button>'+

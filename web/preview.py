@@ -14,6 +14,8 @@ from web.store import LOCK, load_job
 
 
 PREVIEWS = {}  # job id -> "building" or an error message, while or after making preview.mp4
+PREVIEW_PCT = {}  # job id -> how far making it has got (0-100)
+VIDEO_GONE = "This vlog's video was deleted, so it can't be played here. Upload the vlog again to choose moments on it."
 
 
 def build_preview(job_id):
@@ -21,11 +23,13 @@ def build_preview(job_id):
     try:
         src = next(job_dir.glob("source.*"), None)
         if not src:
-            raise RuntimeError("The original video for this job is gone, so it can't be shown. "
-                               "Start a new vlog instead.")
-        pipeline.make_preview(src, job_dir / "preview.mp4")
+            raise RuntimeError(VIDEO_GONE)
+        pipeline.make_preview(src, job_dir / "preview.mp4", lambda pct: PREVIEW_PCT.__setitem__(job_id, round(pct)))
+        if not src.exists():  # the video was deleted while the copy was being made: don't keep the copy either
+            (job_dir / "preview.mp4").unlink(missing_ok=True)
         with LOCK:
             PREVIEWS.pop(job_id, None)
+            PREVIEW_PCT.pop(job_id, None)
     except Exception as e:
         traceback.print_exc()
         msg = str(e) if isinstance(e, RuntimeError) and not str(e).startswith("Command failed") else \
@@ -49,13 +53,22 @@ def start_preview(job_id):
 
 @app.post("/api/preview/<job_id>")
 def preview(job_id):
-    """Start making the preview if needed; the page calls this again until it's ready."""
+    """What "Choose on the video" plays: the small copy if it exists (quickest to scrub), else the original itself
+    ("source": the page tries it, and asks again with source_failed if this browser can't play it), else the copy
+    is made now and the page calls this again until it's ready."""
+    data = request.get_json(silent=True) or {}
     with LOCK:
         job = load_job(job_id)
         failed = PREVIEWS.get(job_id) not in (None, "building")
     if not job:
         abort(404)
-    if failed and not (request.get_json(silent=True) or {}).get("retry"):
+    src = next((JOBS_DIR / job_id).glob("source.*"), None)
+    if not src and not (JOBS_DIR / job_id / "preview.mp4").exists():
+        return jsonify(status="error", error=VIDEO_GONE)
+    if not (JOBS_DIR / job_id / "preview.mp4").exists() and src and not data.get("source_failed"):
+        return jsonify(status="source", url=f"/media/{job_id}/{src.name}")
+    if failed and not data.get("retry"):
         return jsonify(status="error", error=PREVIEWS[job_id])
     state = start_preview(job_id)
-    return jsonify(status=state, url=f"/media/{job_id}/preview.mp4" if state == "ready" else None)
+    return jsonify(status=state, url=f"/media/{job_id}/preview.mp4" if state == "ready" else None,
+                   pct=PREVIEW_PCT.get(job_id, 0) if state == "building" else None)

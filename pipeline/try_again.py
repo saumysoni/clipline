@@ -142,5 +142,11 @@ def repick_moment(transcript, taken, rejected, note="", progress=lambda pct, msg
         print(f"  Stretched to {fmt_mmss(s)}-{fmt_mmss(e)} for the requested {target:.0f}s.")
         return {"start": s, "end": e, "manual": True, **moment_text({"why": why}, cur, said_between(transcript, s, e), s)}
 
-    raise RuntimeError("Couldn't find a moment that matches. Use Choose on the video to mark the start and end "
-                       "yourself, or describe it differently.")
+    if note.strip():
+        raise RuntimeError("Couldn't find a moment that matches. Use Choose on the video to mark the start and end "
+                           "yourself, or describe it differently.")
+    quiet = len(transcript.get("words") or []) < 60 * (transcript.get("duration") or 0) / 60  # under ~60 words a minute
+    raise RuntimeError("Couldn't find another good moment" + (
+        ": Pit Crew picks moments from what's said, and this vlog has little talking" if quiet else
+        " that isn't already one of your Shorts") + ". Use Choose on the video to mark the start and end yourself, "
+        "or describe the moment you want.")

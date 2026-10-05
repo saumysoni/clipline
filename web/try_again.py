@@ -3,6 +3,7 @@ Try again: remakes one Short (a new moment from the AI, or the creator's own tim
 """
 import json
 import threading
+import time
 import traceback
 
 from flask import abort, jsonify, request
@@ -33,8 +34,8 @@ def remake_short(job_id, idx, note, times=None):
             src = next(job_dir.glob("source.*"), None)
             tr_path = job_dir / "transcript.json"
             if not src or not tr_path.exists():
-                raise RuntimeError("The original video for this job is gone, so it can't be remade. "
-                                   "Start a new vlog instead.")
+                raise RuntimeError("This vlog's video was deleted, so Pit Crew can't cut a new Short from it. "
+                                   "Upload the vlog again to make new Shorts from it.")
             tr = json.loads(tr_path.read_text(encoding="utf-8"))
             if times:
                 m = pipeline.manual_moment(tr, *times, note, say, context=job.get("vlog"))
@@ -50,8 +51,9 @@ def remake_short(job_id, idx, note, times=None):
             thumb = pipeline.make_thumbnail(src, meta, m, cx, num, job_dir, tr["words"], job.get("vlog"))
         with LOCK:
             job = JOBS[job_id]
-            job["shorts"] = [{**m, "idx": idx, "video": video, "thumb": thumb, "keep": True, "tried": rejected, "cx": cx}
-                             if s["idx"] == idx else s for s in job["shorts"]]
+            job["last_edit_at"] = time.time()
+            job["shorts"] = [{**m, "idx": idx, "video": video, "thumb": thumb, "keep": True, "tried": rejected, "cx": cx,
+                              "edited_at": job["last_edit_at"]} if s["idx"] == idx else s for s in job["shorts"]]
             (job_dir / "job.json").write_text(json.dumps(job, default=str), encoding="utf-8")
     except Exception as e:
         traceback.print_exc()

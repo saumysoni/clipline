@@ -77,4 +77,5 @@ def probe(path):
         rot = abs(int(st["tags"]["rotate"])) % 360  # older FFmpeg reports it here
     if rot in (90, 270):  # phone videos stored sideways
         w, h = h, w
-    return {"width": w, "height": h, "duration": float(info["format"]["duration"])}
+    return {"width": w, "height": h, "duration": float(info["format"]["duration"]),
+            "codec": st.get("codec_name", ""), "pix_fmt": st.get("pix_fmt", "")}

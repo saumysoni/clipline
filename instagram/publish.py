@@ -34,11 +34,16 @@ def caption_for(it, vlog, ig_handle=""):
     return "\n\n".join(p for p in parts if p)[:2200]
 
 
-def post_reel(user_id, video_path, caption, cover_ms=100, progress=None):
-    """Publish the video as a Reel now. Returns {"media_id", "permalink"}. Raises InstagramError."""
+def post_reel(user_id, video_path, caption, cover_ms=100, progress=None, ig_id=None, username=""):
+    """Publish the video as a Reel now, to the account ig_id (None: the active one).
+    Returns {"media_id", "permalink"}. Raises InstagramError."""
     say = progress or (lambda *_: None)
-    info = load(user_id)
+    info = load(user_id, ig_id)
     if not info:
+        if ig_id:
+            who = f"@{username}" if username else "The Instagram account this Reel was planned for"
+            raise InstagramError(f"{who} isn't connected to Pit Crew any more. Connect it again (Channels › Add "
+                                 f"account), then press Try again.", expired=True)
         raise InstagramError("Connect Instagram first.", expired=True)
     if not is_professional(info):
         raise InstagramError("Instagram only lets apps post to Business or Creator accounts. Switch your account "

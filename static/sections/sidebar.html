@@ -1,32 +1,28 @@
+
   <aside class="side" aria-label="Pit Crew">
     <div class="brand" aria-label="Pit Crew"><span class="brand-logo" aria-hidden="true"><svg class="logo" viewBox="0 0 32 32"><defs><linearGradient id="pcRedS" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF3358"/><stop offset="1" stop-color="#B3001F"/></linearGradient></defs><rect x="1" y="1" width="30" height="30" rx="8" fill="url(#pcRedS)"/><rect x="1.5" y="1.5" width="29" height="29" rx="7.5" fill="none" stroke="#fff" stroke-opacity=".18"/><g transform="translate(16 16) skewX(-14) translate(-16 -16)" fill="#fff"><rect x="8.6" y="17" width="4.4" height="7.5" rx="1.1" opacity=".55"/><rect x="14.3" y="12.5" width="4.4" height="12" rx="1.1" opacity=".8"/><rect x="20" y="7.5" width="4.4" height="17" rx="1.1"/></g></svg></span><span class="wm">Pit<b>Crew</b></span></div>
 
-    <div class="side-group">
-      <div class="side-label">This vlog</div>
-      <ol class="steps" id="steps" aria-label="Progress">
-        <li data-step="1"><span class="st-ic">1</span><span><b>Set up</b><small>Add your vlog</small></span></li>
-        <li data-step="2"><span class="st-ic">2</span><span><b>Making</b><small>Finding moments</small></span></li>
-        <li data-step="3"><span class="st-ic">3</span><span><b>Review</b><small>Check and edit</small></span></li>
-        <li data-step="4"><span class="st-ic">4</span><span><b>Posted</b><small>On your channels</small></span></li>
-      </ol>
-    </div>
+    <button type="button" class="primary create" id="createBtn"><span class="ms" aria-hidden="true">add</span><span class="cr-t">Create</span></button>
+    <div class="jobs-now" id="jobsNow" aria-live="polite"></div>
 
     <nav class="side-group side-nav" aria-label="Pages">
       <div class="side-label">Workspace</div>
-      <button type="button" class="navlink" id="makeNav"><span class="st-ic"><span class="ms" aria-hidden="true">content_cut</span></span><span><b>Make Shorts</b><small>New or open vlog</small></span></button>
-      <button type="button" class="navlink" id="postedNav"><span class="st-ic"><span class="ms" aria-hidden="true">calendar_month</span></span><span><b>Scheduled</b><small>YouTube &amp; Instagram</small></span></button>
-      <button type="button" class="navlink" id="analyticsNav"><span class="st-ic"><span class="ms" aria-hidden="true">insights</span></span><span><b>Analytics</b><small>Views, likes, audience</small></span></button>
+      <button type="button" class="navlink" id="vlogsNav"><span class="st-ic"><span class="ms" aria-hidden="true">video_library</span></span><span><b>Vlogs</b></span></button>
+      <button type="button" class="navlink" id="clipsNav"><span class="st-ic"><span class="ms" aria-hidden="true">movie</span></span><span><b>Shorts &amp; Reels</b></span></button>
+      <button type="button" class="navlink" id="postedNav"><span class="st-ic"><span class="ms" aria-hidden="true">calendar_month</span></span><span><b>Scheduled</b></span></button>
+      <button type="button" class="navlink" id="analyticsNav"><span class="st-ic"><span class="ms" aria-hidden="true">insights</span></span><span><b>Analytics</b></span></button>
     </nav>
 
     <div class="side-foot">
       <div class="side-group side-accts">
         <div class="side-label">Channels</div>
-        <button type="button" class="pill" id="ytPill" title="YouTube posting"><span class="dot" id="ytDot"></span><span class="ms pl-ic yt" aria-hidden="true">smart_display</span><span class="pl-t" id="ytText">Checking YouTube</span></button>
-        <button type="button" class="pill" id="igPill" title="Instagram posting"><span class="dot" id="igDot"></span><span class="ms pl-ic ig" aria-hidden="true">photo_camera</span><span class="pl-t" id="igText">Checking Instagram</span></button>
+        <button type="button" class="pill" id="ytPill" title="YouTube posting"><span class="dot" id="ytDot"></span><span class="ms pl-ic yt" aria-hidden="true">smart_display</span><span class="pl-t" id="ytText">Checking YouTube</span><span class="pl-more" id="ytMore"></span><span class="ms pl-caret" aria-hidden="true">expand_more</span></button>
+        <button type="button" class="pill" id="igPill" title="Instagram posting"><span class="dot" id="igDot"></span><span class="ms pl-ic ig" aria-hidden="true">photo_camera</span><span class="pl-t" id="igText">Checking Instagram</span><span class="pl-more" id="igMore"></span><span class="ms pl-caret" aria-hidden="true">expand_more</span></button>
       </div>
       <div class="side-group side-me">
-        <div class="who-am-i"><span id="meEmail"></span><button type="button" class="linkbtn" id="logoutBtn">Sign out</button></div>
-        <div class="theme"><span>Appearance</span>
+        <div class="navlink sm static" id="accountNav"><span class="st-ic"><span class="ms" aria-hidden="true">account_circle</span></span><span class="me-t"><b>Account</b><small id="meEmail"></small></span></div>
+        <button type="button" class="navlink sm" id="settingsNav"><span class="st-ic"><span class="ms" aria-hidden="true">settings</span></span><span><b>Settings</b></span></button>
+        <div class="theme"><span class="th-t"><span class="ms" aria-hidden="true">contrast</span>Appearance</span>
           <div class="theme-seg" role="group" aria-label="Appearance">
             <button type="button" data-theme-set="light" aria-pressed="false" title="Light"><span class="ms" aria-hidden="true">light_mode</span><span class="sr">Light</span></button>
             <button type="button" data-theme-set="auto" aria-pressed="false" title="Match my computer"><span class="ms" aria-hidden="true">contrast</span><span class="sr">Auto</span></button>

@@ -1,6 +1,6 @@
   <!-- Analytics: how the creator's Shorts are doing -->
   <section id="s6" hidden>
-    <div class="work an-root">
+    <div class="work wide an-root">
       <div class="page-head">
         <div>
           <div class="eyebrow">Analytics</div>
@@ -18,8 +18,15 @@
           <button type="button" data-days="365">Year</button>
           <button type="button" data-days="0">All time</button>
         </div>
+        <div class="an-seg" id="anPlat" role="group" aria-label="Platform">
+          <button type="button" data-p="" aria-pressed="true">All</button>
+          <button type="button" data-p="youtube">YouTube</button>
+          <button type="button" data-p="instagram">Instagram</button>
+        </div>
+        <select id="anVlog" aria-label="Vlog"><option value="">All vlogs</option></select>
         <span class="an-asof" id="anAsof"></span>
       </div>
+      <div id="anClips" aria-live="polite"></div>
 
       <div class="banner warn" id="anNote" role="status" hidden></div>
       <div id="anBody" aria-live="polite"></div>

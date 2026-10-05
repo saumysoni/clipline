@@ -4,6 +4,6 @@ this file only lets other code write ig.post_reel(...) etc. Inside instagram/, i
 """
 from instagram.config import is_configured  # noqa: F401
 from instagram.http import InstagramError  # noqa: F401
-from instagram.connection import account, finish_login, sign_out, start_login  # noqa: F401
+from instagram.connection import account, finish_login, sign_out, start_login, switch  # noqa: F401
 from instagram.publish import caption_for, post_reel  # noqa: F401
-from instagram.insights import dashboard, forget as forget_insights  # noqa: F401
+from instagram.insights import dashboard, forget as forget_insights, snapshot_reels  # noqa: F401

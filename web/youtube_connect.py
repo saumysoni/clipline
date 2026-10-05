@@ -1,5 +1,6 @@
 """
-Connect YouTube: the sign-in window, Google's callback (which also finishes Google login), sign-out.
+Connect YouTube: the sign-in window, Google's callback (which also finishes Google login), switching between
+connected channels, disconnecting one.
 """
 import html
 import json
@@ -33,10 +34,12 @@ def youtube_callback():
     """Google sends both kinds of sign-in back here (the one address registered on the OAuth client)."""
     pending = session.pop("google", None) or {}
     if pending.get("purpose") == "login":
+        info = {}
         try:
-            user = google_user(yt.finish_login(request.args.to_dict(), pending))
+            info = yt.finish_login(request.args.to_dict(), pending)
+            user = google_user(info)
         except RuntimeError as e:
-            return login_problem_page(str(e))
+            return login_problem_page(str(e), info.get("email", ""))
         except Exception:
             traceback.print_exc()
             return login_problem_page("Something went wrong while signing in. Try again.")
@@ -78,8 +81,17 @@ else if(m.ok) setTimeout(function(){{ location.replace({json.dumps(back)}); }}, 
 
 @app.post("/api/youtube/signout")
 def youtube_signout():
-    yt.sign_out(g.user["id"])
-    return jsonify(ok=True)
+    """Disconnect one channel ({"channel": id}; none given = the active one). The others stay connected."""
+    yt.sign_out(g.user["id"], (request.get_json(silent=True) or {}).get("channel") or None)
+    return jsonify(yt.account(g.user["id"]))
+
+
+@app.post("/api/youtube/switch")
+def youtube_switch():
+    """Make another connected channel the one new Shorts go to (no new Google sign-in)."""
+    if not yt.switch(g.user["id"], str((request.get_json(silent=True) or {}).get("channel", ""))):
+        return jsonify(error="That channel isn't connected any more. Add it again."), 400
+    return jsonify(yt.account(g.user["id"]))
 
 
 @app.get("/api/youtube/me")

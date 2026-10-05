@@ -14,7 +14,7 @@ from pipeline.moments import pick_moments  # noqa: F401
 from pipeline.try_again import repick_moment  # noqa: F401
 from pipeline.manual_moment import manual_moment  # noqa: F401
 from pipeline.render import render_short  # noqa: F401
-from pipeline.preview import make_preview  # noqa: F401
+from pipeline.preview import make_preview, plays_everywhere  # noqa: F401
 from pipeline.cover import covered_video  # noqa: F401
 from pipeline.thumbnails.make import make_thumbnail, relook_thumbnail, retext_thumbnail  # noqa: F401
 from pipeline.thumbnails.layout import LOOKS as THUMB_LOOKS  # noqa: F401
