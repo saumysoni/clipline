@@ -4,7 +4,7 @@ Transcription: every word of the vlog with exact timings (faster-whisper).
 Runs the same on a laptop or a cloud server: an NVIDIA GPU is used automatically when present.
 Tune with WHISPER_MODEL / WHISPER_DEVICE / WHISPER_BATCH_SIZE / WHISPER_THREADS / WHISPER_LANGUAGE.
 
-Clipline is English-only for now: WHISPER_LANGUAGE defaults to "en", so the language is never guessed
+Pit Crew is English-only for now: WHISPER_LANGUAGE defaults to "en", so the language is never guessed
 (guessing once turned an English vlog into Welsh, and a Hinglish vlog into invented English). Set
 WHISPER_LANGUAGE=auto to let Whisper work it out instead.
 """

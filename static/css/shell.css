@@ -1,12 +1,19 @@
 /* App shell: the sidebar (steps, On YouTube link, account, theme) and page layout. */
 .app{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:100vh}
-.side{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:28px;padding:22px 16px;background:var(--panel);border-right:1px solid var(--line);z-index:30}
-.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:1.15rem;letter-spacing:-.02em}
+.side{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:14px;padding:20px 14px 16px;background:var(--panel);border-right:1px solid var(--line);z-index:30;overflow-y:auto;scrollbar-width:thin}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:1.15rem;letter-spacing:-.02em;padding:0 8px 6px}
+/* sidebar groups: a small label, separated by a hairline */
+.side-group{display:flex;flex-direction:column;gap:2px}
+.side-group+.side-group,.side-nav,.side-foot{border-top:1px solid var(--line);padding-top:12px}
+.side-label{font:700 10.5px/1 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--faint);padding:0 10px 8px}
+.side-foot .side-group+.side-group{margin-top:12px}
+.side-accts{gap:6px}
+.side-me{gap:10px}
 .mark{width:28px;height:28px;border-radius:8px;background:var(--primary);display:grid;place-items:center;flex:none}
 .mark i{width:9px;height:15px;border-radius:2.5px;border:2px solid #fff;position:relative}
 .mark i::after{content:"";position:absolute;left:1px;right:1px;bottom:1.5px;height:2.5px;border-radius:1px;background:var(--cap)}
-.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
-.steps li{display:flex;align-items:center;gap:12px;padding:9px 10px;border-radius:10px;color:var(--faint)}
+.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.steps li{display:flex;align-items:center;gap:12px;padding:7px 10px;border-radius:10px;color:var(--faint)}
 .steps .st-ic{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--line-2);font:700 12px var(--mono);flex:none}
 .steps .st-ic .ms{font-size:16px}
 .steps b{display:block;font-weight:600;font-size:.92rem;color:inherit}
@@ -15,8 +22,11 @@
 .steps li.done .st-ic{background:var(--good-soft);border-color:transparent;color:var(--good)}
 .steps li.now{background:var(--primary-soft);color:var(--ink)}
 .steps li.now .st-ic{background:var(--primary);border-color:transparent;color:#fff}
-.side-foot{margin-top:auto;display:flex;flex-direction:column;gap:10px}
-.pill{display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--muted);background:var(--raised);border:1px solid var(--line);padding:7px 11px;border-radius:999px}
+.side-foot{margin-top:auto;display:flex;flex-direction:column}
+.pill{display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--muted);background:var(--raised);border:1px solid var(--line);padding:7px 11px;border-radius:999px;min-width:0}
+.pill .pl-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.pill .pl-ic{font-size:16px;flex:none}
+.pill .pl-ic.yt{color:#e5484d}.pill .pl-ic.ig{color:#d6336c}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--faint);flex:none}
 .dot.on{background:var(--good);box-shadow:0 0 0 3px var(--good-soft)}
 .theme{display:flex;align-items:center;gap:8px;justify-content:space-between;font-size:.82rem;color:var(--muted)}
@@ -36,8 +46,15 @@
   .steps li{padding:6px 8px;gap:8px}
   .steps small{display:none}
   .steps li:not(.now) b{display:none}
-  .side-foot{margin:0;flex-direction:row;align-items:center}
-  .pill span:last-child,.theme>span{display:none}
+  .side{overflow:visible}
+  .side>.side-group:not(.side-nav){flex:1;min-width:0;border:0;padding:0}
+  .side-label,.side-me .theme>span{display:none}
+  .side-group+.side-group,.side-nav,.side-foot{border-top:0;padding-top:0}
+  .side-nav,.side-accts{flex-direction:row;gap:2px}
+  .side-nav .navlink small,.side-nav .navlink b{display:none}
+  .side-foot,.side-me{margin:0;flex-direction:row;align-items:center;gap:8px}
+  .side-foot .side-group+.side-group{margin-top:0}
+  .pill .pl-t,.theme>span{display:none}
   .pill{padding:9px}
   .main{padding-top:24px}
 }
@@ -67,10 +84,29 @@ button.pill{cursor:pointer;font:inherit;text-align:left}
 button.pill:hover{border-color:var(--line-2);color:var(--ink)}
 .who-am-i{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:.8rem;color:var(--muted);min-width:0}
 .who-am-i span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.navlink{display:flex;align-items:center;gap:12px;padding:9px 10px;border-radius:10px;border:0;background:none;color:var(--muted);cursor:pointer;font:inherit;text-align:left;width:100%}
+.navlink{display:flex;align-items:center;gap:12px;padding:7px 10px;border-radius:10px;border:0;background:none;color:var(--muted);cursor:pointer;font:inherit;text-align:left;width:100%}
 .navlink:hover{background:var(--raised);color:var(--ink)}
 .navlink.now{background:var(--primary-soft);color:var(--ink)}
 .navlink .st-ic{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--line-2);flex:none}
 .navlink .st-ic .ms{font-size:16px}
 .navlink b{display:block;font-weight:600;font-size:.92rem}
 .navlink small{display:block;font-size:.78rem;color:var(--faint)}
+.steps.away{cursor:pointer;border-radius:12px}
+.steps.away:hover li{color:var(--muted)}
+/* short laptop screens: drop the second lines so the whole sidebar fits */
+@media (min-width:1024px) and (max-height:760px){
+  .steps small,.navlink small{display:none}
+  .steps li,.navlink{padding:6px 10px}
+  .side{gap:10px}
+}
+/* phones: only the current step, so the top bar doesn't crowd */
+@media (max-width:560px){
+  .steps li:not(.now){display:none}
+  .steps.away li{display:none}
+}
+.who-am-i .linkbtn{white-space:nowrap}
+@media (max-width:560px){
+  .side-nav .navlink{padding:5px;gap:0}
+  .side-foot,.side-me,.who-am-i{gap:6px}
+  .theme-seg button{padding:5px 6px}
+}

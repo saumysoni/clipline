@@ -32,6 +32,6 @@ $("make").onclick=()=>{
     }
     startPolling(r.id);
   };
-  xhr.onerror=()=>{ $("make").disabled=false; renderCount(); $("err1").textContent="Couldn't reach Clipline. Is the app window still open?"; };
+  xhr.onerror=()=>{ $("make").disabled=false; renderCount(); $("err1").textContent="Couldn't reach Pit Crew. Is the app window still open?"; };
   xhr.send(fd);
 };

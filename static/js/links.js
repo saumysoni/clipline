@@ -14,8 +14,8 @@ function linkKind(url){
   return "other";
 }
 const VIDEO_LINK_PROBLEMS={
-  youtube:"That's a YouTube link. Clipline can't download videos from YouTube (YouTube's rules don't allow it). Upload the original video file or use a Google Drive link instead.",
-  youtube_page:"That's a YouTube link. Clipline can't download videos from YouTube, so upload the original video file or use a Google Drive link instead.",
+  youtube:"That's a YouTube link. Pit Crew can't download videos from YouTube (YouTube's rules don't allow it). Upload the original video file or use a Google Drive link instead.",
+  youtube_page:"That's a YouTube link. Pit Crew can't download videos from YouTube, so upload the original video file or use a Google Drive link instead.",
   drive_folder:"That's a link to a Drive folder. Open the folder, right-click the video, choose Share, then Copy link, and paste that link instead.",
   drive_page:"That's a link to a Drive page, not to one video. In Drive, right-click the video, choose Share, then Copy link, and paste that link instead.",
   other:"That doesn't look like a Google Drive link. Paste a link that starts with https://drive.google.com, or upload the video file instead."};
@@ -66,7 +66,7 @@ async function fillVlogInfo(){
     $("vTitle").dataset.tags=JSON.stringify(j.tags||[]);
     $("ytHint").textContent = j.complete ? "Filled in from YouTube. Edit anything you like."
       : "Got the title. Click Connect YouTube, then paste the link again to fetch the description too (or paste it below).";
-  }catch(e){ $("ytHint").textContent="Couldn't reach Clipline to read that link."; }
+  }catch(e){ $("ytHint").textContent="Couldn't reach Pit Crew to read that link."; }
 }
 $("ytFill").onclick=fillVlogInfo;
 $("ytUrl").addEventListener("paste",()=>setTimeout(fillVlogInfo,50));

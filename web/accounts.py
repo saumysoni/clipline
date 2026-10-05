@@ -1,5 +1,5 @@
 """
-Clipline accounts: email + password or Continue with Google, and gate() which requires sign-in
+Pit Crew accounts: email + password or Continue with Google, and gate() which requires sign-in
 for every /api and /media address and checks that a job belongs to the signed-in user.
 """
 import html
@@ -23,7 +23,7 @@ from web.store import JOBS, LOCK, load_job
 
 @app.get("/api/auth/google")
 def auth_google():
-    """Sign in to Clipline with Google (the whole page goes to Google and comes back)."""
+    """Sign in to Pit Crew with Google (the whole page goes to Google and comes back)."""
     try:
         url, session["google"] = yt.start_google("login", youtube_redirect_uri())
         return redirect(url)
@@ -32,18 +32,18 @@ def auth_google():
 
 
 def login_problem_page(msg):
-    return (f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Clipline · Sign in</title>
+    return (f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Pit Crew · Sign in</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>body{{font:16px/1.5 system-ui,sans-serif;margin:0;min-height:100vh;display:grid;place-items:center;
 background:#0e1018;color:#e8eaf2;padding:16px}}main{{max-width:420px;text-align:center}}a{{color:#8fb4ff}}</style>
 </head><body><main><h1 style="font-size:1.3rem">Not signed in</h1><p>{html.escape(msg)}</p>
-<p><a href="/">Back to Clipline</a></p></main></body></html>""", 400)
+<p><a href="/">Back to Pit Crew</a></p></main></body></html>""", 400)
 
 
 # Anyone can make an account: email + password, or Sign in with Google (name and email only).
 # Every /api and /media address needs a signed-in user, and a job is only reachable by its owner.
 PUBLIC = {"index", "static", "config", "me", "auth_signup", "auth_login", "auth_logout", "auth_google",
-          "youtube_callback"}
+          "youtube_callback", "instagram_callback"}  # instagram_callback: its one-time state names the user
 
 
 EMAIL_RE = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
@@ -71,12 +71,12 @@ def gate():
     origin = request.headers.get("Origin")
     if request.method == "POST" and origin and \
             urllib.parse.urlparse(origin).netloc != urllib.parse.urlparse(request.host_url).netloc:
-        return jsonify(error="That request came from another website, so Clipline ignored it."), 403
+        return jsonify(error="That request came from another website, so Pit Crew ignored it."), 403
     g.user = current_user()
     if request.endpoint in PUBLIC or request.endpoint is None:
         return None
     if not g.user:
-        return jsonify(error="Sign in to Clipline first.", login=True), 401
+        return jsonify(error="Sign in to Pit Crew first.", login=True), 401
     job_id = (request.view_args or {}).get("job_id")
     if job_id is not None:
         with LOCK:
@@ -87,7 +87,7 @@ def gate():
 
 
 def claim_old_jobs(user_id):
-    """Jobs made before Clipline had accounts belong to the first account (the person who ran it)."""
+    """Jobs made before Pit Crew had accounts belong to the first account (the person who ran it)."""
     if db.count_users() != 1:
         return
     for path in JOBS_DIR.glob("*/job.json"):
@@ -103,14 +103,14 @@ def claim_old_jobs(user_id):
 
 
 def google_user(info):
-    """The Clipline user for a Google sign-in: found by Google account, linked by email, or new."""
+    """The Pit Crew user for a Google sign-in: found by Google account, linked by email, or new."""
     user = db.user_by_google(info["sub"])
     if user:
         return user
     user = db.user_by_email(info["email"])
     if user:
         if not info["email_verified"]:
-            raise RuntimeError("Google hasn't confirmed this email address, so it can't be joined to your Clipline "
+            raise RuntimeError("Google hasn't confirmed this email address, so it can't be joined to your Pit Crew "
                                "account. Sign in with your email and password instead.")
         # Google proves who owns the email; a password set earlier was never checked, so it's removed.
         db.link_google(user["id"], info["sub"], info["name"], clear_password=not user["email_verified"])
@@ -141,7 +141,7 @@ def auth_signup():
         return jsonify(error="That password is too long.", field="password"), 400
     existing = db.user_by_email(email)
     if existing:
-        msg = ("This email already has a Clipline account through Google. Use Sign in with Google."
+        msg = ("This email already has a Pit Crew account through Google. Use Sign in with Google."
                if existing["google_sub"] and not existing["password_hash"]
                else "There's already an account with this email. Sign in instead.")
         return jsonify(error=msg, field="email"), 400

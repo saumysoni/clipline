@@ -24,7 +24,7 @@
         <div>
           <div class="eyebrow">Step 3 of 4 · Post</div>
           <h1>Choose when they go out</h1>
-          <p class="lede">Pick a schedule and upload. Each Short goes to YouTube with its title, the vlog's description and its thumbnail.</p>
+          <p class="lede">Pick a schedule and upload. YouTube and Instagram each get their own schedule. Every Short keeps its title, a pointer to the full video and its thumbnail.</p>
         </div>
         <button class="ghost" id="backReview" type="button"><span class="ms" aria-hidden="true">arrow_back</span>Back to review</button>
       </div>
@@ -34,9 +34,11 @@
           <ol class="post-list" id="postList"></ol>
         </div>
         <div class="post-side">
-          <div class="card">
-            <div class="sec-head"><span class="badge">2</span><b>When</b></div>
-            <select id="sched2" aria-label="Posting schedule">
+          <div class="card plat yt">
+            <div class="sec-head"><span class="badge">2</span><b>YouTube</b></div>
+            <div class="acct" id="acct" hidden></div>
+            <label class="when-lab" for="sched2">When</label>
+            <select id="sched2" aria-label="YouTube posting schedule">
               <option value="d18">One a day at 6:00 PM</option>
               <option value="d12">One a day at 12:00 PM</option>
               <option value="two">Two a day, 12 PM and 6 PM</option>
@@ -54,15 +56,41 @@
                 <option value="168">then one a week</option>
               </select>
             </div>
-          </div>
-          <div class="card">
-            <div class="sec-head"><span class="badge">3</span><b>Where</b></div>
-            <div class="acct" id="acct" hidden></div>
             <div class="post-btns">
               <button class="primary" id="schedBtn" type="button">Upload to YouTube</button>
-              <button class="ghost soon" id="igBtn" type="button" disabled title="Instagram posting is coming soon"><span class="ms" aria-hidden="true">photo_camera</span>Upload to Instagram<small>Soon</small></button>
             </div>
             <div class="err" id="err3" role="alert"></div>
+          </div>
+          <div class="card plat ig">
+            <div class="sec-head"><span class="badge">3</span><b>Instagram</b><span class="tag">Reels</span></div>
+            <div class="acct" id="igAcct"></div>
+            <div id="igWhenBox">
+              <label class="when-lab" for="igSched">When</label>
+              <select id="igSched" aria-label="Instagram posting schedule">
+                <option value="same">Same times as YouTube</option>
+                <option value="d18">One a day at 6:00 PM</option>
+                <option value="d12">One a day at 12:00 PM</option>
+                <option value="two">Two a day, 12 PM and 6 PM</option>
+                <option value="custom">Starting on a day and time I choose</option>
+                <option value="now">All at once, right away</option>
+              </select>
+              <div class="custom" id="igCustom" hidden>
+                <input type="datetime-local" id="igStart" aria-label="Date and time of the first Reel">
+                <select id="igEvery" aria-label="Time between Reels">
+                  <option value="6">then every 6 hours</option>
+                  <option value="12">then every 12 hours</option>
+                  <option value="24" selected>then one a day</option>
+                  <option value="48">then every 2 days</option>
+                  <option value="72">then every 3 days</option>
+                  <option value="168">then one a week</option>
+                </select>
+              </div>
+              <p class="hint" id="igHint">Instagram can't schedule posts made by apps, so Pit Crew posts each Reel itself at its time. Keep Pit Crew running.</p>
+            </div>
+            <div class="post-btns">
+              <button class="primary ig-btn" id="igBtn" type="button"><span class="ms" aria-hidden="true">photo_camera</span>Post to Instagram</button>
+            </div>
+            <div class="err" id="igErr" role="alert"></div>
           </div>
           <div id="upPanel" class="card" hidden>
             <p id="upMsg"></p>

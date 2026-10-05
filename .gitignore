@@ -11,7 +11,7 @@ data/
 __pycache__/
 *.pyc
 
-# Everything Clipline makes (source vlogs, Shorts, transcripts)
+# Everything Pit Crew makes (source vlogs, Shorts, transcripts)
 jobs/
 
 # Fonts are licensed separately; each person adds their own (see README step 3)

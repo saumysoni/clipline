@@ -21,7 +21,7 @@ function mustCountHint(){
   const k=mustRows().length;
   if(k>count){ count=Math.min(10,k); renderCount(); }
   $("mustHint").textContent = !k ? "" : k>=count ? "All "+count+" Shorts will be your must-have moments."
-    : k+" of your "+count+" Shorts will be your must-have moments; Clipline picks the other "+(count-k)+".";
+    : k+" of your "+count+" Shorts will be your must-have moments; Pit Crew picks the other "+(count-k)+".";
 }
 function checkMust(){
   let msg="";

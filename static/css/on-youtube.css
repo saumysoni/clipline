@@ -13,3 +13,11 @@
 .plist .pform{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
 .plist .pform[hidden]{display:none}
 .plist .pform input{width:auto}
+/* Scheduled page: a heading per platform */
+.plat-head{display:flex;align-items:center;gap:10px;margin:22px 0 10px}
+.plat-head:first-of-type{margin-top:0}
+.plat-head i{width:10px;height:10px;border-radius:3px;flex:none}
+.plat-head i.yt{background:var(--c-yt)}.plat-head i.ig{background:var(--c-ig)}
+.plat-head h2{font-size:1.05rem;margin:0}
+.plat-head span{color:var(--muted);font-size:.84rem}
+.plist .pv .linkbtn{font:inherit;font-weight:600}

@@ -44,7 +44,7 @@ def youtube_callback():
         return redirect("/")
     nxt, popup = pending.get("next", ""), bool(pending.get("popup"))
     if not g.user:
-        return youtube_done_page(False, "Sign in to Clipline first, then connect YouTube.", nxt, popup)
+        return youtube_done_page(False, "Sign in to Pit Crew first, then connect YouTube.", nxt, popup)
     try:
         channel = yt.finish_youtube(request.args.to_dict(), pending, g.user["id"])
         return youtube_done_page(True, f"Connected {channel['title']}."
@@ -61,13 +61,13 @@ def youtube_done_page(ok, msg, nxt="", popup=False):
     # Opened in the same tab (popups blocked): go back to the job's page.
     back = "/" + ("#" + nxt if nxt else "")
     payload = json.dumps({"clipline": "youtube", "ok": ok, "msg": msg}).replace("<", "\\u003c")
-    return (f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Clipline · YouTube</title>
+    return (f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Pit Crew · YouTube</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>body{{font:16px/1.5 system-ui,sans-serif;margin:0;min-height:100vh;display:grid;place-items:center;
 background:#0e1018;color:#e8eaf2;padding:16px}}main{{max-width:420px;text-align:center}}
 a{{color:#8fb4ff}}</style></head><body><main><h1 style="font-size:1.3rem">
 {"YouTube connected" if ok else "YouTube not connected"}</h1><p>{html.escape(msg)}</p>
-<p><a href="{back}">Back to Clipline</a></p></main>
+<p><a href="{back}">Back to Pit Crew</a></p></main>
 <script>
 var m={payload};
 if({json.dumps(popup)}){{ try{{ window.opener && window.opener.postMessage(m, location.origin); }}catch(e){{}}

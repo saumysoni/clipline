@@ -11,7 +11,7 @@ from web.server import app
 @app.get("/api/vlog-info")
 def vlog_info():
     try:
-        # the creator's YouTube connection (if any) lets Clipline read the description without an API key
+        # the creator's YouTube connection (if any) lets Pit Crew read the description without an API key
         return jsonify(yt.fetch_video_info(request.args.get("url", ""), yt.access_token(g.user["id"])))
     except RuntimeError as e:
         return jsonify(error=str(e)), 400

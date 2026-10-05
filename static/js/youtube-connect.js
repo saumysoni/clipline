@@ -13,7 +13,7 @@ function paintAccount(){
     : yt.signed_in ? "Posting to "+name : "Connect your YouTube channel to post your Shorts";
   $("acct").hidden = false;
   $("acct").innerHTML = !yt.configured
-    ? '<span class="ms" aria-hidden="true">info</span><span>YouTube posting isn\'t set up yet: the Google client file is missing from the Clipline folder (README step 5). Drop it in and click <b>Connect YouTube</b>; no restart needed. You can still Save each Short.</span>'
+    ? '<span class="ms" aria-hidden="true">info</span><span>YouTube posting isn\'t set up yet: the Google client file is missing from the app\'s folder (README step 5). Drop it in and click <b>Connect YouTube</b>; no restart needed. You can still Save each Short.</span>'
     : yt.signed_in
     ? (yt.channel&&yt.channel.thumb ? '<img src="'+esc(yt.channel.thumb)+'" alt="" referrerpolicy="no-referrer">' : '<span class="ms" aria-hidden="true">smart_display</span>')+
       '<span>Posting to <b>'+esc(name)+'</b>'+(yt.offline?' (offline right now)':'')+'</span>'+
@@ -25,7 +25,7 @@ function paintAccount(){
         '<span>Posting to <b>'+esc(name)+'</b></span></span>'+
       '<span class="acts"><button type="button" class="linkbtn" id="ytSwitch1">Switch channel</button><button type="button" class="linkbtn" id="ytOut1">Disconnect</button></span>'
     : '<button type="button" class="ghost" id="ytIn1"><span class="ms" aria-hidden="true">smart_display</span>Connect YouTube</button>'+
-      '<span>Optional now. If you skip it, Clipline asks when you upload.</span>'+(yt.configured ? '' : '<span class="err" id="ytSetup1"></span>');
+      '<span>Optional now. If you skip it, Pit Crew asks when you upload.</span>'+(yt.configured ? '' : '<span class="err" id="ytSetup1"></span>');
   if($("ytIn1")) $("ytIn1").onclick=()=>signIn();
   if($("ytIn3")) $("ytIn3").onclick=()=>signIn();
   if($("ytSwitch1")){ $("ytSwitch1").onclick=()=>signIn(); $("ytOut1").onclick=signOut; }
@@ -42,8 +42,8 @@ function signedIn(a){
 function signIn(then){
   ytThen = then || null;
   if(!yt.configured){
-    const msg="YouTube posting isn't set up yet: Clipline needs the Google client file (README step 5). "+
-      "Download it from Google Cloud and put it in the Clipline folder as it is (no need to rename it), then click Connect YouTube again.";
+    const msg="YouTube posting isn't set up yet: Pit Crew needs the Google client file (README step 5). "+
+      "Download it from Google Cloud and put it in the app's folder as it is (no need to rename it), then click Connect YouTube again.";
     // Check again first: the file may have been added since the page loaded (then one more click signs in).
     loadAccount().then(()=>{
       const m = yt.configured ? "Found the Google client file. Click Connect YouTube again." : msg;
@@ -55,7 +55,7 @@ function signIn(then){
   const w=520, h=640, x=Math.max(0,(screen.width-w)/2), y=Math.max(0,(screen.height-h)/2);
   ytWin=window.open(url+"&popup=1","clipline-youtube","popup,width="+w+",height="+h+",left="+x+",top="+y);
   if(!ytWin){ location.href=url; return; }  // popups blocked: sign in in this tab, then come back
-  // Google's pages can cut the link to the window, so ask Clipline itself until the sign-in lands.
+  // Google's pages can cut the link to the window, so ask Pit Crew itself until the sign-in lands.
   clearInterval(ytWatch); const until=Date.now()+5*60000;
   ytWatch=setInterval(async()=>{
     if(Date.now()>until){ clearInterval(ytWatch); return; }

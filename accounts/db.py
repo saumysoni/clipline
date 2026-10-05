@@ -1,5 +1,5 @@
 """
-Accounts database (SQLite): who can sign in, and each person's YouTube connection.
+Accounts database (SQLite): who can sign in, and each person's YouTube and Instagram connections.
 
 SQLite from Python's standard library, in data/clipline.db (DATABASE_PATH). One row per user;
 the YouTube token is stored per user so every creator posts to their own channel.
@@ -32,6 +32,10 @@ CREATE TABLE IF NOT EXISTS youtube_tokens (
     user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     token_json TEXT NOT NULL,
     channel_json TEXT
+);
+CREATE TABLE IF NOT EXISTS instagram_tokens (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    token_json TEXT NOT NULL
 );
 """
 
@@ -122,3 +126,21 @@ def save_youtube_token(user_id, token_json):
 def drop_youtube_token(user_id):
     with connect() as con:
         con.execute("DELETE FROM youtube_tokens WHERE user_id = ?", (user_id,))
+
+
+def instagram_token(user_id):
+    """This user's Instagram connection: {"token", "expires_at", "ig_id", "username", ...}, or None."""
+    with connect() as con:
+        row = con.execute("SELECT token_json FROM instagram_tokens WHERE user_id = ?", (user_id,)).fetchone()
+    return json.loads(row["token_json"]) if row else None
+
+
+def save_instagram_token(user_id, info):
+    with connect() as con:
+        con.execute("INSERT INTO instagram_tokens (user_id, token_json) VALUES (?, ?) "
+                    "ON CONFLICT(user_id) DO UPDATE SET token_json = excluded.token_json", (user_id, json.dumps(info)))
+
+
+def drop_instagram_token(user_id):
+    with connect() as con:
+        con.execute("DELETE FROM instagram_tokens WHERE user_id = ?", (user_id,))

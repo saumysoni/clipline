@@ -7,7 +7,7 @@ if not exist .venv (
 rem (Re)install add-ons on the first run, and again whenever requirements.txt changes.
 fc /b requirements.txt .venv\installed-requirements.txt >nul 2>&1
 if errorlevel 1 (
-  echo Installing / updating Cliplines add-ons...
+  echo Installing / updating Pit Crew add-ons...
   .venv\Scripts\python -m pip install --upgrade pip
   .venv\Scripts\python -m pip install --upgrade -r requirements.txt && copy /y requirements.txt .venv\installed-requirements.txt >nul
 )

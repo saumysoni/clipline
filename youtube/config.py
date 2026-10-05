@@ -1,10 +1,10 @@
 """
-YouTube/Google settings: the OAuth client and the permissions Clipline asks for.
+YouTube/Google settings: the OAuth client and the permissions Pit Crew asks for.
 
 The OAuth client comes from (first found wins):
   1. GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET in .env / the server's environment (use this in the cloud)
-  2. client_secret.json in the Clipline folder
-  3. Google's own download name, client_secret_<numbers>.apps.googleusercontent.com.json, in the Clipline folder
+  2. client_secret.json in the app's folder
+  3. Google's own download name, client_secret_<numbers>.apps.googleusercontent.com.json, in the app's folder
 """
 import json
 import os
@@ -20,7 +20,13 @@ CLIENT_SECRET = ROOT / "client_secret.json"
 YOUTUBE_SCOPE = "https://www.googleapis.com/auth/youtube"
 
 
-SCOPES = [YOUTUBE_SCOPE]
+SCOPES = [YOUTUBE_SCOPE]  # what a connection must have (posting, scheduling, editing)
+
+
+# Read-only analytics (watch time, retention, traffic sources, audience). Asked for when connecting, but
+# optional: a connection without it still posts, and the Analytics page asks to reconnect for the rest.
+ANALYTICS_SCOPE = "https://www.googleapis.com/auth/yt-analytics.readonly"
+CONNECT_SCOPES = SCOPES + [ANALYTICS_SCOPE]
 
 
 LOGIN_SCOPES = ["openid", "https://www.googleapis.com/auth/userinfo.email",

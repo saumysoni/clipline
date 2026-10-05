@@ -1,5 +1,5 @@
-// Clipline account: sign-in screen, and boot() which starts the app (runs last).
-// ---- Clipline account: the app shows only to a signed-in user; any "sign in first" reply brings the sign-in back
+// Pit Crew account: sign-in screen, and boot() which starts the app (runs last).
+// ---- Pit Crew account: the app shows only to a signed-in user; any "sign in first" reply brings the sign-in back
 let signup=false, booted=false;
 function paintAuth(){
   $("authTitle").textContent = signup ? "Create your account" : "Sign in";
@@ -7,7 +7,7 @@ function paintAuth(){
   $("nameRow").hidden=!signup; $("authGo").textContent = signup ? "Create account" : "Sign in";
   $("authPass").autocomplete = signup ? "new-password" : "current-password";
   $("authPass").placeholder = signup ? "At least 8 characters" : "";
-  $("authSwitchText").textContent = signup ? "Already have an account?" : "New to Clipline?";
+  $("authSwitchText").textContent = signup ? "Already have an account?" : "New to Pit Crew?";
   $("authSwitch").textContent = signup ? "Sign in" : "Create an account";
   $("authErr").textContent="";
 }
@@ -21,7 +21,7 @@ $("authForm").onsubmit=async e=>{
   const body={email:$("authEmail").value,password:$("authPass").value,name:$("authName").value};
   $("authGo").disabled=true;
   let r,j; try{ r=await fetch(signup?"/api/auth/signup":"/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}); j=await r.json(); }
-  catch(x){ r={ok:false}; j={error:"Couldn't reach Clipline. Is the app window still open?"}; }
+  catch(x){ r={ok:false}; j={error:"Couldn't reach Pit Crew. Is the app window still open?"}; }
   $("authGo").disabled=false;
   if(!r.ok){ $("authErr").textContent=j.error||"Couldn't sign in."; if(j.field==="password") $("authPass").focus(); else $("authEmail").focus(); return; }
   $("authPass").value=""; boot();
@@ -36,10 +36,11 @@ async function boot(){
   if(!m.user){ showLogin(); return; }
   $("meEmail").textContent=m.user.email; $("meEmail").title=m.user.email;
   $("auth").hidden=true; $("app").hidden=false;
-  loadAccount();
+  loadAccount(); loadIg();
   if(booted){ if(jobId) startPolling(jobId); return; }  // signed in again mid-session: pick the job back up
   booted=true;
   if(location.hash==="#youtube") openPosted();
+  else if(location.hash==="#analytics") openAnalytics();
   else if(location.hash.length>1) startPolling(location.hash.slice(1));
 }
 boot();

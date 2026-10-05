@@ -9,7 +9,7 @@ from accounts import db
 from youtube.config import NET_TIMEOUT, SCOPES, is_configured
 
 
-# One per Clipline user, in the database. Keep every read and write of it in these three functions.
+# One per Pit Crew user, in the database. Keep every read and write of it in these three functions.
 _CHANNEL = {}  # user id -> their channel, looked up once per connection
 
 
@@ -38,7 +38,7 @@ def _quick_request():
 def load_creds(user_id):
     """This user's YouTube connection, refreshed if needed, or None when they haven't connected.
 
-    A connection saved before Clipline asked for every scope in SCOPES counts as not connected, so the
+    A connection saved before Pit Crew asked for every scope in SCOPES counts as not connected, so the
     creator connects once more. Network trouble raises OSError instead, so being offline doesn't
     disconnect anyone."""
     from google.auth.exceptions import RefreshError, TransportError
@@ -70,7 +70,7 @@ def load_creds(user_id):
 def _lookup_channel(access_token):
     q = urllib.parse.urlencode({"part": "snippet", "mine": "true"})
     req = urllib.request.Request(f"https://www.googleapis.com/youtube/v3/channels?{q}",
-                                 headers={"Authorization": f"Bearer {access_token}", "User-Agent": "Clipline"})
+                                 headers={"Authorization": f"Bearer {access_token}", "User-Agent": "PitCrew"})
     with urllib.request.urlopen(req, timeout=NET_TIMEOUT) as r:
         items = json.loads(r.read().decode("utf-8")).get("items") or []
     if not items:

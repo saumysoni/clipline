@@ -34,17 +34,17 @@ def load_job(job_id):
         if saved.exists():  # app was restarted: reload finished jobs
             job = json.loads(saved.read_text(encoding="utf-8"))
             if job.get("status") == "working":
-                job.update(status="error", error="Clipline was closed while this was running. Start it again.")
+                job.update(status="error", error="Pit Crew was closed while this was running. Start it again.")
             if job.get("upload_status") in ("starting", "connecting", "uploading"):
-                job.update(upload_status="error", upload_msg="Clipline was closed during posting.")
+                job.update(upload_status="error", upload_msg="Pit Crew was closed during posting.")
             job["shorts"] = [s for s in job.get("shorts", []) if not s.get("pending")]
             by_idx = {s["idx"]: s for s in job["shorts"]}
-            for u in job.get("uploads") or []:  # uploads from before Clipline noted which file went up
+            for u in job.get("uploads") or []:  # uploads from before Pit Crew noted which file went up
                 if "video" not in u and u["idx"] in by_idx:
                     u["video"], u["thumb"] = by_idx[u["idx"]]["video"], by_idx[u["idx"]]["thumb"]
             for s in job["shorts"]:
                 if s.pop("retrying", None):
-                    s["retry_error"] = "Clipline was closed while this was being remade. Try again."
+                    s["retry_error"] = "Pit Crew was closed while this was being remade. Try again."
             JOBS[job_id] = job
     return job
 

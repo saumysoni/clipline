@@ -19,7 +19,16 @@ async function tick(){
   }
   renderProgress();
 }
+// Stage lights: one lamp per finished stage, the current one blinking.
+function paintLights(){
+  const n=job.stages.length, done=Math.min(job.stage||0,n), lamps=$("lights").querySelectorAll(".lamp");
+  lamps.forEach((l,i)=>{ l.classList.toggle("on", i<done); l.classList.toggle("blink", i===done && job.status==="working"); });
+  $("lights").classList.toggle("go", job.status==="ready");
+  $("lightsTitle").textContent = job.status==="error" ? "Stopped" : job.status==="ready" ? "All stages complete" : (job.stages[done]||"Finishing");
+  $("lightsSub").textContent = job.status==="ready" ? "Your Shorts are ready." : "Stage "+Math.min(done+1,n)+" of "+n+(job.pct!=null&&job.status==="working"?" · "+Math.round(job.pct)+"%":"");
+}
 function renderProgress(){
+  paintLights();
   $("tasks").innerHTML = job.stages.map((s,i)=>{
     const cls = i<job.stage ? "done" : i===job.stage ? "active" : "";
     const sub = i===job.stage && job.msg && job.msg!==s ? '<span class="sub">'+esc(job.msg)+'</span>' : "";

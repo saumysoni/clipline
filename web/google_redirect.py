@@ -11,3 +11,8 @@ from flask import request
 def youtube_redirect_uri():
     # Must match a redirect address on the Google OAuth client exactly (see README step 5).
     return os.getenv("YOUTUBE_REDIRECT_URI") or request.host_url.rstrip("/") + "/api/youtube/callback"
+
+
+def instagram_redirect_uri():
+    # Must match a "Valid OAuth Redirect URI" on the Meta app exactly (see README step 6).
+    return os.getenv("INSTAGRAM_REDIRECT_URI") or request.host_url.rstrip("/") + "/api/instagram/callback"

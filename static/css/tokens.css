@@ -1,35 +1,49 @@
-/* Colours, fonts and sizes (dark first, with a light version). */
+/* Pit Crew design tokens: carbon dark first (a light version below). YouTube red is the brand colour,
+   pit-lane yellow the highlight. Contrast checked: white on --primary ≥ 4.7:1, --primary-text and
+   --faint ≥ 4.5:1 on panels, in both themes. Chart colours live in analytics.css (validated separately). */
 :root{
-  --bg:#0D1117; --panel:#161B22; --raised:#1E2330; --field:#0D1117;
-  --line:rgba(255,255,255,.08); --line-2:rgba(255,255,255,.14);
-  --ink:#E6E9F2; --muted:#A0A6BC; --faint:#6E7590;
-  --primary:#6366F1; --primary-hover:#4F46E5; --primary-ink:#FFFFFF; --primary-soft:rgba(99,102,241,.16); --primary-text:#A5A8FF;
+  --bg:#07070A; --bg-2:#0D0D12; --panel:#111117; --raised:#191920; --field:#0B0B10;
+  --glass:rgba(17,17,23,.72); --glass-hi:rgba(255,255,255,.045);
+  --line:rgba(255,255,255,.075); --line-2:rgba(255,255,255,.14);
+  --ink:#F3F4F8; --muted:#A3A6B8; --faint:#7A7E93;
+  --primary:#E8002D; --primary-hover:#FF1A45; --primary-ink:#FFFFFF; --primary-soft:rgba(255,0,51,.14); --primary-text:#FF5470;
+  --primary-glow:rgba(255,0,51,.55);
+  --grad-red:linear-gradient(135deg,#FF2D55 0%,#E8002D 55%,#B80024 100%);
   --cap:#FFD60A; --cap-ink:#1A1500; --cap-line:#FFD60A; --cap-soft:rgba(255,214,10,.12);
-  --good:#34D399; --good-soft:rgba(16,185,129,.14); --warn:#F59E0B; --bad:#F87171; --bad-soft:rgba(239,68,68,.12);
-  --shadow:0 24px 48px -12px rgba(0,0,0,.5); --glass:rgba(22,27,34,.85);
+  --good:#34D399; --good-soft:rgba(16,185,129,.14); --warn:#F59E0B; --bad:#FF6B6B; --bad-soft:rgba(239,68,68,.13);
+  --shadow:0 30px 60px -20px rgba(0,0,0,.7); --glow:0 0 0 1px rgba(255,0,51,.35),0 10px 40px -10px rgba(255,0,51,.55);
+  --grid:rgba(255,255,255,.035);
   --sans:"Plus Jakarta Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
-  --mono:"Space Grotesk","Plus Jakarta Sans",system-ui,sans-serif;
+  --display:"Unbounded","Plus Jakarta Sans",system-ui,sans-serif;
+  --mono:"JetBrains Mono","Space Grotesk",ui-monospace,monospace;
+  --ease:cubic-bezier(.2,.8,.2,1);
   color-scheme:dark;
 }
 @media (prefers-color-scheme: light){
   :root:not([data-theme="dark"]){
-    --bg:#F5F6FA; --panel:#FFFFFF; --raised:#F0F2F8; --field:#FFFFFF;
-    --line:rgba(17,24,39,.09); --line-2:rgba(17,24,39,.16);
-    --ink:#151A28; --muted:#586079; --faint:#8A90A6;
-    --primary:#4F46E5; --primary-hover:#4338CA; --primary-soft:rgba(79,70,229,.10); --primary-text:#4338CA;
+    --bg:#F4F4F7; --bg-2:#ECECF1; --panel:#FFFFFF; --raised:#F3F3F7; --field:#FFFFFF;
+    --glass:rgba(255,255,255,.78); --glass-hi:rgba(255,255,255,.9);
+    --line:rgba(15,15,25,.08); --line-2:rgba(15,15,25,.15);
+    --ink:#0E0E14; --muted:#5A5F73; --faint:#6E7387;
+    --primary:#D6002A; --primary-hover:#B80024; --primary-soft:rgba(214,0,42,.08); --primary-text:#C0002A;
+    --primary-glow:rgba(214,0,42,.35);
     --cap-line:#C9A400; --cap-soft:rgba(255,214,10,.22);
     --good:#047857; --good-soft:rgba(16,185,129,.12); --warn:#B45309; --bad:#DC2626; --bad-soft:rgba(220,38,38,.07);
-    --shadow:0 18px 40px -16px rgba(20,24,40,.2); --glass:rgba(255,255,255,.88);
+    --shadow:0 24px 48px -20px rgba(20,20,40,.25); --glow:0 0 0 1px rgba(214,0,42,.25),0 10px 30px -12px rgba(214,0,42,.45);
+    --grid:rgba(15,15,25,.045);
     color-scheme:light;
   }
 }
 :root[data-theme="light"]{
-  --bg:#F5F6FA; --panel:#FFFFFF; --raised:#F0F2F8; --field:#FFFFFF;
-  --line:rgba(17,24,39,.09); --line-2:rgba(17,24,39,.16);
-  --ink:#151A28; --muted:#586079; --faint:#8A90A6;
-  --primary:#4F46E5; --primary-hover:#4338CA; --primary-soft:rgba(79,70,229,.10); --primary-text:#4338CA;
+  --bg:#F4F4F7; --bg-2:#ECECF1; --panel:#FFFFFF; --raised:#F3F3F7; --field:#FFFFFF;
+  --glass:rgba(255,255,255,.78); --glass-hi:rgba(255,255,255,.9);
+  --line:rgba(15,15,25,.08); --line-2:rgba(15,15,25,.15);
+  --ink:#0E0E14; --muted:#5A5F73; --faint:#6E7387;
+  --primary:#D6002A; --primary-hover:#B80024; --primary-soft:rgba(214,0,42,.08); --primary-text:#C0002A;
+  --primary-glow:rgba(214,0,42,.35);
   --cap-line:#C9A400; --cap-soft:rgba(255,214,10,.22);
   --good:#047857; --good-soft:rgba(16,185,129,.12); --warn:#B45309; --bad:#DC2626; --bad-soft:rgba(220,38,38,.07);
-  --shadow:0 18px 40px -16px rgba(20,24,40,.2); --glass:rgba(255,255,255,.88);
+  --shadow:0 24px 48px -20px rgba(20,20,40,.25); --glow:0 0 0 1px rgba(214,0,42,.25),0 10px 30px -12px rgba(214,0,42,.45);
+  --grid:rgba(15,15,25,.045);
   color-scheme:light;
 }

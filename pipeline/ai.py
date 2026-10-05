@@ -84,7 +84,7 @@ def ai_json(contents, progress=lambda pct, msg: None, temperature=0.4, busy_hint
     if provider == "openai":
         return openai_json(contents, progress, temperature, busy_hint, timeout, busy_waits)
     if provider != "gemini":
-        raise RuntimeError(f"AI_PROVIDER in .env is '{provider}', which Clipline doesn't know. "
+        raise RuntimeError(f"AI_PROVIDER in .env is '{provider}', which Pit Crew doesn't know. "
                            "Set it to gemini or openai and restart.")
     return gemini_json(contents, progress, temperature, busy_hint, timeout, busy_waits)
 
