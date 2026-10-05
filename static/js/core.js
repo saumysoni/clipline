@@ -9,17 +9,13 @@ const studioLink = id => "https://accounts.google.com/ServiceLogin?service=youtu
 const esc = t => String(t).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 let count = 5, jobId = null, poll = null, job = null;
 
+// Screens: 1 New vlog, 2 Making, 3 Review/Post, 4 Posted, 5 Scheduled, 6 Analytics, 7 Vlogs, 8 Settings.
+// The sidebar marks where the creator is (a vlog's own screens count as Vlogs).
+const NAV_FOR = {1:"createBtn", 2:"vlogsNav", 3:"vlogsNav", 4:"vlogsNav", 5:"postedNav", 6:"analyticsNav", 7:"vlogsNav", 8:"settingsNav"};
 function show(n){
-  [1,2,3,4,5,6].forEach(i=>$("s"+i).hidden = i!==n);
-  $("postedNav").classList.toggle("now", n===5);
-  $("analyticsNav").classList.toggle("now", n===6);
-  $("steps").classList.toggle("away", n>=5);  // on Analytics / On YouTube, the steps lead back to making Shorts
-  document.querySelectorAll("#steps li").forEach(li=>{
-    const k=+li.dataset.step, ic=li.querySelector(".st-ic");
-    li.classList.toggle("done",n<5&&k<n); li.classList.toggle("now",k===n);
-    if(k===n) li.setAttribute("aria-current","step"); else li.removeAttribute("aria-current");
-    ic.innerHTML = n<5&&k<n ? '<span class="ms" aria-hidden="true">check</span>' : String(k);
-  });
+  [1,2,3,4,5,6,7,8].forEach(i=>$("s"+i).hidden = i!==n);
+  document.querySelectorAll(".side .navlink,.side .create").forEach(b=>{ b.classList.remove("now"); b.removeAttribute("aria-current"); });
+  const on=$(NAV_FOR[n]); if(on){ on.classList.add("now"); on.setAttribute("aria-current","page"); }
   window.scrollTo(0,0);
 }
 show(1);

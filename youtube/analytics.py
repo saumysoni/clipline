@@ -16,6 +16,7 @@ import threading
 import time
 from datetime import date, datetime, timedelta
 
+from accounts import db
 from youtube.connection import load_creds
 
 
@@ -109,8 +110,9 @@ def _totals(ya, start, end):
 
 
 def dashboard(user_id, days=28, clipline_ids=()):
-    """Everything for the Analytics page, for the last `days` days (0 = since the channel started)."""
-    key = (user_id, days)
+    """Everything for the Analytics page (the active channel), for the last `days` days (0 = since the channel
+    started)."""
+    key = (user_id, (db.connection(user_id, "youtube") or {}).get("account_id"), days)  # per channel
     with _LOCK:
         hit = _CACHE.get(key)
         if hit and time.time() - hit[0] < CACHE_SECS:

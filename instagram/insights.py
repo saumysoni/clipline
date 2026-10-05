@@ -1,6 +1,6 @@
 """
 Instagram numbers for Analytics: the account, its recent Reels and each Reel's views, reach, likes,
-comments, shares, saves and watch time. Cached for 10 minutes per user.
+comments, shares, saves and watch time, for the active account. Cached for 10 minutes per account.
 """
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -32,12 +32,13 @@ def _reel_numbers(base, tok, m):
 
 def dashboard(user_id, clipline_ids=(), limit=30):
     """{"account", "totals", "reels"} for this user's recent Reels, or None when not connected."""
-    hit = _CACHE.get(user_id)
-    if hit and time.time() - hit[0] < TTL:
-        return hit[1]
     info = load(user_id)
     if not info:
         return None
+    key = (user_id, info.get("ig_id"))
+    hit = _CACHE.get(key)
+    if hit and time.time() - hit[0] < TTL:
+        return hit[1]
     tok, base = info["token"], f"{GRAPH}/{API_VERSION}"
     acct = account(user_id)
     try:
@@ -60,9 +61,10 @@ def dashboard(user_id, clipline_ids=(), limit=30):
     out = {"account": acct, "totals": totals,
            "reels": sorted(rows, key=lambda r: -(r.get("views") or 0)),
            "partial": any("error" in r for r in rows)}
-    _CACHE[user_id] = (time.time(), out)
+    _CACHE[key] = (time.time(), out)
     return out
 
 
 def forget(user_id):
-    _CACHE.pop(user_id, None)
+    for key in [k for k in _CACHE if k[0] == user_id]:
+        _CACHE.pop(key, None)

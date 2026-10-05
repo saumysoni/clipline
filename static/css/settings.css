@@ -1,0 +1,18 @@
+/* Settings page (js/settings.js). */
+.set-card{margin-bottom:16px;display:flex;flex-direction:column;gap:10px}
+.set-card h2{font-size:1.05rem;margin:0 0 2px}
+.set-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line);flex-wrap:wrap}
+.set-card h2+.set-row,.set-card h2+div>.set-row:first-child{border-top:0;padding-top:2px}
+.set-row>img,.set-row>.ms{width:34px;height:34px;border-radius:50%;flex:none;object-fit:cover;display:grid;place-items:center;font-size:20px;color:var(--muted);background:var(--raised)}
+.set-t{display:flex;flex-direction:column;min-width:0;flex:1}
+.set-t b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.set-t small{font-size:.8rem;color:var(--muted)}
+.set-t small.warn{color:var(--warn)}
+.set-acts{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.set-note{display:flex;gap:8px;align-items:flex-start;color:var(--muted);font-size:.88rem;margin:0}
+.set-note .ms{color:var(--warn);font-size:20px;flex:none}
+.set-card .s-add{align-self:flex-start;gap:6px;margin-top:4px}
+.set-card .theme-seg button{display:inline-flex;gap:6px;align-items:center;padding:7px 12px;font:inherit;font-size:.84rem}
+.set-card .theme-seg [data-theme-set=auto]{display:inline-flex}
+.set-card .ok-note{color:var(--good);font-size:.86rem}
+.set-card .ok-note:empty{display:none}

@@ -57,6 +57,11 @@ The code is split so two people can work on different features without touching 
 | Feature | Work | Web routes | Page |
 |---|---|---|---|
 | Accounts (email + Google sign-in), `gate()` | `accounts/db.py` | `web/accounts.py` | `js/account.js`, `sections/auth.html`, `css/auth.css` |
+| Forgot password (reset link by email) | `accounts/db.py` (`password_resets`), `accounts/mail.py` | `web/password_reset.py` | `js/password-reset.js`, `sections/auth.html` |
+| Sidebar (+ Create, Workspace, Channels, Account / Settings / Appearance) | | | `sections/sidebar.html`, `js/nav.js`, `css/shell.css` |
+| Vlogs page (home: every vlog as a card) | | `web/vlogs.py` (`/api/vlogs`) | `js/vlogs.js`, `sections/vlogs.html`, `css/vlogs.css` |
+| Progress card (vlog being sent / made, "Shorts ready" pop-up) | | `web/vlogs.py` | `js/jobs-now.js`, `css/jobs-now.css` |
+| Settings page (account, connected channels, appearance) | | | `js/settings.js`, `sections/settings.html`, `css/settings.css` |
 | Connect YouTube | `youtube/signin.py`, `youtube/connection.py`, `youtube/config.py` | `web/youtube_connect.py`, `web/google_redirect.py` | `js/youtube-connect.js` |
 | Setup form (count, style, must-have moments, file, links) | `youtube/links.py` | `web/make_shorts.py` (`start`), `web/times.py` | `js/setup-form.js`, `js/must-have.js`, `js/video-file.js`, `js/links.js`, `js/start.js`, `sections/setup.html`, `css/setup.css` |
 | Vlog title/description from a YouTube link (API key, else the creator's YouTube connection, else title only) | `youtube/vlog_info.py`, `pipeline/vlog_context.py` | `web/vlog_info.py` | `js/links.js` |
@@ -91,7 +96,7 @@ The code is split so two people can work on different features without touching 
 | `pipeline/ffmpeg.py`, `pipeline/text.py`, `pipeline/constants.py` | FFmpeg (`ffmpeg_exe()`, `run()`, `probe()`), small text helpers, shared numbers. |
 | `pipeline/__init__.py`, `youtube/__init__.py`, `instagram/__init__.py` | Only re-export what `web/` uses, so web code can write `pipeline.render_short(...)` / `yt.upload_short(...)` / `ig.post_reel(...)`. |
 | `static/index.html` | The page skeleton: lists the CSS and JS files and includes each `sections/*.html` (the `/` route fills them in). |
-| `static/js/core.js` | `$()`, `fmt()`, `esc()`, `show(step)` and the shared page state (`job`, `jobId`, `poll`, `count`). |
+| `static/js/core.js` | `$()`, `fmt()`, `esc()`, `show(n)` (screens 1 New vlog … 7 Vlogs, 8 Settings; `NAV_FOR` marks the sidebar item) and the shared page state (`job`, `jobId`, `poll`, `count`). |
 | `static/css/tokens.css`, `base.css`, `buttons.css`, `fields.css`, `cards.css`, `shell.css` | The look shared by every screen. |
 | `static/css/theme.css` | The Pit Crew look on top of everything (loads after every screen's CSS): carbon glass panels, YouTube-red buttons and glow, the checkered eyebrow, the sidebar rail, stage lights on Making, hazard-stripe progress bars, the pit-lane sign-in backdrop. Colours only from `tokens.css` (contrast-checked). Fonts: Unbounded (headings, wordmark), Plus Jakarta Sans (text), JetBrains Mono (numbers, labels). The logo (three rising slanted bars on a red tile: growth and speed. Never a play button or a red P: those copy YouTube's and Pinterest's logos) is inline SVG in `sections/sidebar.html` and `sections/auth.html` (give each copy its own ids). |
 
@@ -228,14 +233,20 @@ The code is split so two people can work on different features without touching 
     and is refused once the Short is public (`yt.is_live`). Upload records store `video`, the file that went up, so
     an edit is detected by comparing it with the Short's current `video`.
     The waiting sign-in (state + PKCE verifier + purpose) lives in the user's session cookie, so a callback only
-    finishes a sign-in the same browser started. The channel cache `_CHANNEL` is in memory per user.
+    finishes a sign-in the same browser started.
 16. **Accounts and ownership.** Every `/api` and `/media` route needs a signed-in user (`gate()` in `web/accounts.py`;
     only names in `PUBLIC` are open), and any route with a `job_id` checks `job["owner"]` there, so a new job route
     is protected automatically. Background threads have no request, so pass the user id in (as `do_upload` does).
     Google sign-in ("login") asks only `openid email profile` (no cap, no warning); Connect YouTube is separate.
-    Users are matched by Google `sub`; an existing account is linked by email only if Google says the email is
-    verified, and then any password set earlier is removed and `session_version` bumped (stops pre-account
-    hijacking: someone signing up with another person's email first). POSTs from another Origin get 403.
+    Users are matched by Google `sub`. Google sign-in with an email that already has an account (not linked to that
+    Google account) is refused with "Email already exists" (`EMAIL_EXISTS`), shown in red on the sign-in screen
+    (`login_problem_page()` puts it in the session; `/api/me` hands it to the page once). Accounts are never joined
+    by email. **Forgot password** (`web/password_reset.py`, `accounts/mail.py`): a one-time link `APP_URL/#reset=<token>`
+    (only its SHA-256 is stored in `password_resets`, 1 hour), emailed over SMTP in a background thread (no SMTP
+    settings = the link is printed in the terminal); the reply is the same whether or not the account exists. Using
+    it sets the password, marks the email verified and bumps `session_version` (ends every old session, which
+    also stops pre-account hijacking: someone signing up with another person's email first). In the cloud set
+    `APP_URL`: never build email links from the request's Host. POSTs from another Origin get 403.
     Tests must set the `DATABASE_PATH` and `JOBS_DIR` environment settings to temporary paths before importing `app`:
     a test once wrote to the real jobs.
     The login throttle keys on `request.remote_addr`; behind a cloud proxy, use the real client IP (ProxyFix).
@@ -243,7 +254,7 @@ The code is split so two people can work on different features without touching 
     asked on connect but optional. Without it (or without "YouTube Analytics API" enabled in Google Cloud),
     `youtube/analytics.py` falls back to live counts of Pit Crew's Shorts and adds `notes=["reconnect"]`, and the page
     shows "Connect again". Shorts are filtered with `creatorContentType==SHORTS`; numbers lag ~2 days. Results are
-    cached 10 minutes per user. Charts: one axis, colours from `css/analytics.css` tokens (validated), text never in
+    cached 10 minutes per channel. Charts: one axis, colours from `css/analytics.css` tokens (validated), text never in
     series colours, a Table button on every chart.
 18. **Open in Studio goes through Google sign-in** (`studioLink()` in `js/core.js`:
     `accounts.google.com/ServiceLogin?service=youtube&continue=<studio link>`), so a signed-out creator lands on the
@@ -258,6 +269,19 @@ The code is split so two people can work on different features without touching 
     in `posting` by a crash becomes `check`, never re-posted on its own. 100 API posts per account per 24 h.
     In the cloud the scheduler must run in exactly one process (or move to a job queue). The redirect address is
     `INSTAGRAM_REDIRECT_URI` (Meta may refuse plain `http://localhost`; use an https tunnel then).
+20. **Several channels and Instagram accounts per creator.** `connections` in `accounts/db.py` (platform youtube /
+    instagram, `account_id` = YouTube channel id / Instagram user id, token, profile, `active`). One per platform is
+    active: it's where *new* posts go, and Analytics shows it. Connecting adds a connection (or updates the same
+    one) and makes it active; Switch just changes `active` (no new sign-in); Disconnect drops one and the newest other
+    becomes active. Pit Crew sign-out leaves connections alone (planned Reels must still go out).
+    **Never act on the active account for something already planned or posted.** Upload/schedule routes take the
+    `channel` / `ig_id` the page showed (another tab may have switched); upload records keep `channel` and each
+    `ig_posts` entry keeps `ig_id` + `username`; reschedule, Replace, the Scheduled page's live state and the
+    Instagram scheduler use those. Pass `channel=` / `ig_id=` to `yt.get_service()` / `ig.post_reel()`.
+    Analytics and Instagram insights caches are keyed per channel/account. Rows moved from the old one-per-user
+    tables (`PRAGMA user_version` 0 → 1; the old tables stay, unused) get their YouTube channel id on first
+    `yt.account()` (`_fill_channel`); Reels planned before this get the first-connected account (`_stamp_account`).
+    "Add account" for Instagram sends `force_reauth=true`, so Instagram asks who to log in as.
 
 ## Conventions
 

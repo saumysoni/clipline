@@ -5,7 +5,8 @@ dialog#picker::backdrop{background:rgba(8,10,18,.7)}
 .pk-stage{position:relative;background:#000;border-radius:14px;overflow:hidden;display:grid;place-items:center;min-height:200px}
 .pk-stage video{display:block;width:100%;max-height:50vh;background:#000}
 .pk-wait{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:12px;padding:20px;text-align:center;color:#fff;font-size:.92rem}
-.pk-wait .spin{width:22px;height:22px}
+.pk-wait .spin{width:22px;height:22px;flex:none}
+.pk-wait small{color:rgba(255,255,255,.7);font-size:.8rem}
 .pk-wait .linkbtn{color:#fff;text-decoration:underline}
 .pk-track{position:relative;height:36px;margin:16px 0 6px;border-radius:9px;background:repeating-linear-gradient(90deg,var(--line-2) 0 2px,transparent 2px 6px);cursor:pointer}
 .pk-track .used{position:absolute;top:5px;bottom:5px;border-radius:6px;background:var(--raised);border:1px solid var(--line-2);font:700 11px var(--mono);color:var(--muted);display:grid;place-items:center;overflow:hidden}

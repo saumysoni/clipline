@@ -1,5 +1,6 @@
 """
-Connect Instagram: the sign-in window, Instagram's callback, the account line, sign-out.
+Connect Instagram: the sign-in window, Instagram's callback, the account line, switching between connected
+accounts, disconnecting one.
 
 The waiting sign-in is kept here on the server (keyed by its one-time state), not in the browser's cookie, so
 Instagram may send the creator back to a different address than the one Pit Crew is open at. Meta may only
@@ -37,7 +38,7 @@ def _take_pending(state):
 def instagram_signin():
     popup = request.args.get("popup") == "1"
     try:
-        url, pending = ig.start_login(instagram_redirect_uri(), popup)
+        url, pending = ig.start_login(instagram_redirect_uri(), popup, add=request.args.get("add") == "1")
     except ig.InstagramError as e:
         return instagram_done_page(False, str(e), popup)
     with _PLOCK:
@@ -95,6 +96,15 @@ def instagram_me():
 
 @app.post("/api/instagram/signout")
 def instagram_signout():
-    ig.sign_out(g.user["id"])
+    """Disconnect one account ({"ig_id": id}; none given = the active one). The others stay connected."""
+    ig.sign_out(g.user["id"], (request.get_json(silent=True) or {}).get("ig_id") or None)
     ig.forget_insights(g.user["id"])
-    return jsonify(ok=True)
+    return instagram_me()
+
+
+@app.post("/api/instagram/switch")
+def instagram_switch():
+    """Make another connected account the one new Reels are planned for (no new Instagram sign-in)."""
+    if not ig.switch(g.user["id"], str((request.get_json(silent=True) or {}).get("ig_id", ""))):
+        return jsonify(error="That Instagram account isn't connected any more. Add it again."), 400
+    return instagram_me()

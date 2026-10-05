@@ -88,8 +88,8 @@ At this point you can already make, play, and download Shorts. Step 5 only adds 
 
 **Accounts.** The first screen asks you to sign in. Create an account with your email and a password (at least
 8 characters), or use **Continue with Google** once step 5 is done. Each account sees only its own vlogs, Shorts
-and YouTube channel. Vlogs made before Pit Crew had accounts belong to the first account created. There's no
-"forgot password" yet (it needs email sending); someone who signed up with Google can always use Google.
+and YouTube channel. Vlogs made before Pit Crew had accounts belong to the first account created. **Forgot
+password?** emails a reset link (step 7; until then the link is printed in the Terminal window).
 
 ### 5. Turn on Google sign-in and automatic YouTube posting
 
@@ -125,7 +125,10 @@ Open Pit Crew at `http://localhost:8000`, the address it opens by itself. Google
 **Things to know about posting**
 - **Uploads stay private until your project passes YouTube's API audit.** This is YouTube's rule for new projects. During a trial, open each upload in YouTube Studio and set it to public or scheduled there (Pit Crew shows an "Open in Studio" link for each one). To lift the limit, apply for the free audit from the YouTube API Services page; you'll need a short privacy policy and a description of the app.
 - While the app is in **Testing** mode, a YouTube connection expires after about a week; just connect again when asked. Publishing the app (step 5.5) ends that.
-- Each account's YouTube connection is stored in `data/clipline.db` and can post to that channel. Keep the `data` folder private (it's git-ignored). **Disconnect** (under your Shorts) removes it and withdraws the permission at Google; **Switch channel** connects another account.
+- Each account's YouTube connections are stored in `data/clipline.db` and can post to those channels. Keep the `data` folder private (it's git-ignored). **Disconnect** removes one channel and withdraws the permission at Google.
+- **Several channels or Instagram accounts.** Click the YouTube or Instagram button under **Channels** in the sidebar: **Add channel** / **Add account** connects another one, and clicking a connected one switches to it straight away (no new sign-in). New Shorts and Reels go to the one that's ticked, and Analytics shows it. Shorts already posted or scheduled stay on their own channel, and changing them later (new time, Replace) goes to that channel. Connections stay until you disconnect them; signing out of Pit Crew doesn't remove them, so planned Reels still go out.
+  - While the Google app is in **Testing**, every Google account you connect must be on the OAuth consent screen's **Test users** list. Channels that belong to the same Google account (brand channels) need nothing extra: Google asks which channel when you connect.
+  - Each extra Instagram account must be added as an **Instagram tester** and accept the invite (step 6.4). **Add account** makes Instagram ask which account to log in as.
 - Pit Crew asks to **manage your YouTube videos**, which it needs to show your channel's name, change a scheduled time and replace an edited Short. It only ever touches the Shorts it uploaded. An old `token.json` from earlier versions isn't used any more and can be deleted.
 - Custom Shorts thumbnails are rolling out to YouTube Partner Program channels first (since July 2026), and need a phone-verified channel. On other channels YouTube may refuse them. If YouTube refuses, Pit Crew still uploads the Short and tells you to add the thumbnail in Studio (the file is in the `jobs` folder).
 
@@ -147,6 +150,25 @@ Pit Crew posts Reels with the **Instagram API with Instagram Login**: the creato
 6. **Restart Pit Crew**, open the **Post** page (or click **Connect Instagram** in the sidebar), and connect. The sidebar badge then shows your @username.
 
 **Posting Reels.** Each Short gets its own Instagram schedule: **Same times as YouTube**, the same presets, a custom start and spacing, or right away. Instagram doesn't let apps schedule posts, so Pit Crew posts each Reel itself at its time: keep Pit Crew running (Reels that came due while it was closed go out when it starts again). The caption has the title, the hook, the full video's name on YouTube and the hashtags; the Short's thumbnail frame becomes the Reel cover. Instagram allows 100 posts by app per account per day. If posting stops, the Reel shows **Try again**; if Pit Crew was closed in the middle of posting, check Instagram first so nothing is posted twice.
+
+### 7. Send password reset emails (optional)
+
+When someone clicks **Forgot password?** on the sign-in screen, Pit Crew emails them a link to choose a new password (it works once, for 1 hour). Until email is set up, no email goes out and the link is printed in the Terminal window instead, which is fine on your own computer.
+
+To send real emails from a Gmail account:
+1. Turn on 2-Step Verification for the Google account (https://myaccount.google.com/security).
+2. Make an **app password** at https://myaccount.google.com/apppasswords (name it Pit Crew) and copy the 16 letters.
+3. Add to `.env`, then restart Pit Crew:
+   ```
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_USER=you@gmail.com
+   SMTP_PASSWORD=the16letterapppassword
+   ```
+
+Any other email service with SMTP works the same way (put its host, port, user and password instead). On a server, also set `APP_URL` to Pit Crew's public address so the link points to the right place.
+
+**Signing in with Google when you made your account with a password:** Pit Crew shows "Email already exists" in red and doesn't join the two. Sign in with your email and password (or use Forgot password).
 
 ---
 

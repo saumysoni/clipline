@@ -1,12 +1,14 @@
 // Step 2: polling the job and drawing the progress.
 // ---- progress
 function startPolling(id){
-  jobId=id; location.hash=id; show(2); clearInterval(poll);
+  jobId=id; location.hash=id; show(2); clearInterval(poll); seenJob(id);
   poll=setInterval(tick,1000); tick();
 }
 async function tick(){
-  let r; try{ r=await fetch("/api/status/"+jobId); }catch(e){ return; }
-  if(r.status===404){ clearInterval(poll); location.hash=""; show(1); return; }
+  const id=jobId;
+  let r; try{ r=await fetch("/api/status/"+id); }catch(e){ return; }
+  if(id!==jobId || location.hash.slice(1)!==id) return;  // the creator went to another page meanwhile
+  if(r.status===404){ clearInterval(poll); openVlogs(); return; }
   job=await r.json();
   if(job.upload_status && job.upload_status!=="error" && !(job.upload_status==="done" && onReview)){ renderUpload(); return; }
   if(job.status==="ready"){

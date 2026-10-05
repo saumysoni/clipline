@@ -20,9 +20,10 @@ $("make").onclick=()=>{
   const xhr=new XMLHttpRequest();
   xhr.open("POST","/api/start");
   $("make").disabled=true; $("upBar").hidden=false;
-  xhr.upload.onprogress=e=>{ if(e.lengthComputable){ $("upBar").firstElementChild.style.width=(e.loaded/e.total*100)+"%"; $("make").textContent="Sending video "+Math.round(e.loaded/e.total*100)+"%"; } };
+  jobsUpload(0);
+  xhr.upload.onprogress=e=>{ if(e.lengthComputable){ $("upBar").firstElementChild.style.width=(e.loaded/e.total*100)+"%"; $("make").textContent="Sending video "+Math.round(e.loaded/e.total*100)+"%"; jobsUpload(e.loaded/e.total*100); } };
   xhr.onload=()=>{
-    $("make").disabled=false; $("upBar").hidden=true; renderCount();
+    $("make").disabled=false; $("upBar").hidden=true; renderCount(); jobsUpload(null);
     let r={}; try{r=JSON.parse(xhr.responseText);}catch(e){}
     if(xhr.status!==200){
       if(r.field==="link") flag($("link"),$("linkHint"),r.error);
@@ -32,6 +33,6 @@ $("make").onclick=()=>{
     }
     startPolling(r.id);
   };
-  xhr.onerror=()=>{ $("make").disabled=false; renderCount(); $("err1").textContent="Couldn't reach Pit Crew. Is the app window still open?"; };
+  xhr.onerror=()=>{ $("make").disabled=false; renderCount(); jobsUpload(null); $("err1").textContent="Couldn't reach Pit Crew. Is the app window still open?"; };
   xhr.send(fd);
 };

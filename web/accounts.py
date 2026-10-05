@@ -2,7 +2,6 @@
 Pit Crew accounts: email + password or Continue with Google, and gate() which requires sign-in
 for every /api and /media address and checks that a job belongs to the signed-in user.
 """
-import html
 import json
 import re
 import sqlite3
@@ -31,18 +30,16 @@ def auth_google():
         return login_problem_page(str(e))
 
 
-def login_problem_page(msg):
-    return (f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Pit Crew · Sign in</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<style>body{{font:16px/1.5 system-ui,sans-serif;margin:0;min-height:100vh;display:grid;place-items:center;
-background:#0e1018;color:#e8eaf2;padding:16px}}main{{max-width:420px;text-align:center}}a{{color:#8fb4ff}}</style>
-</head><body><main><h1 style="font-size:1.3rem">Not signed in</h1><p>{html.escape(msg)}</p>
-<p><a href="/">Back to Pit Crew</a></p></main></body></html>""", 400)
+def login_problem_page(msg, email=""):
+    """Back to the sign-in screen, which shows msg in red (Google sign-in happens away from the page)."""
+    session["auth_error"] = {"error": msg, "email": email}
+    return redirect("/")
 
 
 # Anyone can make an account: email + password, or Sign in with Google (name and email only).
 # Every /api and /media address needs a signed-in user, and a job is only reachable by its owner.
 PUBLIC = {"index", "static", "config", "me", "auth_signup", "auth_login", "auth_logout", "auth_google",
+          "auth_forgot", "auth_reset",
           "youtube_callback", "instagram_callback"}  # instagram_callback: its one-time state names the user
 
 
@@ -102,23 +99,25 @@ def claim_old_jobs(user_id):
         print(f"Gave job {path.parent.name} (made before accounts) to the first account.")
 
 
+EMAIL_EXISTS = ("Email already exists. This email has a Pit Crew account with a password: sign in with your email "
+                "and password, or use Forgot password.")
+
+
 def google_user(info):
-    """The Pit Crew user for a Google sign-in: found by Google account, linked by email, or new."""
+    """The Pit Crew user for a Google sign-in: found by Google account, or new. An email that already has a
+    password account is refused (no automatic joining): that person signs in with their password."""
     user = db.user_by_google(info["sub"])
     if user:
         return user
-    user = db.user_by_email(info["email"])
-    if user:
-        if not info["email_verified"]:
-            raise RuntimeError("Google hasn't confirmed this email address, so it can't be joined to your Pit Crew "
-                               "account. Sign in with your email and password instead.")
-        # Google proves who owns the email; a password set earlier was never checked, so it's removed.
-        db.link_google(user["id"], info["sub"], info["name"], clear_password=not user["email_verified"])
-        return db.user_by_id(user["id"])
+    if db.user_by_email(info["email"]):
+        raise RuntimeError(EMAIL_EXISTS)
     try:
         uid = db.create_user(info["email"], info["name"], google_sub=info["sub"], email_verified=info["email_verified"])
     except sqlite3.IntegrityError:  # signed up a moment ago in another tab
-        return db.user_by_email(info["email"])
+        user = db.user_by_email(info["email"])
+        if not user or user["google_sub"] != info["sub"]:
+            raise RuntimeError(EMAIL_EXISTS)
+        return user
     claim_old_jobs(uid)
     return db.user_by_id(uid)
 
@@ -126,7 +125,9 @@ def google_user(info):
 @app.get("/api/me")
 def me():
     u = g.user
-    return jsonify(user={"email": u["email"], "name": u["name"]} if u else None, google=yt.is_configured())
+    problem = session.pop("auth_error", None) if not u else None  # from a Google sign-in that didn't work
+    return jsonify(user={"email": u["email"], "name": u["name"]} if u else None, google=yt.is_configured(),
+                   auth_error=problem)
 
 
 @app.post("/api/auth/signup")

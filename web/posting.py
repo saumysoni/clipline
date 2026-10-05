@@ -44,16 +44,19 @@ def youtube_title(title):
     return title + " #Shorts" if "#shorts" not in title.lower() and len(title) <= 90 else title
 
 
-def do_upload(user_id, job_id, items, mode, times, earlier):
-    """Upload `items` at `times`. An item with "replace" (its earlier upload record) is an edited Short:
-    the new version goes up first, then the old one is deleted, so a failure never loses both."""
+def do_upload(user_id, job_id, items, mode, times, earlier, channel=None):
+    """Upload `items` at `times` to `channel` (a connected channel's id, chosen when the creator pressed Upload;
+    None = the active one). An item with "replace" (its earlier upload record) is an edited Short: the new
+    version goes up first, on the old one's channel, then the old one is deleted, so a failure never loses both."""
     job_dir = JOBS_DIR / job_id
     results = list(earlier)
     try:
         update(job_id, upload_status="connecting", upload_msg="Connecting to YouTube")
-        service = yt.get_service(user_id)
-        own = yt.account(user_id).get("channel") or {}
-        channel = own.get("id")
+        service = yt.get_service(user_id, channel)
+        acct = yt.account(user_id)
+        own = next((c for c in acct["channels"] if c["id"] == channel), None) if channel else acct.get("channel")
+        own = own or {}
+        channel = own.get("id") or channel
         with LOCK:
             vlog = dict((JOBS.get(job_id) or {}).get("vlog") or {})
         for k, (it, when) in enumerate(zip(items, times)):
@@ -69,7 +72,7 @@ def do_upload(user_id, job_id, items, mode, times, earlier):
             )
             rec = {"idx": it["idx"], "title": it["title"], "video_id": vid, "video": it["video"],
                    "thumb": it["thumb"], "when": when.isoformat() if when else None, "note": note,
-                   "channel": channel}
+                   "channel": channel, "channel_title": own.get("title", "")}
             if old:
                 update(job_id, upload_msg="Removing the old version from YouTube")
                 try:
@@ -127,6 +130,11 @@ def schedule(job_id):
     if not acct["signed_in"]:
         return jsonify(error="Connect YouTube first, so Pit Crew knows which channel to post to.",
                        signin=True), 400
+    # The channel the page showed ("Posting to ..."), not whatever is active now (another tab may have switched).
+    channel = data.get("channel") or (acct.get("channel") or {}).get("id")
+    if channel and channel not in {c["id"] for c in acct["channels"]}:
+        return jsonify(error="That YouTube channel isn't connected any more. Pick a channel, then upload again.",
+                       signin=True), 400
     posted = {u["idx"] for u in earlier}
     items = []
     for row in data.get("shorts", []):
@@ -151,5 +159,6 @@ def schedule(job_id):
             return jsonify(error="These Shorts are already being posted."), 400
         POSTING.add(job_id)
     update(job_id, upload_status="starting", upload_msg="Starting", uploads=earlier, schedule=mode)
-    threading.Thread(target=do_upload, args=(g.user["id"], job_id, items, mode, times, earlier), daemon=True).start()
+    threading.Thread(target=do_upload, args=(g.user["id"], job_id, items, mode, times, earlier, channel),
+                     daemon=True).start()
     return jsonify(ok=True)

@@ -16,3 +16,6 @@
 .auth-or::before,.auth-or::after{content:"";flex:1;height:1px;background:var(--line)}
 .auth-card .switch{font-size:.88rem;color:var(--muted);text-align:center}
 .gmark{width:18px;height:18px;flex:none}
+.auth-card .forgot{align-self:flex-end;font-size:.84rem;margin-top:-6px}
+.auth-card .ok-note{color:var(--good);font-size:.88rem}
+.auth-card .ok-note:empty{display:none}

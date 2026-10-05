@@ -37,10 +37,12 @@ from web import (  # noqa: E402,F401
     make_shorts,
     on_youtube,
     pages,
+    password_reset,
     posting,
     preview,
     thumbnail_look,
     try_again,
+    vlogs,
     vlog_info,
     youtube_connect,
 )
