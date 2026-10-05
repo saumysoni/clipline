@@ -1,5 +1,5 @@
 // Posting to Instagram from the Post page: its own schedule, the Post button, and each Reel's state in the
-// list (waiting / posting / on Instagram / failed). Clipline's server posts each Reel at its time
+// list (waiting / posting / on Instagram / failed). Pit Crew's server posts each Reel at its time
 // (web/instagram_posting.py), so this page only plans, shows progress, cancels and retries.
 let igPoll=null;
 const igPosts=()=>new Map(((job&&job.ig_posts)||[]).map(p=>[p.idx,p]));
@@ -39,7 +39,7 @@ async function igSchedule(){
   try{ r=await fetch("/api/instagram/schedule/"+jobId,{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({shorts,schedule:mode,tz,start:$("igStart").value,every:+$("igEvery").value,
       yt_schedule:$("sched2").value,yt_start:$("schStart").value,yt_every:+$("schEvery").value})}); j=await r.json(); }
-  catch(e){ j={error:"Couldn't reach Clipline. Is the app window still open?"}; r={ok:false}; }
+  catch(e){ j={error:"Couldn't reach Pit Crew. Is the app window still open?"}; r={ok:false}; }
   if(!r.ok){ $("igErr").textContent=j.error||"Couldn't plan the Reels."; if(j.field==="start") $("igStart").classList.add("bad");
     if(j.signin||j.switch) loadIg(); igDock(); return; }
   job.ig_posts=j.ig_posts; igRefresh();
@@ -61,7 +61,7 @@ document.addEventListener("click",async e=>{
   c.disabled=true;
   try{ const r=await fetch("/api/instagram/"+(retry?"retry":"cancel")+"/"+jobId+"/"+idx,{method:"POST"}); const j=await r.json();
     if(r.ok) job.ig_posts=j.ig_posts; else $("igErr").textContent=j.error||"Couldn't change it."; }
-  catch(err){ $("igErr").textContent="Couldn't reach Clipline."; }
+  catch(err){ $("igErr").textContent="Couldn't reach Pit Crew."; }
   igRefresh();
 });
 // While a Reel is due or posting, check its state every few seconds.

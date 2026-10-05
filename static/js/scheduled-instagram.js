@@ -1,9 +1,9 @@
-// Scheduled page, Instagram part: every Reel Clipline posted or planned (web/instagram_posting.py), with
+// Scheduled page, Instagram part: every Reel Pit Crew posted or planned (web/instagram_posting.py), with
 // Open on Instagram, Cancel (still waiting), Try again (failed) and Edit Short.
 async function loadIgScheduled(){
   const list=$("igList");
   list.innerHTML='<li><span></span><span class="pv">Checking Instagram...</span></li>';
-  let j; try{ j=await (await fetch("/api/instagram/posts")).json(); }catch(e){ j={items:[],error:"Couldn't reach Clipline."}; }
+  let j; try{ j=await (await fetch("/api/instagram/posts")).json(); }catch(e){ j={items:[],error:"Couldn't reach Pit Crew."}; }
   const a=j.account||{};
   if(!j.items || !j.items.length){
     list.innerHTML='<li><span></span><span class="pv">'+(j.error ? esc(j.error)
@@ -33,7 +33,7 @@ async function loadIgScheduled(){
     const act=async what=>{
       err.textContent="";
       try{ const r=await fetch("/api/instagram/"+what+"/"+p.job+"/"+p.idx,{method:"POST"}); if(!r.ok){ err.textContent=(await r.json()).error||"Couldn't change it."; return; } }
-      catch(e){ err.textContent="Couldn't reach Clipline."; return; }
+      catch(e){ err.textContent="Couldn't reach Pit Crew."; return; }
       loadIgScheduled();
     };
     if(li.querySelector(".rt")) li.querySelector(".rt").onclick=()=>act("retry");

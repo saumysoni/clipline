@@ -1,8 +1,8 @@
 """
 Instagram settings: the Meta app (INSTAGRAM_APP_ID / INSTAGRAM_APP_SECRET in .env), the API version and
-the permissions Clipline asks for. Setup: README step 6.
+the permissions Pit Crew asks for. Setup: README step 6.
 
-Clipline uses the "Instagram API with Instagram Login": the creator signs in with Instagram itself (no
+Pit Crew uses the "Instagram API with Instagram Login": the creator signs in with Instagram itself (no
 Facebook Page needed). Only professional accounts (Business or Creator) can be posted to by an app.
 """
 import os

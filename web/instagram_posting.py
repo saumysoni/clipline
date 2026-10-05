@@ -1,10 +1,10 @@
 """
-Post to Instagram: the creator picks Instagram's own schedule (or "same as YouTube"); Clipline keeps the
+Post to Instagram: the creator picks Instagram's own schedule (or "same as YouTube"); Pit Crew keeps the
 plan in job["ig_posts"] and a background thread posts each Reel when its time comes (Instagram has no
-scheduling for apps). Posts that came due while Clipline was closed go out when it starts again.
+scheduling for apps). Posts that came due while Pit Crew was closed go out when it starts again.
 
 job["ig_posts"]: [{"idx", "title", "video", "thumb", "when" (ISO or None = now), "status", "media_id",
-"permalink", "error"}]; status is waiting, posting, done, error, or check (Clipline stopped mid-post:
+"permalink", "error"}]; status is waiting, posting, done, error, or check (Pit Crew stopped mid-post:
 the creator checks Instagram before trying again, so nothing is posted twice).
 """
 import json
@@ -99,7 +99,7 @@ def _loop():
 
 
 def _startup():
-    """Find waiting Reels in saved jobs; mark ones that were mid-post when Clipline stopped."""
+    """Find waiting Reels in saved jobs; mark ones that were mid-post when Pit Crew stopped."""
     for path in JOBS_DIR.glob("*/job.json"):
         try:
             if '"ig_posts"' not in path.read_text(encoding="utf-8"):
@@ -111,7 +111,7 @@ def _startup():
                 continue
             if any(p["status"] == "posting" for p in posts):
                 _mutate(job["id"], lambda ps: [dict(p, status="check", step="", error=(
-                    "Clipline stopped while posting this. Check Instagram: if the Reel isn't there, press Try again."))
+                    "Pit Crew stopped while posting this. Check Instagram: if the Reel isn't there, press Try again."))
                     if p["status"] == "posting" else p for p in ps])
             if any(p["status"] == "waiting" for p in posts):
                 DUE.add(job["id"])
@@ -152,7 +152,7 @@ def instagram_schedule(job_id):
     data = request.get_json(force=True)
     acct = ig.account(g.user["id"])
     if not acct.get("configured"):
-        return jsonify(error="Instagram posting isn't set up yet: Clipline needs a Meta app (README step 6)."), 400
+        return jsonify(error="Instagram posting isn't set up yet: Pit Crew needs a Meta app (README step 6)."), 400
     if not acct.get("signed_in"):
         return jsonify(error="Connect Instagram first.", signin=True), 400
     if not acct.get("can_post"):
@@ -225,7 +225,7 @@ def instagram_retry(job_id, idx):
 
 
 def clipline_reel_ids(user_id):
-    """Instagram ids of the Reels Clipline posted for this user (for Analytics)."""
+    """Instagram ids of the Reels Pit Crew posted for this user (for Analytics)."""
     ids = []
     for path in JOBS_DIR.glob("*/job.json"):
         if not re.fullmatch(r"[0-9a-f]{10}", path.parent.name):
@@ -241,7 +241,7 @@ def clipline_reel_ids(user_id):
 
 @app.get("/api/instagram/posts")
 def instagram_posts():
-    """Every Reel Clipline posted or planned for this user, newest vlog first (for the Scheduled page)."""
+    """Every Reel Pit Crew posted or planned for this user, newest vlog first (for the Scheduled page)."""
     uid, out = g.user["id"], []
     for path in sorted(JOBS_DIR.glob("*/job.json"), key=lambda p: p.stat().st_mtime, reverse=True):
         if not re.fullmatch(r"[0-9a-f]{10}", path.parent.name) or '"ig_posts"' not in path.read_text(encoding="utf-8"):

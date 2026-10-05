@@ -1,8 +1,10 @@
 # CLAUDE.md
 
+**The product is called Pit Crew** (renamed from Clipline in Oct 2026). Use "Pit Crew" in everything people see. Internal names keep `clipline` on purpose (repo, folder, `data/clipline.db`, `clipline-theme` storage key, `clipline_ids`, postMessage `{clipline: ...}`): renaming them would break existing setups for nothing.
+
 Guidance for Claude (and humans) working on this repo. Read this before changing code.
 
-## What Clipline is
+## What Pit Crew is
 
 A local web app that turns one long vlog into finished vertical YouTube Shorts:
 transcribe (faster-whisper) → pick moments (Gemini, or OpenAI with `AI_PROVIDER=openai`) → cut,
@@ -15,7 +17,7 @@ every error they can see must be plain English and say what to do next.
 
 ## Direction: this is going to the cloud
 
-Decided October 2026: Clipline will become a hosted web app. Creators upload from any device and our
+Decided October 2026: Pit Crew will become a hosted web app. Creators upload from any device and our
 servers do the work. The local version is the prototype. **Every change must work the same on a
 Linux cloud server as on a laptop:**
 
@@ -75,7 +77,7 @@ The code is split so two people can work on different features without touching 
 | Scheduled page (sidebar "Scheduled"; YouTube + Instagram lists) | `youtube/manage.py` | `web/on_youtube.py`, `web/instagram_posting.py` (`/api/instagram/posts`) | `js/on-youtube.js`, `js/scheduled-instagram.js`, `js/nav.js` (Make Shorts link), `sections/on-youtube.html`, `sections/sidebar.html`, `css/on-youtube.css` |
 | Analytics page (YouTube Shorts + Instagram Reels) | `youtube/analytics.py`, `instagram/insights.py` | `web/analytics.py` | `js/analytics.js` (charts), `js/analytics-instagram.js`, `sections/analytics.html`, `css/analytics.css` |
 | Connect Instagram | `instagram/connection.py`, `instagram/config.py`, `instagram/http.py` | `web/instagram_connect.py`, `web/google_redirect.py` | `js/instagram-connect.js` |
-| Post to Instagram (own schedule, Clipline posts at the time) | `instagram/publish.py` | `web/instagram_posting.py` (scheduler thread) | `js/instagram-posting.js`, `sections/review.html` (Instagram card), `css/posting.css` |
+| Post to Instagram (own schedule, Pit Crew posts at the time) | `instagram/publish.py` | `web/instagram_posting.py` (scheduler thread) | `js/instagram-posting.js`, `sections/review.html` (Instagram card), `css/posting.css` |
 
 **Shared files** (used by many features; change with care and tell the other person):
 
@@ -144,7 +146,7 @@ The code is split so two people can work on different features without touching 
    faster-whisper's `BatchedInferencePipeline` (about 2× faster; `WHISPER_BATCH_SIZE=0` turns it off and
    falls back to one-at-a-time). Batched mode guesses the language from too little audio: an English
    vlog with car noise came out as **Welsh**. So `detect_language()` votes over 8 clips spread across
-   the video and passes the winner in, but only with `WHISPER_LANGUAGE=auto`: **Clipline is English-only for
+   the video and passes the winner in, but only with `WHISPER_LANGUAGE=auto`: **Pit Crew is English-only for
    now** and transcribes as English by default (a Hinglish vlog was guessed as English and came out as
    invented text; Hindi support was tried with large-v3-turbo + Roman transliteration and dropped).
    `drop_repeats()` keeps any phrase at most twice in a row (Whisper gets stuck over music or noise:
@@ -238,7 +240,7 @@ The code is split so two people can work on different features without touching 
     The login throttle keys on `request.remote_addr`; behind a cloud proxy, use the real client IP (ProxyFix).
 17. **Analytics needs a second Google scope.** `youtube` is required; `yt-analytics.readonly` (`ANALYTICS_SCOPE`) is
     asked on connect but optional. Without it (or without "YouTube Analytics API" enabled in Google Cloud),
-    `youtube/analytics.py` falls back to live counts of Clipline's Shorts and adds `notes=["reconnect"]`, and the page
+    `youtube/analytics.py` falls back to live counts of Pit Crew's Shorts and adds `notes=["reconnect"]`, and the page
     shows "Connect again". Shorts are filtered with `creatorContentType==SHORTS`; numbers lag ~2 days. Results are
     cached 10 minutes per user. Charts: one axis, colours from `css/analytics.css` tokens (validated), text never in
     series colours, a Table button on every chart.
@@ -251,7 +253,7 @@ The code is split so two people can work on different features without touching 
     *resumable upload* (bytes to `rupload.facebook.com` with `Authorization: OAuth <token>`), so no public video URL is
     needed, then polled until `FINISHED`, then `media_publish`. `thumb_offset` points at the cover frame
     (`pipeline/cover.py`). Instagram has **no scheduling for apps**: `web/instagram_posting.py` keeps
-    `job["ig_posts"]` and a daemon thread posts due Reels (also ones that came due while Clipline was off). A Reel left
+    `job["ig_posts"]` and a daemon thread posts due Reels (also ones that came due while Pit Crew was off). A Reel left
     in `posting` by a crash becomes `check`, never re-posted on its own. 100 API posts per account per 24 h.
     In the cloud the scheduler must run in exactly one process (or move to a job queue). The redirect address is
     `INSTAGRAM_REDIRECT_URI` (Meta may refuse plain `http://localhost`; use an https tunnel then).

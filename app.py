@@ -1,5 +1,5 @@
 """
-Clipline: run `python app.py`, then open http://localhost:8000
+Pit Crew: run `python app.py`, then open http://localhost:8000
 
 This file only starts the server. The features live in their own files:
   pipeline/   making Shorts (transcribe, moments, editing, captions, thumbnails...), no web code
@@ -47,6 +47,6 @@ from web import (  # noqa: E402,F401
 
 if __name__ == "__main__":
     url = "http://localhost:8000"
-    print(f"\n  Clipline is running at {url}\n  Keep this window open while you use it.\n")
+    print(f"\n  Pit Crew is running at {url}\n  Keep this window open while you use it.\n")
     threading.Timer(1.2, lambda: webbrowser.open(url)).start()
     app.run(host="127.0.0.1", port=8000, debug=False, threaded=True)

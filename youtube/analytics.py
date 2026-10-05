@@ -6,7 +6,7 @@ Two sources:
     views, likes, comments, shares, subscribers, watch time, % viewed, day by day, top Shorts, how viewers
     found them, who they are and where, and per Short the audience-retention curve. Its numbers are
     about 2 days behind. creatorContentType==SHORTS keeps it to Shorts, so every Short on the channel
-    counts, not only Clipline's.
+    counts, not only Pit Crew's.
   - YouTube Data API (the posting scope): live view/like/comment counts, titles, thumbnails, lengths.
 If the analytics part isn't allowed (an older connection, or the API isn't enabled), the page still gets
 the live counts and a note saying how to unlock the rest.

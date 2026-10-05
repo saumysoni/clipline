@@ -26,7 +26,7 @@ function igAnalyticsHTML(j){
   B.push(card("anIgTop","Top Reels","Lifetime numbers of your last "+reels.length+" Reels. Click one to open it on Instagram",
     '<div class="tops">'+reels.slice(0,12).map((r,i)=>'<a class="top-row ig" href="'+esc(r.permalink||"#")+'" target="_blank" rel="noopener">'+
       '<span class="rk">'+(i+1)+'</span>'+(r.thumb?'<img src="'+esc(r.thumb)+'" alt="" referrerpolicy="no-referrer" loading="lazy">':'<span class="noimg"></span>')+
-      '<span class="tt"><b>'+esc(r.caption||"Reel")+(r.clipline?'<span class="tag clip">Clipline</span>':'')+'</b><small>'+
+      '<span class="tt"><b>'+esc(r.caption||"Reel")+(r.clipline?'<span class="tag clip">Pit Crew</span>':'')+'</b><small>'+
       (r.when?new Date(r.when).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}):"")+(r.avg_watch_s?" · "+r.avg_watch_s+" s avg. watch":"")+'</small></span>'+
       '<span class="tr"><i style="width:'+((r.views||0)/max*100).toFixed(1)+'%"></i></span>'+
       '<span class="vv"><b>'+compact(r.views)+'</b><small>'+compact(r.likes)+' likes · '+compact(r.saved||0)+' saves</small></span></a>').join("")+'</div>',
@@ -48,7 +48,7 @@ function igInsights(reels){
   const cl=withV.filter(r=>r.clipline), other=withV.filter(r=>!r.clipline);
   if(cl.length && other.length){
     const a=cl.reduce((s,r)=>s+r.views,0)/cl.length, b=other.reduce((s,r)=>s+r.views,0)/other.length;
-    out.push(["auto_awesome","Clipline's Reels average "+compact(a)+" views, your others "+compact(b)+"."]);
+    out.push(["auto_awesome","Pit Crew's Reels average "+compact(a)+" views, your others "+compact(b)+"."]);
   }
   return out;
 }

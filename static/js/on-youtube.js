@@ -14,13 +14,13 @@ async function openPosted(){
   clearInterval(poll); location.hash="youtube"; show(5);
   if(typeof loadIgScheduled==="function") loadIgScheduled();
   $("plist").innerHTML='<li><span></span><span class="pv">Checking YouTube...</span></li>'; $("ptNote").hidden=true;
-  let j; try{ j=await (await fetch("/api/posted")).json(); }catch(e){ j={items:[],note:"Couldn't reach Clipline. Is the app window still open?"}; }
+  let j; try{ j=await (await fetch("/api/posted")).json(); }catch(e){ j={items:[],note:"Couldn't reach Pit Crew. Is the app window still open?"}; }
   const notes=[];
   if(j.note) notes.push(j.note);
   else if(!j.signed_in && j.items.length) notes.push("Connect YouTube to see each Short's live status and change it.");
   if(j.items.some(u=>u.state&&u.state.privacy==="private"&&!u.state.publish_at)) notes.push("Private Shorts: YouTube keeps uploads private until your Google project passes YouTube's API audit (README step 5). Set them public in YouTube Studio.");
   $("ptNote").hidden=!notes.length; $("ptNote").innerHTML='<span class="ms" aria-hidden="true">info</span><span>'+notes.map(esc).join("<br>")+'</span>';
-  if(!j.items.length){ $("plist").innerHTML='<li><span></span><span class="pv">Nothing uploaded yet. Shorts you upload to YouTube from Clipline show up here.</span></li>'; return; }
+  if(!j.items.length){ $("plist").innerHTML='<li><span></span><span class="pv">Nothing uploaded yet. Shorts you upload to YouTube from Pit Crew show up here.</span></li>'; return; }
   j.items.sort((a,b)=>{ const ta=a.state&&a.state.publish_at||a.when||"", tb=b.state&&b.state.publish_at||b.when||""; return tb.localeCompare(ta); });
   $("plist").innerHTML=j.items.map((u,i)=>{
     const st=u.state||{}, gone=st.privacy==="missing", other=st.privacy==="other_channel";
@@ -51,7 +51,7 @@ async function openPosted(){
       err.textContent=""; let tz=""; try{ tz=Intl.DateTimeFormat().resolvedOptions().timeZone||""; }catch(e){}
       const b=form.querySelector(".sv"); b.disabled=true; b.textContent="Saving...";
       let r,k; try{ r=await fetch("/api/reschedule/"+u.job+"/"+u.idx,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({start:inp.value,tz})}); k=await r.json(); }
-      catch(e){ r={ok:false}; k={error:"Couldn't reach Clipline. Is the app window still open?"}; }
+      catch(e){ r={ok:false}; k={error:"Couldn't reach Pit Crew. Is the app window still open?"}; }
       b.disabled=false; b.textContent="Save time";
       if(!r.ok){ err.textContent=k.error||"Couldn't change the time."; return; }
       openPosted();
@@ -59,7 +59,7 @@ async function openPosted(){
     li.querySelector(".ed").onclick=()=>openJob(u.job,u.idx);
     const um=li.querySelector(".um");
     if(um) um.onclick=async()=>{
-      if(!confirm("Unmark \""+u.title+"\"?\n\nOnly do this if it's really gone from YouTube. Clipline will then let you upload it again.")) return;
+      if(!confirm("Unmark \""+u.title+"\"?\n\nOnly do this if it's really gone from YouTube. Pit Crew will then let you upload it again.")) return;
       const r=await fetch("/api/unmark/"+u.job+"/"+u.idx,{method:"POST"}); if(!r.ok){ err.textContent=(await r.json()).error||"Couldn't unmark it."; return; }
       openPosted();
     };

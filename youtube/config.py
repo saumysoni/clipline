@@ -1,10 +1,10 @@
 """
-YouTube/Google settings: the OAuth client and the permissions Clipline asks for.
+YouTube/Google settings: the OAuth client and the permissions Pit Crew asks for.
 
 The OAuth client comes from (first found wins):
   1. GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET in .env / the server's environment (use this in the cloud)
-  2. client_secret.json in the Clipline folder
-  3. Google's own download name, client_secret_<numbers>.apps.googleusercontent.com.json, in the Clipline folder
+  2. client_secret.json in the app's folder
+  3. Google's own download name, client_secret_<numbers>.apps.googleusercontent.com.json, in the app's folder
 """
 import json
 import os

@@ -125,7 +125,7 @@ def schedule(job_id):
                              "or follow README step 5 to turn on automatic posting."), 400
     acct = yt.account(g.user["id"])
     if not acct["signed_in"]:
-        return jsonify(error="Connect YouTube first, so Clipline knows which channel to post to.",
+        return jsonify(error="Connect YouTube first, so Pit Crew knows which channel to post to.",
                        signin=True), 400
     posted = {u["idx"] for u in earlier}
     items = []

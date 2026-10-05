@@ -1,6 +1,6 @@
 // Step 3: Try again, Add a Short, and drawing / refreshing the cards.
 const ADD_CARD='<article class="short addcard" id="addCard">'+
-  '<button type="button" class="phone" id="addOpen"><span class="add-ic"><span class="ms" aria-hidden="true">add</span></span><b>Add a Short</b><span>A moment Clipline missed</span></button>'+
+  '<button type="button" class="phone" id="addOpen"><span class="add-ic"><span class="ms" aria-hidden="true">add</span></span><b>Add a Short</b><span>A moment Pit Crew missed</span></button>'+
   '<div class="redo" hidden>'+
     '<textarea rows="3" maxlength="500" aria-label="Describe the moment you want" placeholder="Describe the moment, for example: when we see the bear. Or type the exact times below."></textarea>'+
     '<div class="pick-row"><button type="button" class="ghost pick"><span class="ms" aria-hidden="true">movie</span>Choose on the video</button></div><span class="small-lab">Or type the exact times</span>'+timesHTML()+
@@ -22,7 +22,7 @@ async function sendMoment(url,body,errEl){
   try{
     r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     try{ j=await r.json(); }catch(e){}
-  }catch(e){ errEl.textContent="Couldn't reach Clipline. Is the app window still open?"; return false; }
+  }catch(e){ errEl.textContent="Couldn't reach Pit Crew. Is the app window still open?"; return false; }
   if(!r.ok){ errEl.textContent=j.error||"Something went wrong. Please try again."; return false; }
   clearInterval(poll); poll=setInterval(tick,1000); tick();
   return true;
@@ -78,7 +78,7 @@ function paintTitle(){
   const asked=job.count||0, few=job.shorts.length<asked;
   $("fewNote").hidden=!few;
   if(few) $("fewNote").innerHTML='<span class="ms" aria-hidden="true">lightbulb</span><span>'+"Found "+n+" good moment"+(n===1?"":"s")+" out of the "+asked+" you asked for. "+
-    (job.little_speech ? "Clipline picks moments from what's said, and this vlog doesn't have much talking. "
+    (job.little_speech ? "Pit Crew picks moments from what's said, and this vlog doesn't have much talking. "
                        : "The rest of the vlog didn't have strong stand-alone moments. ")+
     "Use <b>Add a Short</b> at the end to pick more moments yourself, by describing them or by their times.</span>";
   const err=$("addCard").querySelector(".rerr");

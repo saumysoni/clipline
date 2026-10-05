@@ -56,7 +56,7 @@ async function postShorts(){
     r=await fetch("/api/schedule/"+jobId,{method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({shorts,schedule:mode,tz,start:$("schStart").value,every:+$("schEvery").value})});
     j=await r.json();
-  }catch(e){ $("schedBtn").disabled=false; $("err3").textContent="Couldn't reach Clipline. Is the app window still open?"; return; }
+  }catch(e){ $("schedBtn").disabled=false; $("err3").textContent="Couldn't reach Pit Crew. Is the app window still open?"; return; }
   if(!r.ok){
     $("schedBtn").disabled=false; $("err3").textContent=j.error||"Couldn't start posting.";
     if(j.field==="start") $("schStart").classList.add("bad");
@@ -109,12 +109,12 @@ function markPosted(){
 async function repost(idx,box,replace){
   const err=box.querySelector(".err"), btn=box.querySelector(".upd"); err.textContent="";
   if(!yt.signed_in){ signIn(); return; }
-  if(replace && !confirm("Replace this Short on YouTube?\n\nClipline uploads the edited version with the same time, then deletes the old upload.")) return;
+  if(replace && !confirm("Replace this Short on YouTube?\n\nPit Crew uploads the edited version with the same time, then deletes the old upload.")) return;
   const el=document.querySelector('.short[data-idx="'+idx+'"]');
   btn.disabled=true; btn.lastChild.textContent = replace ? "Replacing..." : "Updating...";
   let r,j;
   try{ r=await fetch("/api/repost/"+jobId+"/"+idx,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({title:el.querySelector("input.title").value})}); j=await r.json(); }
-  catch(e){ j={error:"Couldn't reach Clipline. Is the app window still open?"}; r={ok:false}; }
+  catch(e){ j={error:"Couldn't reach Pit Crew. Is the app window still open?"}; r={ok:false}; }
   if(!r.ok){ err.textContent=j.error||"Couldn't update it."; box.dataset.html=""; tick(); return; }
   if(j.done==="title"){ const u=(job.uploads||[]).find(x=>x.idx===idx); if(u) u.title=el.querySelector("input.title").value.trim(); box.dataset.html=""; markPosted(); box.querySelector("small").textContent="Title updated on YouTube."; return; }
   onReview=false; job.upload_status="starting";

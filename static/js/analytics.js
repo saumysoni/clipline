@@ -29,7 +29,7 @@ async function loadAnalytics(){
   if(!$("anBody").children.length) $("anBody").innerHTML='<div class="an-card an-empty"><span class="spin" aria-hidden="true"></span><p>Getting your numbers...</p></div>';
   let r,j;
   try{ r=await fetch("/api/analytics?days="+anDays); j=await r.json(); }
-  catch(e){ j={error:"Couldn't reach Clipline. Is the app window still open?"}; }
+  catch(e){ j={error:"Couldn't reach Pit Crew. Is the app window still open?"}; }
   anLoading=false; $("anBody").classList.remove("loading");
   anData={days:anDays,...j};
   renderAnalytics(j);
@@ -51,11 +51,11 @@ function renderAnalytics(j){
   }
   const y=j.youtube, t=y.totals||{}, p=y.previous||null;
   $("anLede").textContent=(y.channel&&y.channel.title ? y.channel.title+" · "+full(y.channel.subscribers)+" subscribers. " : "")+
-    "Every Short on your channel, not only the ones Clipline made.";
+    "Every Short on your channel, not only the ones Pit Crew made.";
   $("anAsof").textContent=(y.range.days?"Last "+y.range.days+" days":"All time")+" · YouTube's numbers are about 2 days behind";
   if(!y.full){
     note.hidden=false;
-    note.innerHTML='<span class="ms" aria-hidden="true">lock_open</span><span>These are the live counts for the Shorts Clipline uploaded. <b>Connect YouTube once more</b> '+
+    note.innerHTML='<span class="ms" aria-hidden="true">lock_open</span><span>These are the live counts for the Shorts Pit Crew uploaded. <b>Connect YouTube once more</b> '+
       '(and switch on <b>YouTube Analytics API</b> in Google Cloud, README step 5) to see watch time, retention, trends, how viewers find you and who they are.</span>'+
       '<button type="button" class="ghost" id="anRecon">Connect again</button>';
     $("anRecon").onclick=()=>signIn(()=>{ anData=null; loadAnalytics(); });
@@ -65,7 +65,7 @@ function renderAnalytics(j){
   const d=k=>p&&p[k]!=null&&p[k]>0 ? deltaHTML((t[k]-p[k])/p[k]*100) : "";
   B.push('<div class="an-top'+(daily.length>1?'':' flat')+'"><div class="an-card an-hero"><div><div class="lab">Shorts views</div><div class="big">'+full(t.views)+'</div>'+d("views")+
     (p?'<div class="vs">Arrows compare with the '+(y.range.days)+' days before</div>':'')+
-    (!y.full?'<div class="vs">Lifetime views of the '+(y.shorts||[]).length+' Shorts Clipline uploaded</div>':'')+'</div>'+
+    (!y.full?'<div class="vs">Lifetime views of the '+(y.shorts||[]).length+' Shorts Pit Crew uploaded</div>':'')+'</div>'+
     (daily.length>1?'<div class="spark an-viz" id="anSpark"></div>':'')+'</div><div class="an-tiles">'+
     tile("schedule","Watch time",t.watch_hours!=null?compact(t.watch_hours)+" h":"–",d("watch_hours"))+
     tile("percent","Avg. viewed",t.avg_pct!=null&&y.full?pct(t.avg_pct):"–",d("avg_pct"))+
@@ -145,7 +145,7 @@ function topsHTML(sh){
   const max=Math.max(...sh.map(s=>s.views),1);
   return '<div class="tops">'+sh.map((s,i)=>'<button type="button" class="top-row" data-id="'+esc(s.id)+'">'+
     '<span class="rk">'+(i+1)+'</span><img src="'+esc(s.thumb||"")+'" alt="" referrerpolicy="no-referrer" loading="lazy">'+
-    '<span class="tt"><b>'+esc(s.title||"Untitled Short")+(s.clipline?'<span class="tag clip">Clipline</span>':'')+'</b>'+
+    '<span class="tt"><b>'+esc(s.title||"Untitled Short")+(s.clipline?'<span class="tag clip">Pit Crew</span>':'')+'</b>'+
     '<small>'+(s.published?new Date(s.published).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}):"")+(s.secs?" · "+secs(s.secs):"")+'</small></span>'+
     '<span class="tr"><i style="width:'+(s.views/max*100).toFixed(1)+'%"></i></span>'+
     '<span class="vv"><b>'+compact(s.views)+'</b><small>'+(s.avg_pct?pct(s.avg_pct)+" viewed":full(s.likes)+" likes")+'</small></span></button>').join("")+'</div>';
@@ -210,7 +210,7 @@ async function openShortAnalytics(id){
   const s=((anData&&anData.youtube&&anData.youtube.shorts)||[]).find(x=>x.id===id)||{id};
   $("anDBody").innerHTML=shortHead(s)+'<div class="an-card an-empty"><span class="spin" aria-hidden="true"></span><p>Getting this Short\'s numbers...</p></div>';
   $("anDetail").showModal();
-  let j; try{ j=await (await fetch("/api/analytics/short/"+encodeURIComponent(id)+"?days="+anDays)).json(); }catch(e){ j={error:"Couldn't reach Clipline."}; }
+  let j; try{ j=await (await fetch("/api/analytics/short/"+encodeURIComponent(id)+"?days="+anDays)).json(); }catch(e){ j={error:"Couldn't reach Pit Crew."}; }
   if(j.error){ $("anDBody").innerHTML=shortHead(s)+'<p class="err"></p>'; $("anDBody").querySelector(".err").textContent=j.error; return; }
   const m={...s,...(j.short||{})}, t=j.totals||{}, B=[shortHead(m)];
   B.push('<div class="an-tiles">'+tile("visibility","Views",compact(t.views!=null?t.views:m.views),"")+tile("percent","Avg. viewed",t.averageViewPercentage!=null?pct(t.averageViewPercentage):"–","")+

@@ -3,7 +3,7 @@ python-dotenv>=1.0
 faster-whisper>=1.0
 google-genai>=1.0
 openai>=1.40  # only used when AI_PROVIDER=openai
-opencv-python-headless>=4.8,<5  # OpenCV 5 removed the face finder Clipline uses
+opencv-python-headless>=4.8,<5  # OpenCV 5 removed the face finder Pit Crew uses
 pillow>=10.0
 numpy>=1.24
 gdown>=5.0

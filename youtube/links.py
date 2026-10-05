@@ -7,7 +7,7 @@ import urllib.request
 
 
 # Only the public text (title, description, tags) is read, through YouTube's official API.
-# Clipline never downloads the video itself from YouTube: YouTube's developer policies forbid it.
+# Pit Crew never downloads the video itself from YouTube: YouTube's developer policies forbid it.
 VIDEO_ID_RE = re.compile(r"(?:v=|youtu\.be/|/shorts/|/live/|/embed/|/v/)([A-Za-z0-9_-]{11})")
 
 
@@ -41,10 +41,10 @@ def link_kind(url):
 def video_link_problem(url):
     """Plain-English problem with a link pasted as the vlog's video (a Google Drive link), or None."""
     return {
-        "youtube": "That's a YouTube link. Clipline can't download videos from YouTube (YouTube's rules don't "
+        "youtube": "That's a YouTube link. Pit Crew can't download videos from YouTube (YouTube's rules don't "
                    "allow it). Upload the original video file or use a Google Drive link instead. To use the "
                    "YouTube link for the title and description, paste it under About this vlog.",
-        "youtube_page": "That's a YouTube link. Clipline can't download videos from YouTube, so upload the "
+        "youtube_page": "That's a YouTube link. Pit Crew can't download videos from YouTube, so upload the "
                         "original video file or use a Google Drive link instead.",
         "drive_folder": "That's a link to a Drive folder. Open the folder, right-click the video, choose "
                         "Share, then Copy link, and paste that link instead.",

@@ -36,7 +36,7 @@ def call(method, url, params=None, data=None, headers=None, timeout=NET_TIMEOUT)
     if params:
         url += ("&" if "?" in url else "?") + urllib.parse.urlencode(params)
     body = urllib.parse.urlencode(data).encode() if isinstance(data, dict) else data
-    req = urllib.request.Request(url, data=body, method=method, headers={"User-Agent": "Clipline", **(headers or {})})
+    req = urllib.request.Request(url, data=body, method=method, headers={"User-Agent": "PitCrew", **(headers or {})})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return json.loads(r.read().decode("utf-8") or "{}")

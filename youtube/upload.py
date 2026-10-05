@@ -22,14 +22,14 @@ def upload_error_message(e):
         except (ValueError, KeyError, IndexError, TypeError, AttributeError):
             pass
         msgs = {
-            "quotaExceeded": "YouTube's daily upload allowance for Clipline is used up. Try again tomorrow.",
-            "rateLimitExceeded": "YouTube says Clipline is uploading too fast. Wait a few minutes and try again.",
+            "quotaExceeded": "YouTube's daily upload allowance for Pit Crew is used up. Try again tomorrow.",
+            "rateLimitExceeded": "YouTube says Pit Crew is uploading too fast. Wait a few minutes and try again.",
             "uploadLimitExceeded": "Your channel has reached YouTube's upload limit for today. Try again tomorrow.",
             "youtubeSignupRequired": "This Google account has no YouTube channel yet. Create one at youtube.com, "
                                      "or connect the account that owns your channel.",
             "invalidPublishAt": "YouTube didn't accept the scheduled time. Pick a later time and try again.",
             "forbidden": "YouTube didn't allow this upload. Make sure you connected the channel's owner account.",
-            "insufficientPermissions": "Clipline needs a new YouTube connection for this. Click Connect YouTube, leave "
+            "insufficientPermissions": "Pit Crew needs a new YouTube connection for this. Click Connect YouTube, leave "
                                        "every box ticked, then try again.",
         }
         if reason in msgs:

@@ -19,7 +19,7 @@ PROFESSIONAL = ("BUSINESS", "MEDIA_CREATOR", "CREATOR")
 def start_login(redirect_uri, popup=False):
     """(Instagram's sign-in address, the waiting sign-in to keep in the creator's session)."""
     if not is_configured():
-        raise InstagramError("Instagram isn't set up yet: Clipline has no Meta app. Follow README step 6, then try again.")
+        raise InstagramError("Instagram isn't set up yet: Pit Crew has no Meta app. Follow README step 6, then try again.")
     state = secrets.token_urlsafe(24)
     q = urllib.parse.urlencode({"client_id": app_id(), "redirect_uri": redirect_uri, "response_type": "code",
                                 "scope": ",".join(SCOPES), "state": state})
@@ -48,7 +48,7 @@ def finish_login(args, pending, user_id):
     granted = short.get("permissions") or []
     granted = set(granted.split(",") if isinstance(granted, str) else granted)
     if granted and "instagram_business_content_publish" not in granted:
-        raise InstagramError("Clipline needs permission to publish Reels. Connect again and leave every box ticked.")
+        raise InstagramError("Pit Crew needs permission to publish Reels. Connect again and leave every box ticked.")
     long = call("GET", f"{GRAPH}/access_token", {"grant_type": "ig_exchange_token", "client_secret": app_secret(),
                                                  "access_token": short["access_token"]})
     token = long["access_token"]
@@ -90,7 +90,7 @@ def is_professional(info):
 
 
 def account(user_id):
-    """What the page shows: configured, connected, the account and whether Clipline can post to it."""
+    """What the page shows: configured, connected, the account and whether Pit Crew can post to it."""
     if not is_configured():
         return {"configured": False, "signed_in": False}
     info = load(user_id)

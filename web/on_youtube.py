@@ -53,7 +53,7 @@ def posted():
             live = True
         except Exception as e:
             traceback.print_exc()
-            note = "Couldn't check YouTube right now, so this shows what Clipline remembers. " + yt.upload_error_message(e)
+            note = "Couldn't check YouTube right now, so this shows what Pit Crew remembers. " + yt.upload_error_message(e)
     return jsonify(items=items, live=live, note=note, signed_in=acct["signed_in"])
 
 
@@ -89,7 +89,7 @@ def forget_upload(job_id, idx):
         (JOBS_DIR / job_id / "job.json").write_text(json.dumps(job, default=str), encoding="utf-8")
 
 
-GONE = ("Clipline can't find this Short on the YouTube channel you connected. If you deleted it in YouTube "
+GONE = ("Pit Crew can't find this Short on the YouTube channel you connected. If you deleted it in YouTube "
         "Studio, use Unmark it on the My scheduled Shorts page, then upload it again. If it's on another "
         "channel, connect that channel first.")
 
@@ -120,7 +120,7 @@ def reschedule(job_id, idx):
 
 @app.post("/api/repost/<job_id>/<int:idx>")
 def repost(job_id, idx):
-    """Bring an uploaded Short up to date after editing it in Clipline.
+    """Bring an uploaded Short up to date after editing it in Pit Crew.
     Title only: change the title on YouTube. New video (hook, moment): upload the new version with the
     same time, then delete the old one. Never for a Short that's already public (it would lose its views)."""
     data = request.get_json(force=True)
@@ -151,7 +151,7 @@ def repost(job_id, idx):
         return jsonify(error=yt.upload_error_message(e)), 400
     if yt.is_live(state):
         return jsonify(error="This Short is already public. Replacing it would delete its views and comments, so "
-                             "Clipline won't do that. Change it in YouTube Studio, or use Add a Short to post "
+                             "Pit Crew won't do that. Change it in YouTube Studio, or use Add a Short to post "
                              "the edited moment as a new Short."), 400
     when = None
     if rec.get("when"):

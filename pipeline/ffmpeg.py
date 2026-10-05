@@ -45,7 +45,7 @@ def ffmpeg_exe():
                 return exe
     if not seen:
         raise RuntimeError("FFmpeg isn't installed. See README step 1.")
-    raise RuntimeError("Your FFmpeg can't add captions, and the backup copy is missing. Close Clipline and "
+    raise RuntimeError("Your FFmpeg can't add captions, and the backup copy is missing. Close Pit Crew and "
                        "start it again with the start script so it can install the missing add-on.")
 
 

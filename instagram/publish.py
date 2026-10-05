@@ -1,7 +1,7 @@
 """
 Posting a Reel: make a container, send the video bytes (resumable upload, so no public video address is
 needed), wait until Instagram has processed it, publish, and read back the Reel's link.
-Instagram has no scheduling for apps: Clipline's own scheduler (web/instagram_posting.py) calls post_reel
+Instagram has no scheduling for apps: Pit Crew's own scheduler (web/instagram_posting.py) calls post_reel
 at the chosen time.
 """
 import time

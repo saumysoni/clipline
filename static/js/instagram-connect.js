@@ -18,7 +18,7 @@ function paintIg(){
   const box=$("igAcct"); if(!box) return;
   const pic=ig.picture ? '<img src="'+esc(ig.picture)+'" alt="" referrerpolicy="no-referrer">' : '<span class="ms" aria-hidden="true">photo_camera</span>';
   box.innerHTML = !ig.configured
-    ? '<span class="ms" aria-hidden="true">info</span><span>Instagram posting isn\'t set up yet: Clipline needs a Meta app (README step 6). You can still Save each Short and post it yourself.</span>'
+    ? '<span class="ms" aria-hidden="true">info</span><span>Instagram posting isn\'t set up yet: Pit Crew needs a Meta app (README step 6). You can still Save each Short and post it yourself.</span>'
     : !ig.signed_in
     ? '<span class="ms" aria-hidden="true">photo_camera</span><span>Instagram isn\'t connected yet.</span><button type="button" class="linkbtn" id="igIn">Connect Instagram</button>'
     : pic+'<span>Posting to <b>@'+esc(ig.username||"")+'</b>'+(ig.offline?' (offline right now)':'')+'</span>'+

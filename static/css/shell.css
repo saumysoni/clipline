@@ -105,3 +105,8 @@ button.pill:hover{border-color:var(--line-2);color:var(--ink)}
   .steps.away li{display:none}
 }
 .who-am-i .linkbtn{white-space:nowrap}
+@media (max-width:560px){
+  .side-nav .navlink{padding:5px;gap:0}
+  .side-foot,.side-me,.who-am-i{gap:6px}
+  .theme-seg button{padding:5px 6px}
+}

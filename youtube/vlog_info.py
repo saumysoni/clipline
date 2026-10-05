@@ -1,7 +1,7 @@
 """
 Reading a vlog's public title, description and tags from its YouTube link.
 
-Only the public text: Clipline never downloads videos from YouTube (YouTube's policies forbid it).
+Only the public text: Pit Crew never downloads videos from YouTube (YouTube's policies forbid it).
 """
 import json
 import os
@@ -11,7 +11,7 @@ from youtube.links import video_id_from_url, youtube_link_problem
 
 
 def _get_json(url, token=None):
-    headers = {"User-Agent": "Clipline"}
+    headers = {"User-Agent": "PitCrew"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
     req = urllib.request.Request(url, headers=headers)

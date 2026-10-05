@@ -2,9 +2,9 @@
 Connect Instagram: the sign-in window, Instagram's callback, the account line, sign-out.
 
 The waiting sign-in is kept here on the server (keyed by its one-time state), not in the browser's cookie, so
-Instagram may send the creator back to a different address than the one Clipline is open at. Meta may only
+Instagram may send the creator back to a different address than the one Pit Crew is open at. Meta may only
 accept https redirect addresses; then INSTAGRAM_REDIRECT_URI points at an https tunnel to this computer while
-the creator keeps using http://localhost:8000 (README step 6). Kept in memory: one Clipline process.
+the creator keeps using http://localhost:8000 (README step 6). Kept in memory: one Pit Crew process.
 """
 import html
 import json
@@ -64,19 +64,19 @@ def instagram_callback():
     ig.forget_insights(uid)
     msg = f"Connected @{a.get('username', '')}."
     if not a.get("can_post"):
-        msg += (" This is a personal account, so Clipline can't post to it yet: in the Instagram app go to "
+        msg += (" This is a personal account, so Pit Crew can't post to it yet: in the Instagram app go to "
                 "Settings › Account type and tools › Switch to professional account, then connect again.")
     return instagram_done_page(True, msg + (" You can close this window." if popup and a.get("can_post") else ""), popup)
 
 
 def instagram_done_page(ok, msg, popup=False):
     payload = json.dumps({"clipline": "instagram", "ok": ok, "msg": msg}).replace("<", "\\u003c")
-    return (f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Clipline · Instagram</title>
+    return (f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Pit Crew · Instagram</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>body{{font:16px/1.5 system-ui,sans-serif;margin:0;min-height:100vh;display:grid;place-items:center;
 background:#0e1018;color:#e8eaf2;padding:16px}}main{{max-width:440px;text-align:center}}a{{color:#8fb4ff}}</style>
 </head><body><main><h1 style="font-size:1.3rem">{"Instagram connected" if ok else "Instagram not connected"}</h1>
-<p>{html.escape(msg)}</p><p><a href="/">Back to Clipline</a></p></main>
+<p>{html.escape(msg)}</p><p><a href="/">Back to Pit Crew</a></p></main>
 <script>
 var m={payload};
 if({json.dumps(popup)}){{ try{{ window.opener && window.opener.postMessage(m, location.origin); }}catch(e){{}}
