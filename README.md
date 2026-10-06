@@ -11,6 +11,12 @@ Everything runs on your own computer with free tools. The only accounts you need
   <br><sub>▶ <a href="docs/demo.mp4">Watch the demo video</a> (10 s)</sub>
 </p>
 
+## Upload a whole vlog to YouTube
+
+**+ Create → Upload a vlog to YouTube** (or **New vlog** on the Vlogs page). Add the video and Pit Crew transcribes it, then suggests three titles, writes a description with chapters (the times YouTube turns into chapters) and hashtags, picks tags and designs a 16:9 thumbnail (**Frame** or **Duotone**). Edit anything (it's saved as you type), choose Public, Scheduled, Unlisted or Private, and upload. When it's done, Pit Crew offers to make the vlog's Shorts & Reels right away: they reuse the transcript, so it only takes a couple of minutes, and each Short links back to the vlog.
+
+Pit Crew keeps the vlog's video for 72 hours after your last change. Within that time, **Shorts & Reels → Make Shorts** lets you pick it without uploading it again; after that, choose **A new video file**.
+
 ## What happens when you click "Make my Shorts"
 
 1. **Transcribe.** faster-whisper (open-source Whisper) writes down every word with exact timings. Runs on your computer.

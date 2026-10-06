@@ -1,0 +1,88 @@
+/* New vlog (js/vlog-upload.js): choose the video, check the AI's details and thumbnail, upload. Plus the
+   + Create and Make Shorts dialogs (js/make-choice.js). */
+#s10 .work{max-width:1120px}
+.vu-pick{max-width:720px}
+.vu-pick textarea{width:100%;min-height:84px}
+.vu-gap{margin-top:16px}
+.vu-pick .primary.big{width:100%}
+.vu-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(300px,1fr);gap:16px;align-items:start}
+.vu-grid[hidden]{display:none}
+.vu-side{display:flex;flex-direction:column;gap:16px}
+.vu-side .card+.card{margin-top:0}
+.vu-details input[type=text],.vu-details textarea{width:100%}
+.vu-details textarea{font-family:inherit;line-height:1.5;resize:vertical;min-height:260px}
+.vu-details .hint{display:block;margin-top:6px;font-size:.78rem;color:var(--faint)}
+.vu-details .hint.bad{color:var(--warn)}
+.vu-ideas{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px}
+.vu-ideas:empty{display:none}
+.vu-ideas-l{font:700 10.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-right:2px}
+.vu-idea{border:1px solid var(--line-2);background:var(--raised);color:var(--muted);font:inherit;font-size:.82rem;padding:6px 10px;border-radius:999px;cursor:pointer;text-align:left;max-width:100%}
+.vu-idea:hover{border-color:var(--primary);color:var(--ink)}
+.vu-idea[aria-pressed=true]{background:var(--primary-soft);border-color:rgba(232,0,45,.45);color:var(--ink)}
+.vu-note{display:inline-flex;gap:6px;align-items:center;font-size:.84rem;color:var(--warn)}
+.vu-note .ms{font-size:16px}
+.vu-thumb{aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:var(--field);border:1px solid var(--line)}
+.vu-thumb img{display:block;width:100%;height:100%;object-fit:cover}
+.vu-thumb-acts{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;flex-wrap:wrap}
+#vuLook.busy{opacity:.55;pointer-events:none}
+.vu-side select,.vu-side input[type=datetime-local]{width:100%}
+.vu-side .custom{margin-top:8px}
+.vu-side .custom[hidden]{display:none}
+.vu-side .primary.big{width:100%;justify-content:center}
+.vu-side .hint{font-size:.8rem;color:var(--muted);margin:8px 0 0}
+.vu-side .hint:empty{display:none}
+#vuUpload .spin{width:15px;height:15px}
+.vu-done{display:flex;gap:18px;align-items:flex-start;max-width:820px}
+.vu-done[hidden]{display:none}
+.vu-done-ic{font-size:40px;color:var(--good)}
+.vu-done h2{margin:2px 0 6px;font-size:1.35rem}
+.vu-done .lede{margin:0 0 14px}
+.vu-links{display:flex;gap:8px;flex-wrap:wrap}
+.vu-done .hint{margin:12px 0 0;font-size:.84rem;color:var(--muted)}
+.vu-done .hint:empty{display:none}
+.vu-next{display:flex;align-items:center;gap:16px;max-width:820px;border-color:rgba(232,0,45,.35);
+  background:linear-gradient(120deg,var(--primary-soft),transparent 60%),var(--glass)}
+.vu-next[hidden]{display:none}
+.vu-next>.ms{font-size:28px;color:var(--primary-text)}
+.vu-next>div:nth-child(2){flex:1;display:flex;flex-direction:column;gap:3px}
+.vu-next>div span{font-size:.88rem;color:var(--muted)}
+.vu-next-acts{display:flex;gap:8px;flex:none}
+/* dialogs */
+dialog.mk-dialog{width:min(560px,calc(100vw - 32px));max-height:calc(100vh - 32px);border-radius:20px;padding:22px;color:var(--ink);overflow:auto}
+dialog.mk-dialog::backdrop{background:rgba(8,10,18,.62)}
+.mk-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.mk-head h2{margin:0;font-size:1.2rem}
+.mk-sub{margin:0 0 12px;color:var(--muted);font-size:.92rem;text-align:left}
+.mk-options{display:flex;flex-direction:column;gap:10px}
+.mk-opt,.mk-vlog{display:flex;align-items:center;gap:14px;width:100%;text-align:left;font:inherit;color:var(--ink);cursor:pointer;
+  padding:14px;border-radius:14px;border:1px solid var(--line-2);background:var(--raised);transition:border-color .15s,background .15s}
+.mk-opt:hover,.mk-vlog:hover:not(:disabled){border-color:var(--primary);background:color-mix(in srgb,var(--primary) 6%,var(--raised))}
+.mk-opt>.ms{width:42px;height:42px;flex:none;border-radius:12px;display:grid;place-items:center;background:var(--primary-soft);color:var(--primary-text);font-size:22px}
+.mk-opt b,.mk-vlog b{display:block;font-weight:700}
+.mk-opt small,.mk-vlog small{display:block;color:var(--muted);font-size:.82rem;margin-top:2px}
+.mk-list{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+.mk-l{margin:0;font:700 10.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+.mk-vlog:disabled{opacity:.6;cursor:not-allowed}
+.mk-pic{width:96px;aspect-ratio:16/9;flex:none;border-radius:8px;overflow:hidden;background:var(--field);display:grid;place-items:center;color:var(--faint)}
+.mk-pic img{width:100%;height:100%;object-fit:cover;display:block}
+.mk-t{flex:1;min-width:0}
+.mk-t b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mk-left{display:inline-flex;align-items:center;gap:4px;font:600 .74rem var(--mono);color:var(--warn);flex:none}
+.mk-left .ms{font-size:14px}
+.mk-empty{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border:1px dashed var(--line-2);border-radius:14px;color:var(--muted);font-size:.86rem}
+.mk-chosen{display:flex;gap:12px;align-items:center;padding:12px 14px;border-radius:14px;background:var(--raised);border:1px solid var(--line);margin-bottom:14px}
+.mk-chosen>.ms{color:var(--primary-text)}
+.mk-chosen small{display:block;color:var(--muted);font-size:.82rem}
+.mk-row{display:grid;grid-template-columns:1fr 180px;align-items:center;gap:12px;margin-bottom:10px}
+.mk-row .lab{margin:0}
+#mkOpts textarea{width:100%;margin-top:6px}
+.mk-acts{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+@media (max-width:900px){ .vu-grid{grid-template-columns:1fr} }
+@media (max-width:560px){
+  .vu-next{flex-direction:column;align-items:stretch}
+  .vu-next-acts>*{flex:1}
+  .mk-row{grid-template-columns:1fr}
+  .mk-pic{width:72px}
+  .mk-vlog{flex-wrap:wrap}
+}
+#vuSaved:empty{display:none}

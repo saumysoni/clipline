@@ -1,0 +1,27 @@
+  <!-- + Create and "Make Shorts & Reels": what to make, and from which video (js/make-choice.js) -->
+  <dialog id="crDialog" class="mk-dialog" aria-labelledby="crH">
+    <div class="mk-head"><h2 id="crH">What do you want to do?</h2><button type="button" class="iconbtn" id="crX" aria-label="Close"><span class="ms" aria-hidden="true">close</span></button></div>
+    <div class="mk-options">
+      <button type="button" class="mk-opt" id="crVlog"><span class="ms" aria-hidden="true">cloud_upload</span><span><b>Upload a vlog to YouTube</b><small>Pit Crew writes the title, description with chapters, tags and thumbnail.</small></span></button>
+      <button type="button" class="mk-opt" id="crShorts"><span class="ms" aria-hidden="true">movie</span><span><b>Make Shorts &amp; Reels</b><small>From a vlog you uploaded here, or from a new video file.</small></span></button>
+    </div>
+  </dialog>
+  <dialog id="mkDialog" class="mk-dialog" aria-labelledby="mkH">
+    <div class="mk-head"><h2 id="mkH">Make Shorts &amp; Reels</h2><button type="button" class="iconbtn" id="mkX" aria-label="Close"><span class="ms" aria-hidden="true">close</span></button></div>
+    <div id="mkPick">
+      <p class="mk-sub">From which video?</p>
+      <div class="mk-list" id="mkList"></div>
+      <button type="button" class="mk-opt" id="mkNewFile"><span class="ms" aria-hidden="true">upload_file</span><span><b>A new video file</b><small>Upload any video (or a Google Drive link) and choose your options.</small></span></button>
+    </div>
+    <div id="mkOpts" hidden>
+      <div class="mk-chosen" id="mkChosen"></div>
+      <div class="mk-row"><label class="lab" for="mkCount">How many Shorts</label>
+        <select id="mkCount"><option>3</option><option>4</option><option selected>5</option><option>6</option><option>7</option><option>8</option><option>10</option></select></div>
+      <div class="mk-row"><label class="lab" for="mkStyle">Captions</label>
+        <select id="mkStyle"><option value="bold">Bold yellow</option><option value="clean">Clean</option><option value="boxed">Boxed</option></select></div>
+      <label class="lab" for="mkNote">Anything to include or skip? <small class="opt">optional</small></label>
+      <textarea id="mkNote" maxlength="1000" rows="3" placeholder="Include the summit, skip the drive..."></textarea>
+      <div class="err" id="mkErr" role="alert"></div>
+      <div class="mk-acts"><button type="button" class="ghost" id="mkBack">Back</button><button type="button" class="primary" id="mkGo"><span class="ms" aria-hidden="true">auto_awesome</span>Make my Shorts</button></div>
+    </div>
+  </dialog>

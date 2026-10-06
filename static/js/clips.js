@@ -128,7 +128,7 @@ function clSorted(list){
   return [...list].sort((a,b)=>t(b)-t(a));  // stable: unposted keep their vlog order at the end
 }
 $("clVlog").onchange=()=>{ clVlog=$("clVlog").value; location.hash="clips"+(clVlog?"/"+clVlog:""); paintClips(); };
-$("clNew").onclick=()=>openCreate();
+$("clNew").onclick=()=>openMake();  // from a vlog uploaded here, or a new video file (js/make-choice.js)
 $("clAdd").onclick=()=>openJob(clVlog,"add");
 // Deletes drafts only (posted and scheduled clips stay); their files go too, so it can't be undone.
 async function clDelete(list){

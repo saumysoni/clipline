@@ -135,6 +135,7 @@ def _remove(paths):
 def _busy(job):
     return (job.get("status") != "ready" or job["id"] in POSTING
             or job.get("upload_status") in ("starting", "connecting", "uploading")
+            or (job.get("vpost") or {}).get("state") == "uploading"
             or any(s.get("retrying") for s in job.get("shorts", [])))
 
 

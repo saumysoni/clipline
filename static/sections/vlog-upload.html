@@ -1,0 +1,92 @@
+  <!-- New vlog: upload a whole vlog to YouTube with AI help (js/vlog-upload.js, web/vlog_upload.py) -->
+  <section id="s10" hidden>
+    <div class="work wide">
+      <div class="page-head">
+        <div>
+          <div class="eyebrow">New vlog</div>
+          <h1 id="vuH">Upload a vlog to YouTube</h1>
+          <p class="lede" id="vuLede">Pit Crew writes title ideas, a description with chapters, tags and a thumbnail. You check them, then upload.</p>
+        </div>
+        <button class="ghost" id="vuBack" type="button"><span class="ms" aria-hidden="true">arrow_back</span>Vlogs</button>
+      </div>
+
+      <div class="card vu-pick" id="vuPick">
+        <label class="drop" id="vuDrop" tabindex="0">
+          <input type="file" id="vuFile" accept="video/*">
+          <span class="drop-ic"><span class="ms" id="vuDropIc" aria-hidden="true">cloud_upload</span></span>
+          <span id="vuDropText">Drop your vlog here</span>
+          <span id="vuDropSub">or click to choose the video file</span>
+        </label>
+        <div class="or">OR</div>
+        <label class="lab" for="vuLink">Google Drive link</label>
+        <div class="with-ic"><span class="ms" aria-hidden="true">add_to_drive</span><input type="text" id="vuLink" placeholder="https://drive.google.com/file/d/..."></div>
+        <label class="lab vu-gap" for="vuNote">Anything Pit Crew should know? <small class="opt">optional</small></label>
+        <textarea id="vuNote" maxlength="1000" placeholder="Where you went, names to spell right, what the vlog is about..."></textarea>
+        <div class="bar" id="vuSendBar" hidden><i></i></div>
+        <button class="primary big vu-gap" id="vuGo" type="button"><span class="ms" aria-hidden="true">auto_awesome</span>Prepare my upload</button>
+        <div class="err" id="vuErr1" role="alert"></div>
+      </div>
+
+      <div class="card" id="vuWork" hidden>
+        <ul class="tasks" id="vuTasks"></ul>
+        <div class="err" id="vuErr2" role="alert"></div>
+      </div>
+
+      <div class="vu-grid" id="vuEdit" hidden>
+        <div class="card vu-details">
+          <div class="sec-head"><span class="badge">1</span><b>Details</b><span class="tag" id="vuSaved"></span></div>
+          <label class="lab" for="vuT">Title <small class="opt" id="vuTCount"></small></label>
+          <input type="text" id="vuT" maxlength="100">
+          <div class="vu-ideas" id="vuIdeas"></div>
+          <label class="lab vu-gap" for="vuD">Description <small class="opt">the times become chapters on YouTube</small></label>
+          <textarea id="vuD" rows="14" maxlength="5000"></textarea>
+          <small class="hint" id="vuDCount"></small>
+          <label class="lab vu-gap" for="vuTags">Tags <small class="opt">separated by commas</small></label>
+          <input type="text" id="vuTags">
+          <small class="hint" id="vuTagsCount"></small>
+        </div>
+        <div class="vu-side">
+          <div class="card">
+            <div class="sec-head"><span class="badge">2</span><b>Thumbnail</b></div>
+            <div class="vu-thumb"><img id="vuThumb" alt="The vlog's thumbnail"></div>
+            <div class="vu-thumb-acts">
+              <div class="an-seg" id="vuLook" role="group" aria-label="Thumbnail look"><button type="button" data-look="frame">Frame</button><button type="button" data-look="duotone">Duotone</button></div>
+              <a class="ghost sm" id="vuThumbDl" download><span class="ms" aria-hidden="true">download</span>Download</a>
+            </div>
+          </div>
+          <div class="card">
+            <div class="sec-head"><span class="badge">3</span><b>Publish</b></div>
+            <div class="acct" id="vuAcct"></div>
+            <label class="when-lab" for="vuPrivacy">Visibility</label>
+            <select id="vuPrivacy">
+              <option value="public">Public, right away</option>
+              <option value="schedule">Scheduled</option>
+              <option value="unlisted">Unlisted</option>
+              <option value="private">Private</option>
+            </select>
+            <div class="custom" id="vuWhen" hidden><input type="datetime-local" id="vuStart" aria-label="Date and time it goes public"></div>
+            <button class="primary big vu-gap" id="vuUpload" type="button"><span class="ms" aria-hidden="true">cloud_upload</span>Upload to YouTube</button>
+            <div class="bar" id="vuUpBar" hidden><i></i></div>
+            <p class="hint" id="vuUpMsg"></p>
+            <div class="err" id="vuErr3" role="alert"></div>
+            <p class="fine" id="vuKeep"></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card vu-done" id="vuDone" hidden>
+        <span class="ms vu-done-ic" aria-hidden="true">check_circle</span>
+        <div class="vu-done-t">
+          <h2 id="vuDoneH">Your vlog is on YouTube</h2>
+          <p class="lede" id="vuDoneSub"></p>
+          <div class="vu-links" id="vuLinks"></div>
+          <p class="hint" id="vuDoneNote"></p>
+        </div>
+      </div>
+      <div class="card vu-next" id="vuNext" hidden>
+        <span class="ms" aria-hidden="true">movie</span>
+        <div><b>Make Shorts &amp; Reels from this vlog?</b><span>It takes only a couple of minutes to schedule or post the Shorts &amp; Reels for this vlog. Would you like to do that now?</span></div>
+        <div class="vu-next-acts"><button type="button" class="ghost" id="vuLater">Later</button><button type="button" class="primary" id="vuMakeNow"><span class="ms" aria-hidden="true">auto_awesome</span>Make them now</button></div>
+      </div>
+    </div>
+  </section>

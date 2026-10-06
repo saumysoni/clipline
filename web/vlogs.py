@@ -62,7 +62,11 @@ def summary(job):
     cover = next((s["thumb"] for s in shorts if s.get("thumb")), "")
     vid = re.search(r"(?:v=|youtu\.be/|/shorts/|/live/)([\w-]{11})", (job.get("vlog") or {}).get("youtube_url") or "")
     vlog = job.get("vlog") or {}
-    return {"id": job["id"], "title": vlog.get("title") or job.get("name") or "Your vlog",
+    vdraft, vpost = job.get("vdraft") or {}, job.get("vpost") or {}
+    return {"id": job["id"], "title": vlog.get("title") or vdraft.get("title") or job.get("name") or "Your vlog",
+            "kind": job.get("kind", "shorts"), "vthumb": vdraft.get("thumb", ""),  # kind "vlog": web/vlog_upload.py
+            "prep": job.get("kind") == "vlog" and not job.get("count"),  # a vlog upload, before any Shorts were asked for
+            "vpost": {k: vpost.get(k) for k in ("state", "pct", "when", "privacy", "video_id")} if vpost else None,
             "duration": job.get("duration"), "created": created_at(job), "status": job.get("status"),
             "stage": job.get("stage", 0), "stages": len(job.get("stages") or []), "pct": job.get("pct"),
             "msg": job.get("msg", ""), "error": _error(job), "cover": cover, "poster": _poster(job),

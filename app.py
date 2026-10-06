@@ -47,6 +47,7 @@ from web import (  # noqa: E402,F401
     try_again,
     vlogs,
     vlog_info,
+    vlog_upload,
     youtube_connect,
 )
 

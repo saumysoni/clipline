@@ -10,6 +10,7 @@ async function tick(){
   if(id!==jobId || location.hash.slice(1)!==id) return;  // the creator went to another page meanwhile
   if(r.status===404){ clearInterval(poll); openVlogs(); return; }
   job=await r.json();
+  if(job.kind==="vlog" && !job.count){ clearInterval(poll); openVlogUpload(id); return; }  // a vlog upload, not Shorts yet
   if(job.upload_status && job.upload_status!=="error" && !(job.upload_status==="done" && onReview)){ renderUpload(); return; }
   if(job.status==="ready"){
     if($("s3").hidden || !$("reel").children.length){ renderResults(); show(3); showPost(job.upload_status==="error"); } else refreshResults();

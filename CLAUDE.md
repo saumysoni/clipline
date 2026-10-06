@@ -60,6 +60,8 @@ The code is split so two people can work on different features without touching 
 | Forgot password (reset link by email) | `accounts/db.py` (`password_resets`), `accounts/mail.py` | `web/password_reset.py` | `js/password-reset.js`, `sections/auth.html` |
 | Sidebar (+ Create, Workspace, Channels, Account / Settings / Appearance) | | | `sections/sidebar.html`, `js/nav.js`, `css/shell.css` |
 | Vlogs page (home: every vlog as a row like YouTube's search results, landscape picture = the vlog's YouTube thumbnail, else `poster.jpg`, else a Short's thumbnail on a blur; find by title; tick or Select all to delete several videos, their Shorts stay; a vlog that stopped before making any Shorts is removed completely; stopped vlogs show `web/errors.py`'s plain reason) | `pipeline/poster.py` | `web/vlogs.py` (`/api/vlogs`, `delete-video`, `delete-videos`) | `js/vlogs.js`, `sections/vlogs.html`, `css/vlogs.css` |
+| Upload a vlog to YouTube (+ Create → Upload a vlog, or New vlog on the Vlogs page; screen 10, `#vlog/new` / `#vlog/<id>`): transcribe, AI title ideas + description with chapters + tags + a 16:9 thumbnail (Frame / Duotone), the creator edits (saved as typed), uploads public / scheduled / unlisted / private, then is offered "Make Shorts & Reels from this vlog?" | `pipeline/vlog_meta.py`, `pipeline/vlog_thumbnail.py`, `youtube/vlog_upload.py` | `web/vlog_upload.py` (`/api/vlog/start`, `/<id>/draft`, `/look`, `/upload`, `/shorts`) | `js/vlog-upload.js`, `sections/vlog-upload.html`, `css/vlog-upload.css` |
+| What to make (+ Create asks: upload a vlog, or make Shorts; Make Shorts asks: from a vlog uploaded here, while its video is kept, or a new video file = screen 1) | | `web/vlog_upload.py` (`/shorts`) | `js/make-choice.js`, `sections/make-dialogs.html`, `css/vlog-upload.css` |
 | Shorts & Reels page (every clip from every vlog; filters; Select all; Analytics / Download / Edit; schedule several at once on one plan of times; titles saved as typed) | | `web/clips.py` | `js/clips.js`, `sections/clips.html`, `css/clips.css` |
 | Progress card (vlog being sent / made, "Shorts ready" pop-up) | | `web/vlogs.py` | `js/jobs-now.js`, `css/jobs-now.css` |
 | Settings page (account: change password, sign out; connected channels; appearance) | | | `js/settings.js`, `sections/settings.html`, `css/settings.css` |
@@ -303,6 +305,15 @@ The code is split so two people can work on different features without touching 
     once a day (`reel_snapshots`, also every 6 h in the background): first week = the saved day 7–9 days after posting,
     else "still counting" (< 7 days) or "not enough history" (saving began later). "What's working" (`takeaways()`) only
     compares groups of 2+ clips, needs 4+ finished clips per platform and a 20% difference, and says what it's based on.
+
+23. **A vlog upload is a job with `kind: "vlog"`** (`web/vlog_upload.py`): `VLOG_STAGES` while it's prepared, then
+    `status: "ready"` with `job["vdraft"]` (what the creator edits) and, once sent, `job["vpost"]` (uploading → done /
+    error) and `job["vlog"]` (video id, URL, channel), so its Shorts link back to it. It has no `count` until Shorts are
+    asked for; `/api/vlogs` calls that `prep`. The page decides from that: `prep` opens the upload page (screen 10),
+    anything else the usual progress / Shorts & Reels (`progress.js` `tick()` hands a `prep` job to `openVlogUpload`).
+    `/shorts` turns it into an ordinary Shorts job on the same video and transcript (no second upload, no second
+    transcription), only while the video is kept (`KEEP_ORIGINAL_HOURS`, 72) and before it has any Shorts. A
+    `vpost` left "uploading" by a restart becomes an error (`load_job`), and retention never deletes a video mid-upload.
 
 ## Conventions
 

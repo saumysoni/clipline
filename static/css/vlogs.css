@@ -34,6 +34,7 @@
 .vl-b{font:600 .72rem/1 var(--mono);padding:5px 8px;border-radius:6px;background:var(--raised);color:var(--muted)}
 .vl-b.done{background:var(--good-soft);color:var(--good)}
 .vl-b.plan{background:var(--primary-soft);color:var(--primary-text)}
+.vl-b.bad{background:var(--bad-soft);color:var(--bad)}
 .vr-note{display:inline-flex;align-items:center;gap:5px;font-size:.82rem;color:var(--faint)}
 .vr-note .ms{font-size:15px}
 .vr-note.bad{color:var(--bad)}

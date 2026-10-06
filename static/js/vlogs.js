@@ -1,10 +1,10 @@
-// Vlogs page (home): every vlog uploaded, newest first, as a list like YouTube's search results (web/vlogs.py):
+// Vlogs page (home): every vlog uploaded (to make Shorts, or to YouTube with js/vlog-upload.js), newest first, as a list like YouTube's search results (web/vlogs.py):
 // a landscape picture on the left, title and details on the right. Tick vlogs (or Select all) to delete several
 // videos at once; their Shorts stay.
 let vlData=null, vlPicked=new Set(), vlStatus="";
 // Status filter: a vlog shows under Drafts / Scheduled / Posted when at least one of its Shorts is in that state.
 const VL_STATUS=[["","All",()=>true],["drafts","Drafts",v=>v.drafts>0],["scheduled","Scheduled",v=>v.scheduled>0],
-  ["posted","Posted",v=>v.posted>0],["making","Being made",v=>v.status==="working"],["stopped","Stopped",v=>v.status==="error"]];
+  ["posted","Posted",v=>v.posted>0],["notup","Not on YouTube",v=>v.prep&&v.status==="ready"&&!(v.vpost&&v.vpost.state==="done")],["making","Being made",v=>v.status==="working"||vlUploading(v)],["stopped","Stopped",v=>v.status==="error"]];
 async function openVlogs(){ clearInterval(poll); location.hash="vlogs"; show(7); vlSelecting(false); await loadVlogs(); }
 async function loadVlogs(){
   try{ const r=await fetch("/api/vlogs"); if(!r.ok) throw 0; vlData=(await r.json()).items||[]; }
@@ -22,7 +22,8 @@ const vlDate=t=>t ? new Date(t*1000).toLocaleString([], {month:"short", day:"num
 const vlPct=v=>v.stages ? Math.min(99, Math.round(((v.stage||0)+(v.pct||0)/100)/v.stages*100)) : 0;
 // A vlog's video can be deleted when it's still here and nothing is running on it.
 // (a vlog that stopped before making any Shorts is removed completely instead: there's nothing to keep)
-const vlDeletable=v=>(!v.video_deleted || v.removable) && v.status!=="working" && !v.remaking;
+const vlDeletable=v=>(!v.video_deleted || v.removable) && v.status!=="working" && !v.remaking && !vlUploading(v);
+const vlUploading=v=>!!(v.vpost && v.vpost.state==="uploading");
 function vlStats(v){
   if(v.status==="working") return "";
   if(!v.shorts) return v.status==="error" ? "" : "No Shorts yet";
@@ -30,14 +31,24 @@ function vlStats(v){
 }
 function vlBadges(v){
   const b=[];
+  if(v.kind==="vlog" && v.status==="ready"){  // a vlog uploaded with Pit Crew: where it is on YouTube
+    const p=v.vpost||{}, when=p.when?new Date(p.when):null;
+    if(p.state==="uploading") b.push('<span class="vl-b plan">Uploading to YouTube '+Math.round(p.pct||0)+'%</span>');
+    else if(p.state==="done" && p.privacy==="schedule" && when>new Date()) b.push('<span class="vl-b plan">Vlog goes public '+esc(vlDate(when/1000))+'</span>');
+    else if(p.state==="done") b.push('<span class="vl-b done">Vlog on YouTube'+(["unlisted","private"].includes(p.privacy)?" · "+p.privacy:"")+'</span>');
+    else if(p.state==="error") b.push('<span class="vl-b bad">Upload stopped</span>');
+    else b.push('<span class="vl-b">Not uploaded yet</span>');
+  }
   if(v.posted) b.push('<span class="vl-b done">'+v.posted+' posted</span>');
   if(v.scheduled) b.push('<span class="vl-b plan">'+v.scheduled+' scheduled</span>');
   if(v.drafts) b.push('<span class="vl-b">'+v.drafts+' draft'+(v.drafts>1?'s':'')+'</span>');
   return b.length?'<div class="vl-badges">'+b.join("")+'</div>':"";
 }
 function vlRow(v){
-  // Picture: the vlog's own YouTube thumbnail, else a frame from the vlog, else a Short's thumbnail on a blur.
-  const pic = v.yt_thumb ? '<img src="'+esc(v.yt_thumb)+'" alt="" loading="lazy" referrerpolicy="no-referrer">'
+  // Picture: the thumbnail Pit Crew made for the vlog, else its own YouTube thumbnail, else a frame from the vlog,
+  // else a Short's thumbnail on a blur.
+  const pic = v.vthumb ? '<img src="/media/'+esc(v.id)+'/'+esc(v.vthumb)+'" alt="" loading="lazy">'
+    : v.yt_thumb ? '<img src="'+esc(v.yt_thumb)+'" alt="" loading="lazy" referrerpolicy="no-referrer">'
     : v.poster ? '<img src="/media/'+esc(v.id)+'/'+esc(v.poster)+'" alt="" loading="lazy">'
     : v.cover ? '<span class="vl-blur" style="background-image:url(\'/media/'+esc(v.id)+'/'+esc(v.cover)+'\')"></span><img class="vl-tall" src="/media/'+esc(v.id)+'/'+esc(v.cover)+'" alt="" loading="lazy">'
     : v.status==="error" ? '' : '<span class="ms vl-ph" aria-hidden="true">movie</span>';
@@ -54,17 +65,24 @@ function vlRow(v){
       '<button type="button" class="vr-title vl-open" title="'+esc(v.title)+'">'+esc(v.title)+'</button>'+
       '<div class="vr-meta">'+esc(meta)+'</div>'+
       vlBadges(v)+
-      (v.status==="working"?'<div class="vr-note">Making your Shorts · '+esc(v.msg||"")+'</div>':'')+
+      (v.status==="working"?'<div class="vr-note">'+(v.prep?"Getting your upload ready":"Making your Shorts")+' · '+esc(v.msg||"")+'</div>':'')+
       (v.status==="error"?'<div class="vr-note bad vr-err"><span class="ms" aria-hidden="true">error</span><span>'+esc(v.error||"Something went wrong. Upload the vlog again.")+'</span></div>':'')+
       (v.video_expires && v.video_expires*1000-Date.now()<86400000 ? '<div class="vr-note warn" title="To keep storage free, a vlog\'s video is deleted after it hasn\'t been edited for a while. Its Shorts stay. Edit one of its Shorts to keep it longer."><span class="ms" aria-hidden="true">schedule</span>Video deleted '+esc(vlSoon(v.video_expires))+'</div>':'')+
       '<div class="vr-acts">'+
-        (v.removable?'':'<button type="button" class="ghost sm vl-open">'+(busy?"See progress":"Shorts &amp; Reels")+'</button>'+
+        (v.removable?'' : v.prep ? vlPrepActs(v) : '<button type="button" class="ghost sm vl-open">'+(busy?"See progress":"Shorts &amp; Reels")+'</button>'+
         (v.status==="ready"?'<button type="button" class="ghost sm vl-an"'+(v.posted?'':' disabled title="Post a Short to see its numbers"')+'>Analytics</button>':''))+
         (v.youtube_url?'<a class="ghost sm" href="'+esc(v.youtube_url)+'" target="_blank" rel="noopener">On YouTube<span class="ms" aria-hidden="true">open_in_new</span></a>':'')+
         (vlDeletable(v)?(v.removable?'<button type="button" class="ghost sm vl-del" title="It stopped before making any Shorts, so there\'s nothing to keep"><span class="ms" aria-hidden="true">delete</span>Remove</button>'
           :'<button type="button" class="ghost sm vl-del" title="Delete this vlog\'s video (its Shorts stay)"><span class="ms" aria-hidden="true">delete</span>Delete video</button>'):'')+
       '</div>'+
     '</div></article>';
+}
+// A vlog uploaded with Pit Crew that has no Shorts yet: its upload page, and Make Shorts while its video is kept.
+function vlPrepActs(v){
+  if(v.status!=="ready") return '<button type="button" class="ghost sm vl-open">'+(v.status==="working"?"See progress":"See why")+'</button>';
+  const done=v.vpost&&v.vpost.state==="done";
+  return '<button type="button" class="ghost sm vl-open">'+(done?"Upload details":vlUploading(v)?"See upload":"Check and upload")+'</button>'+
+    (!v.video_deleted && !vlUploading(v)?'<button type="button" class="ghost sm vl-make"><span class="ms" aria-hidden="true">auto_awesome</span>Make Shorts</button>':'');
 }
 function vlShown(){
   const q=$("vlFind").value.trim().toLowerCase(), f=(VL_STATUS.find(s=>s[0]===vlStatus)||VL_STATUS[0])[2];
@@ -85,8 +103,8 @@ function paintVlogs(){
   $("vlBar").hidden=!vlData.length;
   if(!vlData.length){
     g.innerHTML='<div class="card vl-empty"><span class="ms" aria-hidden="true">video_library</span><b>No vlogs yet</b>'+
-      '<span>Upload a vlog and Pit Crew turns it into Shorts and Reels.</span><button type="button" class="primary" id="vlFirst"><span class="ms" aria-hidden="true">add</span>Upload your first vlog</button></div>';
-    $("vlFirst").onclick=openCreate; vlBar(); return;
+      '<span>Upload a vlog to YouTube with a ready title, description, chapters and thumbnail, then turn it into Shorts and Reels.</span><button type="button" class="primary" id="vlFirst"><span class="ms" aria-hidden="true">add</span>Upload your first vlog</button></div>';
+    $("vlFirst").onclick=()=>openVlogUpload(); vlBar(); return;
   }
   vlChips();
   const list=vlShown();
@@ -94,7 +112,8 @@ function paintVlogs(){
     (vlStatus?'Try another filter'+($("vlFind").value.trim()?' or word':'')+'.':'Try another word from its title.')+'</span></div>';
   g.querySelectorAll(".vrow").forEach(el=>{
     const id=el.dataset.id, v=vlData.find(x=>x.id===id);  // ready: its Shorts & Reels; still being made (or stopped): its progress
-    el.querySelectorAll(".vl-open").forEach(b=>b.onclick=()=>v.status==="ready"?openClips(id):startPolling(id));
+    el.querySelectorAll(".vl-open").forEach(b=>b.onclick=()=>v.prep?openVlogUpload(id):v.status==="ready"?openClips(id):startPolling(id));
+    const mk=el.querySelector(".vl-make"); if(mk) mk.onclick=()=>openMake(id);
     const an=el.querySelector(".vl-an"); if(an) an.onclick=()=>openAnalytics(id);
     const del=el.querySelector(".vl-del"); if(del) del.onclick=()=>vlDelete([v]);
     const pick=el.querySelector(".vr-pick input");
