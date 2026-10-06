@@ -23,6 +23,18 @@ def _days():
     return d if d in (0, 7, 28, 90, 365) else 28
 
 
+def _plain(e):
+    """A plain sentence for an analytics problem (upload_error_message talks about uploads)."""
+    from googleapiclient.errors import HttpError
+
+    if isinstance(e, HttpError):
+        print("YouTube Analytics error:", e.resp.status, (e.content or b"")[:400])
+        if e.resp.status in (429, 500, 503):
+            return "YouTube Analytics is busy right now. Try again in a few minutes."
+        return "YouTube Analytics couldn't give these numbers right now. Try again in a few minutes."
+    return yt.upload_error_message(e)
+
+
 @app.get("/api/analytics")
 def analytics():
     uid = g.user["id"]
@@ -44,7 +56,7 @@ def analytics():
         return jsonify(out)
     except Exception as e:  # noqa: BLE001
         traceback.print_exc()
-        out["error"] = yt.upload_error_message(e)
+        out["error"] = _plain(e)
         return jsonify(out), 502
 
 
@@ -66,4 +78,4 @@ def analytics_short(video_id):
         return jsonify(yt.analytics_short(g.user["id"], video_id, channel=channel))
     except Exception as e:  # noqa: BLE001
         traceback.print_exc()
-        return jsonify(error=yt.upload_error_message(e)), 502
+        return jsonify(error=_plain(e)), 502

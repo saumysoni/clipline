@@ -168,6 +168,17 @@ def dashboard(user_id, days=28, clipline_ids=()):
                           "shares": r.get("shares", 0), "avg_pct": round(r.get("averageViewPercentage", 0) or 0, 1),
                           "avg_secs": round(r.get("averageViewDuration", 0) or 0, 1),
                           "subs": r.get("subscribersGained", 0), "clipline": r["video"] in clip} for r in top]
+        if not days:  # all time: Studio's live counts (Analytics lags ~2 days and counts comments differently)
+            live = {k: sum(m.get("live_" + k, 0) for m in meta.values() if m.get("id") in {r["video"] for r in top})
+                    for k in ("views", "likes", "comments")}
+            for k, v in live.items():
+                out["totals"][k] = max(out["totals"].get(k) or 0, v)
+            for s in out["shorts"]:
+                s.update(views=max(s["views"], s.get("live_views", 0)), likes=s.get("live_likes", s["likes"]),
+                         comments=s.get("live_comments", s["comments"]))
+            t = out["totals"]
+            eng = (t.get("likes") or 0) + (t.get("comments") or 0) + (t.get("shares") or 0)
+            t["engagement"] = round(100 * eng / t["views"], 2) if t.get("views") else 0
         out["traffic"] = [{"source": r["insightTrafficSourceType"], "views": r.get("views", 0)}
                           for r in _try(_report, ya, start, end, "views", "insightTrafficSourceType", sort="-views")]
         out["countries"] = [{"code": r["country"], "views": r.get("views", 0)}
@@ -208,13 +219,15 @@ def short_detail(user_id, video_id, channel=None):
     yt3, ya = _services(user_id, channel)
     end = date.today()
     meta = _videos(yt3, [video_id]).get(video_id, {})
+    if not meta:  # deleted in YouTube Studio, or on a channel that isn't connected: Analytics would refuse it
+        raise RuntimeError("This Short isn't on the YouTube channel any more (deleted in YouTube Studio?), so it has no numbers.")
     start = (datetime.fromisoformat(meta["published"].replace("Z", "+00:00")).date() - timedelta(days=1)
              if meta.get("published") else date(2005, 4, 23))
     f = f"video=={video_id}"
     out = {"short": meta, "full": True}
     try:
         out["daily"] = [{"day": r["day"], "views": r.get("views", 0)}
-                        for r in _report(ya, start, end, "views", "day", filters=f, sort="day")]
+                        for r in _try(_report, ya, start, end, "views", "day", filters=f, sort="day")]
         out["retention"] = [{"at": round(r["elapsedVideoTimeRatio"] * 100, 1), "watching": round(r["audienceWatchRatio"] * 100, 1),
                              "vs_similar": r.get("relativeRetentionPerformance")}
                             for r in _try(_report, ya, start, end, "audienceWatchRatio,relativeRetentionPerformance",
