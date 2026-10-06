@@ -72,6 +72,9 @@ function renderAnalytics(j){
     note.innerHTML='<span class="ms" aria-hidden="true">lock_open</span><span>These are the live counts for the Shorts Pit Crew uploaded. To see views per day, watch time, retention, '+
       'first-week numbers and who watches, turn on <b>YouTube Analytics API</b> in Google Cloud (one click: <b>Enable</b>), wait a few minutes, then press Refresh.</span>'+
       '<a class="ghost" id="anEnable" href="'+esc(y.enable_url)+'" target="_blank" rel="noopener">Turn it on<span class="ms" aria-hidden="true">open_in_new</span></a>';
+  } else if(!y.full && (y.notes||[]).includes("unavailable")){  // YouTube Analytics refused a report: not the creator's doing
+    note.hidden=false;
+    note.innerHTML='<span class="ms" aria-hidden="true">info</span><span>YouTube Analytics didn\'t answer this time, so these are the live counts for the Shorts Pit Crew uploaded. Press Refresh in a few minutes for watch time, retention and trends.</span>';
   } else if(!y.full){
     note.hidden=false;
     note.innerHTML='<span class="ms" aria-hidden="true">lock_open</span><span>These are the live counts for the Shorts Pit Crew uploaded. <b>Connect YouTube once more</b> '+

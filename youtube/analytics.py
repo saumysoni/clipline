@@ -44,7 +44,10 @@ def _services(user_id, channel=None):
 
 
 def _report(ya, start, end, metrics, dimensions=None, filters=SHORTS, sort=None, max_results=None):
-    """Rows as dicts ({"day": "2026-10-01", "views": 120, ...}). Raises NeedsReconnect when not allowed."""
+    """Rows as dicts ({"day": "2026-10-01", "views": 120, ...}). Raises NeedsReconnect when not allowed.
+
+    Shorts are picked with the filter creatorContentType==SHORTS. Some report/metric combinations refuse that filter
+    (HTTP 400); then the same report is asked with creatorContentType as a dimension and only the SHORTS rows kept."""
     from googleapiclient.errors import HttpError
 
     q = {"ids": "channel==MINE", "startDate": str(start), "endDate": str(end), "metrics": metrics}
@@ -54,16 +57,30 @@ def _report(ya, start, end, metrics, dimensions=None, filters=SHORTS, sort=None,
     try:
         resp = ya.reports().query(**q).execute()
     except HttpError as e:
+        body = e.content.decode("utf-8", "replace") if isinstance(e.content, bytes) else str(e.content)
         if e.resp.status in (401, 403):
-            body = e.content.decode("utf-8", "replace") if isinstance(e.content, bytes) else str(e.content)
             off = "has not been used in project" in body or "SERVICE_DISABLED" in body or "accessNotConfigured" in body
             proj = re.search(r"project[= ](\d+)", body)
             url = ("https://console.developers.google.com/apis/api/youtubeanalytics.googleapis.com/overview"
                    + (f"?project={proj.group(1)}" if proj else "")) if off else ""
             raise NeedsReconnect(str(e), url) from e
+        print("YouTube Analytics refused", {k: v for k, v in q.items() if k != "ids"}, "->", e.resp.status, body[:400])
+        if e.resp.status == 400 and filters and SHORTS in filters:
+            return _report_by_type(ya, start, end, metrics, dimensions, filters, sort, max_results)
         raise
     names = [h["name"] for h in resp.get("columnHeaders", [])]
     return [dict(zip(names, row)) for row in resp.get("rows") or []]
+
+
+def _report_by_type(ya, start, end, metrics, dimensions, filters, sort, max_results):
+    """The same report with creatorContentType as a dimension, keeping the SHORTS rows. Totals that are sums (views,
+    likes...) are exact; averages (averageViewDuration/Percentage) come straight from YouTube's SHORTS row."""
+    rest = ";".join(f for f in filters.split(";") if f != SHORTS) or None
+    dims = ",".join(d for d in ((dimensions or "").split(",") + ["creatorContentType"]) if d)
+    rows = _report(ya, start, end, metrics, dims, rest, sort, (max_results * 4) if max_results else None)
+    rows = [{k: v for k, v in r.items() if k != "creatorContentType"} for r in rows
+            if str(r.get("creatorContentType", "")).upper() in ("SHORTS", "SHORT")]
+    return rows[:max_results] if max_results else rows
 
 
 def _try(fn, *a, **k):
@@ -162,10 +179,15 @@ def dashboard(user_id, days=28, clipline_ids=()):
             genders[r["gender"]] = genders.get(r["gender"], 0) + r["viewerPercentage"]
         out["ages"] = [{"group": a.replace("age", "").replace("-", "–"), "pct": round(p, 1)} for a, p in sorted(ages.items())]
         out["genders"] = [{"gender": g, "pct": round(p, 1)} for g, p in sorted(genders.items(), key=lambda x: -x[1])]
-    except NeedsReconnect as e:
+    except Exception as e:  # noqa: BLE001  (not allowed, or YouTube refused a report: show the live counts instead)
+        if isinstance(e, NeedsReconnect):
+            out["notes"].append("reconnect")
+            out["enable_url"] = e.enable_url  # the API is switched off in Google Cloud: say exactly that
+        else:
+            import traceback
+            traceback.print_exc()
+            out["notes"].append("unavailable")
         out["full"] = False
-        out["notes"].append("reconnect")
-        out["enable_url"] = e.enable_url  # the API is switched off in Google Cloud: say exactly that
         meta = _videos(yt3, list(clip))
         out["shorts"] = sorted(({**m, "views": m["live_views"], "likes": m["live_likes"],
                                  "comments": m["live_comments"], "clipline": True} for m in meta.values()),
