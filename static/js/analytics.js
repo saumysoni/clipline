@@ -182,7 +182,7 @@ function lineChart(el,o){
   const W=Math.max(240,el.clientWidth||600), H=o.height||220, bare=!!o.bare;
   const L=bare?2:46, R=bare?6:54, T=bare?6:12, Bm=bare?4:26, n=o.x.length;
   const top=Math.max(...o.series.flatMap(s=>s.values),0)*(o.headroom||1.08);
-  const max=o.series.every(s=>s.values.every(Number.isInteger)) && !o.fmtY ? countMax(top) : niceMax(top);
+  const max=o.max || (o.series.every(s=>s.values.every(Number.isInteger)) && !o.fmtY ? countMax(top) : niceMax(top));
   const X=i=>L+(n<2?0:i*(W-L-R)/(n-1)), Y=v=>T+(H-T-Bm)*(1-v/max);
   const fy=o.fmtY||compact, fx=o.fmtX||(v=>v);
   let s='<svg viewBox="0 0 '+W+' '+H+'" height="'+H+'" role="img" tabindex="0" aria-label="'+esc(o.series.map(x=>x.name).join(", "))+' chart">';
@@ -195,6 +195,12 @@ function lineChart(el,o){
     ticks.forEach(i=>{ s+='<text x="'+X(i)+'" y="'+(H-6)+'" text-anchor="'+(i===0?"start":i===n-1&&o.xTicks?"end":"middle")+'">'+esc(fx(o.xTicks?o.xTicks[ticks.indexOf(i)]:o.x[i]))+'</text>'; });
     s+='</g>';
   }
+  if(o.band){ const a=X(o.band.from), b=X(o.band.to);  // a highlighted stretch (e.g. where most viewers leave)
+    s+='<rect x="'+a+'" y="'+T+'" width="'+Math.max(2,b-a)+'" height="'+(H-T-Bm)+'" fill="var(--c-down,#F87171)" fill-opacity=".12"/>'+
+      '<text x="'+((a+b)/2)+'" y="'+(T+12)+'" text-anchor="middle" style="fill:var(--muted);font-size:11px;font-weight:600">'+esc(o.band.label)+'</text>'; }
+  if(o.ref!=null && o.ref<=max){  // a dashed reference line with its meaning
+    s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(o.ref)+'" y2="'+Y(o.ref)+'" stroke="var(--muted)" stroke-dasharray="4 4" stroke-width="1"/>'+
+      '<text x="'+(W-R)+'" y="'+(Y(o.ref)-6)+'" text-anchor="end" style="fill:var(--muted);font-size:11px">'+esc(o.refLabel||"")+'</text>'; }
   o.series.forEach(se=>{
     const pts=se.values.map((v,i)=>X(i).toFixed(1)+","+Y(v).toFixed(1)).join(" ");
     s+='<polygon points="'+X(0)+","+Y(0)+" "+pts+" "+X(n-1)+","+Y(0)+'" fill="'+se.color+'" fill-opacity=".1"/>';
@@ -244,15 +250,47 @@ async function openShortAnalytics(id,channel){
   B.push('<p class="sub an-d-note">Since it was posted. Views, likes and comments are live; the rest come from YouTube Analytics, about 2 days behind.</p>');
   const ret=j.retention||[], dd=j.daily||[], tr=j.traffic||[], len=m.secs||0;
   const at=p=>len?secs(len*p/100)+" ("+Math.round(p)+"%)":Math.round(p)+"%";  // a point in the Short: its time, and how far in
-  if(ret.length>1) B.push(card("anRet","Audience retention","How many viewers are still watching at each point of the Short (over 100% means people rewatch)",'<div class="an-viz" id="anRetViz"></div>',
+  const rs=retSummary(ret,len);
+  if(rs) B.push(card("anRet","Where viewers stop watching","Of everyone who started this Short, the share still watching at each moment",
+    '<div class="ret-stats">'+
+      '<div><span>Still watching after 3 s</span><b>'+esc(rs.hook)+'</b><small>the hook</small></div>'+
+      '<div><span>Still watching at the end</span><b>'+esc(rs.end)+'</b><small>'+esc(rs.endNote)+'</small></div>'+
+      '<div><span>Biggest drop</span><b>'+esc(rs.dropAt)+'</b><small>'+esc(rs.dropNote)+'</small></div>'+
+    '</div><p class="ret-say">'+esc(rs.say)+'</p><div class="an-viz" id="anRetViz"></div>'+
+    '<p class="sub">Above the dashed line: people replayed that part (Shorts loop).</p>',
     table(["Point in the Short","Still watching"],ret.filter((r,i)=>i%5===0||i===ret.length-1).map(r=>[at(r.at),pct(r.watching)]),[1])));
   if(dd.length>1) B.push(card("anDDaily","Views per day","",'<div class="an-viz" id="anDDailyViz"></div>',table(["Day","Views"],dd.map(r=>[r.day,full(r.views)]),[1])));
   if(tr.length){ const tot=tr.reduce((a,r)=>a+r.views,0)||1;
     B.push(card("anDTraffic","How viewers found it","",barsHTML(tr.slice(0,6).map(r=>({nm:TRAFFIC[r.source]||r.source,v:r.views/tot*100,lab:pct(r.views/tot*100)}))),
       table(["Source","Views"],tr.map(r=>[TRAFFIC[r.source]||r.source,full(r.views)]),[1]))); }
   $("anDBody").innerHTML=B.join(""); wireCards();
-  if($("anRetViz")) lineChart($("anRetViz"),{x:ret.map(r=>r.at),xTicks:[0,25,50,75,100],fmtX:v=>Math.round(v)+"%",fmtY:v=>Math.round(v)+"%",series:[{name:"Still watching",color:"var(--c-yt)",values:ret.map(r=>r.watching)}],height:200});
+  if($("anRetViz")) lineChart($("anRetViz"),{x:ret.map(r=>r.at),xTicks:[0,50,100],fmtX:v=>len?secs(len*v/100):Math.round(v)+"%",fmtY:v=>Math.round(v)+"%",
+    series:[{name:"Still watching",color:"var(--c-yt)",values:ret.map(r=>r.watching)}],height:220,ref:100,
+    max:Math.max(100,Math.ceil(Math.max(...ret.map(r=>r.watching))*1.05/25)*25),refLabel:"Everyone who started",
+    band:rs?{from:rs.i0,to:rs.i1,label:"Most leave here"}:null});
   if($("anDDailyViz")) lineChart($("anDDailyViz"),{x:dd.map(r=>r.day),fmtX:dayLabel,series:[{name:"Views",color:"var(--c-yt)",values:dd.map(r=>r.views)}],height:180});
+}
+// The retention curve in plain words: the hook (3 s), the end, where most viewers leave, and how it compares
+// with similar Shorts (YouTube's relativeRetentionPerformance: 0.5 is typical for Shorts of that length).
+function retSummary(ret,len){
+  if(!ret || ret.length<3) return null;
+  const n=ret.length, v=ret.map(r=>r.watching), atTime=p=>len?secs(len*p/100):Math.round(p)+"%";
+  const idxAt=p=>ret.reduce((b,r,i)=>Math.abs(r.at-p)<Math.abs(ret[b].at-p)?i:b,0);
+  const show=x=>x>100?"All (rewatched)":Math.round(x)+"%";
+  const hookI=len?idxAt(Math.min(100,300/len)):idxAt(10), hook=v[hookI], end=v[n-1];
+  // Where people leave: compare points 10% of the Short apart, on values capped at 100% (a fall from 120% to 100%
+  // is replays fading, not people leaving).
+  const w=Math.max(1,Math.round(n/10)), c=v.map(x=>Math.min(100,x));
+  let i0=0, best=-1;
+  for(let i=0;i+w<n;i++){ const d=c[i]-c[i+w]; if(d>best){ best=d; i0=i; } }
+  const i1=Math.min(n-1,i0+w);
+  const rel=ret.map(r=>r.vs_similar).filter(x=>x!=null), relAvg=rel.length?rel.reduce((a,b)=>a+b,0)/rel.length:null;
+  const vs=relAvg==null?"":relAvg>0.6?" Overall it holds viewers better than most Shorts of this length.":relAvg<0.4?" Overall it loses viewers faster than most Shorts of this length.":" Overall it's about typical for Shorts of this length.";
+  const early=ret[i0].at<25;
+  return {hook:show(hook), end:show(end), endNote:end>100?"people replayed it":"of everyone who started",
+    dropAt:atTime(ret[i0].at)+"–"+atTime(ret[i1].at), dropNote:Math.round(best)+" of every 100 viewers leave here",
+    say:(early?"Most viewers leave early, around "+atTime(ret[i0].at)+": a faster start or an earlier payoff should keep more of them."
+              :"Viewers stay through the start; the biggest drop comes around "+atTime(ret[i0].at)+".")+vs, i0, i1};
 }
 function shortHead(s){
   return '<div class="an-d-head">'+(s.thumb?'<img src="'+esc(s.thumb)+'" alt="" referrerpolicy="no-referrer">':'')+'<div><h2 id="anDTitle">'+esc(s.title||"Your Short")+'</h2>'+
