@@ -44,7 +44,10 @@ def _services(user_id, channel=None):
 
 
 def _report(ya, start, end, metrics, dimensions=None, filters=SHORTS, sort=None, max_results=None):
-    """Rows as dicts ({"day": "2026-10-01", "views": 120, ...}). Raises NeedsReconnect when not allowed."""
+    """Rows as dicts ({"day": "2026-10-01", "views": 120, ...}). Raises NeedsReconnect when not allowed.
+
+    Shorts are picked with the filter creatorContentType==SHORTS. Some report/metric combinations refuse that filter
+    (HTTP 400); then the same report is asked with creatorContentType as a dimension and only the SHORTS rows kept."""
     from googleapiclient.errors import HttpError
 
     q = {"ids": "channel==MINE", "startDate": str(start), "endDate": str(end), "metrics": metrics}
@@ -54,16 +57,30 @@ def _report(ya, start, end, metrics, dimensions=None, filters=SHORTS, sort=None,
     try:
         resp = ya.reports().query(**q).execute()
     except HttpError as e:
+        body = e.content.decode("utf-8", "replace") if isinstance(e.content, bytes) else str(e.content)
         if e.resp.status in (401, 403):
-            body = e.content.decode("utf-8", "replace") if isinstance(e.content, bytes) else str(e.content)
             off = "has not been used in project" in body or "SERVICE_DISABLED" in body or "accessNotConfigured" in body
             proj = re.search(r"project[= ](\d+)", body)
             url = ("https://console.developers.google.com/apis/api/youtubeanalytics.googleapis.com/overview"
                    + (f"?project={proj.group(1)}" if proj else "")) if off else ""
             raise NeedsReconnect(str(e), url) from e
+        print("YouTube Analytics refused", {k: v for k, v in q.items() if k != "ids"}, "->", e.resp.status, body[:400])
+        if e.resp.status == 400 and filters and SHORTS in filters:
+            return _report_by_type(ya, start, end, metrics, dimensions, filters, sort, max_results)
         raise
     names = [h["name"] for h in resp.get("columnHeaders", [])]
     return [dict(zip(names, row)) for row in resp.get("rows") or []]
+
+
+def _report_by_type(ya, start, end, metrics, dimensions, filters, sort, max_results):
+    """The same report with creatorContentType as a dimension, keeping the SHORTS rows. Totals that are sums (views,
+    likes...) are exact; averages (averageViewDuration/Percentage) come straight from YouTube's SHORTS row."""
+    rest = ";".join(f for f in filters.split(";") if f != SHORTS) or None
+    dims = ",".join(d for d in ((dimensions or "").split(",") + ["creatorContentType"]) if d)
+    rows = _report(ya, start, end, metrics, dims, rest, sort, (max_results * 4) if max_results else None)
+    rows = [{k: v for k, v in r.items() if k != "creatorContentType"} for r in rows
+            if str(r.get("creatorContentType", "")).upper() in ("SHORTS", "SHORT")]
+    return rows[:max_results] if max_results else rows
 
 
 def _try(fn, *a, **k):
@@ -151,6 +168,17 @@ def dashboard(user_id, days=28, clipline_ids=()):
                           "shares": r.get("shares", 0), "avg_pct": round(r.get("averageViewPercentage", 0) or 0, 1),
                           "avg_secs": round(r.get("averageViewDuration", 0) or 0, 1),
                           "subs": r.get("subscribersGained", 0), "clipline": r["video"] in clip} for r in top]
+        if not days:  # all time: Studio's live counts (Analytics lags ~2 days and counts comments differently)
+            live = {k: sum(m.get("live_" + k, 0) for m in meta.values() if m.get("id") in {r["video"] for r in top})
+                    for k in ("views", "likes", "comments")}
+            for k, v in live.items():
+                out["totals"][k] = max(out["totals"].get(k) or 0, v)
+            for s in out["shorts"]:
+                s.update(views=max(s["views"], s.get("live_views", 0)), likes=s.get("live_likes", s["likes"]),
+                         comments=s.get("live_comments", s["comments"]))
+            t = out["totals"]
+            eng = (t.get("likes") or 0) + (t.get("comments") or 0) + (t.get("shares") or 0)
+            t["engagement"] = round(100 * eng / t["views"], 2) if t.get("views") else 0
         out["traffic"] = [{"source": r["insightTrafficSourceType"], "views": r.get("views", 0)}
                           for r in _try(_report, ya, start, end, "views", "insightTrafficSourceType", sort="-views")]
         out["countries"] = [{"code": r["country"], "views": r.get("views", 0)}
@@ -162,10 +190,15 @@ def dashboard(user_id, days=28, clipline_ids=()):
             genders[r["gender"]] = genders.get(r["gender"], 0) + r["viewerPercentage"]
         out["ages"] = [{"group": a.replace("age", "").replace("-", "–"), "pct": round(p, 1)} for a, p in sorted(ages.items())]
         out["genders"] = [{"gender": g, "pct": round(p, 1)} for g, p in sorted(genders.items(), key=lambda x: -x[1])]
-    except NeedsReconnect as e:
+    except Exception as e:  # noqa: BLE001  (not allowed, or YouTube refused a report: show the live counts instead)
+        if isinstance(e, NeedsReconnect):
+            out["notes"].append("reconnect")
+            out["enable_url"] = e.enable_url  # the API is switched off in Google Cloud: say exactly that
+        else:
+            import traceback
+            traceback.print_exc()
+            out["notes"].append("unavailable")
         out["full"] = False
-        out["notes"].append("reconnect")
-        out["enable_url"] = e.enable_url  # the API is switched off in Google Cloud: say exactly that
         meta = _videos(yt3, list(clip))
         out["shorts"] = sorted(({**m, "views": m["live_views"], "likes": m["live_likes"],
                                  "comments": m["live_comments"], "clipline": True} for m in meta.values()),
@@ -179,18 +212,22 @@ def dashboard(user_id, days=28, clipline_ids=()):
     return out
 
 
-def short_detail(user_id, video_id, days=28):
-    """One Short: day-by-day views, the audience-retention curve and how viewers found it."""
-    yt3, ya = _services(user_id)
+def short_detail(user_id, video_id, channel=None):
+    """One Short over its whole life, asked on its own channel: day-by-day views, the audience-retention curve, how
+    viewers found it. Views, likes and comments are YouTube's live counts (what Studio shows); the Analytics API's
+    totals are ~2 days behind, so they're only used for what has no live count (average view, % viewed, subscribers)."""
+    yt3, ya = _services(user_id, channel)
     end = date.today()
     meta = _videos(yt3, [video_id]).get(video_id, {})
-    start = end - timedelta(days=days - 1) if days else \
-        (datetime.fromisoformat(meta["published"].replace("Z", "+00:00")).date() if meta.get("published") else date(2005, 4, 23))
+    if not meta:  # deleted in YouTube Studio, or on a channel that isn't connected: Analytics would refuse it
+        raise RuntimeError("This Short isn't on the YouTube channel any more (deleted in YouTube Studio?), so it has no numbers.")
+    start = (datetime.fromisoformat(meta["published"].replace("Z", "+00:00")).date() - timedelta(days=1)
+             if meta.get("published") else date(2005, 4, 23))
     f = f"video=={video_id}"
     out = {"short": meta, "full": True}
     try:
         out["daily"] = [{"day": r["day"], "views": r.get("views", 0)}
-                        for r in _report(ya, start, end, "views", "day", filters=f, sort="day")]
+                        for r in _try(_report, ya, start, end, "views", "day", filters=f, sort="day")]
         out["retention"] = [{"at": round(r["elapsedVideoTimeRatio"] * 100, 1), "watching": round(r["audienceWatchRatio"] * 100, 1),
                              "vs_similar": r.get("relativeRetentionPerformance")}
                             for r in _try(_report, ya, start, end, "audienceWatchRatio,relativeRetentionPerformance",
@@ -202,6 +239,8 @@ def short_detail(user_id, video_id, days=28):
         out["totals"] = tot[0] if tot else {}
     except NeedsReconnect:
         out["full"] = False
+    if meta:  # live counts: up to date, and the same numbers YouTube Studio shows
+        out.setdefault("totals", {}).update(views=meta["live_views"], likes=meta["live_likes"], comments=meta["live_comments"])
     return out
 
 
@@ -260,9 +299,17 @@ def first_week_views(user_id, videos):
         by_channel.setdefault(v.get("channel"), []).append(v)
     for channel, vids in by_channel.items():
         try:
-            _, ya = _services(user_id, channel)
+            yt3, ya = _services(user_id, channel)
         except RuntimeError:
             continue  # that channel isn't connected any more
+        # Analytics numbers are ~2 days behind, so a Short in its first days would show 0. Until its first week (and
+        # the delay) is over, use YouTube's live count instead: for a Short under 7 days old that *is* its first week so far.
+        young = [v["id"] for v in vids if today - v["published"] < timedelta(days=9)]
+        try:
+            live = {k: m["live_views"] for k, m in _videos(yt3, young).items()} if young else {}
+        except Exception as e:  # noqa: BLE001
+            print("Couldn't get live view counts:", repr(e)[:200])
+            live = {}
         for v in vids:
             key = (channel, v["id"])
             hit = _WEEK.get(key)
@@ -280,6 +327,8 @@ def first_week_views(user_id, videos):
                 continue
             views = int((rows[0] if rows else {}).get("views", 0) or 0)
             complete = today - start >= timedelta(days=9)  # 7 days + YouTube's delay
+            if not complete and v["id"] in live:
+                views = max(views, live[v["id"]]) if today - start < timedelta(days=7) else max(views, 0) or live[v["id"]]
             _WEEK[key] = (time.time(), views, complete)
             out[v["id"]] = {"views": views, "complete": complete}
     return out

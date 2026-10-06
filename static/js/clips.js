@@ -5,11 +5,14 @@ let clData=[], clStatus="", clVlog="", clPicked=new Set(), clTimer=null;
 const clKey=c=>c.job+":"+c.idx;
 async function openClips(vlog){
   clearInterval(poll); clVlog=vlog||""; clStatus=""; location.hash="clips"+(clVlog?"/"+clVlog:"");
-  show(9); await loadClips();
+  show(9); $("s9").classList.remove("selecting"); clPicked.clear(); $("clSelect").lastChild.textContent="Select"; $("clSelect").setAttribute("aria-pressed",false);
+  await loadClips();
 }
 async function loadClips(){
   clearTimeout(clTimer);
-  try{ const r=await fetch("/api/clips"); if(!r.ok) throw 0; clData=(await r.json()).items||[]; }
+  try{ const r=await fetch("/api/clips"); if(!r.ok) throw 0; const j=await r.json(); clData=j.items||[];
+    if(j.removed_on_youtube) clToast(j.removed_on_youtube===1?"1 Short was deleted on YouTube":j.removed_on_youtube+" Shorts were deleted on YouTube",
+      "So "+(j.removed_on_youtube===1?"it's a draft":"they're drafts")+" again: schedule or delete "+(j.removed_on_youtube===1?"it":"them")+" here."); }
   catch(e){ $("clErr").textContent="Couldn't load your clips. Is Pit Crew still running?"; return; }
   $("clErr").textContent="";
   const live=new Set(clData.map(clKey)); clPicked.forEach(k=>{ if(!live.has(k)) clPicked.delete(k); });
@@ -67,10 +70,9 @@ function paintClips(){
   $("clVlog").value=clVlog;
   const one=vlogs.find(c=>c.job===clVlog);
   $("clTitle").textContent = one ? one.vlog : "Your Shorts & Reels";
-  $("clLede").textContent = one ? "The Shorts and Reels from this vlog. Tick drafts to schedule several at once."
-                                : "Every clip Pit Crew made, from all your vlogs. Tick drafts to schedule several at once.";
+  $("clLede").textContent = one ? "The Shorts and Reels from this vlog. Use Select to schedule or delete several at once."
+                                : "Every clip Pit Crew made, from all your vlogs. Use Select to schedule or delete several at once.";
   $("clAdd").hidden = !one || one.video_deleted;
-  if(typeof paintAsk==="function" && askJob!==(one?clVlog:"")) paintAsk(one?clVlog:"");  // Ask about this vlog
   // status chips with counts
   const base=clFiltered(), n=st=>base.filter(c=>!st||c.status===st).length;
   const chips=[["","All"],["draft","Drafts"],["scheduled","Scheduled"],["posted","Posted"],["failed","Failed"]].filter(([st])=>!st||st!=="failed"||n("failed"));
@@ -86,15 +88,25 @@ function paintClips(){
     const pick=el.querySelector(".cl-pick input");
     if(pick) pick.onchange=()=>{ pick.checked?clPicked.add(el.dataset.k):clPicked.delete(el.dataset.k); el.classList.toggle("on",pick.checked); clDock(); };
     el.querySelector(".cl-an").onclick=()=>{
-      if(c.youtube&&c.youtube.video_id&&c.youtube.state==="posted") openShortAnalytics(c.youtube.video_id); else openAnalytics(c.job,"instagram");
+      if(c.youtube&&c.youtube.video_id&&c.youtube.state==="posted") openShortAnalytics(c.youtube.video_id,c.youtube.channel); else openAnalytics(c.job,"instagram");
     };
     el.querySelector(".cl-ed").onclick=()=>openJob(c.job,c.idx);
     const del=el.querySelector(".cl-del"); if(del) del.onclick=()=>clDelete([c]);
   });
   clDock();
 }
+// Select all: every clip shown (with the current filters) that can be ticked.
+function clShown(){ return clSorted(clFiltered().filter(c=>!clStatus||c.status===clStatus)); }
+$("clAll").onchange=()=>{
+  const can=clShown().filter(clPickable);
+  if($("clAll").checked) can.forEach(c=>clPicked.add(clKey(c))); else can.forEach(c=>clPicked.delete(clKey(c)));
+  paintClips();
+};
 function clDock(){
   const n=clPicked.size;
+  const can=clShown().filter(clPickable), all=can.length>0 && can.every(c=>clPicked.has(clKey(c)));
+  $("clAll").checked=all; $("clAll").indeterminate=!all && can.some(c=>clPicked.has(clKey(c))); $("clAll").disabled=!can.length;
+  $("clAllT").textContent = n ? n+" selected" : "Select all";
   $("clDock").hidden=!n || $("s9").hidden;
   $("clSel").textContent=n+" clip"+(n===1?"":"s")+" selected";
   const drafts=clData.filter(c=>clPicked.has(clKey(c))&&c.status==="draft").length;
@@ -116,7 +128,7 @@ function clSorted(list){
   return [...list].sort((a,b)=>t(b)-t(a));  // stable: unposted keep their vlog order at the end
 }
 $("clVlog").onchange=()=>{ clVlog=$("clVlog").value; location.hash="clips"+(clVlog?"/"+clVlog:""); paintClips(); };
-$("clNew").onclick=()=>openCreate();
+$("clNew").onclick=()=>openMake();  // from a vlog uploaded here, or a new video file (js/make-choice.js)
 $("clAdd").onclick=()=>openJob(clVlog,"add");
 // Deletes drafts only (posted and scheduled clips stay); their files go too, so it can't be undone.
 async function clDelete(list){
@@ -134,7 +146,14 @@ async function clDelete(list){
   loadClips();
 }
 $("clDelMany").onclick=()=>clDelete(clData.filter(c=>clPicked.has(clKey(c))));
-$("clClear").onclick=()=>{ clPicked.clear(); paintClips(); };
+$("clClear").onclick=()=>clSelecting(false);
+// Ticking clips (to schedule or delete several) is a mode: the tick boxes only show after Select.
+function clSelecting(on){
+  $("s9").classList.toggle("selecting",on); if(!on) clPicked.clear();
+  $("clSelect").lastChild.textContent=on?"Cancel":"Select"; $("clSelect").setAttribute("aria-pressed",on);
+  paintClips();
+}
+$("clSelect").onclick=()=>clSelecting(!$("s9").classList.contains("selecting"));
 // ---- schedule several
 $("clSchedOpen").onclick=()=>{
   const n=clPicked.size;
@@ -166,7 +185,7 @@ $("clSchedGo").onclick=async()=>{
   catch(e){ r={ok:false}; j={error:"Couldn't reach Pit Crew. Is the app window still open?"}; }
   $("clSchedGo").disabled=false;
   if(!r.ok){ $("clSchedErr").textContent=j.error||"Couldn't schedule them."; if(j.signin==="youtube") signIn(); else if(j.signin==="instagram") igSignIn(); return; }
-  $("clSched").close(); clPicked.clear();
+  $("clSched").close(); clPicked.clear(); $("s9").classList.remove("selecting"); $("clSelect").lastChild.textContent="Select"; $("clSelect").setAttribute("aria-pressed",false);
   const parts=[j.youtube&&j.youtube+" to YouTube", j.instagram&&j.instagram+" to Instagram"].filter(Boolean);
   clToast("Scheduled "+parts.join(" and "), $("clWhen").value==="now"?"They're going out now.":"See them under Scheduled.");
   loadClips();

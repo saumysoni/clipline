@@ -21,6 +21,7 @@ from web.server import app
 from settings import JOBS_DIR
 from web.store import JOBS, LOCK, load_job, update, update_short
 from web.vlogs import created_at, user_jobs
+from web.youtube_sync import sync_deleted
 
 UPLOADING = ("starting", "connecting", "uploading")
 IG_BUSY = ("waiting", "posting", "done", "check")
@@ -79,7 +80,9 @@ def clip_list(user_id):
 
 @app.get("/api/clips")
 def clips():
-    return jsonify(items=clip_list(g.user["id"]))
+    uid = g.user["id"]
+    removed = sync_deleted(uid)  # Shorts deleted in YouTube Studio become drafts again
+    return jsonify(items=clip_list(uid), removed_on_youtube=removed)
 
 
 @app.post("/api/clips/schedule")

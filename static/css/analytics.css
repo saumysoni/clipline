@@ -161,3 +161,11 @@ a.top-row{color:inherit;text-decoration:none}
 #anBody .banner{margin:0}
 /* the "Pit Crew" tag inside a clamped title would stretch to the full width */
 .top-row .tt .tag.clip{width:max-content;margin:4px 0 0}
+/* one Short: retention in plain words */
+.ret-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:10px}
+.ret-stats>div{display:flex;flex-direction:column;gap:2px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--raised)}
+.ret-stats span{font-size:.8rem;color:var(--muted)}
+.ret-stats b{font:600 1.35rem/1.2 var(--display)}
+.ret-stats small{font-size:.76rem;color:var(--faint)}
+.ret-say{font-size:.9rem;margin:4px 0 12px;color:var(--ink)}
+@media (max-width:560px){ .ret-stats{grid-template-columns:1fr} }

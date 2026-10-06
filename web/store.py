@@ -36,6 +36,9 @@ def load_job(job_id):
             job = json.loads(saved.read_text(encoding="utf-8"))
             if job.get("status") == "working":
                 job.update(status="error", error="Pit Crew was closed while this was running. Start it again.")
+            if (job.get("vpost") or {}).get("state") == "uploading":  # a whole vlog going to YouTube (web/vlog_upload.py)
+                job["vpost"] = {**job["vpost"], "state": "error",
+                                "error": "Pit Crew was closed while this was uploading. Check YouTube Studio; if it isn't there, press Upload again."}
             if job.get("upload_status") in ("starting", "connecting", "uploading"):
                 job.update(upload_status="error", upload_msg="Pit Crew was closed during posting.")
             job["shorts"] = [s for s in job.get("shorts", []) if not s.get("pending")]

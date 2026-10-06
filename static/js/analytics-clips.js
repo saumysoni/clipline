@@ -57,7 +57,7 @@ function wireAc(){
 // A clip's own numbers: its YouTube detail, else its Reel on Instagram.
 function acOpen(c){
   if(!c) return;
-  if(c.youtube&&(anPlat!=="instagram"||!c.instagram)) openShortAnalytics(c.youtube.video_id);
+  if(c.youtube&&(anPlat!=="instagram"||!c.instagram)) openShortAnalytics(c.youtube.video_id,c.youtube.channel);
   else if(c.instagram&&c.instagram.permalink) window.open(c.instagram.permalink,"_blank","noopener");
 }
 // One line per platform through the clips in posting order; gaps where a clip isn't on that platform (or its
@@ -65,7 +65,7 @@ function acOpen(c){
 function clipChart(el,clips,plats){
   const W=Math.max(260,el.clientWidth||600), H=240, L=46, R=20, T=12, Bm=26, n=clips.length;
   const vals=plats.map(([k])=>clips.map(c=>c[k]&&c[k].first7!=null?c[k].first7:null));
-  const max=niceMax(Math.max(0,...vals.flat().filter(v=>v!=null))*1.1);
+  const max=countMax(Math.max(0,...vals.flat().filter(v=>v!=null))*1.1);
   const X=i=>n<2?(L+W-R)/2:L+i*(W-L-R)/(n-1), Y=v=>T+(H-T-Bm)*(1-v/max);
   let s='<svg viewBox="0 0 '+W+' '+H+'" height="'+H+'" role="img" aria-label="First-week views of each clip">';
   s+='<g class="grid">'+[0,1,2,3,4].map(k=>'<line x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(max*k/4)+'" y2="'+Y(max*k/4)+'"/>').join("")+'</g>';

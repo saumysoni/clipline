@@ -11,6 +11,12 @@ Everything runs on your own computer with free tools. The only accounts you need
   <br><sub>▶ <a href="docs/demo.mp4">Watch the demo video</a> (10 s)</sub>
 </p>
 
+## Upload a whole vlog to YouTube
+
+**+ Create → Upload a vlog to YouTube** (or **New vlog** on the Vlogs page). Add the video and Pit Crew transcribes it, then suggests three titles, writes a description with chapters (the times YouTube turns into chapters) and hashtags, picks tags and designs a 16:9 thumbnail (**Frame** or **Duotone**). Edit anything (it's saved as you type), choose Public, Scheduled, Unlisted or Private, and upload. When it's done, Pit Crew offers to make the vlog's Shorts & Reels right away: they reuse the transcript, so it only takes a couple of minutes, and each Short links back to the vlog.
+
+Pit Crew keeps the vlog's video for 72 hours after your last change. Within that time, **Shorts & Reels → Make Shorts** lets you pick it without uploading it again; after that, choose **A new video file**.
+
 ## What happens when you click "Make my Shorts"
 
 1. **Transcribe.** faster-whisper (open-source Whisper) writes down every word with exact timings. Runs on your computer.
@@ -151,12 +157,6 @@ Pit Crew posts Reels with the **Instagram API with Instagram Login**: the creato
 
 **Posting Reels.** Each Short gets its own Instagram schedule: **Same times as YouTube**, the same presets, a custom start and spacing, or right away. Instagram doesn't let apps schedule posts, so Pit Crew posts each Reel itself at its time: keep Pit Crew running (Reels that came due while it was closed go out when it starts again). The caption has the title, the hook, the full video's name on YouTube and the hashtags; the Short's thumbnail frame becomes the Reel cover. Instagram allows 100 posts by app per account per day. If posting stops, the Reel shows **Try again**; if Pit Crew was closed in the middle of posting, check Instagram first so nothing is posted twice.
 
-### Ask your vlog
-
-- **Search every vlog** by meaning from the box on the Vlogs page: "where I found something ancient" finds "this village has 700 years of history", even with no words in common. Each result says why it matches. (Two quick AI requests per search; each vlog is indexed once.)
-- **Ask about one vlog** on its Shorts & Reels view: "when was I climbing the mountain?" gets an answer with times. **Watch** plays the moment (or opens it on YouTube once the video is deleted, if the vlog is there); **Make a Short** opens Add a Short with the times filled in.
-- Answers use what was said and short notes of what's *seen* in the video, which Pit Crew writes in the background after the Shorts are made (a few small AI requests). Older vlogs show **Read the video too** while their video is still kept. The notes are text, so they stay after the video is deleted. `SCENE_NOTES=0` in `.env` turns them off.
-
 ### Storage: what Pit Crew deletes, and when
 
 To keep storage free, Pit Crew deletes:
@@ -164,7 +164,7 @@ To keep storage free, Pit Crew deletes:
 - **Shorts you never posted, 30 days after you last edited them;**
 - **a posted Short's video file 30 days after it went out** (download it from YouTube Studio after that; its record and numbers stay).
 
-A day before a video or draft goes, its card says so and you get an email (step 7; until email is set up, the email is printed in the Terminal window). Change the times in `.env` (`KEEP_ORIGINAL_HOURS`, `KEEP_DRAFT_DAYS`, `KEEP_POSTED_DAYS`); `0` keeps forever. The 🗑 on a vlog card deletes its video straight away.
+A day before a video or draft goes, its card says so and you get an email (step 7; until email is set up, the email is printed in the Terminal window). Change the times in `.env` (`KEEP_ORIGINAL_HOURS`, `KEEP_DRAFT_DAYS`, `KEEP_POSTED_DAYS`); `0` keeps forever. **Delete video** on the Vlogs page deletes a vlog's video straight away; tick several (or **Select all**) to delete them together.
 
 ### 7. Send password reset emails (optional)
 

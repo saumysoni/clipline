@@ -10,6 +10,7 @@ async function tick(){
   if(id!==jobId || location.hash.slice(1)!==id) return;  // the creator went to another page meanwhile
   if(r.status===404){ clearInterval(poll); openVlogs(); return; }
   job=await r.json();
+  if(job.kind==="vlog" && !job.count){ clearInterval(poll); openVlogUpload(id); return; }  // a vlog upload, not Shorts yet
   if(job.upload_status && job.upload_status!=="error" && !(job.upload_status==="done" && onReview)){ renderUpload(); return; }
   if(job.status==="ready"){
     if($("s3").hidden || !$("reel").children.length){ renderResults(); show(3); showPost(job.upload_status==="error"); } else refreshResults();
@@ -17,9 +18,6 @@ async function tick(){
     if(focusIdx!=null){  // opened from Shorts & Reels or Scheduled: open that Short's editor (or Add a Short)
       const add=focusIdx==="add", el=add?$("addCard"):document.querySelector('.short[data-idx="'+focusIdx+'"]'); focusIdx=null;
       if(el){ el.scrollIntoView({block:"center"}); if(add) $("addOpen").click(); else openTile(el); }
-      if(add && addPrefill){  // from Ask your vlog: the moment's times are already filled in
-        const f=$("addCard"); f.querySelector(".t0").value=fmtExact(addPrefill.start); f.querySelector(".t1").value=fmtExact(addPrefill.end); addPrefill=null;
-      }
     }
     if(job.upload_status==="error"){ markPosted(); if(!$("err3").textContent) $("err3").textContent="Posting stopped: "+job.upload_msg; }
     if(!job.shorts.some(s=>s.retrying)) clearInterval(poll);

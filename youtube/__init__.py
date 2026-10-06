@@ -8,6 +8,7 @@ from youtube.signin import start_google, finish_login, finish_youtube  # noqa: F
 from youtube.schedule_times import MIN_LEAD, plan_times  # noqa: F401
 from youtube.manage import video_states, is_live, reschedule, update_title, delete_video  # noqa: F401
 from youtube.upload import upload_error_message, upload_short  # noqa: F401
+from youtube.vlog_upload import upload_vlog  # noqa: F401
 from youtube.vlog_info import fetch_video_info  # noqa: F401
 from youtube.analytics import dashboard as analytics_dashboard, first_week_views, short_detail as analytics_short  # noqa: F401
 from youtube.links import video_id_from_url, video_link_problem, youtube_link_problem  # noqa: F401

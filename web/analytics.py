@@ -2,6 +2,7 @@
 Analytics page: how the creator's Shorts are doing (YouTube now; Instagram once connected).
 The numbers come from youtube/analytics.py; this file only serves them to the page.
 """
+import re
 import traceback
 
 from flask import g, jsonify, request
@@ -20,6 +21,18 @@ def _days():
     except ValueError:
         d = 28
     return d if d in (0, 7, 28, 90, 365) else 28
+
+
+def _plain(e):
+    """A plain sentence for an analytics problem (upload_error_message talks about uploads)."""
+    from googleapiclient.errors import HttpError
+
+    if isinstance(e, HttpError):
+        print("YouTube Analytics error:", e.resp.status, (e.content or b"")[:400])
+        if e.resp.status in (429, 500, 503):
+            return "YouTube Analytics is busy right now. Try again in a few minutes."
+        return "YouTube Analytics couldn't give these numbers right now. Try again in a few minutes."
+    return yt.upload_error_message(e)
 
 
 @app.get("/api/analytics")
@@ -43,7 +56,7 @@ def analytics():
         return jsonify(out)
     except Exception as e:  # noqa: BLE001
         traceback.print_exc()
-        out["error"] = yt.upload_error_message(e)
+        out["error"] = _plain(e)
         return jsonify(out), 502
 
 
@@ -59,7 +72,10 @@ def analytics_short(video_id):
     if not video_id.replace("-", "").replace("_", "").isalnum() or len(video_id) > 20:
         return jsonify(error="That isn't a YouTube video."), 400
     try:
-        return jsonify(yt.analytics_short(g.user["id"], video_id, _days()))
+        channel = request.args.get("channel") or None  # the channel it went up on (several can be connected)
+        if channel and not re.fullmatch(r"UC[\w-]{22}", channel):
+            channel = None
+        return jsonify(yt.analytics_short(g.user["id"], video_id, channel=channel))
     except Exception as e:  # noqa: BLE001
         traceback.print_exc()
-        return jsonify(error=yt.upload_error_message(e)), 502
+        return jsonify(error=_plain(e)), 502

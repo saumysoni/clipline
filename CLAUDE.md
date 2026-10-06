@@ -59,9 +59,10 @@ The code is split so two people can work on different features without touching 
 | Accounts (email + Google sign-in), `gate()` | `accounts/db.py` | `web/accounts.py` | `js/account.js`, `sections/auth.html`, `css/auth.css` |
 | Forgot password (reset link by email) | `accounts/db.py` (`password_resets`), `accounts/mail.py` | `web/password_reset.py` | `js/password-reset.js`, `sections/auth.html` |
 | Sidebar (+ Create, Workspace, Channels, Account / Settings / Appearance) | | | `sections/sidebar.html`, `js/nav.js`, `css/shell.css` |
-| Vlogs page (home: every vlog as a card; delete a vlog's video, its Shorts stay) | | `web/vlogs.py` (`/api/vlogs`, `delete-video`) | `js/vlogs.js`, `sections/vlogs.html`, `css/vlogs.css` |
-| Shorts & Reels page (every clip from every vlog; filters; Analytics / Download / Edit; schedule several at once on one plan of times; titles saved as typed) | | `web/clips.py` | `js/clips.js`, `sections/clips.html`, `css/clips.css` |
-| Ask your vlog (search all vlogs; ask one vlog; Watch / Make a Short from a moment) | `pipeline/scene_notes.py` (`scenes.json`) | `web/ask.py` | `js/ask.js`, `css/ask.css` |
+| Vlogs page (home: every vlog as a row like YouTube's search results, landscape picture = the vlog's YouTube thumbnail, else `poster.jpg`, else a Short's thumbnail on a blur; find by title; tick or Select all to delete several videos, their Shorts stay; a vlog that stopped before making any Shorts is removed completely; stopped vlogs show `web/errors.py`'s plain reason) | `pipeline/poster.py` | `web/vlogs.py` (`/api/vlogs`, `delete-video`, `delete-videos`) | `js/vlogs.js`, `sections/vlogs.html`, `css/vlogs.css` |
+| Upload a vlog to YouTube (+ Create → Upload a vlog, or New vlog on the Vlogs page; screen 10, `#vlog/new` / `#vlog/<id>`): transcribe, AI title ideas + description with chapters + tags + a 16:9 thumbnail (Frame / Duotone), the creator edits (saved as typed), uploads public / scheduled / unlisted / private, then is offered "Make Shorts & Reels from this vlog?" | `pipeline/vlog_meta.py`, `pipeline/vlog_thumbnail.py`, `youtube/vlog_upload.py` | `web/vlog_upload.py` (`/api/vlog/start`, `/<id>/draft`, `/look`, `/upload`, `/shorts`) | `js/vlog-upload.js`, `sections/vlog-upload.html`, `css/vlog-upload.css` |
+| What to make (+ Create asks: upload a vlog, or make Shorts; Make Shorts asks: from a vlog uploaded here, while its video is kept, or a new video file = screen 1) | | `web/vlog_upload.py` (`/shorts`) | `js/make-choice.js`, `sections/make-dialogs.html`, `css/vlog-upload.css` |
+| Shorts & Reels page (every clip from every vlog; filters; Select all; Analytics / Download / Edit; schedule several at once on one plan of times; titles saved as typed) | | `web/clips.py` | `js/clips.js`, `sections/clips.html`, `css/clips.css` |
 | Progress card (vlog being sent / made, "Shorts ready" pop-up) | | `web/vlogs.py` | `js/jobs-now.js`, `css/jobs-now.css` |
 | Settings page (account: change password, sign out; connected channels; appearance) | | | `js/settings.js`, `sections/settings.html`, `css/settings.css` |
 | Connect YouTube | `youtube/signin.py`, `youtube/connection.py`, `youtube/config.py` | `web/youtube_connect.py`, `web/google_redirect.py` | `js/youtube-connect.js` |
@@ -96,6 +97,8 @@ The code is split so two people can work on different features without touching 
 | `web/server.py` | The one Flask `app` every `web/` file adds routes to; cookie/session settings. |
 | `web/store.py` | Job state: `JOBS` (in memory) mirrored to `jobs/<id>/job.json`, `LOCK`, `update()`, `update_short()`, `load_job()`, `editable_job()`. |
 | `pipeline/ai.py` | `ai_json()`: every AI call (Gemini or OpenAI), with retries and model fallbacks. |
+| `web/youtube_sync.py` | `sync_deleted()`: Shorts deleted in YouTube Studio (e.g. a cancelled scheduled one) are forgotten when Shorts & Reels or Scheduled opens (once a minute per creator; only records with a connected `channel`; any YouTube error changes nothing), so they're drafts again. |
+| `web/errors.py` | `plain_error()`: one plain sentence for a failed vlog (AI busy, AI limit, video editor stopped...). The raw text goes to `job["error_detail"]` and the terminal, never to the page. |
 | `pipeline/ffmpeg.py`, `pipeline/text.py`, `pipeline/constants.py` | FFmpeg (`ffmpeg_exe()`, `run()`, `probe()`), small text helpers, shared numbers. |
 | `pipeline/__init__.py`, `youtube/__init__.py`, `instagram/__init__.py` | Only re-export what `web/` uses, so web code can write `pipeline.render_short(...)` / `yt.upload_short(...)` / `ig.post_reel(...)`. |
 | `static/index.html` | The page skeleton: lists the CSS and JS files and includes each `sections/*.html` (the `/` route fills them in). |
@@ -257,7 +260,9 @@ The code is split so two people can work on different features without touching 
     asked on connect but optional. Without it (or without "YouTube Analytics API" enabled in Google Cloud),
     `youtube/analytics.py` falls back to live counts of Pit Crew's Shorts and adds `notes=["reconnect"]`, and the page
     shows "Connect again". Shorts are filtered with `creatorContentType==SHORTS`; numbers lag ~2 days. Results are
-    cached 10 minutes per channel. Charts: one axis, colours from `css/analytics.css` tokens (validated), text never in
+    cached 10 minutes per channel. One Short's window (`short_detail`) is its whole life on its own channel (`?channel=`),
+    with YouTube's **live** views/likes/comments (what Studio shows; Analytics lags ~2 days). First-week views use the live
+    count until the week + delay is over, so new clips never show a false 0. Count axes use whole-number steps (`countMax`). Charts: one axis, colours from `css/analytics.css` tokens (validated), text never in
     series colours, a Table button on every chart.
 18. **Open in Studio goes through Google sign-in** (`studioLink()` in `js/core.js`:
     `accounts.google.com/ServiceLogin?service=youtube&continue=<studio link>`), so a signed-out creator lands on the
@@ -300,15 +305,15 @@ The code is split so two people can work on different features without touching 
     once a day (`reel_snapshots`, also every 6 h in the background): first week = the saved day 7–9 days after posting,
     else "still counting" (< 7 days) or "not enough history" (saving began later). "What's working" (`takeaways()`) only
     compares groups of 2+ clips, needs 4+ finished clips per platform and a 20% difference, and says what it's based on.
-23. **Ask your vlog answers only from what was said and seen.** Scene notes (`pipeline/scene_notes.py`): keyframe-only
-    decode (`-skip_frame nokey`, fps=1/SCENE_EVERY, 320px; a 40-min vlog in ~2 s), 20 frames per AI request, saved as
-    `scenes.json` after the Shorts are ready (`start_scene_notes`, background, never fails a job). They and
-    `transcript.json` are kept forever (text), so asking and search keep working after the video is deleted. The ask
-    prompt forbids inventing; moments are clamped to the vlog and to 90 s. **Search is by meaning, not words**
-    (`/api/search`): the AI widens the search into phrases (`EXPAND`), each vlog's passages (~15 s of talk, each scene
-    note) are compared as embeddings (`pipeline/search_index.py`, `ai_embed()` for OpenAI or Gemini, saved per vlog in
-    `search_index.npz` and rebuilt when passages or `EMBED_MODEL` change), and the AI keeps only real matches with a
-    reason (`PICK`: sharing a word isn't enough). If the AI can't be reached it falls back to `keyword_search()`.
+
+23. **A vlog upload is a job with `kind: "vlog"`** (`web/vlog_upload.py`): `VLOG_STAGES` while it's prepared, then
+    `status: "ready"` with `job["vdraft"]` (what the creator edits) and, once sent, `job["vpost"]` (uploading → done /
+    error) and `job["vlog"]` (video id, URL, channel), so its Shorts link back to it. It has no `count` until Shorts are
+    asked for; `/api/vlogs` calls that `prep`. The page decides from that: `prep` opens the upload page (screen 10),
+    anything else the usual progress / Shorts & Reels (`progress.js` `tick()` hands a `prep` job to `openVlogUpload`).
+    `/shorts` turns it into an ordinary Shorts job on the same video and transcript (no second upload, no second
+    transcription), only while the video is kept (`KEEP_ORIGINAL_HOURS`, 72) and before it has any Shorts. A
+    `vpost` left "uploading" by a restart becomes an error (`load_job`), and retention never deletes a video mid-upload.
 
 ## Conventions
 

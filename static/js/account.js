@@ -49,13 +49,15 @@ async function boot(){
   booted=true;
   openRoute(location.hash.slice(1));
 }
-// The screen for an address (#vlogs, #new, #youtube, #analytics, #settings, or a vlog's id). The Vlogs page is home.
+// The screen for an address (#vlogs, #new, #vlog/new, #vlog/<id>, #youtube, #analytics, #settings, or a vlog's id). The Vlogs page is home.
 function openRoute(h){
   if(h==="youtube") openPosted();
   else if(h==="clips" || h.startsWith("clips/")) openClips(h.slice(6));
   else if(h==="analytics" || h.startsWith("analytics/")) openAnalytics(h.slice(10));
   else if(h==="settings" || h==="account") openSettings();
   else if(h==="new") openCreate();
+  else if(h==="vlog/new") openVlogUpload();
+  else if(/^vlog\/[0-9a-f]{10}$/.test(h)) openVlogUpload(h.slice(5));
   else if(/^[0-9a-f]{10}$/.test(h)) startPolling(h);
   else openVlogs();
 }
@@ -65,7 +67,7 @@ window.addEventListener("hashchange",()=>{
   if(!booted || $("app").hidden) return;
   const h=location.hash.slice(1);
   if(h.startsWith("reset=")) return;
-  const at = !$("s9").hidden?"clips"+(clVlog?"/"+clVlog:"") : !$("s7").hidden?"vlogs" : !$("s5").hidden?"youtube" : !$("s6").hidden?"analytics"+(anVlog?"/"+anVlog:"") : !$("s8").hidden?"settings" : !$("s1").hidden?"new" : jobId;
+  const at = !$("s9").hidden?"clips"+(clVlog?"/"+clVlog:"") : !$("s7").hidden?"vlogs" : !$("s5").hidden?"youtube" : !$("s6").hidden?"analytics"+(anVlog?"/"+anVlog:"") : !$("s8").hidden?"settings" : !$("s1").hidden?"new" : !$("s10").hidden?"vlog/"+(vuId||"new") : jobId;
   if(h===at || (!h && at==="vlogs")) return;
   openRoute(h);
 });

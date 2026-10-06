@@ -165,3 +165,7 @@ ul.tasks li.active{color:var(--ink)}
 /* plain links and card subtitles */
 .main a:not([class]),.auth a:not([class]){color:var(--primary-text)}
 .an-card .sub,.an-head .sub{font-family:var(--sans);font-variant-numeric:normal}
+/* while a dialog is open, the page behind it stays put (it's blurred, so scrolling it only confuses) */
+html:has(dialog[open]),html:has(dialog[open]) body{overflow:hidden;overscroll-behavior:none}
+dialog{overscroll-behavior:contain}
+#anDBody .sub,.an-d-note{font-family:var(--sans);margin-left:0;text-align:left;font-variant-numeric:normal}

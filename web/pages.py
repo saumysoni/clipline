@@ -15,7 +15,7 @@ from web.server import app
 
 @app.get("/media/<job_id>/<path:name>")
 def media(job_id, name):
-    if not re.fullmatch(r"[0-9a-f]{10}", job_id) or not re.fullmatch(r"(short|thumb)_\d+\.(mp4|jpg)|preview\.mp4|source\.[a-z0-9]{2,4}", name):
+    if not re.fullmatch(r"[0-9a-f]{10}", job_id) or not re.fullmatch(r"(short|thumb)_\d+\.(mp4|jpg)|preview\.mp4|poster\.jpg|vthumb_\d+\.jpg|source\.[a-z0-9]{2,4}", name):
         abort(404)
     if request.args.get("cover") == "1" and name.startswith("short_"):  # Save: with the thumbnail first
         thumb = request.args.get("thumb", "")

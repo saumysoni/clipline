@@ -33,9 +33,10 @@ function paintAccount(){
   if($("ytSwitch1")){ $("ytSwitch1").onclick=()=>openSwitcher("yt",$("ytSwitch1")); $("ytOut1").onclick=()=>signOut(); }
   if(typeof dock==="function" && jobId) dock();
   if(typeof paintSettings==="function") paintSettings();
+  if(typeof vuPaintAcct==="function" && !$("s10").hidden) vuPaintAcct();
 }
 // Opens Google's sign-in in a small window. Must run straight from a click, or the browser blocks it.
-function ytError(msg){ if(!$("s1").hidden) $("err1").textContent=msg; else if(!$("reviewView").hidden) $("err3r").textContent=msg; else $("err3").textContent=msg; }
+function ytError(msg){ if(!$("s10").hidden) $("vuErr3").textContent=msg; else if(!$("s1").hidden) $("err1").textContent=msg; else if(!$("reviewView").hidden) $("err3r").textContent=msg; else $("err3").textContent=msg; }
 // What to do once the sign-in lands (e.g. the upload the creator asked for before signing in).
 let ytThen=null;
 function signedIn(a){
