@@ -25,8 +25,9 @@ def start_google(purpose, redirect_uri, next_id="", popup=False):
     from google_auth_oauthlib.flow import Flow
 
     if not client_config():
-        raise RuntimeError("Google sign-in isn't set up yet: Pit Crew has no Google client. "
-                           "Follow README step 5, then try again.")
+        print("Google sign-in is off: no Google client (README step 5).")
+        raise RuntimeError("Signing in with Google isn't available right now. Use your email and password, "
+                           "or try again later.")
     _allow_http(redirect_uri)
     scopes = LOGIN_SCOPES if purpose == "login" else CONNECT_SCOPES
     flow = Flow.from_client_config(client_config(), scopes, redirect_uri=redirect_uri)
@@ -93,8 +94,8 @@ def finish_youtube(args, pending, user_id):
         channel = _lookup_channel(creds.token)
     except urllib.error.HTTPError as e:
         print("YouTube channel lookup failed:", e.code, e.read()[:300])
-        raise RuntimeError("YouTube didn't answer Pit Crew. In Google Cloud, check that YouTube Data API v3 is "
-                           "enabled for this project (README step 5.2), then connect again.") from e
+        print("Check that YouTube Data API v3 is enabled in Google Cloud (README step 5.2).")
+        raise RuntimeError("YouTube didn't answer Pit Crew. Connect again in a few minutes.") from e
     except OSError as e:
         raise RuntimeError("Couldn't reach YouTube. Check your internet connection and connect again.") from e
     if not channel:

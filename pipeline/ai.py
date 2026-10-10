@@ -84,9 +84,15 @@ def ai_json(contents, progress=lambda pct, msg: None, temperature=0.4, busy_hint
     if provider == "openai":
         return openai_json(contents, progress, temperature, busy_hint, timeout, busy_waits)
     if provider != "gemini":
-        raise RuntimeError(f"AI_PROVIDER in .env is '{provider}', which Pit Crew doesn't know. "
-                           "Set it to gemini or openai and restart.")
+        raise setup_problem(f"AI_PROVIDER is '{provider}', which Pit Crew doesn't know. Set it to gemini or openai.")
     return gemini_json(contents, progress, temperature, busy_hint, timeout, busy_waits)
+
+
+def setup_problem(detail):
+    """An AI problem only whoever runs Pit Crew can fix (a missing or refused key, no credit, no current model):
+    the detail goes to the terminal, the creator gets a plain sentence."""
+    print("AI setup problem:", detail)
+    return RuntimeError("Pit Crew's AI isn't available right now. Try again later; if it keeps happening, tell us.")
 
 
 def ask_models(name, candidates, call, error_kind, fatal, progress, busy_hint, busy_msg, limit_msg, none_msg,
@@ -110,7 +116,7 @@ def ask_models(name, candidates, call, error_kind, fatal, progress, busy_hint, b
             except Exception as e:  # noqa: BLE001
                 kind = error_kind(e)
                 if kind in fatal:
-                    raise RuntimeError(fatal[kind]) from e
+                    raise setup_problem(fatal[kind]) from e
                 if kind == "other":
                     raise
                 problems.append(kind)
@@ -127,7 +133,7 @@ def ask_models(name, candidates, call, error_kind, fatal, progress, busy_hint, b
             raise RuntimeError(busy_msg + busy_hint)
         if "limit" in problems:
             raise RuntimeError(limit_msg + busy_hint)
-        raise RuntimeError(none_msg)
+        raise setup_problem(none_msg)
     return resp
 
 
@@ -160,7 +166,7 @@ def gemini_json(contents, progress=lambda pct, msg: None, temperature=0.4, busy_
 
     key = os.getenv("GEMINI_API_KEY")
     if not key:
-        raise RuntimeError("GEMINI_API_KEY is missing. Add it to the .env file (see README).")
+        raise setup_problem("GEMINI_API_KEY is missing. Add it to the .env file (see README).")
     client = genai.Client(api_key=key, http_options=types.HttpOptions(timeout=int(timeout * 1000)))
     if isinstance(contents, list):
         contents = [types.Part.from_bytes(data=c["image"], mime_type=c["mime_type"]) if isinstance(c, dict)
@@ -175,7 +181,7 @@ def gemini_json(contents, progress=lambda pct, msg: None, temperature=0.4, busy_
                     "(create a fresh key at https://aistudio.google.com/apikey)."},
         progress, busy_hint,
         busy_msg="Gemini is overloaded right now (this is on Google's side). ",
-        limit_msg="Gemini's free usage limit is used up for now. Try again in a while (or tomorrow). ",
+        limit_msg="The AI has reached its limit for now. Try again in an hour or so. ",
         none_msg="None of the Gemini models are available to this API key. "
                  "Put a current Flash model name in GEMINI_MODEL in .env.", busy_waits=busy_waits)
     return parse_ai_json(resp.text, "Gemini")
@@ -193,8 +199,8 @@ def openai_json(contents, progress=lambda pct, msg: None, temperature=0.4, busy_
 
     key = os.getenv("OPENAI_API_KEY")
     if not key:
-        raise RuntimeError("OPENAI_API_KEY is missing. Add it to the .env file (see README), "
-                           "or set AI_PROVIDER=gemini.")
+        raise setup_problem("OPENAI_API_KEY is missing. Add it to the .env file (see README), "
+                            "or set AI_PROVIDER=gemini.")
     client = OpenAI(api_key=key, max_retries=0, timeout=timeout)
     parts = []
     for c in contents if isinstance(contents, list) else [contents]:

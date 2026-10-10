@@ -4,7 +4,7 @@ function igAnalyticsHTML(j){
   const st=j.instagram_state||{}, d=j.instagram;
   const head='<div class="an-plat"><i style="background:var(--c-ig)"></i><h2>Instagram</h2>'+(d&&d.account?'<span>@'+esc(d.account.username||"")+
     (d.account.followers!=null?' · '+full(d.account.followers)+' followers':'')+'</span>':'')+'</div>';
-  if(!st.configured) return head+'<div class="an-card an-mini"><span class="ms" aria-hidden="true">photo_camera</span><p>Add Instagram to see your Reels next to your Shorts. It needs a Meta app first (README step 6).</p></div>';
+  if(!st.configured) return head+'<div class="an-card an-mini"><span class="ms" aria-hidden="true">photo_camera</span><p>Instagram isn\'t available right now. Check back later to see your Reels next to your Shorts.</p></div>';
   if(!st.signed_in) return head+'<div class="an-card an-mini"><span class="ms" aria-hidden="true">photo_camera</span><p>Connect Instagram to see views, reach, saves and shares for your Reels here.</p>'+
     '<button type="button" class="ghost" id="anIgConnect">Connect Instagram</button></div>';
   if(!st.can_post && !d) return head+'<div class="an-card an-mini"><span class="ms" aria-hidden="true">warning</span><p>Instagram only shares Reel numbers for professional accounts. '+IG_SWITCH+'</p>'+

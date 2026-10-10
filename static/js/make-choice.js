@@ -21,7 +21,7 @@ async function openMake(id){
   if(!$("mkDialog").open) $("mkDialog").showModal();
   mkStep("pick"); $("mkList").innerHTML='<p class="hint">Loading your vlogs…</p>';
   try{ const r=await fetch("/api/vlogs"); if(!r.ok) throw 0; mkItems=((await r.json()).items||[]).filter(mkUsable); }
-  catch(e){ mkItems=[]; $("mkList").innerHTML='<p class="err">Couldn\'t load your vlogs. Is Pit Crew still running?</p>'; return; }
+  catch(e){ mkItems=[]; $("mkList").innerHTML='<p class="err">Couldn\'t load your vlogs. Check your internet connection, then reload the page.</p>'; return; }
   if(id){ const v=mkItems.find(x=>x.id===id); if(v){ mkPick(v); return; } }
   mkPaintList();
 }
@@ -56,7 +56,7 @@ $("mkGo").onclick=async()=>{
   const id=mkVlog.id;
   let r,j; try{ r=await fetch("/api/vlog/"+id+"/shorts",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({count:+$("mkCount").value,style:$("mkStyle").value,note:$("mkNote").value.trim()})}); j=await r.json(); }
-  catch(e){ r={ok:false}; j={error:"Couldn't reach Pit Crew. Is the app window still open?"}; }
+  catch(e){ r={ok:false}; j={error:"Couldn't reach Pit Crew. Check your internet connection, then try again."}; }
   $("mkGo").disabled=false;
   if(!r.ok){ $("mkErr").textContent=j.error||"Couldn't start making the Shorts."; return; }
   $("mkDialog").close(); vuStop(); startPolling(id);

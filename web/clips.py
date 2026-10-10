@@ -122,7 +122,8 @@ def clips_schedule():
     channel, target = None, None
     if want_yt:
         if not yt.is_configured():
-            return jsonify(error="YouTube posting isn't set up yet (README step 5)."), 400
+            print("YouTube posting is off: no Google client (README step 5).")
+            return jsonify(error="YouTube posting isn't available right now. Your Shorts are saved here: download them, or try again later."), 400
         acct = yt.account(uid)
         if not acct["signed_in"]:
             return jsonify(error="Connect YouTube first, so Pit Crew knows which channel to post to.", signin="youtube"), 400
@@ -132,7 +133,8 @@ def clips_schedule():
     if want_ig:
         acct = ig.account(uid)
         if not acct.get("configured"):
-            return jsonify(error="Instagram posting isn't set up yet: Pit Crew needs a Meta app (README step 6)."), 400
+            print("Instagram posting is off: no Meta app (README step 6).")
+            return jsonify(error="Instagram posting isn't available right now. Your Shorts are saved here: try again later."), 400
         target = next((a for a in acct.get("accounts", []) if a["ig_id"] == (data.get("ig_id") or acct.get("ig_id"))), None)
         if not target:
             return jsonify(error="Connect Instagram first.", signin="instagram"), 400

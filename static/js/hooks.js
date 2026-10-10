@@ -53,7 +53,7 @@ function wireHook(el,s){
       s.hooks=j.hooks;
       box.querySelector(".hk-opts").innerHTML=hookOptsHTML({...s,hook:null},j.pick); wireOpts();
       text.disabled=false; text.value=j.hooks[j.pick]||""; paintText();
-    }catch(e){ err.textContent="Couldn't reach Pit Crew. Is the app window still open?"; }
+    }catch(e){ err.textContent="Couldn't reach Pit Crew. Check your internet connection, then try again."; }
     finally{ b.disabled=false; b.innerHTML='<span class="ms" aria-hidden="true">auto_awesome</span>Rewrite'; }
   };
   box.querySelector(".hk-apply").onclick=async()=>{

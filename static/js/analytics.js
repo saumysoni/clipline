@@ -44,7 +44,7 @@ async function loadAnalytics(){
   if(!$("anBody").children.length) $("anBody").innerHTML='<div class="an-card an-empty"><span class="spin" aria-hidden="true"></span><p>Getting your numbers...</p></div>';
   let r,j;
   try{ r=await fetch("/api/analytics?days="+anDays); j=await r.json(); }
-  catch(e){ j={error:"Couldn't reach Pit Crew. Is the app window still open?"}; }
+  catch(e){ j={error:"Couldn't reach Pit Crew. Check your internet connection, then try again."}; }
   anLoading=false; $("anBody").classList.remove("loading");
   anData={days:anDays,...j};
   renderAnalytics(j);
@@ -78,7 +78,7 @@ function renderAnalytics(j){
   } else if(!y.full){
     note.hidden=false;
     note.innerHTML='<span class="ms" aria-hidden="true">lock_open</span><span>These are the live counts for the Shorts Pit Crew uploaded. <b>Connect YouTube once more</b> '+
-      '(and switch on <b>YouTube Analytics API</b> in Google Cloud, README step 5) to see watch time, retention, trends, how viewers find you and who they are.</span>'+
+      'to see watch time, retention, trends, how viewers find you and who they are.</span>'+
       '<button type="button" class="ghost" id="anRecon">Connect again</button>';
     $("anRecon").onclick=()=>signIn(()=>{ anData=null; loadAnalytics(); });
   }

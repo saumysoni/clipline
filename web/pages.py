@@ -1,6 +1,7 @@
 """
 The page itself, finished files (Shorts, thumbnails, preview) and basic config.
 """
+import os
 import re
 from datetime import date
 
@@ -34,7 +35,9 @@ def media(job_id, name):
 
 @app.get("/api/config")
 def config():
-    return jsonify(youtube=yt.is_configured(), today=date.today().isoformat())  # sign-in: /api/youtube/me
+    from web.allowance import longest  # (public: settings everyone sees, nothing about the visitor)
+    return jsonify(youtube=yt.is_configured(), today=date.today().isoformat(),  # sign-in: /api/youtube/me
+                   support=os.getenv("SUPPORT_EMAIL", "").strip(), longest=longest())
 
 
 INCLUDE = re.compile(r"<!-- include (sections/[\w-]+\.html) -->")

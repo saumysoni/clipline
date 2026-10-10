@@ -14,7 +14,7 @@ function ytStillToCome(u){
 function schCount(){ tabCount("schNShorts", schN.yt==null||schN.ig==null ? null : schN.yt+schN.ig); }
 async function loadScheduledVlogs(){
   let items; try{ const r=await fetch("/api/vlogs"); if(!r.ok) throw 0; items=(await r.json()).items||[]; }
-  catch(e){ $("schErr").textContent="Couldn't load your vlogs. Is Pit Crew still running?"; return; }
+  catch(e){ $("schErr").textContent="Couldn't load your vlogs. Check your internet connection, then reload the page."; return; }
   $("schErr").textContent=""; schVlogs=items.filter(isScheduledVlog).sort((a,b)=>a.vpost.when.localeCompare(b.vpost.when));
   tabCount("schNVlogs",schVlogs.length);
   const box=$("schVlogList");
@@ -44,12 +44,12 @@ async function openPosted(tab){
   schN={yt:null, ig:null}; schCount(); loadScheduledVlogs();
   if(typeof loadIgScheduled==="function") loadIgScheduled();
   $("plist").innerHTML='<li><span></span><span class="pv">Checking YouTube...</span></li>'; $("ptNote").hidden=true;
-  let j; try{ j=await (await fetch("/api/posted")).json(); }catch(e){ j={items:[],note:"Couldn't reach Pit Crew. Is the app window still open?"}; }
+  let j; try{ j=await (await fetch("/api/posted")).json(); }catch(e){ j={items:[],note:"Couldn't reach Pit Crew. Check your internet connection, then try again."}; }
   const uploaded=j.items.length; j.items=j.items.filter(ytStillToCome); schN.yt=j.items.length; schCount();
   const notes=[];
   if(j.note) notes.push(j.note);
   else if(!j.signed_in && j.items.length) notes.push("Connect YouTube to see each Short's live status and change it.");
-  if(j.items.some(u=>u.state&&u.state.privacy==="private"&&!u.state.publish_at)) notes.push("Private Shorts: YouTube keeps uploads private until your Google project passes YouTube's API audit (README step 5). Set them public in YouTube Studio.");
+  if(j.items.some(u=>u.state&&u.state.privacy==="private"&&!u.state.publish_at)) notes.push("Private Shorts: YouTube is keeping these private for now. Set them public in YouTube Studio.");
   $("ptNote").hidden=!notes.length; $("ptNote").innerHTML='<span class="ms" aria-hidden="true">info</span><span>'+notes.map(esc).join("<br>")+'</span>';
   if(!j.items.length){ $("plist").innerHTML='<li><span></span><span class="pv">'+(uploaded?"Nothing planned on YouTube. Shorts that already went out are in Shorts &amp; Reels; schedule more from Drafts."
     :"Nothing planned on YouTube yet. Schedule Shorts from Drafts or Shorts &amp; Reels and they show up here.")+'</span></li>'; return; }
@@ -83,7 +83,7 @@ async function openPosted(tab){
       err.textContent=""; let tz=""; try{ tz=Intl.DateTimeFormat().resolvedOptions().timeZone||""; }catch(e){}
       const b=form.querySelector(".sv"); b.disabled=true; b.textContent="Saving...";
       let r,k; try{ r=await fetch("/api/reschedule/"+u.job+"/"+u.idx,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({start:inp.value,tz})}); k=await r.json(); }
-      catch(e){ r={ok:false}; k={error:"Couldn't reach Pit Crew. Is the app window still open?"}; }
+      catch(e){ r={ok:false}; k={error:"Couldn't reach Pit Crew. Check your internet connection, then try again."}; }
       b.disabled=false; b.textContent="Save time";
       if(!r.ok){ err.textContent=k.error||"Couldn't change the time."; return; }
       openPosted("shorts");

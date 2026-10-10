@@ -40,7 +40,7 @@ async function igSchedule(){
     body:JSON.stringify({shorts,schedule:mode,tz,start:$("igStart").value,every:+$("igEvery").value,
       yt_schedule:$("sched2").value,yt_start:$("schStart").value,yt_every:+$("schEvery").value,
       ig_id:ig.ig_id})}); j=await r.json(); }  // ig_id: the account this page says it's posting to
-  catch(e){ j={error:"Couldn't reach Pit Crew. Is the app window still open?"}; r={ok:false}; }
+  catch(e){ j={error:"Couldn't reach Pit Crew. Check your internet connection, then try again."}; r={ok:false}; }
   if(!r.ok){ $("igErr").textContent=j.error||"Couldn't plan the Reels."; if(j.field==="start") $("igStart").classList.add("bad");
     if(j.signin||j.switch) loadIg(); igDock(); return; }
   job.ig_posts=j.ig_posts; igRefresh();

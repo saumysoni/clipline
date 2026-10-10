@@ -20,13 +20,14 @@ import threading
 import time
 import traceback
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from accounts import db, mail
 from settings import JOBS_DIR
 
 from web.posting import POSTING
 from web.store import JOBS, LOCK, load_job, update
-from web.vlogs import created_at, remove_video
+from web.vlogs import _empty_stop, created_at, remove_video
 
 WARN_BEFORE = 24 * 3600
 CHECK_EVERY = 15 * 60
@@ -145,8 +146,15 @@ def _email(owner, subject, text):
         mail.notify(user["email"], subject, text)
 
 
-def _date(t):
-    return datetime.fromtimestamp(t).strftime("%a %b %-d, %-I:%M %p")
+def _date(t, tz=""):
+    """A time for an email, in the creator's time zone (the browser's, saved on the vlog), else UTC and saying so:
+    the server's own clock means nothing to the creator."""
+    try:
+        zone = ZoneInfo(tz) if tz else None
+    except (ZoneInfoNotFoundError, ValueError):
+        zone = None
+    d = datetime.fromtimestamp(t, zone or timezone.utc)
+    return f"{d:%a %b} {d.day}, {d.hour % 12 or 12}:{d:%M %p}" + ("" if zone else " UTC")
 
 
 def sweep_job(job_id, now=None):
@@ -155,10 +163,13 @@ def sweep_job(job_id, now=None):
     done = []
     with LOCK:
         job = load_job(job_id)
-        if not job or _busy(job):
+        failed = bool(job) and job.get("status") == "error" and (job.get("vpost") or {}).get("state") != "uploading"
+        if not job or (_busy(job) and not failed):
             return done
         job = json.loads(json.dumps(job, default=str))
     job_dir = JOBS_DIR / job_id
+    if failed:
+        return _sweep_stopped(job, now)
     title = (job.get("vlog") or {}).get("title") or job.get("name") or "your vlog"
 
     # 1. the vlog's video
@@ -168,9 +179,9 @@ def sweep_job(job_id, now=None):
             remove_video(job_id)
             done.append("video deleted")
         elif now >= exp - WARN_BEFORE and job.get("warned_video") != exp:
-            _email(job.get("owner"), f"Pit Crew: the video of \"{title}\" will be deleted {_date(exp)}",
+            _email(job.get("owner"), f"Pit Crew: the video of \"{title}\" will be deleted {_date(exp, job.get('tz'))}",
                    f"To keep storage free, Pit Crew deletes a vlog's video {keep_original() / 3600:.0f} hours after "
-                   f"it was last edited. The video of \"{title}\" will be deleted on {_date(exp)}.\n\n"
+                   f"it was last edited. The video of \"{title}\" will be deleted on {_date(exp, job.get('tz'))}.\n\n"
                    "Its Shorts, thumbnails, transcript and posts all stay. After that, making new Shorts from it, or "
                    "changing a Short's hook or moment, needs the vlog uploaded again.\n\n"
                    "Still working on it? Any edit to one of its Shorts keeps the video for another "
@@ -203,7 +214,7 @@ def sweep_job(job_id, now=None):
         _remove([p for s in gone if s["idx"] in ids for p in _short_files(job_dir, s)])
         done += [f"draft {i} deleted" for i in sorted(ids)]
     if warn:
-        names = "\n".join(f"  - {s.get('title') or 'Short ' + str(s['idx'])} (deleted {_date(exp)})" for s, exp in warn)
+        names = "\n".join(f"  - {s.get('title') or 'Short ' + str(s['idx'])} (deleted {_date(exp, job.get('tz'))})" for s, exp in warn)
         n = len(warn)
         _email(job.get("owner"), f"Pit Crew: {n} draft{'s' if n > 1 else ''} from \"{title}\" will be deleted tomorrow",
                f"To keep storage free, Pit Crew deletes Shorts that weren't posted {keep_draft() / 86400:.0f} days "
@@ -217,6 +228,24 @@ def sweep_job(job_id, now=None):
             (job_dir / "job.json").write_text(json.dumps(live, default=str), encoding="utf-8")
         done.append(f"{n} draft warning(s)")
     return done
+
+
+def _sweep_stopped(job, now):
+    """A vlog that stopped: its video is kept KEEP_ORIGINAL_HOURS after it stopped (for Try again; the "stopped" email
+    says so), then deleted. One that never made anything to keep is then removed completely, like its Delete button."""
+    job_id, job_dir = job["id"], JOBS_DIR / job["id"]
+    if not keep_original() or now < (job.get("last_edit_at") or created_at(job)) + keep_original():
+        return []
+    has_video = next(job_dir.glob("source.*"), None) is not None
+    if has_video:
+        remove_video(job_id)  # (remembers the transcript, so uploading it again skips transcribing)
+    if not _empty_stop(job):
+        return ["stopped vlog's video deleted"] if has_video else []
+    with LOCK:
+        JOBS.pop(job_id, None)
+        (job_dir / "job.json").unlink(missing_ok=True)
+    shutil.rmtree(job_dir, ignore_errors=True)
+    return ["stopped vlog removed"]
 
 
 def sweep():

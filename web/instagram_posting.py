@@ -27,6 +27,7 @@ from pipeline.cover import COVER_SECS
 from settings import JOBS_DIR
 
 from web.posting import upload_file
+from web import notices
 from web.server import app
 from web.store import JOBS, LOCK, load_job
 
@@ -74,8 +75,9 @@ def public_video_url(job_id, path):
     """A signed, expiring address for one video file of one job (instagram_video below serves it)."""
     base = public_base()
     if not base:
-        raise ig.InstagramError("Instagram downloads each Reel from Pit Crew, so Pit Crew needs a public https address. "
-                                "Set PUBLIC_URL in .env (README step 6), restart Pit Crew, then press Try again.")
+        print("Instagram can't fetch Reels: set PUBLIC_URL to Pit Crew's public https address (README step 6).")
+        raise ig.InstagramError("Instagram posting isn't available right now, so this Reel wasn't posted. "
+                                "Press Try again later.")
     return f"{base}/ig-video/{_signer().dumps([job_id, path.name])}.mp4"
 
 
@@ -126,9 +128,12 @@ def _post_one(job_id, p):
         ig.forget_insights(owner)
     except ig.InstagramError as e:
         _edit(job_id, p["idx"], status="error", step="", error=str(e))
+        notices.post_failed(job_id, "Instagram", f"{p.get('title') or 'A Reel'}: {e}", "scheduled/shorts")
     except Exception:  # noqa: BLE001
         traceback.print_exc()
         _edit(job_id, p["idx"], status="error", step="", error="Something went wrong while posting. Try again.")
+        notices.post_failed(job_id, "Instagram", f"{p.get('title') or 'A Reel'}: something went wrong while posting.",
+                            "scheduled/shorts")
 
 
 def _loop():
@@ -220,7 +225,8 @@ def instagram_schedule(job_id):
     data = request.get_json(force=True)
     acct = ig.account(g.user["id"])
     if not acct.get("configured"):
-        return jsonify(error="Instagram posting isn't set up yet: Pit Crew needs a Meta app (README step 6)."), 400
+        print("Instagram posting is off: no Meta app (README step 6).")
+        return jsonify(error="Instagram posting isn't available right now. Your Shorts are saved here: try again later."), 400
     if not acct.get("signed_in"):
         return jsonify(error="Connect Instagram first.", signin=True), 400
     # The account the page showed ("Posting to @..."), not whatever is active now (another tab may have switched).

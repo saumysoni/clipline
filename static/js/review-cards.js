@@ -25,7 +25,7 @@ async function sendMoment(url,body,errEl){
   try{
     r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     try{ j=await r.json(); }catch(e){}
-  }catch(e){ errEl.textContent="Couldn't reach Pit Crew. Is the app window still open?"; return false; }
+  }catch(e){ errEl.textContent="Couldn't reach Pit Crew. Check your internet connection, then try again."; return false; }
   if(!r.ok){ errEl.textContent=j.error||"Something went wrong. Please try again."; return false; }
   clearInterval(poll); poll=setInterval(tick,1000); tick();
   return true;

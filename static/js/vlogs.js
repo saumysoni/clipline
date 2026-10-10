@@ -11,7 +11,7 @@ const isScheduledVlog=v=>{ const p=v.vpost||{}; return v.kind==="vlog" && p.priv
 async function openVlogs(){ clearInterval(poll); location.hash="vlogs"; show(7); vlSelecting(false); await loadVlogs(); }
 async function loadVlogs(){
   try{ const r=await fetch("/api/vlogs"); if(!r.ok) throw 0; vlData=(await r.json()).items||[]; }
-  catch(e){ if(!vlData) $("vlErr").textContent="Couldn't load your vlogs. Is Pit Crew still running?"; return; }
+  catch(e){ if(!vlData) $("vlErr").textContent="Couldn't load your vlogs. Check your internet connection, then reload the page."; return; }
   $("vlErr").textContent=""; paintVlogs();
 }
 // "today at 6:00 PM" / "tomorrow at 9:30 AM" for a time within the next day or two
@@ -175,7 +175,7 @@ async function vlDelete(list){
   if(!confirm((list.length===1?(rm.length?'Remove "'+list[0].title+'"?':'Delete the video of "'+list[0].title+'"?'):'Delete '+list.length+' vlogs?')+'\n\n'+lines.join('\n\n'))) return;
   $("vlDelMany").disabled=true;
   let r,j; try{ r=await fetch("/api/vlogs/delete-videos",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ids:list.map(v=>v.id)})}); j=await r.json(); }
-  catch(e){ r={ok:false}; j={error:"Couldn't reach Pit Crew. Is the app window still open?"}; }
+  catch(e){ r={ok:false}; j={error:"Couldn't reach Pit Crew. Check your internet connection, then try again."}; }
   $("vlDelMany").disabled=false;
   if(!r.ok){ $("vlErr").textContent=j.error||"Couldn't delete the videos."; return; }
   $("vlErr").textContent = j.skipped.length ? j.skipped.length+" couldn't be deleted right now (being made, remade or posted). Try again when they're done." : "";

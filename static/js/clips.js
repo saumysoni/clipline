@@ -31,7 +31,7 @@ async function loadClips(){
   try{ const r=await fetch("/api/clips"); if(!r.ok) throw 0; const j=await r.json(); clData=j.items||[];
     if(j.removed_on_youtube) clToast(j.removed_on_youtube===1?"1 Short was deleted on YouTube":j.removed_on_youtube+" Shorts were deleted on YouTube",
       "So "+(j.removed_on_youtube===1?"it's a draft":"they're drafts")+" again: schedule or delete "+(j.removed_on_youtube===1?"it":"them")+" here."); }
-  catch(e){ $("clErr").textContent="Couldn't load your clips. Is Pit Crew still running?"; return; }
+  catch(e){ $("clErr").textContent="Couldn't load your clips. Check your internet connection, then reload the page."; return; }
   $("clErr").textContent="";
   const live=new Set(clData.map(clKey)); clPicked.forEach(k=>{ if(!live.has(k)) clPicked.delete(k); });
   paintClips();
@@ -171,7 +171,7 @@ async function clDelete(list){
                  :'Delete '+drafts.length+' drafts?\n\nTheir videos and thumbnails are deleted. This can\'t be undone.'+
                   (drafts.length<list.length?' Posted and scheduled clips you ticked stay.':''))) return;
   let r,j; try{ r=await fetch("/api/clips/delete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({items:drafts.map(c=>({job:c.job,idx:c.idx}))})}); j=await r.json(); }
-  catch(e){ r={ok:false}; j={error:"Couldn't reach Pit Crew. Is the app window still open?"}; }
+  catch(e){ r={ok:false}; j={error:"Couldn't reach Pit Crew. Check your internet connection, then try again."}; }
   if(!r.ok){ $("clErr").textContent=j.error||"Couldn't delete them."; return; }
   drafts.forEach(c=>clPicked.delete(clKey(c)));
   clToast(j.deleted.length===1?"Draft deleted":j.deleted.length+" drafts deleted", j.kept.length?j.kept.length+" couldn't be deleted (being remade or posted).":"");
@@ -227,7 +227,7 @@ $("clSchedGo").onclick=async()=>{
   try{ r=await fetch("/api/clips/schedule",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
       items:order.map(c=>({job:c.job,idx:c.idx})), youtube:toYt, instagram:toIg, schedule:$("clWhen").value, tz,
       start:$("clStart").value, every:+$("clEvery").value, channel:yt.channel&&yt.channel.id, ig_id:ig.ig_id})}); j=await r.json(); }
-  catch(e){ r={ok:false}; j={error:"Couldn't reach Pit Crew. Is the app window still open?"}; }
+  catch(e){ r={ok:false}; j={error:"Couldn't reach Pit Crew. Check your internet connection, then try again."}; }
   $("clSchedGo").disabled=false;
   if(!r.ok){ $("clSchedErr").textContent=j.error||"Couldn't schedule them."; if(j.signin==="youtube") signIn(); else if(j.signin==="instagram") igSignIn(); return; }
   clKeptPicks=null; $("clSched").close(); clPicked.clear(); $("clBrowse").classList.remove("selecting"); $("clSelect").lastChild.textContent="Select"; $("clSelect").setAttribute("aria-pressed",false);

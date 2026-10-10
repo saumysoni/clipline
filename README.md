@@ -94,8 +94,8 @@ At this point you can already make, play, and download Shorts. Step 5 only adds 
 
 **Accounts.** The first screen asks you to sign in. Create an account with your email and a password (at least
 8 characters), or use **Continue with Google** once step 5 is done. Each account sees only its own vlogs, Shorts
-and YouTube channel. Vlogs made before Pit Crew had accounts belong to the first account created. **Forgot
-password?** emails a reset link (step 7; until then the link is printed in the Terminal window).
+and YouTube channel. A new email account gets a link to confirm the email, so Pit Crew can email you when Shorts
+are ready. **Forgot password?** emails a reset link. Until step 7 is done, both links are printed in the Terminal window.
 
 ### 5. Turn on Google sign-in and automatic YouTube posting
 
@@ -157,6 +157,14 @@ Pit Crew posts Reels with the **Instagram API with Instagram Login**: the creato
 
 **Posting Reels.** Each Short gets its own Instagram schedule: **Same times as YouTube**, the same presets, a custom start and spacing, or right away. Instagram doesn't let apps schedule posts, so Pit Crew posts each Reel itself at its time: keep Pit Crew running (Reels that came due while it was closed go out when it starts again). Instagram downloads each Reel from Pit Crew, so Pit Crew must be reachable over https when a Reel goes out: on a server that's automatic (set `PUBLIC_URL` to its address); on your computer, keep the tunnel from step 5 running. Each Short's card has an **Instagram** tab with its caption (suggested from the title and the full video's name on YouTube; edit it freely) and the **Hashtags** shared with YouTube; the Short's thumbnail frame becomes the Reel cover. Instagram allows 100 posts by app per account per day. If posting stops, the Reel shows **Try again**; if Pit Crew was closed in the middle of posting, check Instagram first so nothing is posted twice.
 
+### Several vlogs at once, and big files
+
+Pit Crew makes `JOB_SLOTS` vlogs at a time (2), at most `JOB_SLOTS_PER_CREATOR` (1) from one person; the others show
+**Waiting for a free spot** (or **Starts after your other vlog**) and start by themselves. If Pit Crew is closed or
+restarted while vlogs are being made, they start again by themselves the next time (a vlog that stopped Pit Crew twice
+stays stopped, with Try again). Videos are sent in pieces: if the connection drops, Pit Crew keeps trying, and if the
+tab closes, choosing the same file again carries on where it stopped. Files over `MAX_UPLOAD_GB` (30) are refused.
+
 ### Storage: what Pit Crew deletes, and when
 
 To keep storage free, Pit Crew deletes:
@@ -181,7 +189,7 @@ To send real emails from a Gmail account:
    SMTP_PASSWORD=the16letterapppassword
    ```
 
-Any other email service with SMTP works the same way (put its host, port, user and password instead). On a server, also set `APP_URL` to Pit Crew's public address so the link points to the right place.
+Any other email service with SMTP works the same way (put its host, port, user and password instead). On a server, also set `APP_URL` to Pit Crew's public address so the links in emails (password reset, confirm your email, "your Shorts are ready") point to the right place.
 
 **Signing in with Google when you made your account with a password:** Pit Crew shows "Email already exists" in red and doesn't join the two. Sign in with your email and password (or use Forgot password).
 
@@ -192,6 +200,8 @@ Any other email service with SMTP works the same way (put its host, port, user a
 - **Use the original export**, not a video downloaded from YouTube. 4K sources give the sharpest vertical crops; a 1080p source works but is softer once cropped.
 - Videos where the creator talks to camera give the best results, because both the moment-picking and the face-centred crop rely on speech and a visible face.
 - Pit Crew is made for English vlogs for now. Vlogs in other languages, or mixing Hindi and English, don't come out well yet.
+- Vlogs can be up to 3 hours long (`MAX_VLOG_MINUTES`); `MONTHLY_VLOG_MINUTES` limits how many minutes of vlogs one
+  account can have made each month (none by default). Settings shows how much is used.
 - A 45-minute vlog takes roughly 5–20 minutes on a typical laptop, mostly transcription and editing. On a computer with an NVIDIA graphics card, transcription uses it automatically. The transcript is saved, so it's never transcribed twice for the same job.
 
 ## If something goes wrong

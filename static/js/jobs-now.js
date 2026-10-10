@@ -36,7 +36,7 @@ function seenJob(id){ if(jnDone[id]){ delete jnDone[id]; paintJobsNow(); } setTi
 function paintJobsNow(){
   const rows=[];
   if(jnUpload!=null) rows.push('<div class="jn up"><span class="spin" aria-hidden="true"></span><span class="jn-t"><b>Sending your vlog</b>'+
-    '<small>Keep this tab open until it\'s sent</small></span><em>'+Math.round(jnUpload)+'%</em><i class="jn-bar"><i style="width:'+jnUpload+'%"></i></i></div>');
+    '<small>Keep this tab open. If it closes, choose the same file to carry on</small></span><em>'+Math.round(jnUpload)+'%</em><i class="jn-bar"><i style="width:'+jnUpload+'%"></i></i></div>');
   for(const v of jnWorking){
     const up=jnState(v)==="uploading", pct=up?Math.min(99,Math.round(v.vpost.pct||0)):vlPct(v);
     rows.push('<button type="button" class="jn" data-id="'+esc(v.id)+'"><span class="spin" aria-hidden="true"></span><span class="jn-t"><b>'+esc(v.title)+'</b>'+

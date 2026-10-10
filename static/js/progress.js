@@ -30,7 +30,7 @@ function paintLights(){
   const n=job.stages.length, done=Math.min(job.stage||0,n), lamps=$("lights").querySelectorAll(".lamp");
   lamps.forEach((l,i)=>{ l.classList.toggle("on", i<done); l.classList.toggle("blink", i===done && job.status==="working"); });
   $("lights").classList.toggle("go", job.status==="ready");
-  $("lightsTitle").textContent = job.status==="error" ? "Stopped" : job.status==="ready" ? "All stages complete" : (job.stages[done]||"Finishing");
+  $("lightsTitle").textContent = job.status==="error" ? "Stopped" : job.status==="ready" ? "All stages complete" : job.queued ? (job.msg||"Waiting for a free spot") : (job.stages[done]||"Finishing");
   $("lightsSub").textContent = job.status==="ready" ? "Your Shorts are ready." : "Stage "+Math.min(done+1,n)+" of "+n+(job.pct!=null&&job.status==="working"?" · "+Math.round(job.pct)+"%":"");
 }
 function renderProgress(){
@@ -45,5 +45,10 @@ function renderProgress(){
     $("track").innerHTML=(job.moments_found||[]).map((m,i)=>'<div class="seg" style="left:'+(m.start/job.duration*100)+'%;width:'+Math.max(1.2,(m.end-m.start)/job.duration*100)+'%"><i>'+(i+1)+'</i></div>').join("");
   }
   $("err2").textContent = job.status==="error" ? "Stopped: "+job.error : "";
-  if(job.status==="error"){ clearInterval(poll); $("err2").insertAdjacentHTML("beforeend",' <button class="ghost" style="margin-left:8px" onclick="location.hash=\'\';location.reload()">Start over</button>'); }
+  $("stopRow").hidden = job.status!=="working";
+  $("stopBtn").onclick=()=>stopVlog(job.id, !!job.vdraft, $("err2"));
+  if(job.status==="error"){ clearInterval(poll);
+    $("err2").insertAdjacentHTML("beforeend",' <button type="button" class="ghost" style="margin-left:8px" id="againBtn">Try again</button>'+
+      '<button class="ghost" style="margin-left:8px" onclick="location.hash=\'\';location.reload()">Start over</button>'+helpLine(job.id));
+    $("againBtn").onclick=()=>vlogAgain(job.id, $("err2")); }
 }

@@ -37,8 +37,10 @@ def fetch_video_info(url, token=None):
         try:
             data = _get_json(f"https://www.googleapis.com/youtube/v3/videos?{q}", None if key else token)
         except urllib.error.HTTPError as e:
-            raise RuntimeError("YouTube refused the request. Check YOUTUBE_API_KEY in .env "
-                               f"(and that the YouTube Data API is enabled for it). ({e.code})") from e
+            print(f"YouTube refused the video lookup ({e.code}): check YOUTUBE_API_KEY and that the "
+                  "YouTube Data API is enabled for it.")
+            raise RuntimeError("YouTube didn't share this video's details. Type the title and description "
+                               "yourself.") from e
         except OSError as e:
             raise RuntimeError("Couldn't reach YouTube. Check your internet connection.") from e
         items = data.get("items") or []

@@ -14,11 +14,11 @@ error, "pct", "video_id", "channel", "privacy", "when", "note", "error"}).
 """
 import json
 import re
+import shutil
 import threading
 import time
 import traceback
 import uuid
-from pathlib import Path
 
 from flask import abort, g, jsonify, request
 
@@ -27,8 +27,13 @@ import youtube as yt
 from settings import JOBS_DIR
 
 from pipeline.transcript_cache import find_saved_transcript, remember_transcript
+from web import notices
 from web.errors import plain_error
 from web.server import app
+from web.stop_and_retry import Stopped, finish_stop, settle, stop_point
+from web.allowance import charge, upload_problem
+from web.job_queue import enqueue_locked
+from web.video_upload import take_upload
 from web.store import JOBS, LOCK, STAGES, load_job, update
 
 VLOG_STAGES = ["Getting your vlog", "Transcribing", "Writing the title, description and chapters", "Designing the thumbnail"]
@@ -37,8 +42,13 @@ UPLOADING = set()  # vlog jobs being sent to YouTube right now
 
 def prepare_vlog(job_id, src, link):
     job_dir = JOBS_DIR / job_id
+
+    def step(**kw):  # every progress report is also where a Stop takes effect (web/stop_and_retry.py)
+        stop_point(job_id)
+        update(job_id, **kw)
+
     try:
-        update(job_id, stage=0, pct=0, msg="Getting your vlog")
+        step(stage=0, pct=0, msg="Getting your vlog")
         if link:
             import gdown
             src = job_dir / "source.mp4"
@@ -47,67 +57,84 @@ def prepare_vlog(job_id, src, link):
                 raise RuntimeError("Couldn't download that link. Make sure sharing is set to "
                                    "'Anyone with the link', or upload the file instead.")
         meta = pipeline.probe(src)
-        update(job_id, duration=meta["duration"], width=meta["width"], height=meta["height"])
+        step(duration=meta["duration"], width=meta["width"], height=meta["height"])
+        charge(job_id, meta["duration"])  # this creator's monthly minutes (web/allowance.py), once per vlog
 
-        update(job_id, stage=1, pct=0, msg="Transcribing")
+        step(stage=1, pct=0, msg="Transcribing")
         job_tr = job_dir / "transcript.json"
         saved = find_saved_transcript(src)
         if saved and not job_tr.exists():
             import shutil
             shutil.copy(saved, job_tr)
-        tr = pipeline.transcribe(src, job_tr, lambda p, m: update(job_id, pct=p, msg=m))
+        tr = pipeline.transcribe(src, job_tr, lambda p, m: step(pct=p, msg=m))
         remember_transcript(src, job_tr)
 
-        update(job_id, stage=2, pct=0, msg="Writing the title, description and chapters")
+        step(stage=2, pct=0, msg="Writing the title, description and chapters")
         with LOCK:
             note = (JOBS.get(job_id) or {}).get("note", "")
         try:
-            m = pipeline.write_vlog_meta(tr, {"note": note}, lambda p, msg: update(job_id, pct=p, msg=msg))
+            m = pipeline.write_vlog_meta(tr, {"note": note}, lambda p, msg: step(pct=p, msg=msg))
         except Exception as e:  # noqa: BLE001  (the AI is busy or has no key: the creator writes them)
             print("Vlog details without AI:", repr(e)[:300])
             m = {"titles": [], "text": "", "chapters": [], "hashtags": [], "description": "", "tags": [],
                  "thumb_line1": "", "thumb_line2": "", "ai_failed": True}
 
-        update(job_id, stage=3, pct=0, msg="Designing the thumbnail")
+        step(stage=3, pct=0, msg="Designing the thumbnail")
         with LOCK:
             name = (JOBS.get(job_id) or {}).get("name", "")
         title = (m["titles"] or [name])[0]
         thumb = pipeline.make_vlog_thumbnail(src, meta["duration"], job_dir, title, m["thumb_line1"], m["thumb_line2"])
         done = time.time()  # the video is kept from here (KEEP_ORIGINAL_HOURS, web/retention.py)
-        update(job_id, stage=len(VLOG_STAGES), pct=100, msg="Ready", status="ready", last_edit_at=done,
-               vdraft={**m, "title": title, "thumb": thumb, "look": "frame"})
+        if not settle(job_id, stage=len(VLOG_STAGES), pct=100, msg="Ready", status="ready", last_edit_at=done,
+                      vdraft={**m, "title": title, "thumb": thumb, "look": "frame"}):
+            finish_stop(job_id)
+            return
+        notices.vlog_ready(job_id)
     except Exception as e:  # noqa: BLE001
-        traceback.print_exc()
+        if not isinstance(e, Stopped):
+            traceback.print_exc()
         with LOCK:
             j = JOBS.get(job_id) or {}
             stages = j.get("stages") or [""]
             doing = stages[min(j.get("stage", 0), len(stages) - 1)]
-        update(job_id, status="error", error=plain_error(e, doing), error_detail=str(e)[:4000])
+        reason = plain_error(e, doing)
+        # last_edit_at: a stopped vlog's video is kept KEEP_ORIGINAL_HOURS from now, for Try again (web/retention.py)
+        if isinstance(e, Stopped) or not settle(job_id, status="error", error=reason, error_detail=str(e)[:4000],
+                                                last_edit_at=time.time()):
+            finish_stop(job_id)
+            return
+        notices.stopped(job_id, reason)
 
 
 @app.post("/api/vlog/start")
 def vlog_start():
     link = (request.form.get("link") or "").strip()
     note = (request.form.get("note") or "").strip()[:1000]
-    f = request.files.get("video")
-    has_file = bool(f and f.filename)
-    if link and not has_file and yt.video_link_problem(link):
+    upload = (request.form.get("upload") or "").strip()  # the video, sent in pieces first (web/video_upload.py)
+    if link and not upload and yt.video_link_problem(link):
         return jsonify(error=yt.video_link_problem(link), field="link"), 400
-    if not has_file and not link:
+    if not upload and not link:
         return jsonify(error="Add a video file or a Google Drive link."), 400
+    bad = upload and upload_problem(upload, g.user["id"])  # not a video, too long, or over this month's minutes
+    if bad:
+        return jsonify(error=bad[0], upload_gone=bad[1]), 400
     job_id = uuid.uuid4().hex[:10]
     job_dir = JOBS_DIR / job_id
     job_dir.mkdir()
     src, name = None, "Your vlog"
-    if has_file:
-        src = job_dir / f"source{Path(f.filename).suffix.lower() or '.mp4'}"
-        f.save(src)
-        name = Path(f.filename).stem
+    if upload:
+        try:
+            src, name = take_upload(upload, g.user["id"], job_dir)
+        except RuntimeError as e:
+            shutil.rmtree(job_dir, ignore_errors=True)
+            return jsonify(error=str(e), upload_gone=True), 400
     with LOCK:
         JOBS[job_id] = {"id": job_id, "owner": g.user["id"], "created_at": time.time(), "kind": "vlog",
+                        "link": "" if src else link,
                         "status": "working", "stage": 0, "pct": 0, "msg": "", "stages": VLOG_STAGES,
-                        "name": name, "note": note, "shorts": [], "vlog": {}}
-    threading.Thread(target=prepare_vlog, args=(job_id, src, link), daemon=True).start()
+                        "name": name, "note": note, "shorts": [], "vlog": {},
+                        "tz": (request.form.get("tz") or "")[:64]}  # the creator's time zone, for emails
+        enqueue_locked(JOBS[job_id])  # web/job_queue.py starts it when there's a free spot
     return jsonify(id=job_id)
 
 
@@ -187,6 +214,7 @@ def _send(user_id, job_id, draft, privacy, when, channel):
     except Exception as e:  # noqa: BLE001
         traceback.print_exc()
         _post(job_id, state="error", error=yt.upload_error_message(e))
+        notices.post_failed(job_id, "YouTube", yt.upload_error_message(e), "vlog/" + job_id)
     finally:
         UPLOADING.discard(job_id)
 
@@ -237,8 +265,6 @@ def vlog_upload(job_id):
 def vlog_shorts(job_id):
     """Make Shorts & Reels from a vlog Pit Crew still has (an uploaded one, within 72 hours). Its transcript is
     reused and its Shorts link to it on YouTube."""
-    from web.make_shorts import make_shorts
-
     data = request.get_json(force=True)
     with LOCK:
         job = load_job(job_id)
@@ -261,7 +287,11 @@ def vlog_shorts(job_id):
     if not vlog.get("title"):
         vlog["title"] = (job.get("vdraft") or {}).get("title") or job.get("name", "")
     vlog.setdefault("description", (job.get("vdraft") or {}).get("description", ""))
-    update(job_id, status="working", stage=0, pct=0, msg="", stages=STAGES, count=count, style=style,
-           schedule="d18", note=note, must=[], vlog=vlog, error="", shorts=[])
-    threading.Thread(target=make_shorts, args=(job_id, src, None, count, style, vlog, note, ()), daemon=True).start()
+    with LOCK:
+        job = JOBS[job_id]
+        if job.get("status") == "working":  # pressed twice
+            return jsonify(error="This vlog is still being worked on. Wait until it's ready."), 400
+        job.update(stages=STAGES, count=count, style=style, schedule="d18", note=note, must=[], vlog=vlog, shorts=[],
+                   recoveries=0)
+        enqueue_locked(job)  # web/job_queue.py starts it when there's a free spot
     return jsonify(ok=True)

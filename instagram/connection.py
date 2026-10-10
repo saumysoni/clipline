@@ -25,7 +25,8 @@ def start_login(redirect_uri, popup=False, add=False):
     add: connecting another account, so Instagram asks who to log in as (force_reauth) instead of reusing the
     account the browser is already logged in to."""
     if not is_configured():
-        raise InstagramError("Instagram isn't set up yet: Pit Crew has no Meta app. Follow README step 6, then try again.")
+        print("Instagram is off: no Meta app (README step 6).")
+        raise InstagramError("Connecting Instagram isn't available right now. Try again later.")
     state = secrets.token_urlsafe(24)
     q = urllib.parse.urlencode({"client_id": app_id(), "redirect_uri": redirect_uri, "response_type": "code",
                                 "scope": ",".join(SCOPES), "state": state, **({"force_reauth": "true"} if add else {})})
@@ -74,6 +75,8 @@ def load(user_id, ig_id=None):
     if not row:
         return None
     info, now = row["token"], time.time()
+    if not info:  # can't be read (TOKEN_KEY changed): signed out, but don't delete it (the old key may come back)
+        return None
     if info.get("expires_at", 0) < now:
         db.drop_connection(row["id"])
         return None
@@ -105,7 +108,7 @@ def account(user_id):
     "accounts" (every connected account, each with "active")."""
     if not is_configured():
         return {"configured": False, "signed_in": False, "accounts": []}
-    accounts = [_summary(r["token"], r["active"]) for r in db.connections(user_id, "instagram")]
+    accounts = [_summary(r["token"] or {}, r["active"]) for r in db.connections(user_id, "instagram")]
     info = load(user_id)
     if not info:
         return {"configured": True, "signed_in": False, "accounts": accounts}

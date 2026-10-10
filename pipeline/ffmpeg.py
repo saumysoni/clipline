@@ -44,9 +44,12 @@ def ffmpeg_exe():
                 print(f"Using FFmpeg: {exe}")
                 return exe
     if not seen:
-        raise RuntimeError("FFmpeg isn't installed. See README step 1.")
-    raise RuntimeError("Your FFmpeg can't add captions, and the backup copy is missing. Close Pit Crew and "
-                       "start it again with the start script so it can install the missing add-on.")
+        print("FFmpeg isn't installed (README step 1).")
+    else:
+        print("No FFmpeg with the subtitles filter (libass) found, and imageio-ffmpeg is missing: "
+              "reinstall requirements.txt.")
+    raise RuntimeError("Pit Crew's video editor isn't working right now. Try again later; if it keeps "
+                       "happening, tell us.")
 
 
 def run(cmd, cwd=None):
