@@ -49,9 +49,12 @@ async function boot(){
   booted=true;
   openRoute(location.hash.slice(1));
 }
-// The screen for an address (#vlogs, #new, #vlog/new, #vlog/<id>, #youtube, #analytics, #settings, or a vlog's id). The Vlogs page is home.
+// The screen for an address (#vlogs, #new, #vlog/new, #vlog/<id>, #drafts[/shorts], #scheduled[/shorts], #analytics, #settings,
+// or a vlog's id). The Vlogs page is home. #youtube (older links) is Scheduled's Shorts & Reels tab.
 function openRoute(h){
-  if(h==="youtube") openPosted();
+  if(h==="youtube" || h==="scheduled/shorts") openPosted("shorts");
+  else if(h==="scheduled") openPosted("vlogs");
+  else if(h==="drafts" || h==="drafts/shorts") openDrafts(h==="drafts"?"vlogs":"shorts");
   else if(h==="clips" || h.startsWith("clips/")) openClips(h.slice(6));
   else if(h==="analytics" || h.startsWith("analytics/")) openAnalytics(h.slice(10));
   else if(h==="settings" || h==="account") openSettings();
@@ -67,7 +70,7 @@ window.addEventListener("hashchange",()=>{
   if(!booted || $("app").hidden) return;
   const h=location.hash.slice(1);
   if(h.startsWith("reset=")) return;
-  const at = !$("s9").hidden?"clips"+(clVlog?"/"+clVlog:"") : !$("s7").hidden?"vlogs" : !$("s5").hidden?"youtube" : !$("s6").hidden?"analytics"+(anVlog?"/"+anVlog:"") : !$("s8").hidden?"settings" : !$("s1").hidden?"new" : !$("s10").hidden?"vlog/"+(vuId||"new") : jobId;
+  const at = !$("s9").hidden?"clips"+(clVlog?"/"+clVlog:"") : !$("s7").hidden?"vlogs" : !$("s5").hidden?"scheduled"+($("schShorts").hidden?"":"/shorts") : !$("s11").hidden?"drafts"+(dfTab==="shorts"?"/shorts":"") : !$("s6").hidden?"analytics"+(anVlog?"/"+anVlog:"") : !$("s8").hidden?"settings" : !$("s1").hidden?"new" : !$("s10").hidden?"vlog/"+(vuId||"new") : jobId;
   if(h===at || (!h && at==="vlogs")) return;
   openRoute(h);
 });

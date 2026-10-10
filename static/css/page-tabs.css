@@ -1,0 +1,15 @@
+/* Tabs: Vlogs | Shorts & Reels on Drafts and Scheduled (js/page-tabs.js pageTabs()), and the platform tabs on Shorts & Reels (js/clips.js) */
+.ptabs{display:inline-flex;gap:2px;padding:3px;margin:0 0 18px;border-radius:12px;background:var(--raised);border:1px solid var(--line)}
+.ptabs button{display:inline-flex;align-items:center;gap:7px;border:0;background:transparent;color:var(--muted);font:inherit;font-weight:600;font-size:.9rem;padding:8px 14px;border-radius:9px;cursor:pointer}
+.ptabs button .ms{font-size:19px}
+.ptabs button .n{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.76rem;font-weight:500;color:var(--faint)}
+.ptabs button:hover{color:var(--ink)}
+.ptabs button .ms.yt{color:#e5484d}.ptabs button .ms.ig{color:#d6336c}
+.ptabs button[aria-selected=true],.ptabs button[aria-pressed=true]{background:var(--panel);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.ptabs button[aria-selected=true] .n,.ptabs button[aria-pressed=true] .n{color:var(--muted)}
+.ptabs button:focus-visible{outline:2px solid var(--primary);outline-offset:1px}
+.ptab-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 14px}
+.ptab-bar .hint{margin:0;color:var(--muted);font-size:.88rem}
+/* Rows and cards borrowed from the Vlogs and Shorts & Reels pages: no tick boxes here */
+#s11 .vr-pick,#s11 .cl-pick,#s5 .vr-pick{display:none!important}
+@media (max-width:560px){ .ptabs{display:flex;width:100%} .ptabs button{flex:1;min-width:0;justify-content:center;padding:8px 6px;gap:5px;font-size:.84rem;text-align:center} #clPlatTabs .ms{display:none} }

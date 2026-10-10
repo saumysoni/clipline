@@ -8,7 +8,6 @@
 .short:not(.open) :is(.toggle,.looks,.meta,.tfield,.hookbox,.why,.links,.redo,.ytinfo,.tile-x){display:none}
 .short:not(.open) .row{border-top:0;padding-top:0;font-size:.82rem}
 .short:not(.open) .keep input{width:15px;height:15px}
-.short.off:not(.open){opacity:.55}
 .tile-cap{cursor:pointer;min-width:0}
 .tile-title{font-weight:600;font-size:.92rem;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .tile-meta{font-size:.8rem;color:var(--muted);margin-top:2px}

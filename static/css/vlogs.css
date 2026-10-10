@@ -5,7 +5,6 @@
 .vl-del-many{padding:7px 12px;font-size:.86rem;gap:6px}
 .vl-del-many .ms{font-size:18px}
 .vl-del-many:hover:not(:disabled){border-color:var(--bad)!important;color:var(--bad);box-shadow:0 0 0 3px var(--bad-soft)!important}
-.vl-chips{flex-wrap:wrap}
 .vl-find{position:relative;margin-left:auto;min-width:min(280px,100%)}
 .vl-find .ms{position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:18px;color:var(--faint);pointer-events:none}
 .vl-find input{width:100%;padding:8px 12px 8px 36px;border-radius:10px;border:1px solid var(--line-2);background:var(--field);font:inherit;color:var(--ink)}

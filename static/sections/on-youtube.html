@@ -1,18 +1,29 @@
-  <!-- Scheduled: every Short Pit Crew posted or planned, on YouTube and on Instagram -->
+  <!-- Scheduled: what's planned and hasn't gone out yet. Vlogs tab: vlogs set to go public later. Shorts & Reels tab:
+       Shorts planned on YouTube and Reels waiting for Instagram (plus ones that need a look: failed, not found) -->
   <section id="s5" hidden>
     <div class="work">
       <div class="page-head">
         <div>
           <div class="eyebrow">Scheduled</div>
           <h1>Your scheduled posts</h1>
-          <p class="lede">Every Short Pit Crew has posted or planned, on YouTube and Instagram. Change when one goes out, or edit it and update it.</p>
+          <p class="lede">Everything planned to go out. Change when a Short goes out, or edit it and update it.</p>
         </div>
         <button class="ghost" id="ptNew" type="button"><span class="ms" aria-hidden="true">add</span>New vlog</button>
       </div>
-      <div class="plat-head"><i class="yt"></i><h2>YouTube</h2><span>Shorts</span></div>
-      <div class="banner warn" id="ptNote" role="status" hidden></div>
-      <div class="card" id="ptCard"><ul class="plist" id="plist"><li><span></span><span class="pv">Checking YouTube...</span></li></ul></div>
-      <div class="plat-head"><i class="ig"></i><h2>Instagram</h2><span>Reels</span></div>
-      <div class="card" id="igCard"><ul class="plist" id="igList"><li><span></span><span class="pv">Checking Instagram...</span></li></ul></div>
+      <div class="ptabs" role="tablist" aria-label="Show" id="schTabs">
+        <button type="button" role="tab" id="schTabVlogs" data-tab="vlogs" aria-controls="schVlogs"><span class="ms" aria-hidden="true">video_library</span>Vlogs <span class="n" id="schNVlogs"></span></button>
+        <button type="button" role="tab" id="schTabShorts" data-tab="shorts" aria-controls="schShorts"><span class="ms" aria-hidden="true">movie</span>Shorts &amp; Reels <span class="n" id="schNShorts"></span></button>
+      </div>
+      <div role="tabpanel" id="schVlogs" aria-labelledby="schTabVlogs">
+        <div class="err" id="schErr" role="alert"></div>
+        <div class="vlog-list" id="schVlogList"></div>
+      </div>
+      <div role="tabpanel" id="schShorts" aria-labelledby="schTabShorts" hidden>
+        <div class="plat-head"><i class="yt"></i><h2>YouTube</h2><span>Shorts</span></div>
+        <div class="banner warn" id="ptNote" role="status" hidden></div>
+        <div class="card" id="ptCard"><ul class="plist" id="plist"><li><span></span><span class="pv">Checking YouTube...</span></li></ul></div>
+        <div class="plat-head"><i class="ig"></i><h2>Instagram</h2><span>Reels</span></div>
+        <div class="card" id="igCard"><ul class="plist" id="igList"><li><span></span><span class="pv">Checking Instagram...</span></li></ul></div>
+      </div>
     </div>
   </section>
