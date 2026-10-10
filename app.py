@@ -41,6 +41,7 @@ from web import (  # noqa: E402,F401
     pages,
     password_reset,
     retention,
+    post_text,
     posting,
     preview,
     thumbnail_look,

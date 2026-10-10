@@ -8,13 +8,17 @@ account it was planned for: switching accounts never moves it), "status", "media
 the creator checks Instagram before trying again, so nothing is posted twice).
 """
 import json
+import os
 import re
 import threading
 
 import traceback
 from datetime import datetime, timezone
 
-from flask import g, jsonify, request
+from urllib.parse import urlparse
+
+from flask import abort, g, jsonify, request, send_file
+from itsdangerous import BadSignature, URLSafeTimedSerializer
 
 import instagram as ig
 import youtube as yt
@@ -48,6 +52,49 @@ def _due(p):
     return p["status"] == "waiting" and (not p.get("when") or datetime.fromisoformat(p["when"]) <= datetime.now(timezone.utc))
 
 
+VIDEO_LINK_FOR = 6 * 3600  # how long Instagram may take to fetch a Reel's video (usually under a minute)
+
+
+def _signer():
+    return URLSafeTimedSerializer(app.secret_key, salt="instagram-video")
+
+
+def public_base():
+    """Pit Crew's public https address, where Instagram can download a Reel's video: PUBLIC_URL, else the address
+    Instagram already sends creators back to (INSTAGRAM_REDIRECT_URI: in the cloud the site, locally the tunnel), else
+    APP_URL. None if none is https."""
+    for v in (os.getenv("PUBLIC_URL"), os.getenv("INSTAGRAM_REDIRECT_URI"), os.getenv("APP_URL")):
+        u = urlparse((v or "").strip())
+        if u.scheme == "https" and u.netloc:
+            return f"https://{u.netloc}"
+    return None
+
+
+def public_video_url(job_id, path):
+    """A signed, expiring address for one video file of one job (instagram_video below serves it)."""
+    base = public_base()
+    if not base:
+        raise ig.InstagramError("Instagram downloads each Reel from Pit Crew, so Pit Crew needs a public https address. "
+                                "Set PUBLIC_URL in .env (README step 6), restart Pit Crew, then press Try again.")
+    return f"{base}/ig-video/{_signer().dumps([job_id, path.name])}.mp4"
+
+
+@app.get("/ig-video/<token>.mp4")
+def instagram_video(token):
+    """Public (PUBLIC in web/accounts.py): Instagram fetches a Reel's video here. The token is signed with the cookie
+    secret, names one file of one job and expires, so it can't be guessed or reused for anything else."""
+    try:
+        job_id, name = _signer().loads(token, max_age=VIDEO_LINK_FOR)
+    except BadSignature:  # also expired
+        abort(404)
+    if not re.fullmatch(r"[0-9a-f]{10}", str(job_id)) or not re.fullmatch(r"[\w.-]+\.mp4", str(name)):
+        abort(404)
+    f = JOBS_DIR / job_id / name
+    if not f.is_file():
+        abort(404)
+    return send_file(f, mimetype="video/mp4", conditional=True)
+
+
 def _post_one(job_id, p):
     with LOCK:
         job = load_job(job_id)
@@ -72,7 +119,7 @@ def _post_one(job_id, p):
             raise ig.InstagramError("This Short was removed from the job.")
         video = upload_file(JOBS_DIR / job_id, s)
         caption = ig.caption_for({**s, "title": p.get("title") or s["title"]}, vlog)
-        out = ig.post_reel(owner, video, caption, cover_ms=int(COVER_SECS * 500),
+        out = ig.post_reel(owner, video, public_video_url(job_id, video), caption, cover_ms=int(COVER_SECS * 500),
                            progress=lambda m: _edit(job_id, p["idx"], step=m),
                            ig_id=p.get("ig_id") or _first_account(owner), username=p.get("username", ""))
         _edit(job_id, p["idx"], status="done", step="", posted_at=datetime.now(timezone.utc).isoformat(), **out)

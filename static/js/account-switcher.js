@@ -66,5 +66,5 @@ async function switchTo(kind,id){
 // The pages that show one channel's numbers follow the switch.
 function switchedAccount(){
   if(location.hash==="#analytics" && typeof loadAnalytics==="function") loadAnalytics();
-  else if(location.hash==="#youtube" && typeof openPosted==="function") openPosted();
+  else if(location.hash.startsWith("#scheduled") && typeof openPosted==="function") openPosted(location.hash==="#scheduled/shorts"?"shorts":"vlogs");
 }

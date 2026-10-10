@@ -1,29 +1,36 @@
-  <!-- Shorts & Reels: every clip from every vlog, with where it stands on YouTube and Instagram -->
+  <!-- Shorts & Reels: clips that went out (or are going out now), with where each stands on YouTube and Instagram.
+       #clBrowse (bar + grid) is the clip browser; Drafts' Shorts & Reels tab borrows it (js/clips.js clMount) -->
   <section id="s9" hidden>
     <div class="work wide">
       <div class="page-head">
         <div>
           <div class="eyebrow">Shorts &amp; Reels</div>
           <h1 id="clTitle">Your Shorts &amp; Reels</h1>
-          <p class="lede" id="clLede">Every clip Pit Crew made, from all your vlogs. Use Select to schedule or delete several at once.</p>
+          <p class="lede" id="clLede">Clips that went out on YouTube or Instagram. Drafts and scheduled ones are under Drafts and Scheduled.</p>
         </div>
         <div class="cl-head-acts">
           <button class="ghost" id="clAdd" type="button" hidden><span class="ms" aria-hidden="true">add</span>Add a Short</button>
           <button class="ghost" id="clNew" type="button"><span class="ms" aria-hidden="true">auto_awesome</span>Make Shorts</button>
         </div>
       </div>
+      <!-- platform tabs (a clip on both platforms shows under each); Drafts' tab has no platform, so they stay here -->
+      <div class="ptabs" role="group" aria-label="Platform" id="clPlatTabs">
+        <button type="button" data-p="" aria-pressed="true">All <span class="n" id="clNAll"></span></button>
+        <button type="button" data-p="youtube" aria-pressed="false"><span class="ms yt" aria-hidden="true">smart_display</span>YouTube Shorts <span class="n" id="clNYt"></span></button>
+        <button type="button" data-p="instagram" aria-pressed="false"><span class="ms ig" aria-hidden="true">photo_camera</span>Instagram Reels <span class="n" id="clNIg"></span></button>
+      </div>
+      <div id="clBrowse">
       <div class="cl-bar">
         <button type="button" class="ghost sm sel-toggle" id="clSelect"><span class="ms" aria-hidden="true">checklist</span><span>Select</span></button>
         <label class="vl-all cl-all"><input type="checkbox" id="clAll"><span id="clAllT">Select all</span></label>
-        <div class="cl-chips" id="clChips" role="group" aria-label="Show"></div>
         <div class="cl-selects">
-          <select id="clPlat" aria-label="Platform"><option value="">All platforms</option><option value="youtube">YouTube</option><option value="instagram">Instagram</option></select>
           <select id="clVlog" aria-label="Vlog"><option value="">All vlogs</option></select>
           <select id="clSort" aria-label="Sort"><option value="vlog">Newest vlog first</option><option value="posted">Recently posted first</option></select>
         </div>
       </div>
       <div class="err" id="clErr" role="alert"></div>
       <div class="cl-grid" id="clGrid"></div>
+      </div>
     </div>
     <div class="cl-dock" id="clDock" hidden>
       <span id="clSel"></span>
@@ -61,7 +68,7 @@
           <option value="168">then one a week</option>
         </select>
       </div>
-      <p class="hint">Both platforms get the same times. Instagram can't schedule posts made by apps, so Pit Crew posts each Reel itself at its time: keep Pit Crew running.</p>
+      <p class="hint"><span id="clSchedBoth">Both platforms get the same times. </span>Instagram can't schedule posts made by apps, so Pit Crew posts each Reel itself at its time: keep Pit Crew running.</p>
       <div class="err" id="clSchedErr" role="alert"></div>
       <div class="cl-sched-acts"><button type="button" class="ghost" id="clSchedX">Cancel</button><button type="button" class="primary" id="clSchedGo">Schedule</button></div>
     </dialog>

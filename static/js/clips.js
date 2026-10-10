@@ -1,11 +1,29 @@
-// Shorts & Reels page: every clip from every vlog (web/clips.py), filtered by status, platform and vlog.
+// Shorts & Reels page: the clips that went out, or are going out now (web/clips.py), filtered by status, platform and
+// vlog. Drafts and scheduled clips have their own pages (js/drafts.js, js/on-youtube.js). The clip browser (#clBrowse:
+// bar + grid, Select, the dock, the schedule dialog) is shared: Drafts' Shorts & Reels tab shows it in "drafts" mode.
 // Each card: play, Analytics, Download, Edit (opens the vlog's editor panel for that Short). Tick clips to
 // schedule several at once on YouTube and/or Instagram.
-let clData=[], clStatus="", clVlog="", clPicked=new Set(), clTimer=null;
+let clData=[], clPlat="", clVlog="", clPicked=new Set(), clTimer=null, clMode="out", clOnPaint=null;
 const clKey=c=>c.job+":"+c.idx;
+// Where a clip belongs. Drafts: on neither platform (a draft, or its only posting failed). Scheduled: only planned.
+// Shorts & Reels: everything else (on a platform, or on its way).
+const CL_ON=["posted","scheduled","uploading","posting"];
+const isDraftClip=c=>c.status==="draft" || (c.status==="failed" && ![c.youtube,c.instagram].some(p=>p && CL_ON.includes(p.state)));
+const isScheduledClip=c=>c.status==="scheduled" && [c.youtube,c.instagram].every(p=>!p || p.state==="scheduled");
+const isOutClip=c=>!isDraftClip(c) && !isScheduledClip(c);
+const clInMode=c=>clMode==="drafts" ? isDraftClip(c) : isOutClip(c);
+const clShowing=()=>$("clBrowse").offsetParent!==null;
+// On this page a platform counts only once the clip is out there (or going out now): a planned post is on Scheduled.
+const clOnPlat=(c,plat)=>!!c[plat] && !(clMode==="out" && c[plat].state==="scheduled");
 async function openClips(vlog){
-  clearInterval(poll); clVlog=vlog||""; clStatus=""; location.hash="clips"+(clVlog?"/"+clVlog:"");
-  show(9); $("s9").classList.remove("selecting"); clPicked.clear(); $("clSelect").lastChild.textContent="Select"; $("clSelect").setAttribute("aria-pressed",false);
+  clearInterval(poll); clVlog=vlog||""; location.hash="clips"+(clVlog?"/"+clVlog:"");
+  show(9); await clOpen("out", $("s9").querySelector(".work"), clVlog);
+}
+// Puts the clip browser in box ("out": Shorts & Reels, "drafts": Drafts' tab), for one vlog or all, and loads it.
+async function clOpen(mode, box, vlog){
+  clMode=mode; box.appendChild($("clBrowse")); $("clBrowse").classList.toggle("drafts", mode==="drafts");
+  clVlog=vlog||""; clPicked.clear(); $("clBrowse").classList.remove("selecting");
+  $("clSelect").lastChild.textContent="Select"; $("clSelect").setAttribute("aria-pressed",false);
   await loadClips();
 }
 async function loadClips(){
@@ -18,7 +36,7 @@ async function loadClips(){
   const live=new Set(clData.map(clKey)); clPicked.forEach(k=>{ if(!live.has(k)) clPicked.delete(k); });
   paintClips();
   // Keep an eye on clips that are uploading, posting or being remade.
-  if(!$("s9").hidden && clData.some(c=>c.remaking||(c.youtube&&c.youtube.state==="uploading")||(c.instagram&&c.instagram.state==="posting")))
+  if(clShowing() && clData.some(c=>c.remaking||(c.youtube&&c.youtube.state==="uploading")||(c.instagram&&c.instagram.state==="posting")))
     clTimer=setTimeout(loadClips,3000);
 }
 function clPlatLine(kind,p){
@@ -34,7 +52,12 @@ const clPickable=c=>!c.remaking && (!c.youtube || !c.instagram || c.youtube.stat
 function clCard(c){
   const k=clKey(c), on=clPicked.has(k), postedYt=c.youtube&&c.youtube.state==="posted"&&c.youtube.video_id;
   const posted=c.status==="posted", dl=String(c.title||"Short").replace(/[\\/:*?"<>|]+/g,"").slice(0,60);
-  const plats=(c.youtube?clPlatLine("youtube",c.youtube):"")+(c.instagram?clPlatLine("instagram",c.instagram):"")||
+  // On one platform but not the other (and the file is still here): post it there too, straight from the card.
+  const out=p=>p && ["posted","scheduled"].includes(p.state), free=!c.remaking && !c.file_deleted;
+  const toIg = free && out(c.youtube) && !c.instagram, toYt = free && out(c.instagram) && !c.youtube;
+  const plats=(clOnPlat(c,"youtube")?clPlatLine("youtube",c.youtube):"")+(clOnPlat(c,"instagram")?clPlatLine("instagram",c.instagram):"")+
+    (toIg?'<button type="button" class="cl-pl cl-to" data-to="instagram"><span class="ms ig" aria-hidden="true">photo_camera</span><span><b>Instagram</b> · Post it there too</span></button>':"")+
+    (toYt?'<button type="button" class="cl-pl cl-to" data-to="youtube"><span class="ms yt" aria-hidden="true">smart_display</span><span><b>YouTube</b> · Post it there too</span></button>':"")||
     '<div class="cl-pl draft"><span class="ms" aria-hidden="true">edit</span><span>Draft · not posted yet</span></div>';
   const canAn = postedYt || (c.instagram&&c.instagram.state==="posted");
   const soon = c.expires && c.expires*1000-Date.now()<86400000;
@@ -60,33 +83,35 @@ function clCard(c){
     '</div></article>';
 }
 function clFiltered(){
-  const plat=$("clPlat").value;
-  return clData.filter(c=>(!clVlog||c.job===clVlog) && (!plat||c[plat]));
+  const plat=clMode==="drafts" ? "" : clPlat;
+  return clData.filter(c=>clInMode(c) && (!clVlog||c.job===clVlog) && (!plat||clOnPlat(c,plat)));
 }
 function paintClips(){
-  // vlog choices, newest first
-  const vlogs=[...new Map(clData.map(c=>[c.job,c])).values()];
+  // vlog choices (the ones with clips on this page), newest first
+  const pool=clData.filter(clInMode);
+  const vlogs=[...new Map(pool.concat(clData.filter(c=>c.job===clVlog)).map(c=>[c.job,c])).values()];
   $("clVlog").innerHTML='<option value="">All vlogs</option>'+vlogs.map(c=>'<option value="'+esc(c.job)+'">'+esc(c.vlog)+' · '+esc(vlDate(c.vlog_created))+(c.video_deleted?' (video deleted)':'')+'</option>').join("");
   $("clVlog").value=clVlog;
   const one=vlogs.find(c=>c.job===clVlog);
-  $("clTitle").textContent = one ? one.vlog : "Your Shorts & Reels";
-  $("clLede").textContent = one ? "The Shorts and Reels from this vlog. Use Select to schedule or delete several at once."
-                                : "Every clip Pit Crew made, from all your vlogs. Use Select to schedule or delete several at once.";
-  $("clAdd").hidden = !one || one.video_deleted;
-  // status chips with counts
-  const base=clFiltered(), n=st=>base.filter(c=>!st||c.status===st).length;
-  const chips=[["","All"],["draft","Drafts"],["scheduled","Scheduled"],["posted","Posted"],["failed","Failed"]].filter(([st])=>!st||st!=="failed"||n("failed"));
-  if(clStatus && !n(clStatus)) clStatus="";
-  $("clChips").innerHTML=chips.map(([st,lab])=>'<button type="button" class="cl-chip" data-st="'+st+'" aria-pressed="'+(clStatus===st)+'">'+lab+' <span>'+n(st)+'</span></button>').join("");
-  $("clChips").querySelectorAll(".cl-chip").forEach(b=>b.onclick=()=>{ clStatus=b.dataset.st; paintClips(); });
-  const list=clSorted(base.filter(c=>!clStatus||c.status===clStatus));
+  if(clMode==="out"){
+    clPlatTabs();
+    $("clTitle").textContent = one ? one.vlog : "Your Shorts & Reels";
+    $("clLede").textContent = one ? "The Shorts and Reels from this vlog that went out. Its drafts and scheduled ones are under Drafts and Scheduled."
+                                  : "Clips that went out on YouTube or Instagram. Drafts and scheduled ones are under Drafts and Scheduled.";
+    $("clAdd").hidden = !one || one.video_deleted;
+  }
+  const base=clFiltered(), list=clSorted(base);
+  const [emptyB,emptyT] = pool.length ? ["Nothing here","Try another filter."]
+    : clMode==="drafts" ? ["No Shorts or Reels drafts", clData.length?"Every clip Pit Crew made is posted or scheduled. Make Shorts from a vlog to get new ones.":"Upload a vlog and Pit Crew turns it into Shorts and Reels."]
+    : ["Nothing posted yet", clData.length?"Your clips are under Drafts and Scheduled. They show up here once they go out.":"Upload a vlog and Pit Crew turns it into Shorts and Reels."];
   $("clGrid").innerHTML = list.length ? list.map(clCard).join("") : '<div class="card cl-empty"><span class="ms" aria-hidden="true">movie</span><b>'+
-    (clData.length?"Nothing here":"No clips yet")+'</b><span>'+(clData.length?"Try another filter.":"Upload a vlog and Pit Crew turns it into Shorts and Reels.")+'</span></div>';
+    emptyB+'</b><span>'+emptyT+'</span></div>';
   $("clGrid").querySelectorAll(".clip").forEach(el=>{
     const c=clData.find(x=>clKey(x)===el.dataset.k);
     el.querySelector(".cl-play").onclick=()=>clPlay(c);
     const pick=el.querySelector(".cl-pick input");
     if(pick) pick.onchange=()=>{ pick.checked?clPicked.add(el.dataset.k):clPicked.delete(el.dataset.k); el.classList.toggle("on",pick.checked); clDock(); };
+    const to=el.querySelector(".cl-to"); if(to) to.onclick=()=>clPostOne(c,to.dataset.to);
     el.querySelector(".cl-an").onclick=()=>{
       if(c.youtube&&c.youtube.video_id&&c.youtube.state==="posted") openShortAnalytics(c.youtube.video_id,c.youtube.channel); else openAnalytics(c.job,"instagram");
     };
@@ -94,9 +119,10 @@ function paintClips(){
     const del=el.querySelector(".cl-del"); if(del) del.onclick=()=>clDelete([c]);
   });
   clDock();
+  if(clOnPaint) clOnPaint();
 }
 // Select all: every clip shown (with the current filters) that can be ticked.
-function clShown(){ return clSorted(clFiltered().filter(c=>!clStatus||c.status===clStatus)); }
+function clShown(){ return clSorted(clFiltered()); }
 $("clAll").onchange=()=>{
   const can=clShown().filter(clPickable);
   if($("clAll").checked) can.forEach(c=>clPicked.add(clKey(c))); else can.forEach(c=>clPicked.delete(clKey(c)));
@@ -107,7 +133,7 @@ function clDock(){
   const can=clShown().filter(clPickable), all=can.length>0 && can.every(c=>clPicked.has(clKey(c)));
   $("clAll").checked=all; $("clAll").indeterminate=!all && can.some(c=>clPicked.has(clKey(c))); $("clAll").disabled=!can.length;
   $("clAllT").textContent = n ? n+" selected" : "Select all";
-  $("clDock").hidden=!n || $("s9").hidden;
+  $("clDock").hidden=!n || !clShowing();
   $("clSel").textContent=n+" clip"+(n===1?"":"s")+" selected";
   const drafts=clData.filter(c=>clPicked.has(clKey(c))&&c.status==="draft").length;
   $("clDelMany").hidden=!drafts; $("clDelMany").lastChild.textContent=drafts===n?"Delete":"Delete "+drafts+" draft"+(drafts===1?"":"s");
@@ -118,7 +144,13 @@ function clPlay(c){
 }
 $("clPlayX").onclick=()=>$("clPlayer").close();
 $("clPlayer").addEventListener("close",()=>{ $("clVideo").pause(); $("clVideo").removeAttribute("src"); $("clVideo").load(); });
-$("clPlat").onchange=paintClips;
+// Platform tabs: All / YouTube Shorts / Instagram Reels, each with how many clips (for the vlog chosen, if any).
+$("clPlatTabs").querySelectorAll("button").forEach(b=>b.onclick=()=>{ clPlat=b.dataset.p; paintClips(); });
+function clPlatTabs(){
+  const pool=clData.filter(c=>isOutClip(c) && (!clVlog||c.job===clVlog));
+  $("clNAll").textContent=pool.length; $("clNYt").textContent=pool.filter(c=>clOnPlat(c,"youtube")).length; $("clNIg").textContent=pool.filter(c=>clOnPlat(c,"instagram")).length;
+  $("clPlatTabs").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.p===clPlat));
+}
 $("clSort").onchange=()=>{ try{ localStorage.setItem("pc-clip-sort",$("clSort").value); }catch(e){} paintClips(); };
 try{ const v=localStorage.getItem("pc-clip-sort"); if(v) $("clSort").value=v; }catch(e){}
 // "Recently posted first": posted clips by when they went out (newest first), then the rest in vlog order.
@@ -127,7 +159,7 @@ function clSorted(list){
   const t=c=>c.posted_at?Date.parse(c.posted_at):0;
   return [...list].sort((a,b)=>t(b)-t(a));  // stable: unposted keep their vlog order at the end
 }
-$("clVlog").onchange=()=>{ clVlog=$("clVlog").value; location.hash="clips"+(clVlog?"/"+clVlog:""); paintClips(); };
+$("clVlog").onchange=()=>{ clVlog=$("clVlog").value; if(clMode==="out") location.hash="clips"+(clVlog?"/"+clVlog:""); paintClips(); };
 $("clNew").onclick=()=>openMake();  // from a vlog uploaded here, or a new video file (js/make-choice.js)
 $("clAdd").onclick=()=>openJob(clVlog,"add");
 // Deletes drafts only (posted and scheduled clips stay); their files go too, so it can't be undone.
@@ -149,19 +181,32 @@ $("clDelMany").onclick=()=>clDelete(clData.filter(c=>clPicked.has(clKey(c))));
 $("clClear").onclick=()=>clSelecting(false);
 // Ticking clips (to schedule or delete several) is a mode: the tick boxes only show after Select.
 function clSelecting(on){
-  $("s9").classList.toggle("selecting",on); if(!on) clPicked.clear();
+  $("clBrowse").classList.toggle("selecting",on); if(!on) clPicked.clear();
   $("clSelect").lastChild.textContent=on?"Cancel":"Select"; $("clSelect").setAttribute("aria-pressed",on);
   paintClips();
 }
-$("clSelect").onclick=()=>clSelecting(!$("s9").classList.contains("selecting"));
+$("clSelect").onclick=()=>clSelecting(!$("clBrowse").classList.contains("selecting"));
 // ---- schedule several
-$("clSchedOpen").onclick=()=>{
+$("clSchedOpen").onclick=()=>clSchedDialog();
+// One clip, to the platform it's missing from (the card's "Post it there too"): the same dialog, with only that
+// platform ticked. The clips ticked before stay ticked afterwards.
+let clKeptPicks=null;
+function clPostOne(c,plat){
+  if(plat==="instagram" && !ig.signed_in){ igSignIn(()=>clPostOne(c,plat)); return; }
+  if(plat==="youtube" && !yt.signed_in){ signIn(()=>clPostOne(c,plat)); return; }
+  clKeptPicks=new Set(clPicked); clPicked=new Set([clKey(c)]);
+  clSchedDialog(plat,c);
+}
+$("clSched").addEventListener("close",()=>{ if(clKeptPicks){ clPicked=clKeptPicks; clKeptPicks=null; paintClips(); } });
+function clSchedDialog(only,c){
   const n=clPicked.size;
-  $("clSchedTitle").textContent="Schedule "+n+" clip"+(n===1?"":"s");
-  $("clSchedLede").textContent="One plan of times for all of them, in the order they're shown. Clips already on a platform are skipped there.";
+  $("clSchedTitle").textContent = only ? "Post to "+(only==="instagram"?"Instagram":"YouTube") : "Schedule "+n+" clip"+(n===1?"":"s");
+  $("clSchedLede").textContent = only ? '"'+c.title+'" as a '+(only==="instagram"?"Reel":"Short")+": right away, or at a time you choose."
+    : "One plan of times for all of them, in the order they're shown. Clips already on a platform are skipped there.";
   const ytOk=!!yt.signed_in, igOk=!!(ig.signed_in&&ig.can_post);
-  $("clToYt").disabled=!ytOk; $("clToYt").checked=ytOk;
-  $("clToIg").disabled=!igOk; $("clToIg").checked=false;
+  $("clSchedBoth").hidden=!!only;
+  $("clToYt").disabled=!ytOk || only==="instagram"; $("clToYt").checked=ytOk && only!=="instagram";
+  $("clToIg").disabled=!igOk || only==="youtube"; $("clToIg").checked=igOk && only==="instagram";
   $("clYtWho").textContent = ytOk ? "to "+((yt.channel&&yt.channel.title)||"your channel") : "Not connected: connect it from Channels first";
   $("clIgWho").textContent = igOk ? "to @"+(ig.username||"") : ig.signed_in ? "@"+(ig.username||"")+" is a personal account" : "Not connected";
   if(!$("clStart").value){ const d=new Date(Date.now()+86400000); d.setHours(18,0,0,0); $("clStart").value=localInput(d); }
@@ -185,9 +230,9 @@ $("clSchedGo").onclick=async()=>{
   catch(e){ r={ok:false}; j={error:"Couldn't reach Pit Crew. Is the app window still open?"}; }
   $("clSchedGo").disabled=false;
   if(!r.ok){ $("clSchedErr").textContent=j.error||"Couldn't schedule them."; if(j.signin==="youtube") signIn(); else if(j.signin==="instagram") igSignIn(); return; }
-  $("clSched").close(); clPicked.clear(); $("s9").classList.remove("selecting"); $("clSelect").lastChild.textContent="Select"; $("clSelect").setAttribute("aria-pressed",false);
+  clKeptPicks=null; $("clSched").close(); clPicked.clear(); $("clBrowse").classList.remove("selecting"); $("clSelect").lastChild.textContent="Select"; $("clSelect").setAttribute("aria-pressed",false);
   const parts=[j.youtube&&j.youtube+" to YouTube", j.instagram&&j.instagram+" to Instagram"].filter(Boolean);
-  clToast("Scheduled "+parts.join(" and "), $("clWhen").value==="now"?"They're going out now.":"See them under Scheduled.");
+  clToast("Scheduled "+parts.join(" and "), $("clWhen").value==="now"?"They're going out now: see them in Shorts & Reels.":"See them under Scheduled.");
   loadClips();
 };
 function clToast(title,text){
@@ -196,6 +241,9 @@ function clToast(title,text){
   document.body.appendChild(t); setTimeout(()=>t.classList.add("go"),5000); setTimeout(()=>t.remove(),5600);
 }
 // The one-Short analytics window lives in the Analytics page's markup; move it out so it opens from here too.
-// The selection bar floats over the screen, so it can't stay inside the (animated) page either.
+// The selection bar floats over the screen, so it can't stay inside the (animated) page either. The player and the
+// schedule dialog also open from Drafts, and a dialog inside a hidden page can't show.
 document.body.appendChild($("anDetail"));
 document.body.appendChild($("clDock"));
+document.body.appendChild($("clPlayer"));
+document.body.appendChild($("clSched"));

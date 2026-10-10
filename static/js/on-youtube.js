@@ -1,5 +1,32 @@
-// Scheduled page, YouTube part: every uploaded Short (change time, edit, unmark). Instagram: scheduled-instagram.js.
-// ---- On YouTube: every uploaded Short, with Change time / Edit Short / Open in Studio
+// Scheduled page (screen 5): two tabs (js/page-tabs.js). Vlogs: vlogs set to go public later. Shorts & Reels: the
+// YouTube part here (Shorts planned for later, or that need a look; Change time / Edit Short / Unmark) and the
+// Instagram part in scheduled-instagram.js. Shorts that already went out are in Shorts & Reels.
+let schVlogs=null, schN={yt:null, ig:null};
+const schPick=pageTabs("schTabs",tab=>{ location.hash="scheduled"+(tab==="shorts"?"/shorts":""); });
+// Only what hasn't gone out: planned for later, plus Shorts that need a look (gone from YouTube, or stuck private).
+function ytStillToCome(u){
+  const st=u.state||{}, now=new Date();
+  if(st.privacy==="missing") return true;
+  if(st.privacy==="private") return !st.publish_at || new Date(st.publish_at)>now;
+  if(st.privacy && st.privacy!=="other_channel") return false;  // public or unlisted: it went out
+  return !!u.when && new Date(u.when)>now;
+}
+function schCount(){ tabCount("schNShorts", schN.yt==null||schN.ig==null ? null : schN.yt+schN.ig); }
+async function loadScheduledVlogs(){
+  let items; try{ const r=await fetch("/api/vlogs"); if(!r.ok) throw 0; items=(await r.json()).items||[]; }
+  catch(e){ $("schErr").textContent="Couldn't load your vlogs. Is Pit Crew still running?"; return; }
+  $("schErr").textContent=""; schVlogs=items.filter(isScheduledVlog).sort((a,b)=>a.vpost.when.localeCompare(b.vpost.when));
+  tabCount("schNVlogs",schVlogs.length);
+  const box=$("schVlogList");
+  box.innerHTML = schVlogs.length ? schVlogs.map(vlRow).join("")
+    : tabEmpty("video_library","No vlogs scheduled","When you upload a vlog with Schedule, it waits here until it goes public.",["add","Upload a vlog"]);
+  box.querySelectorAll(".vrow").forEach(el=>{
+    const v=schVlogs.find(x=>x.id===el.dataset.id); vlWire(el,v,loadScheduledVlogs,"schErr");
+    if(v.vpost.video_id) el.querySelector(".vr-acts").insertAdjacentHTML("beforeend",  // Pit Crew can't move a vlog's time; Studio can
+      '<a class="ghost sm" href="'+esc(studioLink(v.vpost.video_id))+'" target="_blank" rel="noopener" title="Change when it goes public in YouTube Studio">Change time in Studio<span class="ms" aria-hidden="true">open_in_new</span></a>');
+  });
+  const go=box.querySelector(".tab-empty-go"); if(go) go.onclick=()=>openVlogUpload();
+}
 function stateTag(u){
   const st=u.state;
   if(st && st.privacy==="missing") return '<span class="tag bad">Not found on YouTube</span>';
@@ -10,17 +37,22 @@ function stateTag(u){
   return u.when && new Date(u.when)>new Date() ? '<span class="tag good">Scheduled</span>' : '<span class="tag">Posted</span>';
 }
 function localInput(d){ const p=x=>String(x).padStart(2,"0"); return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+"T"+p(d.getHours())+":"+p(d.getMinutes()); }
-async function openPosted(){
-  clearInterval(poll); location.hash="youtube"; show(5);
+// tab: "vlogs" or "shorts"; none = the tab last clicked on this device, else Shorts & Reels (where most plans are).
+async function openPosted(tab){
+  clearInterval(poll); tab=tab==="vlogs"||tab==="shorts"?tab:schPick.saved()||"shorts";
+  location.hash="scheduled"+(tab==="shorts"?"/shorts":""); show(5); schPick(tab);
+  schN={yt:null, ig:null}; schCount(); loadScheduledVlogs();
   if(typeof loadIgScheduled==="function") loadIgScheduled();
   $("plist").innerHTML='<li><span></span><span class="pv">Checking YouTube...</span></li>'; $("ptNote").hidden=true;
   let j; try{ j=await (await fetch("/api/posted")).json(); }catch(e){ j={items:[],note:"Couldn't reach Pit Crew. Is the app window still open?"}; }
+  const uploaded=j.items.length; j.items=j.items.filter(ytStillToCome); schN.yt=j.items.length; schCount();
   const notes=[];
   if(j.note) notes.push(j.note);
   else if(!j.signed_in && j.items.length) notes.push("Connect YouTube to see each Short's live status and change it.");
   if(j.items.some(u=>u.state&&u.state.privacy==="private"&&!u.state.publish_at)) notes.push("Private Shorts: YouTube keeps uploads private until your Google project passes YouTube's API audit (README step 5). Set them public in YouTube Studio.");
   $("ptNote").hidden=!notes.length; $("ptNote").innerHTML='<span class="ms" aria-hidden="true">info</span><span>'+notes.map(esc).join("<br>")+'</span>';
-  if(!j.items.length){ $("plist").innerHTML='<li><span></span><span class="pv">Nothing uploaded yet. Shorts you upload to YouTube from Pit Crew show up here.</span></li>'; return; }
+  if(!j.items.length){ $("plist").innerHTML='<li><span></span><span class="pv">'+(uploaded?"Nothing planned on YouTube. Shorts that already went out are in Shorts &amp; Reels; schedule more from Drafts."
+    :"Nothing planned on YouTube yet. Schedule Shorts from Drafts or Shorts &amp; Reels and they show up here.")+'</span></li>'; return; }
   j.items.sort((a,b)=>{ const ta=a.state&&a.state.publish_at||a.when||"", tb=b.state&&b.state.publish_at||b.when||""; return tb.localeCompare(ta); });
   $("plist").innerHTML=j.items.map((u,i)=>{
     const st=u.state||{}, gone=st.privacy==="missing", other=st.privacy==="other_channel";
@@ -54,18 +86,19 @@ async function openPosted(){
       catch(e){ r={ok:false}; k={error:"Couldn't reach Pit Crew. Is the app window still open?"}; }
       b.disabled=false; b.textContent="Save time";
       if(!r.ok){ err.textContent=k.error||"Couldn't change the time."; return; }
-      openPosted();
+      openPosted("shorts");
     };
     li.querySelector(".ed").onclick=()=>openJob(u.job,u.idx);
     const um=li.querySelector(".um");
     if(um) um.onclick=async()=>{
       if(!confirm("Unmark \""+u.title+"\"?\n\nOnly do this if it's really gone from YouTube. Pit Crew will then let you upload it again.")) return;
       const r=await fetch("/api/unmark/"+u.job+"/"+u.idx,{method:"POST"}); if(!r.ok){ err.textContent=(await r.json()).error||"Couldn't unmark it."; return; }
-      openPosted();
+      openPosted("shorts");
     };
   });
 }
 let focusIdx=null;
 function openJob(id,idx){ onReview=true; focusIdx=idx; $("reel").innerHTML=""; startPolling(id); }
-$("postedBtn").onclick=$("postedBtn4").onclick=$("postedNav").onclick=openPosted;
+$("postedBtn").onclick=$("postedBtn4").onclick=()=>openPosted("shorts");
+$("postedNav").onclick=()=>openPosted();
 $("ptNew").onclick=()=>{ location.hash=""; location.reload(); };

@@ -1,4 +1,7 @@
 // Step 3: Try again, Add a Short, and drawing / refreshing the cards.
+// "Post this" starts unticked: the creator picks the Shorts to post. The ticks live here ("jobid:idx"), so a card
+// redrawn after Try again or a new hook keeps its tick.
+const reviewPicked=new Set();
 const ADD_CARD='<article class="short addcard" id="addCard">'+
   '<button type="button" class="phone" id="addOpen"><span class="add-ic"><span class="ms" aria-hidden="true">add</span></span><b>Add a Short</b><span>A moment Pit Crew missed</span></button>'+
   '<div class="redo" hidden>'+
@@ -33,13 +36,23 @@ function wire(el){
     el.querySelectorAll(".toggle button").forEach(x=>x.setAttribute("aria-pressed",x===b));
     el.classList.toggle("thumb",b.dataset.v==="t"); if(b.dataset.v==="t") el.querySelector("video").pause();
   });
-  el.querySelector(".keep input").onchange=e=>{ el.classList.toggle("off",!e.target.checked); dock(); };
+  el.querySelector(".keep input").onchange=e=>{
+    const k=job.id+":"+el.dataset.idx; e.target.checked?reviewPicked.add(k):reviewPicked.delete(k);
+    el.classList.toggle("on",e.target.checked); dock();
+  };
   el.querySelector("video").addEventListener("play",e=>document.querySelectorAll("#reel video").forEach(v=>{ if(v!==e.target) v.pause(); }));
   const redo=el.querySelector(".redo"), err=el.querySelector(".rerr");
-  el.querySelector(".retry").onclick=()=>{ redo.hidden=!redo.hidden; if(!redo.hidden) redo.querySelector("textarea").focus(); };
+  el.querySelector(".retry").onclick=()=>{
+    if(job.video_deleted_at){  // nothing to cut a new moment from: say so instead of a button that does nothing
+      err.textContent="This vlog's video was deleted from Pit Crew (it's kept for 72 hours after the last edit), so Try again can't cut a new moment. Upload the vlog again to remake this Short.";
+      return;
+    }
+    redo.hidden=!redo.hidden; if(!redo.hidden) redo.querySelector("textarea").focus();
+  };
   el.querySelector(".pick").onclick=()=>openPicker(redo,+el.dataset.idx);
   wireHook(el,job.shorts.find(x=>x.idx===+el.dataset.idx));
   wireLook(el,job.shorts.find(x=>x.idx===+el.dataset.idx));
+  wirePostText(el,job.shorts.find(x=>x.idx===+el.dataset.idx));
   wireTile(el);
   el.querySelector(".cancel").onclick=()=>{ redo.hidden=true; err.textContent=""; };
   el.querySelector(".go").onclick=async()=>{
@@ -65,13 +78,16 @@ function wireAdd(){
 }
 function paintState(el,s){
   el.classList.toggle("redoing",!!s.retrying);
+  el.classList.toggle("on",reviewPicked.has(job.id+":"+s.idx));
   el.querySelector(".bmsg").textContent = s.retrying ? (s.retry_msg||"Making this Short") : "";
   if(s.pending) return;
   const gone=!!job.video_deleted_at;  // the vlog's video is deleted: nothing can be re-cut (titles and looks still work)
-  el.querySelector(".retry").disabled = !!s.retrying || gone;
+  el.querySelector(".retry").disabled = !!s.retrying;  // a deleted video is explained on click instead
   el.querySelectorAll(".hk-change,.hk-apply,.hk-rewrite").forEach(b=>b.disabled=!!s.retrying || gone);
   if(gone) el.querySelector(".retry").title="Needs the vlog's video, which was deleted";
-  el.querySelector(".rerr").textContent = s.retry_error ? "Try again stopped: "+s.retry_error : "";
+  const rerr=el.querySelector(".rerr");
+  if(s.retry_error) rerr.textContent="Try again stopped: "+s.retry_error;
+  else if(!gone || rerr.textContent.startsWith("Try again stopped")) rerr.textContent="";
 }
 function paintTitle(){
   const n=job.shorts.filter(s=>!s.pending).length;
@@ -94,7 +110,7 @@ function renderResults(){
   $("reel").innerHTML = job.shorts.map(cardHTML).join("")+ADD_CARD;
   document.querySelectorAll(".short[data-idx]").forEach(el=>{
     const s=job.shorts.find(x=>x.idx===+el.dataset.idx);
-    wire(el); paintState(el,s); el.classList.toggle("off",s.keep===false);
+    wire(el); paintState(el,s);
   });
   wireAdd(); paintTitle(); dock();
 }

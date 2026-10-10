@@ -40,7 +40,8 @@ def login_problem_page(msg, email=""):
 # Every /api and /media address needs a signed-in user, and a job is only reachable by its owner.
 PUBLIC = {"index", "static", "config", "me", "auth_signup", "auth_login", "auth_logout", "auth_google",
           "auth_forgot", "auth_reset",
-          "youtube_callback", "instagram_callback"}  # instagram_callback: its one-time state names the user
+          "youtube_callback", "instagram_callback",  # instagram_callback: its one-time state names the user
+          "instagram_video"}  # a signed, expiring link to one Reel's video, for Instagram to download
 
 
 EMAIL_RE = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")

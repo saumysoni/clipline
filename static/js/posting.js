@@ -90,6 +90,7 @@ function markPosted(){
     if(!u){ if(info) info.remove(); return; }
     const box=el.querySelector(".keep input"), lab=el.querySelector(".keep");
     box.checked=false; box.disabled=true; lab.classList.add("posted");
+    reviewPicked.delete(job.id+":"+u.idx); el.classList.remove("on");
     lab.lastChild.textContent=" On YouTube";
     const s=job.shorts.find(x=>x.idx===u.idx)||{}, title=el.querySelector("input.title");
     const newVideo = u.video && s.video!==u.video, newTitle = title && title.value.trim()!==u.title;

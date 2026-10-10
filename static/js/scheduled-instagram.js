@@ -1,15 +1,18 @@
-// Scheduled page, Instagram part: every Reel Pit Crew posted or planned (web/instagram_posting.py), with
-// Open on Instagram, Cancel (still waiting), Try again (failed) and Edit Short.
+// Scheduled page, Instagram part: every Reel Pit Crew planned that hasn't gone out (web/instagram_posting.py), with
+// Cancel (still waiting), Try again / Remove (failed) and Edit Short. Posted Reels are in Shorts & Reels.
 async function loadIgScheduled(){
   const list=$("igList");
   list.innerHTML='<li><span></span><span class="pv">Checking Instagram...</span></li>';
   let j; try{ j=await (await fetch("/api/instagram/posts")).json(); }catch(e){ j={items:[],error:"Couldn't reach Pit Crew."}; }
   const a=j.account||{};
-  if(!j.items || !j.items.length){
+  const posted=(j.items||[]).filter(p=>p.status==="done").length;
+  j.items=(j.items||[]).filter(p=>p.status!=="done"); schN.ig=j.items.length; schCount();
+  if(!j.items.length){
     list.innerHTML='<li><span></span><span class="pv">'+(j.error ? esc(j.error)
       : !a.configured ? "Instagram posting isn't set up yet (README step 6)."
       : !a.signed_in ? 'Nothing on Instagram yet. <button type="button" class="linkbtn" id="igSchConnect">Connect Instagram</button>, then use the Instagram card on the Post page.'
-      : "Nothing planned for Instagram yet. Use the Instagram card on the Post page after reviewing a vlog's Shorts.")+'</span></li>';
+      : posted ? "Nothing planned for Instagram. Reels that already went out are in Shorts &amp; Reels; schedule more from Drafts."
+      : "Nothing planned for Instagram yet. Schedule Reels from Drafts or Shorts &amp; Reels and they show up here.")+'</span></li>';
     if($("igSchConnect")) $("igSchConnect").onclick=()=>igSignIn(()=>loadIgScheduled());
     return;
   }
