@@ -20,6 +20,7 @@ from settings import JOBS_DIR
 from web.errors import plain_error
 from web.preview import PREVIEWS, PREVIEW_PCT
 from web.server import app
+from web.stop_and_retry import STOPPING
 from web.store import JOBS, LOCK, load_job, update
 
 
@@ -73,7 +74,7 @@ def summary(job):
             "yt_thumb": f"https://i.ytimg.com/vi/{vid.group(1)}/mqdefault.jpg" if vid else "",
             "shorts": len(shorts), "posted": posted, "scheduled": scheduled, "drafts": drafts,
             "remaking": any(s.get("retrying") for s in job.get("shorts", [])),
-            "removable": job.get("status") == "error" and not shorts,
+            "removable": _empty_stop(job),
             "youtube_url": vlog.get("youtube_url", ""), "video_deleted": bool(job.get("video_deleted_at")),
             "video_expires": _video_expires(job)}
 
@@ -122,13 +123,21 @@ def user_jobs(user_id):
     with LOCK:
         ids = {p.parent.name for p in JOBS_DIR.glob("*/job.json")} | set(JOBS)
         jobs = [load_job(i) for i in ids if re.fullmatch(r"[0-9a-f]{10}", i)]
-        return [json.loads(json.dumps(j, default=str)) for j in jobs if j and j.get("owner") == user_id]
+        return [json.loads(json.dumps(j, default=str)) for j in jobs
+                if j and j.get("owner") == user_id and j["id"] not in STOPPING]  # a vlog being stopped is gone
 
 
 @app.get("/api/vlogs")
 def vlogs():
     items = sorted((summary(j) for j in user_jobs(g.user["id"])), key=lambda v: v["created"], reverse=True)
     return jsonify(items=items)
+
+
+def _empty_stop(job):
+    """A vlog that stopped before making anything to keep: removed completely when deleted. Not a vlog prepared for
+    YouTube (vdraft) whose Shorts then stopped: its upload and details stay, only its video can go."""
+    return job.get("status") == "error" and not job.get("vdraft") and \
+        not [s for s in job.get("shorts", []) if not s.get("pending")]
 
 
 def _cant_delete(job):
@@ -170,7 +179,7 @@ def delete_videos():
             job = load_job(job_id)
             if not job or job.get("owner") != g.user["id"]:
                 continue
-            empty_stop = job.get("status") == "error" and not [s for s in job.get("shorts", []) if not s.get("pending")]
+            empty_stop = _empty_stop(job)
             why = _cant_delete(job) or (None if empty_stop or not job.get("video_deleted_at") else "already deleted")
             if not why and empty_stop:
                 JOBS.pop(job_id, None)

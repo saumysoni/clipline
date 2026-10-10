@@ -12,6 +12,7 @@ import sqlite3
 import time
 from pathlib import Path
 
+from accounts.token_box import seal, unseal
 from settings import ROOT
 
 
@@ -47,6 +48,17 @@ CREATE TABLE IF NOT EXISTS reel_snapshots (
     numbers_json TEXT NOT NULL,
     PRIMARY KEY (media_id, day)
 );
+CREATE TABLE IF NOT EXISTS usage (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    month TEXT NOT NULL,
+    seconds REAL NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, month)
+);
+CREATE TABLE IF NOT EXISTS email_verifications (
+    token_hash TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expires_at REAL NOT NULL
+);
 CREATE TABLE IF NOT EXISTS password_resets (
     token_hash TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -70,6 +82,19 @@ def init():
         if con.execute("PRAGMA user_version").fetchone()[0] < 1:
             _move_to_connections(con)
             con.execute("PRAGMA user_version = 1")
+        if con.execute("PRAGMA user_version").fetchone()[0] < 2:
+            _seal_tokens(con)
+            con.execute("PRAGMA user_version = 2")
+
+
+def _seal_tokens(con):
+    """Once (PRAGMA user_version 1 -> 2): encrypt the tokens saved before encryption (accounts/token_box.py), also in
+    the old unused tables, so no readable token is left in the file."""
+    tables = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    for table, key in (("connections", "id"), ("youtube_tokens", "user_id"), ("instagram_tokens", "user_id")):
+        if table in tables:
+            for r in con.execute(f"SELECT {key}, token_json FROM {table}").fetchall():
+                con.execute(f"UPDATE {table} SET token_json = ? WHERE {key} = ?", (seal(r["token_json"]), r[key]))
 
 
 def _move_to_connections(con):
@@ -168,6 +193,50 @@ def reset_password(token, password_hash):
     return user_by_id(row["user_id"])
 
 
+VERIFY_HOURS = 48
+
+
+def new_email_verification(user_id):
+    """A link token that confirms this user's email (only its hash is stored), valid for VERIFY_HOURS."""
+    token = secrets.token_urlsafe(32)
+    with connect() as con:
+        con.execute("DELETE FROM email_verifications WHERE expires_at < ?", (time.time(),))
+        con.execute("INSERT INTO email_verifications (token_hash, user_id, expires_at) VALUES (?, ?, ?)",
+                    (_hash(token), user_id, time.time() + VERIFY_HOURS * 3600))
+    return token
+
+
+def verify_email(token):
+    """Use a confirmation token: mark the email verified and return the user, or None if unknown or expired."""
+    with connect() as con:
+        row = con.execute("SELECT user_id FROM email_verifications WHERE token_hash = ? AND expires_at >= ?",
+                          (_hash(token), time.time())).fetchone()
+        if not row:
+            return None
+        con.execute("DELETE FROM email_verifications WHERE user_id = ?", (row["user_id"],))
+        con.execute("UPDATE users SET email_verified = 1 WHERE id = ?", (row["user_id"],))
+    return user_by_id(row["user_id"])
+
+
+def used_seconds(user_id, month):
+    """Seconds of vlog this user had made in a month ("2026-10"), web/allowance.py."""
+    with connect() as con:
+        row = con.execute("SELECT seconds FROM usage WHERE user_id = ? AND month = ?", (user_id, month)).fetchone()
+    return row["seconds"] if row else 0.0
+
+
+def add_usage(user_id, month, seconds):
+    with connect() as con:
+        con.execute("INSERT INTO usage (user_id, month, seconds) VALUES (?, ?, ?) ON CONFLICT(user_id, month) "
+                    "DO UPDATE SET seconds = seconds + excluded.seconds", (user_id, month, seconds))
+
+
+def delete_user(user_id):
+    """Forget a user: their connections, Reel numbers, reset and confirmation links go with them (ON DELETE CASCADE)."""
+    with connect() as con:
+        con.execute("DELETE FROM users WHERE id = ?", (user_id,))
+
+
 # Connected YouTube channels and Instagram accounts ("platform" youtube / instagram). A user can connect several
 # of each; one per platform is "active" (where new posts go). account_id is the YouTube channel id or Instagram
 # user id. Rows moved from the old tables may have no YouTube channel id yet (youtube/connection.py fills it in).
@@ -176,7 +245,8 @@ def _conn(row):
     if not row:
         return None
     d = dict(row)
-    d["token"] = json.loads(d.pop("token_json"))
+    text = unseal(d.pop("token_json"))
+    d["token"] = json.loads(text) if text else None  # None: unreadable (TOKEN_KEY changed) = signed out
     d["profile"] = json.loads(d.pop("profile_json") or "null")
     d["active"] = bool(d["active"])
     return d
@@ -203,7 +273,7 @@ def connection(user_id, platform, account_id=None):
 
 def save_connection(user_id, platform, account_id, token, profile=None):
     """Add (or update, if this account is already connected) a connection and make it the active one."""
-    token_json = token if isinstance(token, str) else json.dumps(token)
+    token_json = seal(token if isinstance(token, str) else json.dumps(token))
     profile_json = None if profile is None else json.dumps(profile)
     with connect() as con:
         con.execute("UPDATE connections SET active = 0 WHERE user_id = ? AND platform = ?", (user_id, platform))
@@ -218,7 +288,7 @@ def update_connection(conn_id, token=None, profile=None):
     with connect() as con:
         if token is not None:
             con.execute("UPDATE connections SET token_json = ? WHERE id = ?",
-                        (token if isinstance(token, str) else json.dumps(token), conn_id))
+                        (seal(token if isinstance(token, str) else json.dumps(token)), conn_id))
         if profile is not None:
             con.execute("UPDATE connections SET profile_json = ? WHERE id = ?", (json.dumps(profile), conn_id))
 

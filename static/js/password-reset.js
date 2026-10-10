@@ -11,7 +11,7 @@ function backToSignIn(){
 }
 async function authPost(url,body){
   try{ const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}); return [r.ok, await r.json()]; }
-  catch(x){ return [false,{error:"Couldn't reach Pit Crew. Is the app window still open?"}]; }
+  catch(x){ return [false,{error:"Couldn't reach Pit Crew. Check your internet connection, then try again."}]; }
 }
 $("forgotBtn").onclick=()=>{
   showAuthForm("forgotForm"); $("forgotErr").textContent=$("forgotOk").textContent="";

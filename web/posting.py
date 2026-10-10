@@ -12,6 +12,7 @@ import pipeline
 import youtube as yt
 from settings import JOBS_DIR
 
+from web import notices
 from web.server import app
 from web.store import JOBS, LOCK, load_job, update
 
@@ -95,6 +96,7 @@ def do_upload(user_id, job_id, items, mode, times, earlier, channel=None):
         if results and not any(i.get("replace") for i in items):
             msg += f" ({len(results)} already on YouTube; pressing the button again posts only the rest.)"
         update(job_id, upload_status="error", upload_msg=msg, uploads=results)
+        notices.post_failed(job_id, "YouTube", msg)
     finally:
         with LOCK:
             POSTING.discard(job_id)
@@ -125,9 +127,8 @@ def schedule(job_id):
             return jsonify(error="Wait until the Short you're remaking is ready."), 400
         earlier = list(job.get("uploads") or [])
     if not yt.is_configured():
-        return jsonify(error="YouTube isn't connected yet: client_secret.json is missing. "
-                             "The Shorts are saved in the jobs folder, so you can post them by hand, "
-                             "or follow README step 5 to turn on automatic posting."), 400
+        print("YouTube posting is off: no Google client (README step 5).")
+        return jsonify(error="YouTube posting isn't available right now. Your Shorts are saved here: download them, or try again later."), 400
     acct = yt.account(g.user["id"])
     if not acct["signed_in"]:
         return jsonify(error="Connect YouTube first, so Pit Crew knows which channel to post to.",

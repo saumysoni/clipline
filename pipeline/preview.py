@@ -32,12 +32,17 @@ def make_preview(video_path, out_path, progress=None):
            "-c:v", "libx264", "-preset", "veryfast", "-crf", "33", "-g", "24", "-pix_fmt", "yuv420p",
            "-c:a", "aac", "-b:a", "96k", "-ac", "2", "-movflags", "+faststart", str(tmp)]
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    for line in p.stdout:  # "-progress" writes key=value lines; out_time_us is how far it has got
-        if progress and duration and line.startswith("out_time_us="):
-            try:
-                progress(min(99, int(line.split("=", 1)[1]) / 1e6 / duration * 100))
-            except ValueError:
-                pass
+    try:
+        for line in p.stdout:  # "-progress" writes key=value lines; out_time_us is how far it has got
+            if progress and duration and line.startswith("out_time_us="):
+                try:
+                    progress(min(99, int(line.split("=", 1)[1]) / 1e6 / duration * 100))
+                except ValueError:
+                    pass
+    except BaseException:  # progress() said stop (e.g. the vlog was deleted): don't leave FFmpeg encoding
+        p.kill()
+        p.wait()
+        raise
     err = p.stderr.read()
     if p.wait() != 0:
         tail = "\n".join(err.strip().splitlines()[-12:])

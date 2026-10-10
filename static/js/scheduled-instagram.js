@@ -9,7 +9,7 @@ async function loadIgScheduled(){
   j.items=(j.items||[]).filter(p=>p.status!=="done"); schN.ig=j.items.length; schCount();
   if(!j.items.length){
     list.innerHTML='<li><span></span><span class="pv">'+(j.error ? esc(j.error)
-      : !a.configured ? "Instagram posting isn't set up yet (README step 6)."
+      : !a.configured ? "Instagram posting isn't available right now."
       : !a.signed_in ? 'Nothing on Instagram yet. <button type="button" class="linkbtn" id="igSchConnect">Connect Instagram</button>, then use the Instagram card on the Post page.'
       : posted ? "Nothing planned for Instagram. Reels that already went out are in Shorts &amp; Reels; schedule more from Drafts."
       : "Nothing planned for Instagram yet. Schedule Reels from Drafts or Shorts &amp; Reels and they show up here.")+'</span></li>';

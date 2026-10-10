@@ -58,6 +58,10 @@ The code is split so two people can work on different features without touching 
 |---|---|---|---|
 | Accounts (email + Google sign-in), `gate()` | `accounts/db.py` | `web/accounts.py` | `js/account.js`, `sections/auth.html`, `css/auth.css` |
 | Forgot password (reset link by email) | `accounts/db.py` (`password_resets`), `accounts/mail.py` | `web/password_reset.py` | `js/password-reset.js`, `sections/auth.html` |
+| Confirm your email (link on sign-up, `#verify=<token>`, 48 h; a bar with Resend until confirmed; notice emails wait for it) | `accounts/db.py` (`email_verifications`) | `web/verify_email.py` | `js/verify-email.js`, `css/verify-email.css` |
+| Delete account (Settings: type the email; every vlog, saved transcript, connection (YouTube revoked) and the account; refused while something is being made or posted) | `accounts/db.py` (`delete_user`) | `web/delete_account.py` | `js/delete-account.js`, `sections/settings.html` |
+| Emails when away (Shorts ready, vlog ready to upload, stopped, posting failed; not while the creator watches the page, only to confirmed emails; links use `APP_URL`) | | `web/notices.py` | |
+| Stop / Try again a whole vlog (Stop while it's made: removed, or back to ready if it was prepared for YouTube; Try again after it stopped: same video and transcript) | | `web/stop_and_retry.py` | `js/vlog-again.js` (used by `js/progress.js`, `js/vlog-upload.js`) |
 | Sidebar (+ Create; Workspace: Vlogs, Shorts & Reels, Drafts, Scheduled, Analytics; Channels; Account / Settings / Appearance) | | | `sections/sidebar.html`, `js/nav.js`, `css/shell.css` |
 | Drafts page (screen 11, `#drafts` / `#drafts/shorts`; tabs Vlogs = `isDraftVlog` (vlog uploads not on YouTube yet), Shorts & Reels = the Shorts & Reels clip browser in "drafts" mode (`isDraftClip`: on neither platform), with vlog filter, Select, Schedule, Delete) | | `web/vlogs.py`, `web/clips.py` (same APIs) | `js/drafts.js`, `sections/drafts.html` |
 | Vlogs / Shorts & Reels tabs (Drafts and Scheduled; `pageTabs()`, last tab clicked remembered) | | | `js/page-tabs.js`, `css/page-tabs.css` |
@@ -71,6 +75,10 @@ The code is split so two people can work on different features without touching 
 | Setup form (count, style, must-have moments, file, links) | `youtube/links.py` | `web/make_shorts.py` (`start`), `web/times.py` | `js/setup-form.js`, `js/must-have.js`, `js/video-file.js`, `js/links.js`, `js/start.js`, `sections/setup.html`, `css/setup.css` |
 | Vlog title/description from a YouTube link (API key, else the creator's YouTube connection, else title only) | `youtube/vlog_info.py`, `pipeline/vlog_context.py` | `web/vlog_info.py` | `js/links.js` |
 | Making Shorts (the whole run) | all of `pipeline/` | `web/make_shorts.py` | `js/progress.js`, `sections/making.html`, `css/making.css` |
+| Vlog queue (`JOB_SLOTS` at once, `JOB_SLOTS_PER_CREATOR` per creator; every vlog run goes through `enqueue_locked()` and `run_job()` builds it from the job; waiting = `working` + `queued`; vlogs under way at a restart are queued again by `load_job()` (`_restarted`, at most `MAX_RECOVERIES`)) | | `web/job_queue.py`, `web/store.py` (`RECOVERED`) | `js/progress.js` (waiting title) |
+| Limits (`MAX_VLOG_MINUTES`, `MONTHLY_VLOG_MINUTES` per account per UTC month; checked at `/api/upload/new`, at start from the sent file (`upload_problem()`: also "not a video"), and in the job after probe (`charge()`, once per vlog: `job["charged"]`); sign-ups 5 per IP per hour) | `accounts/db.py` (`usage`) | `web/allowance.py`, `web/accounts.py` | `js/allowance.js` (hint under the drop zones, length check before sending, Settings usage) |
+| Help (`SUPPORT_EMAIL`: sidebar Help, "Get help" + reference = the vlog's id on a stopped vlog and in emails) | | `web/pages.py` (`/api/config`), `web/notices.py` | `js/help.js` |
+| Sending the video in pieces (resumable: 8 MB pieces, retries, same file = carry on; `MAX_UPLOAD_GB`, room check, unfinished ones gone after 24 h; start routes take `upload=<id>` via `take_upload()`) | | `web/video_upload.py` | `js/video-upload.js` (`sendVideo()`, used by `js/start.js`, `js/vlog-upload.js`) |
 | Transcription (+ saved transcripts) | `pipeline/transcribe.py`, `pipeline/transcript_cache.py` | | |
 | Finding moments | `pipeline/moments.py` | | |
 | Editing a Short (reframe, captions, render) | `pipeline/reframe.py`, `pipeline/captions.py`, `pipeline/render.py`, `pipeline/fonts.py` | | |
@@ -282,7 +290,7 @@ The code is split so two people can work on different features without touching 
     (`pipeline/cover.py`). Instagram has **no scheduling for apps**: `web/instagram_posting.py` keeps
     `job["ig_posts"]` and a daemon thread posts due Reels (also ones that came due while Pit Crew was off). A Reel left
     in `posting` by a crash becomes `check`, never re-posted on its own. 100 API posts per account per 24 h.
-    In the cloud the scheduler must run in exactly one process (or move to a job queue). The redirect address is
+    In the cloud the scheduler (like the vlog queue, `web/job_queue.py`, and unfinished uploads in `jobs/_uploads`) must run in exactly one process with threads (no gunicorn `--preload`/forking: threads started at import don't survive a fork, and vlogs would wait forever; any proxy in front must accept request bodies of at least 8 MB, the upload pieces) (or move to a job queue). The redirect address is
     `INSTAGRAM_REDIRECT_URI` (Meta may refuse plain `http://localhost`; use an https tunnel then).
 20. **Several channels and Instagram accounts per creator.** `connections` in `accounts/db.py` (platform youtube /
     instagram, `account_id` = YouTube channel id / Instagram user id, token, profile, `active`). One per platform is
@@ -304,7 +312,9 @@ The code is split so two people can work on different features without touching 
     both clocks), so route Short changes through it. Warnings a day before: on the card (`video_expires` / `expires` in
     the APIs) and by email (`mail.notify`, printed when SMTP isn't set). Nothing is touched while a vlog is being made,
     remade or posted, or while a Reel is still waiting. `remove_video()` (`web/vlogs.py`) is shared with the 🗑 button;
-    after it, the editor locks Try again / hooks / Add a Short (`job.video_deleted_at`). `RETENTION_OFF=1` stops the
+    after it, the editor locks Try again / hooks / Add a Short (`job.video_deleted_at`). A vlog that stopped keeps its video
+    `KEEP_ORIGINAL_HOURS` after it stopped (`last_edit_at`, for Try again), then it's deleted (`_sweep_stopped`), or the whole vlog
+    if it made nothing to keep (never one prepared for YouTube: `_empty_stop()` in `web/vlogs.py`). `RETENTION_OFF=1` stops the
     timer (tests). In the cloud this becomes a scheduled job.
 22. **Compare clips by their first 7 days, never by lifetime totals** (older clips have had longer). YouTube:
     `first_week_views()` asks each Short's own channel (`video==id`, first 7 days; final after 9 days because of the
@@ -333,7 +343,9 @@ The code is split so two people can work on different features without touching 
 - Settings belong in `.env` (document every new one in `.env.example` and the README), read with
   `os.getenv(NAME, default)`.
 - Never commit secrets: `.env`, `client_secret.json`, `token.json` and `data/` are git-ignored. `data/clipline.db`
-  holds every user's YouTube connection (can post to real channels) and `data/secret_key` signs sign-in cookies.
+  holds every user's YouTube connection (can post to real channels; the tokens are encrypted with `TOKEN_KEY`, else
+  `data/token_key`: `accounts/token_box.py`, never store a token without `seal()`) and `data/secret_key` signs sign-in cookies.
+  The login and sign-up limits key on `request.remote_addr`: in the cloud set `TRUST_PROXY` (`web/server.py`, ProxyFix).
 - Don't commit media. `jobs/`, `_test/` and font files are ignored (fonts have their own licences).
 - After changing Python files, at minimum run: `python -m compileall -q app.py settings.py pipeline youtube accounts web`
   and start the app once (an import error in any `web/` file stops it from starting).

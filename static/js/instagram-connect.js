@@ -11,7 +11,7 @@ function paintPill(){
   $("igText").textContent = ig.signed_in ? "@"+(ig.username||"") : "Connect Instagram";
   const more=(ig.accounts||[]).length-1; $("igMore").textContent = ig.signed_in && more>0 ? "+"+more : "";
   $("igPill").classList.toggle("has", !!ig.signed_in);
-  $("igPill").title = !ig.configured ? "Instagram posting isn't set up yet (README step 6)"
+  $("igPill").title = !ig.configured ? "Instagram posting isn't available right now"
     : !ig.signed_in ? "Connect Instagram to post Reels" : !ig.can_post ? "Personal account: switch to professional to post" : "Posting Reels to @"+ig.username;
 }
 $("igPill").onclick=()=>{ if(ig.configured && !(ig.accounts||[]).length) igSignIn(); else openSwitcher("ig",$("igPill")); };
@@ -20,7 +20,7 @@ function paintIg(){
   const box=$("igAcct"); if(!box) return;
   const pic=ig.picture ? '<img src="'+esc(ig.picture)+'" alt="" referrerpolicy="no-referrer">' : '<span class="ms" aria-hidden="true">photo_camera</span>';
   box.innerHTML = !ig.configured
-    ? '<span class="ms" aria-hidden="true">info</span><span>Instagram posting isn\'t set up yet: Pit Crew needs a Meta app (README step 6). You can still Save each Short and post it yourself.</span>'
+    ? '<span class="ms" aria-hidden="true">info</span><span>Instagram posting isn\'t available right now. You can still Save each Short and post it yourself.</span>'
     : !ig.signed_in
     ? '<span class="ms" aria-hidden="true">photo_camera</span><span>Instagram isn\'t connected yet.</span><button type="button" class="linkbtn" id="igIn">Connect Instagram</button>'
     : pic+'<span>Posting to <b>@'+esc(ig.username||"")+'</b>'+(ig.offline?' (offline right now)':'')+'</span>'+

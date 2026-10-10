@@ -81,8 +81,8 @@ def pick_moments(transcript, n, progress=lambda pct, msg: None, context=None, no
     progress(10, "Reading the whole transcript")
     raw = ai_json(_moment_prompt(transcript, n + (2 if taken else 0), context, creator_wishes(taken, (), note)),
                   progress, busy_hint=(
-        "Your transcript is saved, so just click Make my Shorts again in a few minutes with the same "
-        "video; it will skip straight to finding moments."))
+        "Your transcript is saved, so press Try again in a few minutes; it will skip straight to "
+        "finding moments."))
     progress(80, "Choosing the best moments")
     try:
         picked = clean_moments(_as_list(raw), transcript, n + (2 if taken else 0))

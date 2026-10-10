@@ -16,3 +16,8 @@
 .set-card .theme-seg [data-theme-set=auto]{display:inline-flex}
 .set-card .ok-note{color:var(--good);font-size:.86rem}
 .set-card .ok-note:empty{display:none}
+.set-del{display:flex;flex-direction:column;gap:10px;padding:12px 0 2px;border-top:1px solid var(--line)}
+.set-del[hidden]{display:none}
+.set-del p{margin:0;color:var(--muted);font-size:.88rem}
+.set-del label{display:flex;flex-direction:column;gap:6px;font-size:.88rem;max-width:360px}
+.set-del .set-danger{color:var(--bad);border-color:var(--bad)}

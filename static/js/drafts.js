@@ -13,7 +13,7 @@ async function openDrafts(tab,vlog){
 }
 async function loadDraftVlogs(){
   try{ const r=await fetch("/api/vlogs"); if(!r.ok) throw 0; dfVlogs=((await r.json()).items||[]).filter(isDraftVlog); }
-  catch(e){ $("dfErr").textContent="Couldn't load your vlogs. Is Pit Crew still running?"; return; }
+  catch(e){ $("dfErr").textContent="Couldn't load your vlogs. Check your internet connection, then reload the page."; return; }
   $("dfErr").textContent=""; tabCount("dfNVlogs",dfVlogs.length);
   const vl=$("dfVlogList");
   vl.innerHTML = dfVlogs.length ? dfVlogs.map(vlRow).join("")

@@ -35,26 +35,32 @@ $("vuFile").onchange=e=>vuSetFile(e.target.files[0]);
 $("vuDrop").addEventListener("dragleave",()=>{ $("vuDrop").style.borderColor=""; });
 $("vuDrop").addEventListener("drop",e=>{ e.preventDefault(); $("vuDrop").style.borderColor=""; vuSetFile(e.dataTransfer.files[0]); });
 $("vuDrop").addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); $("vuFile").click(); } });
-$("vuGo").onclick=()=>{
+$("vuGo").onclick=async()=>{
   $("vuErr1").textContent="";
   const f=$("vuFile").files[0], link=$("vuLink").value.trim();
   if(!f && !link){ $("vuErr1").textContent="Choose your vlog file or paste a Google Drive link."; return; }
   const fd=new FormData();
-  if(f) fd.append("video",f); else fd.append("link",link);
+  if(!f) fd.append("link",link);
   fd.append("note",$("vuNote").value.trim());
-  const xhr=new XMLHttpRequest(), label=$("vuGo").innerHTML;
-  xhr.open("POST","/api/vlog/start");
-  $("vuGo").disabled=true; $("vuSendBar").hidden=false; jobsUpload(0);
-  xhr.upload.onprogress=e=>{ if(!e.lengthComputable) return; const p=e.loaded/e.total*100;
-    $("vuSendBar").firstElementChild.style.width=p+"%"; $("vuGo").textContent="Sending video "+Math.round(p)+"%"; jobsUpload(p); };
+  try{ fd.append("tz",Intl.DateTimeFormat().resolvedOptions().timeZone||""); }catch(e){}
+  if(!await stillSignedIn($("vuErr1"))) return;
+  const label=$("vuGo").innerHTML;
+  $("vuGo").disabled=true; $("vuSendBar").hidden=false;
   const done=()=>{ $("vuGo").disabled=false; $("vuGo").innerHTML=label; $("vuSendBar").hidden=true; jobsUpload(null); };
-  xhr.onload=()=>{
-    done(); let r={}; try{ r=JSON.parse(xhr.responseText); }catch(e){}
-    if(xhr.status!==200){ $("vuErr1").textContent=r.error||"Something went wrong sending the vlog."; if(r.field==="link") $("vuLink").focus(); return; }
-    openVlogUpload(r.id);
-  };
-  xhr.onerror=()=>{ done(); $("vuErr1").textContent="Couldn't reach Pit Crew. Is the app window still open?"; };
-  xhr.send(fd);
+  if(f){  // the video goes first, in pieces (js/video-upload.js); a rejected start below keeps it for the next press
+    const long=await videoTooLong(f); if(long){ done(); $("vuErr1").textContent=long; return; }
+    jobsUpload(0);
+    try{ fd.append("upload", await sendVideo(f, p=>{ $("vuSendBar").firstElementChild.style.width=p+"%"; $("vuGo").textContent="Sending video "+Math.floor(p)+"%"; jobsUpload(p); },
+                                             note=>{ $("vuErr1").textContent=note; })); }
+    catch(e){ done(); $("vuErr1").textContent=e.message; return; }
+  }
+  let r,j={}; try{ r=await fetch("/api/vlog/start",{method:"POST",body:fd}); j=await r.json(); }
+  catch(e){ done(); $("vuErr1").textContent="Couldn't reach Pit Crew. Check your internet connection, then press the button again (the video is already sent)."; return; }
+  done();
+  if(r.status===401) return;  // the sign-in screen is showing (js/account.js)
+  if(!r.ok){ if(j.upload_gone && f) upRemember(f,null); $("vuErr1").textContent=j.error||"Something went wrong sending the vlog."; if(j.field==="link") $("vuLink").focus(); return; }
+  if(f) upRemember(f,null);
+  openVlogUpload(j.id);
 };
 // ---- 2. Being prepared, then the page to check and upload
 async function vuTick(){
@@ -64,10 +70,13 @@ async function vuTick(){
   if(r.status===404){ vuStop(); openVlogs(); return; }
   const j=await r.json(); vuJob=j;
   if(j.kind!=="vlog" || j.count){ vuStop(); startPolling(id); return; }  // its Shorts are being made (or done)
-  if(j.status==="working"){ vuView("work"); vuTasks(j); return; }
+  $("vuStopRow").hidden=j.status!=="working";
+  if(j.status==="working"){ vuView("work"); vuTasks(j); $("vuErr2").textContent=""; $("vuStopBtn").onclick=()=>stopVlog(id, false, $("vuErr2")); return; }
   if(j.status==="error"){
     vuStop(); vuView("work"); vuTasks(j);
-    $("vuErr2").innerHTML=esc("Stopped: "+(j.error||"Something went wrong."))+' <button type="button" class="ghost sm" id="vuAgain">Start over</button>';
+    $("vuErr2").innerHTML=esc("Stopped: "+(j.error||"Something went wrong."))+' <button type="button" class="ghost sm" id="vuTry">Try again</button>'+
+      ' <button type="button" class="ghost sm" id="vuAgain">Start over</button>'+helpLine(id);
+    $("vuTry").onclick=()=>vlogAgain(id, $("vuErr2"));
     $("vuAgain").onclick=()=>openVlogUpload(); return;
   }
   const p=j.vpost||{};
@@ -139,7 +148,7 @@ $("vuLook").querySelectorAll("button").forEach(b=>b.onclick=async()=>{
   if(b.getAttribute("aria-pressed")==="true" || !vuId) return;
   const id=vuId; $("vuLook").classList.add("busy"); $("vuErr3").textContent="";
   let r,j; try{ r=await fetch("/api/vlog/"+id+"/look",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({look:b.dataset.look})}); j=await r.json(); }
-  catch(e){ r={ok:false}; j={error:"Couldn't reach Pit Crew. Is the app window still open?"}; }
+  catch(e){ r={ok:false}; j={error:"Couldn't reach Pit Crew. Check your internet connection, then try again."}; }
   $("vuLook").classList.remove("busy"); if(id!==vuId) return;
   if(!r.ok){ $("vuErr3").textContent=j.error||"Couldn't change the thumbnail."; return; }
   vuThumb({thumb:j.thumb, look:b.dataset.look});
@@ -148,7 +157,7 @@ $("vuPrivacy").onchange=()=>{ $("vuWhen").hidden=$("vuPrivacy").value!=="schedul
 // The channel line (the same channel the Shorts post to; Switch channel changes both).
 function vuPaintAcct(){
   const a=$("vuAcct"), name=yt.channel?yt.channel.title:"your channel";
-  if(!yt.configured){ a.innerHTML='<span class="ms" aria-hidden="true">info</span><span>YouTube isn\'t set up yet: the Google client file is missing from the app\'s folder (README step 5).</span>'; return; }
+  if(!yt.configured){ a.innerHTML='<span class="ms" aria-hidden="true">info</span><span>Posting to YouTube isn\'t available right now. Try again later.</span>'; return; }
   if(!yt.signed_in){
     a.innerHTML='<span class="ms" aria-hidden="true">smart_display</span><span>YouTube isn\'t connected yet.</span><button type="button" class="linkbtn" id="vuIn">Connect YouTube</button>';
     $("vuIn").onclick=()=>signIn(); return;
@@ -188,7 +197,7 @@ $("vuUpload").onclick=async()=>{
   clearTimeout(vuSaveT); $("vuUpload").disabled=true;
   let r,j; try{ r=await fetch("/api/vlog/"+vuId+"/upload",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({title:$("vuT").value,description:$("vuD").value,tags:vuTagList(),privacy,start:$("vuStart").value,tz,channel:yt.channel&&yt.channel.id})}); j=await r.json(); }
-  catch(e){ r={ok:false}; j={error:"Couldn't reach Pit Crew. Is the app window still open?"}; }
+  catch(e){ r={ok:false}; j={error:"Couldn't reach Pit Crew. Check your internet connection, then try again."}; }
   $("vuUpload").disabled=false;
   if(!r.ok){
     $("vuErr3").textContent=j.error||"Couldn't start the upload.";

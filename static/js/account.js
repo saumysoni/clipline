@@ -10,7 +10,7 @@ function paintAuth(){
   $("authSwitchText").textContent = signup ? "Already have an account?" : "New to Pit Crew?";
   $("authSwitch").textContent = signup ? "Sign in" : "Create an account";
   $("forgotBtn").hidden=signup;
-  $("authErr").textContent="";
+  $("authErr").textContent=""; $("authOk").textContent="";
 }
 function showLogin(){
   showAuthForm("authForm"); paintAuth();
@@ -18,11 +18,11 @@ function showLogin(){
 }
 $("authSwitch").onclick=()=>{ signup=!signup; paintAuth(); $("authEmail").focus(); };
 $("authForm").onsubmit=async e=>{
-  e.preventDefault(); $("authErr").textContent="";
+  e.preventDefault(); $("authErr").textContent=""; $("authOk").textContent="";
   const body={email:$("authEmail").value,password:$("authPass").value,name:$("authName").value};
   $("authGo").disabled=true;
   let r,j; try{ r=await fetch(signup?"/api/auth/signup":"/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}); j=await r.json(); }
-  catch(x){ r={ok:false}; j={error:"Couldn't reach Pit Crew. Is the app window still open?"}; }
+  catch(x){ r={ok:false}; j={error:"Couldn't reach Pit Crew. Check your internet connection, then try again."}; }
   $("authGo").disabled=false;
   if(!r.ok){ $("authErr").textContent=j.error||"Couldn't sign in."; if(j.field==="password") $("authPass").focus(); else $("authEmail").focus(); return; }
   $("authPass").value=""; boot();
@@ -32,6 +32,7 @@ $("logoutBtn").onclick=async()=>{ try{ await fetch("/api/auth/logout",{method:"P
 const rawFetch=window.fetch.bind(window);
 window.fetch=async(...a)=>{ const r=await rawFetch(...a); if(r.status===401) showLogin(); return r; };
 async function boot(){
+  if(location.hash.startsWith("#verify=")) await confirmEmail(location.hash.slice(8));  // link from the welcome email
   let m; try{ m=await (await rawFetch("/api/me")).json(); }catch(x){ m={user:null,google:false}; }
   $("googleBtn").hidden=$("authOr").hidden=!m.google;
   if(location.hash.startsWith("#reset=")){ showReset(location.hash.slice(7)); return; }  // link from a reset email
@@ -40,11 +41,11 @@ async function boot(){
     if(m.auth_error.email) $("authEmail").value=m.auth_error.email;
     $("authErr").textContent=m.auth_error.error; return;
   }
-  if(!m.user){ showLogin(); return; }
+  if(!m.user){ showLogin(); if(verifyNote){ $(verifyNote.startsWith("Email confirmed")?"authOk":"authErr").textContent=verifyNote; verifyNote=""; } return; }
   myEmail=m.user.email;  // the sidebar's Account row: the person's name (email when there's no name), email on hover
   $("meEmail").textContent=(m.user.name||"").trim()||myEmail; $("accountNav").title="Signed in as "+myEmail;
-  $("auth").hidden=true; $("app").hidden=false;
-  loadAccount(); loadIg(); refreshJobsNow();
+  $("auth").hidden=true; $("app").hidden=false; paintVerifyBar(m.user);
+  loadAccount(); loadIg(); refreshJobsNow(); loadLimits();
   if(booted){ if(jobId) startPolling(jobId); return; }  // signed in again mid-session: pick the job back up
   booted=true;
   openRoute(location.hash.slice(1));

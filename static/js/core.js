@@ -22,3 +22,9 @@ function show(n){
   window.scrollTo(0,0);
 }
 show(1);
+// Before sending a big video: still signed in? If the session ended, the server drops the upload part-way, which looks
+// like a lost connection; this shows the sign-in screen instead. false = don't send (err says why if it isn't sign-in).
+async function stillSignedIn(err){
+  try{ const m=await (await fetch("/api/me")).json(); if(m.user) return true; showLogin(); return false; }
+  catch(e){ err.textContent="Couldn't reach Pit Crew. Check your internet connection, then try again."; return false; }
+}

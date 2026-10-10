@@ -25,7 +25,7 @@ async function loadPreview(retry){
   while($("picker").open && mine===pkLoad){
     let j;
     try{ const r=await fetch("/api/preview/"+jobId,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({retry,source_failed:sourceFailed})}); j=await r.json(); }
-    catch(e){ j={status:"error",error:"Couldn't reach Pit Crew. Is the app window still open?"}; }
+    catch(e){ j={status:"error",error:"Couldn't reach Pit Crew. Check your internet connection, then try again."}; }
     retry=false;
     if(mine!==pkLoad) return;
     if(j.status==="source"){  // try the original; if this browser can't show it, ask for the copy instead

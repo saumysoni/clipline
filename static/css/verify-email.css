@@ -1,0 +1,8 @@
+/* "Confirm your email" bar at the top of every page (js/verify-email.js) */
+.verify-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 18px;padding:10px 14px;border:1px solid var(--line-2);
+  border-radius:10px;background:var(--raised);color:var(--muted);font-size:.88rem}
+.verify-bar[hidden]{display:none}
+.verify-bar .ms{color:var(--warn);font-size:20px;flex:none}
+.verify-bar.ok .ms{color:var(--good)}
+.verify-bar span.vb-t{flex:1;min-width:200px}
+.verify-bar b{color:var(--ink)}

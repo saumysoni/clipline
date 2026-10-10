@@ -11,16 +11,16 @@ def plain_error(raw, doing=""):
     low = text.lower()
     where = f" while {doing[0].lower()}{doing[1:]}" if doing else ""
     if any(k in low for k in ("503", "unavailable", "high demand", "overloaded")):
-        return "The AI service was too busy" + where + ". Upload the vlog again in a few minutes."
+        return "The AI service was too busy" + where + ". Press Try again in a few minutes."
     if any(k in low for k in ("429", "resource_exhausted", "quota", "rate limit")):
-        return "The AI's free limit was reached for now. Upload the vlog again later, or tomorrow."
+        return "The AI has reached its limit for now. Press Try again in an hour or so."
     if "metadata_errors" in low:
-        return "An older version of Pit Crew couldn't read this video's sound. That's fixed now: upload the vlog again."
+        return "An older version of Pit Crew couldn't read this video's sound. That's fixed now: press Try again."
     if "command failed: ffmpeg" in low or "ffmpeg" in low and len(text) > 160:
-        return "Pit Crew's video editor stopped" + where + ". Upload the vlog again; if it keeps happening, tell us."
+        return "Pit Crew's video editor stopped" + where + ". Press Try again; if it keeps happening, tell us."
     if "no space left" in low:
-        return "The computer ran out of storage space. Free some space, then upload the vlog again."
+        return "Pit Crew ran out of room for videos" + where + ". Press Try again later; if it keeps happening, tell us."
     technical = len(text) > 220 or re.search(r"\{'|Traceback|Error\(|0x[0-9a-f]{6,}|\bat 0x", text)
     if not text or technical:
-        return "Something went wrong" + where + ". Upload the vlog again; if it keeps happening, tell us."
+        return "Something went wrong" + where + ". Press Try again; if it keeps happening, tell us."
     return text

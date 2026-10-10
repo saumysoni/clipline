@@ -17,6 +17,7 @@
           <span id="vuDropText">Drop your vlog here</span>
           <span id="vuDropSub">or click to choose the video file</span>
         </label>
+        <p class="hint vlog-limits"></p>
         <div class="or">OR</div>
         <label class="lab" for="vuLink">Google Drive link</label>
         <div class="with-ic"><span class="ms" aria-hidden="true">add_to_drive</span><input type="text" id="vuLink" placeholder="https://drive.google.com/file/d/..."></div>
@@ -29,6 +30,7 @@
 
       <div class="card" id="vuWork" hidden>
         <ul class="tasks" id="vuTasks"></ul>
+        <p id="vuStopRow" hidden><button type="button" class="ghost" id="vuStopBtn"><span class="ms" aria-hidden="true">stop_circle</span>Stop</button></p>
         <div class="err" id="vuErr2" role="alert"></div>
       </div>
 

@@ -13,6 +13,15 @@
         <div class="set-row"><span class="ms" aria-hidden="true">account_circle</span><span class="set-t"><b id="setEmail"></b><small>Signed in</small></span>
           <span class="set-acts"><button type="button" class="linkbtn" id="setPass">Change password</button><button type="button" class="linkbtn" id="logoutBtn">Sign out</button></span></div>
         <div class="ok-note" id="setPassOk" role="status"></div>
+        <div id="setUsage"></div>
+        <div class="set-row"><span class="ms" aria-hidden="true">delete_forever</span><span class="set-t"><b>Delete account</b><small>Your vlogs, Shorts and connections are deleted from Pit Crew. What's on YouTube and Instagram stays.</small></span>
+          <span class="set-acts"><button type="button" class="linkbtn" id="setDelete">Delete account</button></span></div>
+        <form class="set-del" id="setDelForm" hidden novalidate>
+          <p>This deletes every vlog and Short in Pit Crew, cancels Reels that haven't gone out, and disconnects your channels. It can't be undone. Download anything you want to keep first.</p>
+          <label>Type your email to confirm <input id="setDelEmail" type="email" autocomplete="off" maxlength="200"></label>
+          <div class="err" id="setDelErr" role="alert"></div>
+          <div class="set-acts"><button type="submit" class="ghost set-danger" id="setDelGo">Delete my account</button><button type="button" class="linkbtn" id="setDelCancel">Cancel</button></div>
+        </form>
       </div>
       <div class="card set-card">
         <h2>YouTube channels</h2>

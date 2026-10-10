@@ -20,7 +20,15 @@ class _HideStatusPolls(logging.Filter):
 
 
 logging.getLogger("werkzeug").addFilter(_HideStatusPolls())
-app.config["MAX_CONTENT_LENGTH"] = None  # long 4K vlogs are big
+
+# Behind a proxy or load balancer (the cloud), the visitor's address and https come in X-Forwarded-* headers. TRUST_PROXY
+# = how many proxies are in front (usually 1); without it every visitor looks like the proxy, so the sign-in and sign-up
+# limits would lock everyone out together. Never set it when nothing is in front: anyone could fake the headers.
+if int(os.getenv("TRUST_PROXY", "0") or 0) > 0:
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    n = int(os.environ["TRUST_PROXY"])
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=n, x_proto=n, x_host=n)
+app.config["MAX_CONTENT_LENGTH"] = 64 * 1024 * 1024  # videos come in 8 MB pieces (web/video_upload.py)
 
 # Accounts: a signed session cookie holds the user's id. SESSION_COOKIE_SECURE=1 on an https server.
 db.init()

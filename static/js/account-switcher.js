@@ -25,8 +25,8 @@ function openSwitcher(kind,anchor){
     m.setAttribute("role","dialog");
     m.innerHTML='<div class="sw-head">'+(isYt?"YouTube channels":"Instagram accounts")+'</div>'+
       '<p class="sw-setup"><span class="ms" aria-hidden="true">info</span><span>'+(isYt
-        ? "YouTube posting isn't set up yet: Pit Crew needs the Google client file in the app's folder (README step 5). Add it, then click here again."
-        : "Instagram posting isn't set up yet: Pit Crew needs a Meta app. Put its <b>INSTAGRAM_APP_ID</b> and <b>INSTAGRAM_APP_SECRET</b> in the .env file (README step 6), then restart Pit Crew.")+'</span></p>';
+        ? "YouTube posting isn't available right now. Try again later."
+        : "Instagram posting isn't available right now. Try again later.")+'</span></p>';
     placeSwitcher(m,anchor); isYt?loadAccount():loadIg(); return;
   }
   m.innerHTML='<div class="sw-head">'+(isYt?"YouTube channels":"Instagram accounts")+'</div>'+
@@ -58,7 +58,7 @@ async function switchTo(kind,id){
   let r,a;
   try{ r=await fetch(isYt?"/api/youtube/switch":"/api/instagram/switch",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify(isYt?{channel:id}:{ig_id:id})}); a=await r.json(); }
-  catch(e){ r={ok:false}; a={error:"Couldn't reach Pit Crew. Is the app window still open?"}; }
+  catch(e){ r={ok:false}; a={error:"Couldn't reach Pit Crew. Check your internet connection, then try again."}; }
   if(!r.ok){ if(isYt) ytError(a.error||"Couldn't switch channel."); else if($("igErr")) $("igErr").textContent=a.error||"Couldn't switch account."; isYt?loadAccount():loadIg(); return; }
   if(isYt){ yt=a; paintAccount(); } else { ig=a; paintIg(); }
   switchedAccount();

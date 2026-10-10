@@ -24,7 +24,11 @@ def build_preview(job_id):
         src = next(job_dir.glob("source.*"), None)
         if not src:
             raise RuntimeError(VIDEO_GONE)
-        pipeline.make_preview(src, job_dir / "preview.mp4", lambda pct: PREVIEW_PCT.__setitem__(job_id, round(pct)))
+        def progress(pct):
+            if not src.exists():  # the vlog was stopped, deleted or its video removed: stop making the copy
+                raise RuntimeError(VIDEO_GONE)
+            PREVIEW_PCT[job_id] = round(pct)
+        pipeline.make_preview(src, job_dir / "preview.mp4", progress)
         if not src.exists():  # the video was deleted while the copy was being made: don't keep the copy either
             (job_dir / "preview.mp4").unlink(missing_ok=True)
         with LOCK:

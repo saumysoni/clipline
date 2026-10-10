@@ -2,7 +2,6 @@
 Pit Crew accounts: email + password or Continue with Google, and gate() which requires sign-in
 for every /api and /media address and checks that a job belongs to the signed-in user.
 """
-import json
 import re
 import sqlite3
 import time
@@ -13,11 +12,11 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 import youtube as yt
 from accounts import db
-from settings import JOBS_DIR
 
 from web.google_redirect import youtube_redirect_uri
 from web.server import app
-from web.store import JOBS, LOCK, load_job
+from web.verify_email import base_url, send_verification
+from web.store import LOCK, load_job
 
 
 @app.get("/api/auth/google")
@@ -39,7 +38,7 @@ def login_problem_page(msg, email=""):
 # Anyone can make an account: email + password, or Sign in with Google (name and email only).
 # Every /api and /media address needs a signed-in user, and a job is only reachable by its owner.
 PUBLIC = {"index", "static", "config", "me", "auth_signup", "auth_login", "auth_logout", "auth_google",
-          "auth_forgot", "auth_reset",
+          "auth_forgot", "auth_reset", "auth_verify",
           "youtube_callback", "instagram_callback",  # instagram_callback: its one-time state names the user
           "instagram_video"}  # a signed, expiring link to one Reel's video, for Instagram to download
 
@@ -48,6 +47,8 @@ EMAIL_RE = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
 
 
 FAILS = {}  # (email, ip) -> times of recent wrong passwords
+SIGNUPS = {}  # ip -> times of recent new accounts (stops one machine making accounts in bulk)
+SIGNUPS_PER_HOUR = 5
 
 
 def current_user():
@@ -84,22 +85,6 @@ def gate():
     return None
 
 
-def claim_old_jobs(user_id):
-    """Jobs made before Pit Crew had accounts belong to the first account (the person who ran it)."""
-    if db.count_users() != 1:
-        return
-    for path in JOBS_DIR.glob("*/job.json"):
-        with LOCK:
-            job = JOBS.get(path.parent.name) or json.loads(path.read_text(encoding="utf-8"))
-            if job.get("owner"):
-                continue
-            job["owner"] = user_id
-            path.write_text(json.dumps(job, default=str), encoding="utf-8")
-            if path.parent.name in JOBS:
-                JOBS[path.parent.name]["owner"] = user_id
-        print(f"Gave job {path.parent.name} (made before accounts) to the first account.")
-
-
 EMAIL_EXISTS = ("Email already exists. This email has a Pit Crew account with a password: sign in with your email "
                 "and password, or use Forgot password.")
 
@@ -119,7 +104,6 @@ def google_user(info):
         if not user or user["google_sub"] != info["sub"]:
             raise RuntimeError(EMAIL_EXISTS)
         return user
-    claim_old_jobs(uid)
     return db.user_by_id(uid)
 
 
@@ -127,7 +111,8 @@ def google_user(info):
 def me():
     u = g.user
     problem = session.pop("auth_error", None) if not u else None  # from a Google sign-in that didn't work
-    return jsonify(user={"email": u["email"], "name": u["name"]} if u else None, google=yt.is_configured(),
+    return jsonify(user={"email": u["email"], "name": u["name"], "verified": bool(u["email_verified"])} if u else None,
+                   google=yt.is_configured(),
                    auth_error=problem)
 
 
@@ -141,6 +126,10 @@ def auth_signup():
         return jsonify(error="Choose a password with at least 8 characters.", field="password"), 400
     if len(password) > 200:
         return jsonify(error="That password is too long.", field="password"), 400
+    ip, now = request.remote_addr, time.time()
+    recent = [t for t in SIGNUPS.get(ip, []) if now - t < 3600]
+    if len(recent) >= SIGNUPS_PER_HOUR:
+        return jsonify(error="Too many new accounts from here just now. Try again in an hour."), 429
     existing = db.user_by_email(email)
     if existing:
         msg = ("This email already has a Pit Crew account through Google. Use Sign in with Google."
@@ -151,8 +140,10 @@ def auth_signup():
         uid = db.create_user(email, str(data.get("name", "")), password_hash=generate_password_hash(password))
     except sqlite3.IntegrityError:
         return jsonify(error="There's already an account with this email. Sign in instead.", field="email"), 400
-    claim_old_jobs(uid)
-    start_session(db.user_by_id(uid))
+    SIGNUPS[ip] = recent + [now]
+    user = db.user_by_id(uid)
+    start_session(user)
+    send_verification(user, base_url())  # confirms the email (web/verify_email.py)
     return jsonify(ok=True)
 
 

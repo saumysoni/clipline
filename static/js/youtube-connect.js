@@ -11,11 +11,11 @@ function paintAccount(){
   $("ytText").textContent = yt.signed_in ? name : "Connect YouTube";
   const more=(yt.channels||[]).length-1; $("ytMore").textContent = yt.signed_in && more>0 ? "+"+more : "";
   $("ytPill").classList.toggle("has", !!yt.signed_in);
-  $("ytPill").title = !yt.configured ? "YouTube posting isn't set up yet (README step 5)"
+  $("ytPill").title = !yt.configured ? "YouTube posting isn't available right now"
     : yt.signed_in ? "Posting to "+name : "Connect your YouTube channel to post your Shorts";
   $("acct").hidden = false;
   $("acct").innerHTML = !yt.configured
-    ? '<span class="ms" aria-hidden="true">info</span><span>YouTube posting isn\'t set up yet: the Google client file is missing from the app\'s folder (README step 5). Drop it in and click <b>Connect YouTube</b>; no restart needed. You can still Save each Short.</span>'
+    ? '<span class="ms" aria-hidden="true">info</span><span>YouTube posting isn\'t available right now. You can still Save each Short and post it yourself.</span>'
     : yt.signed_in
     ? (yt.channel&&yt.channel.thumb ? '<img src="'+esc(yt.channel.thumb)+'" alt="" referrerpolicy="no-referrer">' : '<span class="ms" aria-hidden="true">smart_display</span>')+
       '<span>Posting to <b>'+esc(name)+'</b>'+(yt.offline?' (offline right now)':'')+'</span>'+
@@ -46,8 +46,7 @@ function signedIn(a){
 function signIn(then){
   ytThen = then || null;
   if(!yt.configured){
-    const msg="YouTube posting isn't set up yet: Pit Crew needs the Google client file (README step 5). "+
-      "Download it from Google Cloud and put it in the app's folder as it is (no need to rename it), then click Connect YouTube again.";
+    const msg="YouTube posting isn't available right now. Try again later; you can still Save each Short and post it yourself.";
     // Check again first: the file may have been added since the page loaded (then one more click signs in).
     loadAccount().then(()=>{
       const m = yt.configured ? "Found the Google client file. Click Connect YouTube again." : msg;

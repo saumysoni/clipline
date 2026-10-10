@@ -61,7 +61,7 @@ function wirePostText(el,s){
       const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}), j=await r.json();
       if(!r.ok){ err.textContent=j.error||"Couldn't save it. Try again."; return null; }
       return j;
-    }catch(e){ err.textContent="Couldn't reach Pit Crew. Is the app window still open?"; return null; }
+    }catch(e){ err.textContent="Couldn't reach Pit Crew. Check your internet connection, then try again."; return null; }
   }
   function show(j){
     suggested=j.suggested||""; if(!dirty) cap.value=j.caption||suggested;
@@ -121,7 +121,7 @@ function wirePostText(el,s){
     const kind=go.dataset.kind, list=box.querySelector('.pt-ideas[data-kind="'+kind+'"]'), lab=go.lastChild;
     err.textContent=""; go.disabled=true; lab.textContent="Writing ideas...";
     let r,j; try{ r=await fetch("/api/clips/"+job.id+"/"+s.idx+"/suggest",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({kind})}); j=await r.json(); }
-    catch(e){ r={ok:false}; j={error:"Couldn't reach Pit Crew. Is the app window still open?"}; }
+    catch(e){ r={ok:false}; j={error:"Couldn't reach Pit Crew. Check your internet connection, then try again."}; }
     go.disabled=false; lab.textContent=r.ok?"More ideas":"Generate ideas";
     if(!r.ok){ err.textContent=j.error||"Couldn't write ideas right now. Try again in a moment."; return; }
     list.innerHTML=j.items.map(t=>'<button type="button" class="pt-idea">'+esc(t).replace(/\n/g,"<br>")+'</button>').join("");

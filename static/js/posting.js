@@ -57,7 +57,7 @@ async function postShorts(){
       body:JSON.stringify({shorts,schedule:mode,tz,start:$("schStart").value,every:+$("schEvery").value,
         channel:yt.channel&&yt.channel.id})});  // the channel this page says it's posting to
     j=await r.json();
-  }catch(e){ $("schedBtn").disabled=false; $("err3").textContent="Couldn't reach Pit Crew. Is the app window still open?"; return; }
+  }catch(e){ $("schedBtn").disabled=false; $("err3").textContent="Couldn't reach Pit Crew. Check your internet connection, then try again."; return; }
   if(!r.ok){
     $("schedBtn").disabled=false; $("err3").textContent=j.error||"Couldn't start posting.";
     if(j.field==="start") $("schStart").classList.add("bad");
@@ -116,7 +116,7 @@ async function repost(idx,box,replace){
   btn.disabled=true; btn.lastChild.textContent = replace ? "Replacing..." : "Updating...";
   let r,j;
   try{ r=await fetch("/api/repost/"+jobId+"/"+idx,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({title:el.querySelector("input.title").value})}); j=await r.json(); }
-  catch(e){ j={error:"Couldn't reach Pit Crew. Is the app window still open?"}; r={ok:false}; }
+  catch(e){ j={error:"Couldn't reach Pit Crew. Check your internet connection, then try again."}; r={ok:false}; }
   if(!r.ok){ err.textContent=j.error||"Couldn't update it."; box.dataset.html=""; tick(); return; }
   if(j.done==="title"){ const u=(job.uploads||[]).find(x=>x.idx===idx); if(u) u.title=el.querySelector("input.title").value.trim(); box.dataset.html=""; markPosted(); box.querySelector("small").textContent="Title updated on YouTube."; return; }
   onReview=false; job.upload_status="starting";
