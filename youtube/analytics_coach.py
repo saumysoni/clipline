@@ -8,8 +8,10 @@ Rules that keep it honest:
   any other number is dropped, and if the headline does, the rule-based headline is used instead.
 - With no AI key, or the AI busy, the same kind of read comes from rules(), so the page always has one.
 - Never makes the page wait: the rule-based read shows at once and the AI's replaces it when ready.
-- Automatic, but cheap: the answer is kept for a day per set of numbers (a fingerprint of the facts), so the AI is
-  asked again only when the numbers change (YouTube updates about once a day).
+- Cheap: ONE read per creator per day (key: user, channel, Instagram on/off, date), whatever range or platform the page
+  shows. It's built from fixed numbers (Shorts all time, the last 28 days, Instagram's last 30 days, each clip since
+  posted) and has a headline for both apps, one for YouTube only and one for Instagram only, so switching the range or
+  the platform never asks the AI again. At most one AI call per creator per day (a failed one is retried after 10 min).
 """
 import hashlib
 import json
@@ -74,6 +76,32 @@ def build_facts(range_label, content, dash, ig_acct, pairs):
     return f
 
 
+def daily_facts(dash_all, dash_28, ig_acct, pairs):
+    """The numbers the daily read is based on: Shorts all time and the last 28 days, Instagram's last 30 days, and
+    each Pit Crew clip since it was posted. Each part is labelled with its time span, so the AI can't mix them up."""
+    f = {}
+    a = build_facts("all time", "shorts", dash_all, None, pairs)
+    if a.get("youtube"):
+        f["youtube_shorts_all_time"] = a["youtube"]
+    r = build_facts("last 28 days", "shorts", dash_28, None, [])
+    if r.get("youtube"):
+        f["youtube_shorts_last_28_days"] = {k: v for k, v in r["youtube"].items() if k != "top_videos"}
+    i = build_facts("", "", None, ig_acct, [])
+    if i.get("instagram"):
+        f["instagram_reels_last_%s_days" % (ig_acct.get("days") or 30)] = i["instagram"]
+    if a.get("pit_crew_clips_lifetime_totals"):
+        f["pit_crew_clips_lifetime_totals"] = a["pit_crew_clips_lifetime_totals"]
+    return f
+
+
+def _yt(f):
+    return f.get("youtube_shorts_all_time") or f.get("youtube") or {}
+
+
+def _ig(f):
+    return next((v for k, v in f.items() if k.startswith("instagram")), None) or {}
+
+
 def _numbers(obj):
     """Every number in the facts, plus the forms an answer may write it in (rounded, 1 decimal, percent)."""
     out = set()
@@ -110,78 +138,94 @@ def _honest(text, allowed):
 
 
 PROMPT = """You are Pit Crew's analytics coach for a video creator who posts the same clips as YouTube Shorts and
-Instagram Reels. Below are their numbers as JSON. Write, in plain friendly English a 15-year-old understands:
+Instagram Reels. Below are their numbers as JSON; every key says its time span. Write, in plain friendly English a
+15-year-old understands:
 
-1. "headline": one or two sentences (max 45 words) on the single most useful thing these numbers show. If both
-   platforms have numbers, say how they differ.
-2. "tips": exactly 3 things to try next, each {"platform": "youtube" | "instagram" | "both", "title": max 7 words,
-   "because": one sentence citing the number it comes from, "try": one concrete action, max 18 words}.
+1. "headline": one or two sentences (max 45 words) on the single most useful thing these numbers show. If both apps
+   have numbers, say how they differ.
+2. "headline_youtube": the same, about YouTube only ("" if there are no YouTube numbers).
+3. "headline_instagram": the same, about Instagram only ("" if there are no Instagram numbers).
+4. "tips": 4 or 5 things to try next, each {"platform": "youtube" | "instagram" | "both", "title": max 7 words,
+   "because": one sentence citing the number it comes from and its time span, "try": one concrete action, max 18
+   words}. Give at least 2 per app that has numbers.
 
 Rules:
 - Use ONLY numbers that appear in the JSON (you may round them). Never invent a number, a cause you can't see in the
   data, or a benchmark ("most creators get...").
-- "period" is the time span the page shows. Numbers under "youtube" and "instagram" are for that period only.
-  Numbers under "pit_crew_clips_lifetime_totals" are each clip's totals since it was posted, NOT this period: never
-  call them this period's numbers or use them to say which clip won this period.
+- Say which time span a number is from ("all time", "in the last 28 days", "since it was posted"). Never mix spans:
+  "pit_crew_clips_lifetime_totals" are each clip's totals since it was posted.
 - Each "because" must be a fact from the numbers that directly supports its "try". Don't link things the numbers
   don't link (which days views came on says nothing about a clip's first seconds).
 - Write numbers with commas (1,449) and percentages as 53%.
 - If there are fewer than 5 clips, say these are early hints.
 - No jargon (no "CTR", "algorithm", "engagement rate"). No emoji. No markdown.
-- Reply with JSON only: {"headline": "...", "tips": [...]}.
+- Reply with JSON only: {"headline": "...", "headline_youtube": "...", "headline_instagram": "...", "tips": [...]}.
 
 Numbers:
 """
 
 
 def rules(f):
-    """The read without AI: the biggest plain facts, worded by rules."""
-    y, i, tips = f.get("youtube") or {}, f.get("instagram") or {}, []
+    """The read without AI: the biggest plain facts, worded by rules (same shape as the AI's)."""
+    y, i, tips = _yt(f), _ig(f), []
+    r28 = f.get("youtube_shorts_last_28_days") or {}
     vids = y.get("top_videos") or []
-    head = ""
+    hy = hi = ""
     if vids and y.get("views"):
         top = vids[0]
-        share = _pct(top["views"] or 0, y["views"])
-        head = f"Your top video, “{top['title']}”, brought {share}% of your YouTube views in this period."
-    elif i.get("views"):
-        head = f"Your Instagram Reels were viewed {i['views']:,} times in the last {i.get('days')} days."
-    else:
-        head = "Not enough numbers yet. Once your clips have a few days of views, Pit Crew explains what's working."
+        hy = f"Your top Short, “{top['title']}”, brought {_pct(top['views'] or 0, y['views'])}% of all your Shorts views so far."
+    if i.get("views"):
+        hi = f"Your Instagram Reels were viewed {i['views']:,} times in the last {i.get('days')} days."
+    head = hy or hi or "Not enough numbers yet. Once your clips have a few days of views, Pit Crew explains what's working."
     if y.get("percent_from_search") is not None:
         tips.append({"platform": "youtube", "title": "Make videos people search for",
-                     "because": f"{y['percent_from_search']}% of your YouTube views came from search.",
+                     "because": f"{y['percent_from_search']}% of your Shorts views so far came from YouTube search.",
                      "try": "Name the place, dish or event in the title and the first line."})
-    if y.get("percent_of_views_on_best_2_days") and y["percent_of_views_on_best_2_days"] >= 60:
+    if y.get("avg_percent_viewed"):
+        tips.append({"platform": "youtube", "title": "Show it while you say it",
+                     "because": f"People watch {round(y['avg_percent_viewed'])}% of each Short on average, all time.",
+                     "try": "Put the place or dish on screen in the first 2 seconds, while you say the hook."})
+    best2 = r28.get("percent_of_views_on_best_2_days")
+    if best2 and best2 >= 60:
         tips.append({"platform": "both", "title": "Space your clips out",
-                     "because": f"{y['percent_of_views_on_best_2_days']}% of your views came on just 2 days.",
+                     "because": f"In the last 28 days, {best2}% of your views came on just 2 days.",
                      "try": "Post one clip every 2 days so each gets its own days."})
     if y.get("views") and y.get("new_subscribers") is not None and y["new_subscribers"] <= 0:
         tips.append({"platform": "youtube", "title": "Give viewers a reason to follow",
-                     "because": f"{y['views']:,} views brought {y['new_subscribers']} new subscribers.",
+                     "because": f"{y['views']:,} Shorts views so far brought {y['new_subscribers']} new subscribers.",
                      "try": "End with where the full story is: your vlog on the channel."})
-    if i.get("shares") and len(tips) < 3:
+    if i.get("shares"):
         tips.append({"platform": "instagram", "title": "Make clips worth sending",
-                     "because": f"Your Reels were shared {i['shares']:,} times.",
+                     "because": f"Your Reels were shared {i['shares']:,} times in the last {i.get('days')} days.",
                      "try": "End with a question people want to answer or send to a friend."})
-    return {"headline": head, "tips": tips[:3], "source": "rules"}
+    if i.get("percent_reach_non_followers") is not None:
+        tips.append({"platform": "instagram", "title": "Reach people who don't follow you",
+                     "because": f"{i['percent_reach_non_followers']}% of the accounts your Reels reached don't follow you.",
+                     "try": "Open with the most surprising second so new people stop scrolling."})
+    return {"headline": head, "headline_youtube": hy, "headline_instagram": hi, "tips": _fill([], tips, f), "source": "rules"}
 
 
 def _providers():
     return [p for p in ("gemini", "openai") if has_key(p)]
 
 
-MAX_KEPT = 500  # answers kept in memory (oldest dropped)
+MAX_KEPT = 2000  # reads kept in memory (oldest dropped); one per creator per day
 
 
-def read(facts):
-    """The headline + 3 tips for these facts. From the cache when it has them; otherwise the rule-based read now,
-    marked pending, while the AI writes its read in the background (it can take a minute when Gemini is slow;
-    the page asks again and swaps it in)."""
-    key = hashlib.sha256(json.dumps(facts, sort_keys=True, default=str).encode()).hexdigest()
+def cached(key):
+    """Today's read for this key, or None (the route checks this before fetching any numbers)."""
     with _LOCK:
         hit = _CACHE.get(key)
-        if hit and time.time() - hit[0] < CACHE_SECS:
-            return hit[1]
+        return hit[1] if hit and time.time() < hit[0] else None
+
+
+def read(key, facts):
+    """Today's read: from the cache, else the rule-based read at once, marked pending, while the AI writes its read
+    in the background (it can take a minute when Gemini is slow; the page asks again and swaps it in)."""
+    hit = cached(key)
+    if hit:
+        return hit
+    with _LOCK:
         if key not in _BUSY:  # two tabs loading at once ask the AI once
             _BUSY[key] = threading.Thread(target=_work, args=(key, facts), daemon=True)
             _BUSY[key].start()
@@ -195,11 +239,35 @@ def _work(key, facts):
         traceback.print_exc()
         out = rules(facts)
     with _LOCK:
-        _CACHE[key] = (time.time() if out["source"] == "ai" else time.time() - CACHE_SECS + 600, out)  # rules: retry AI in 10 min
+        # kept until the day in the key is over (the key carries the date); rule-based: ask the AI again in 10 min
+        _CACHE[key] = (time.time() + (CACHE_SECS if out["source"] == "ai" else 600), out)
         _BUSY.pop(key, None)
         if len(_CACHE) > MAX_KEPT:
             for k in sorted(_CACHE, key=lambda k: _CACHE[k][0])[:len(_CACHE) - MAX_KEPT]:
                 _CACHE.pop(k, None)
+
+
+def _same_point(tip, tips):
+    """True if a rule-based tip repeats one already there: same title, or its "because" quotes the same figure
+    (the AI's "search friendly names" and the rule's "videos people search for" both cite "48% from search")."""
+    figs = {n for n in _quoted(tip["because"]) if n > 10}
+    return any(tip["title"] == t["title"] or figs & set(_quoted(t["because"])) for t in tips)
+
+
+def _fill(tips, extra, facts):
+    """At least 2 tips for each app that has numbers (the page filters by app), topped up from the rule-based ones
+    without repeating a point; at most 6."""
+    for plat, has in (("youtube", _yt(facts)), ("instagram", _ig(facts))):
+        if not has:
+            continue
+        for t in extra:
+            if sum(x["platform"] in (plat, "both") for x in tips) >= 2:
+                break
+            if t["platform"] in (plat, "both") and not _same_point(t, tips):
+                tips.append(t)
+    if len(tips) < 3:
+        tips += [t for t in extra if not _same_point(t, tips)][:3 - len(tips)]
+    return tips[:6]
 
 
 def _ask(facts):
@@ -213,7 +281,14 @@ def _ask(facts):
             continue
         if not isinstance(got, dict):
             continue
-        head = " ".join(str(got.get("headline") or "").split())[:400]
+        rb = rules(facts)
+        heads = {}
+        for k in ("headline", "headline_youtube", "headline_instagram"):
+            h = " ".join(str(got.get(k) or "").split())[:400]
+            if h and not _honest(h, allowed):
+                print(f"Analytics read: {k} used a number not in the data; using the rule-based one:", h)
+                h = ""
+            heads[k] = h or rb[k]
         tips = []
         for t in got.get("tips") or []:
             if not isinstance(t, dict):
@@ -226,10 +301,5 @@ def _ask(facts):
                 tips.append(tip)
             else:
                 print("Analytics read: dropped a tip with a number not in the data:", tip)
-        if not head or not _honest(head, allowed):
-            print("Analytics read: headline used a number not in the data; using the rule-based one:", head)
-            head = rules(facts)["headline"]
-        if len(tips) < 3:
-            tips += [t for t in rules(facts)["tips"] if t["title"] not in {x["title"] for x in tips}][:3 - len(tips)]
-        return {"headline": head, "tips": tips[:3], "source": "ai"}
+        return {**heads, "tips": _fill(tips, rb["tips"], facts), "source": "ai"}
     return None

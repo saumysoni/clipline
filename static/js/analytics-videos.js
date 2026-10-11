@@ -24,7 +24,7 @@ function anVideosLoad(){
   if(anVidView==="clips"){
     if(!anPairs) anPairsLoad(); else anPairsPaint();
     if(!acData) loadClipStats(); else paintClipStats();
-    anVlogsLoad(anQuery());
+    anVlogsLoad("content=all&days=0");  // this view is "since posted": never the date range
   } else {
     const q=anQuery();
     if(!anCmp||anCmp.q!==q) anCmpLoad(q); else { anCmpPaint(); anCmpChart(true); }
@@ -162,15 +162,16 @@ async function anVlogsLoad(q){
   if($("anVlogs").dataset.q===q) return;
   $("anVlogs").dataset.q=q;
   const j=await anGet("/api/analytics/vlogs?"+q);
-  if(q!==anQuery()) return;
+  if($("anVlogs").dataset.q!==q) return;
   const items=(j.items||[]);
   if(!items.length||!anShowYt()){ $("anVlogs").innerHTML=""; return; }
-  $("anVlogs").innerHTML=card("anVl","Vlogs and their Shorts","How each vlog did next to the Shorts made from it, and how many viewers the Shorts sent to it · "+anRangeText((anData&&anData.youtube&&anData.youtube.range)||{days:anDays}),
+  $("anVlogs").innerHTML=card("anVl","Vlogs and their Shorts","How each vlog did next to the Shorts made from it, and how many viewers the Shorts sent to it · since each was posted",
     '<div class="vl-links">'+items.map(v=>'<div class="vl-link">'+(v.thumb?'<img src="'+esc(v.thumb)+'" alt="" referrerpolicy="no-referrer" loading="lazy">':'<span class="noimg"></span>')+
       '<div class="vl-t"><b>'+esc(v.title||"Your vlog")+'</b><small>'+v.shorts+' Short'+(v.shorts===1?"":"s")+' posted</small></div>'+
       '<div class="vl-n"><span>Vlog views</span><b>'+compact(v.views)+'</b></div>'+
       '<div class="vl-n"><span>Its Shorts\' views</span><b>'+compact(v.shorts_views)+'</b></div>'+
-      '<div class="vl-n hi"><span>Viewers sent by the Shorts</span><b>'+compact(v.sent)+'</b><small>'+(v.views?pct(v.sent/v.views*100)+" of the vlog's views":"")+'</small></div></div>').join("")+'</div>'+
+      '<div class="vl-n hi"><span>Viewers sent by the Shorts</span><b>'+compact(v.sent)+'</b><small>'+(v.views?pct(v.sent/v.views*100)+" of the vlog's views":"")+'</small></div>'+
+      (!v.views&&v.shorts_views?'<p class="vl-hint"><span class="ms" aria-hidden="true">info</span>No views on the vlog yet. If it\'s still private (YouTube keeps uploads from new apps private until Google\'s review), make it public in YouTube Studio so the Shorts can send people to it.</p>':'')+'</div>').join("")+'</div>'+
     '<p class="sub">"Sent by the Shorts" counts views that came from the related-video link on a Short. YouTube Analytics, about 2 days behind.</p>',
     table(["Vlog","Vlog views","Shorts","Shorts' views","Sent by Shorts"],items.map(v=>[v.title,full(v.views),full(v.shorts),full(v.shorts_views),full(v.sent)]),[1,2,3,4]));
   wireCards();
@@ -215,7 +216,7 @@ function anCmpPaint(){
     (d.other&&!anCmpFind?'<tr class="oth"><td></td><td class="vt"><b>Other '+W[1]+'</b><small>Deleted, private or no longer listed</small></td>'+cols.map(([k])=>CMP_SHARE.has(k)?cell(d.other,k):'<td></td>').join("")+'</tr>':'');
   const seg=(id,opts,cur)=>'<div class="an-seg" id="'+id+'" role="group">'+opts.map(([v,l])=>'<button type="button" data-v="'+v+'" aria-pressed="'+(v===cur)+'">'+esc(l)+'</button>').join("")+'</div>';
   $("anCmpBox").innerHTML=
-    '<div class="an-card"><div class="an-head"><div><h2>'+(anCmpCum?"Total views so far":"Views per day")+' <span class="cmp-n">'+anCmpPick.length+' of 8 on the chart</span></h2><p class="sub">The 3 most-viewed start ticked; tick up to 8 below. '+anRangeText(d.range?{...d.range,custom:true}:{})+'.</p></div>'+
+    '<div class="an-card"><div class="an-head"><div><h2>'+(anCmpCum?"Total views so far":"Views per day")+' <span class="cmp-n">'+anCmpPick.length+' of 8 on the chart</span></h2><p class="sub">The 3 most-viewed start ticked; tick up to 8 below. <span id="anCmpSpan">'+anRangeText(d.range?{...d.range,custom:true}:{})+'</span>.</p></div>'+
     '<a class="ghost sm" id="anCsv" href="/api/analytics/videos.csv?'+anQuery()+'" download><span class="ms" aria-hidden="true">download</span>Download CSV</a></div>'+
     '<div class="cmp-bar">'+seg("anCmpAlign",[["cal","Calendar date"],["age","Days since posting"]],anCmpAlign)+seg("anCmpCum",[["0","Per day"],["1","Running total"]],anCmpCum?"1":"0")+
     (tot.engaged!=null?seg("anCmpMetric",[["views","Views"],["engaged","Engaged views"]],anCmpMetric):'')+
@@ -269,9 +270,17 @@ async function anCmpChart(cached){
   } else {
     const r=anCmp.range||{}, days=[];
     for(let d=new Date(r.start+"T00:00:00"), e=new Date(r.end+"T00:00:00"); d<=e; d.setDate(d.getDate()+1)) days.push(iso(d));
-    const first=days.findIndex(day=>got.some(id=>anCmpSeries[q][id][day])); x=days.slice(Math.max(0,first));
+    // from the day the earliest ticked video went up (YouTube lists zero-view days too, so "first row" would be the
+    // range start, e.g. the channel's first day on All time) to the last day YouTube has numbers for
+    const pub=picked.map(({id})=>anCmpDay(vid(id))).filter(Boolean).sort()[0];
+    let a=pub?days.findIndex(day=>day>=pub):days.findIndex(day=>got.some(id=>val(id,day)>0));
+    let b=days.length-1; while(b>0&&!got.some(id=>anCmpSeries[q][id][days[b]])) b--;
+    if(a<0) a=0; if(b<a) b=days.length-1;
+    x=days.slice(a,b+1); if(x.length<2) x=days.slice(Math.max(0,a-1),b+2);
     series=picked.map(({id,i})=>({id,i,vals:x.map(day=>val(id,day))}));
   }
+  if($("anCmpSpan")) $("anCmpSpan").textContent=anCmpAlign==="age"?"Day 1 is the day each video went up":
+    "Shown: "+anRangeText({custom:true,start:x[0],end:x[x.length-1]})+", from the day the earliest ticked video went up";
   series.forEach(s=>{ if(anCmpCum) s.vals=run(s.vals); const top=Math.max(...s.vals);
     s.note=anCmpCum?full(s.vals[s.vals.length-1])+" total":full(top)+" peak"; });
   // videos posted far apart sit at opposite ends of a calendar: offer to line them up

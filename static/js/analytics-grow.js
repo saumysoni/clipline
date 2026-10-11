@@ -34,31 +34,41 @@ function anGrowPaint(){
   const y=(anData.youtube&&anData.youtube.full!==false)?anData.youtube:null, ig=anIgAcct&&!anIgAcct.loading&&anIgAcct.connected?anIgAcct:null;
   const B=[];
   // ----- when to post
-  const zones=[], t=(y&&y.totals)||{};
-  if(y&&anShowYt()) (y.countries||[]).slice(0,3).forEach(c=>(AN_ZONES[c.code]||[]).forEach(([nm,tz])=>{ if(zones.length<3) zones.push({nm,tz,share:t.views?c.views/t.views*100:null,code:c.code}); }));
+  // Most people watch in their evening (7–11 pm where they live). For the countries most YouTube views come from, Pit
+  // Crew works out when that evening is on the creator's own clock, then suggests 3 posting times, 2 days apart, so
+  // the creator can compare the 3 clips' first weeks. One slot per country first (a big country with two time zones,
+  // like the US, gets its second zone only if there's room), and the share of views is said once per country.
+  const zones=[], t=(y&&y.totals)||{}, myTz=(()=>{ try{ return Intl.DateTimeFormat().resolvedOptions().timeZone; }catch(e){ return ""; } })();
+  if(y&&anShowYt()) (y.countries||[]).slice(0,3).forEach(c=>(AN_ZONES[c.code]||[]).forEach(([nm,tz],k)=>zones.push({nm,tz,k,code:c.code,share:t.views?c.views/t.views*100:null})));
   zones.forEach(z=>{ z.shift=anZoneShift(z.tz); });
   const online=ig&&anShowIg()?ig.online||{}:{}, off=-new Date().getTimezoneOffset(), byHour=Array(24).fill(0);
   Object.entries(online).forEach(([h,n])=>{ byHour[((Math.round(+h+off/60))%24+24)%24]+=n; });
   const igPeak=Object.keys(online).length?byHour.indexOf(Math.max(...byHour)):null;
-  const slots=[];
-  zones.filter(z=>z.shift!=null).forEach(z=>slots.push({at:20*60+z.shift,why:"Evening in "+z.nm+(z.share?" · "+pct(z.share)+" of your YouTube views come from "+regionName(z.code):""),plat:"yt"}));
-  if(igPeak!=null) slots.splice(1,0,{at:igPeak*60,why:"When your Instagram followers are most online",plat:"ig"});
+  const ok=zones.filter(z=>z.shift!=null), firsts=ok.filter(z=>z.k===0), extras=ok.filter(z=>z.k>0);
+  const who=z=>(/Coast|\(/.test(z.nm)?"on the ":"in ")+z.nm.replace(/^(.*) \((.*)\)$/,"$1, $2");
+  const slots=[...firsts,...extras].map(z=>({at:20*60+z.shift,plat:"yt",
+    why:"8 PM for your viewers "+who(z),
+    note:z.share!=null?(z.k===0?pct(z.share)+" of your YouTube views come from "+regionName(z.code):"also "+regionName(z.code)+", another time zone"):"",
+    mine:z.tz===myTz}));
+  if(igPeak!=null) slots.splice(Math.min(1,slots.length),0,{at:igPeak*60,plat:"ig",why:"When most of your Instagram followers are online",note:"Instagram tells Pit Crew this hour by hour"});
   const plan=slots.slice(0,3).map((s,i)=>{ const d=new Date(); d.setDate(d.getDate()+1+2*i); d.setHours(0,0,0,0); d.setMinutes(((s.at%1440)+1440)%1440);
-    return {...s,when:d.toLocaleDateString(undefined,{weekday:"short"})+" · "+anClock(s.at)}; });
+    return {...s,day:d.toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"}),time:anClock(s.at)}; });
   if(plan.length){
-    B.push('<section class="an-read an-when"><div class="eyebrow-ai"><span class="ms" aria-hidden="true">schedule</span>When to post your next '+plan.length+' clips</div>'+
-      '<p class="headline">Post each one at a different time, 2 days apart, so Pit Crew can learn which time works for you.</p>'+
-      '<div class="an-slots">'+plan.map(p=>'<div class="an-slot '+p.plat+'"><b>'+esc(p.when)+'</b><span>'+esc(p.why)+'</span></div>').join("")+'</div>'+
-      '<p class="sub">Times are on your clock. Scheduling straight from these times comes with the posting calendar.</p></section>');
+    B.push('<section class="an-read an-when"><div class="eyebrow-ai"><span class="ms" aria-hidden="true">schedule</span>When to post your next '+plan.length+' clip'+(plan.length>1?'s':'')+'</div>'+
+      '<p class="headline">Most people watch in their evening. Your viewers live in different places, so post each clip at one of these times and see which does best.</p>'+
+      '<ol class="an-slots">'+plan.map((p,i)=>'<li class="an-slot '+p.plat+'"><span class="n">Clip '+(i+1)+'</span><b>'+esc(p.day)+'</b><b class="t">'+esc(p.time)+' <small>your time</small></b>'+
+        '<span>'+esc(p.why)+(p.mine?' (that’s your own evening too)':'')+'</span>'+(p.note?'<small>'+esc(p.note)+'</small>':'')+'</li>').join("")+'</ol>'+
+      '<p class="sub">2 days apart, so each clip gets its own first days of views. A week after the third one, compare their first weeks on the Videos tab ("Each clip\'s first week"). Posting at these times from the calendar comes next.</p></section>');
   }
   const g=[];
-  if(zones.length) g.push(card("anGrowZones","YouTube viewers' evenings, on your clock","Evening = 7 to 11 pm where the viewer is",
-    '<div class="an-zones">'+zones.map(z=>{ if(z.shift==null) return ""; const a=((19*60+z.shift)%1440+1440)%1440, w=240;
+  if(ok.length) g.push(card("anGrowZones","When it's evening for your viewers","Each bar is 7 to 11 PM where those viewers live, moved onto your clock"+(myTz?" ("+myTz.replace(/_/g," ")+")":"")+". The line is now.",
+    '<div class="an-zones">'+ok.map(z=>{ const a=((19*60+z.shift)%1440+1440)%1440, w=240;
       const seg=(s,l)=>'<i style="left:'+(s/1440*100).toFixed(2)+'%;width:'+(l/1440*100).toFixed(2)+'%"></i>';
-      return '<span class="nm">'+esc(z.nm)+'</span><span class="tr">'+(a+w>1440?seg(a,1440-a)+seg(0,a+w-1440):seg(a,w))+'</span><span class="v">'+esc(anClock(a)+"–"+anClock(a+w))+'</span>'; }).join("")+
-    '<span></span><span class="ticks"><span>12 am</span><span>6 am</span><span>12 pm</span><span>6 pm</span><span>12 am</span></span><span></span></div>',""));
-  if(igPeak!=null) g.push(card("anGrowIg","Instagram followers online, by hour","Your time · Instagram gives this hour by hour; YouTube doesn't",hoursHTML(byHour),
-    table(["Hour","Followers online"],byHour.map((n,i)=>[anClock(i*60),full(n)]),[1])));
+      return '<span class="nm">'+esc(z.nm)+(z.share!=null&&z.k===0?'<small>'+pct(z.share)+' of views</small>':'')+'</span><span class="tr">'+(a+w>1440?seg(a,1440-a)+seg(0,a+w-1440):seg(a,w))+'</span><span class="v">'+esc(anClock(a)+" – "+anClock(a+w))+'</span>'; }).join("")+
+    '<span></span><span class="ticks"><span>12 AM</span><span>6 AM</span><span>12 PM</span><span>6 PM</span><span>12 AM</span></span><span></span></div>',
+    table(["Viewers in","Share of views","Their 7–11 PM, your time"],ok.map(z=>{ const a=19*60+z.shift; return [z.nm,z.k===0&&z.share!=null?pct(z.share):"",anClock(a)+" – "+anClock(a+240)]; }),[])));
+  if(igPeak!=null) g.push(card("anGrowIg","Instagram followers online, by hour","How many of your followers are on Instagram at each hour, on your clock",hoursHTML(byHour),
+    table(["Hour (your time)","Followers online"],byHour.map((n,i)=>[anClock(i*60),full(n)]),[1])));
   if(g.length) B.push('<div class="an-grid2">'+g.join("")+'</div>');
   // ----- lessons
   const L=[], tr=(y&&y.traffic)||[], trT=tr.reduce((a,r)=>a+r.views,0), find=k=>(tr.find(r=>r.source===k)||{}).views||0;
@@ -81,7 +91,7 @@ function anGrowPaint(){
   const it=(ig&&ig.totals)||{};
   if(ig&&anShowIg()){
     const rb=ig.reach_by||{}, rbt=Object.values(rb).reduce((a,b)=>a+b,0);
-    if(it.shares!=null) L.push({id:"shares",plat:"instagram",title:"Shares carry a Reel to new people",big:full(it.shares),note:"shares in the last "+ig.days+" days"+(rbt?"; "+pct((rb.NON_FOLLOWER||0)/rbt*100)+" of the accounts you reached don't follow you":""),
+    if(it.shares!=null) L.push({id:"shares",plat:"instagram",title:"Shares carry a Reel to new people",big:full(it.shares),note:"shares, "+anIgRangeText(ig)+(rbt?"; "+pct((rb.NON_FOLLOWER||0)/rbt*100)+" of the accounts you reached don't follow you":""),
       what:"Each share puts a Reel in front of someone who doesn't follow you yet.",try:"end with a question people want to answer, or send to a friend."});
   }
   const both=((anPairs&&anPairs.clips)||[]).filter(c=>c.youtube&&c.instagram&&c.youtube.views&&c.instagram.views);
@@ -98,7 +108,14 @@ function anGrowPaint(){
           '<p>'+esc(l.what)+'</p><p class="try"><b>Try:</b> '+esc(l.try)+'</p><button type="button" class="ghost sm an-got" data-id="'+l.id+'" aria-pressed="'+ok+'">'+(ok?'<span class="ms" aria-hidden="true">check</span>Understood':'Got it')+'</button></article>'; }).join("")+'</div>');
   }
   if(!B.length) B.push(anMsg("trending_up","Once your clips have a few days of views, this tab shows when to post and what your numbers are teaching you."));
-  box.innerHTML=B.join(""); wireCards();
+  box.innerHTML=B.join(""); wireCards(); anNowLine();
   box.querySelectorAll(".an-got").forEach(b=>b.onclick=()=>{ const id=b.dataset.id; if(anLessonsDone[id]) delete anLessonsDone[id]; else anLessonsDone[id]=1;
     try{ localStorage.setItem("pc-an-lessons",JSON.stringify(anLessonsDone)); }catch(e){} anGrowPaint(); });
+}
+
+// A thin line at "now" across the evenings chart, so "your clock" is obvious.
+function anNowLine(){
+  const tr=document.querySelector("#anGrowZones .an-zones"); if(!tr) return;
+  const d=new Date(), m=d.getHours()*60+d.getMinutes();
+  tr.querySelectorAll(".tr").forEach(el=>{ const n=document.createElement("b"); n.className="now"; n.style.left=(m/1440*100).toFixed(2)+"%"; n.setAttribute("aria-hidden","true"); el.appendChild(n); });
 }

@@ -3,8 +3,8 @@
 // (analytics-audience.js) and Grow (analytics-grow.js). The Both / YouTube / Instagram switch (anPlat) applies to
 // every tab. Charts are plain SVG drawn here (lineChart): one axis, a crosshair tooltip, keyboard arrows, and a
 // Table button on every chart so no number needs hovering to read.
-let anDays=28, anData=null, anLoading=false, anContent="shorts", anStart="", anEnd="", anPlat="", anTab="overview", anVlog="";
-let anIgAcct=null, anRead=null;  // Instagram account numbers (anIgAcct.days 7 or 30), Pit Crew's read (per range)
+let anDays=0, anData=null, anLoading=false, anContent="shorts", anStart="", anEnd="", anPlat="", anTab="overview", anVlog="";
+let anIgAcct=null, anRead=null;  // Instagram account numbers for the range (anIgAcct.q), Pit Crew's read (one per day for the whole page)
 // The range and content the page asks for: ?days=28 (or ?start=&end= for Custom) and ?content=shorts|videos|all.
 const anQuery=()=>"content="+anContent+(anStart&&anEnd?"&start="+anStart+"&end="+anEnd:"&days="+anDays);
 // Words for what's shown: Shorts, videos, or both.
@@ -28,7 +28,18 @@ const anShowYt=()=>anPlat!=="instagram", anShowIg=()=>anPlat!=="youtube";
 const anWait=(t,kind)=>anSkel(kind,t);  // loading skeleton shaped like what's coming (analytics-loading.js)
 const anMsg=(icon,t,html)=>'<div class="an-card an-mini"><span class="ms" aria-hidden="true">'+icon+'</span><p>'+esc(t)+'</p>'+(html||"")+'</div>';
 // The Instagram account's numbers cover the last 7 or 30 days (Instagram gives at most 30 at a time).
-const anIgDaysFor=()=>anDays===7&&!anStart?7:30;
+// Instagram account numbers for the page's range: the same days or dates when Instagram has them (it keeps 90 days);
+// on All time the account numbers are the last 30 days (for who/when), and the Overview's tiles use each Reel's
+// lifetime totals instead (anData.instagram), so both apps are "all time".
+const anIgQ=()=>anStart?"start="+anStart+"&end="+anEnd:"days="+(anDays||30);
+const anIgLifetime=()=>!anStart&&!anDays;
+function anIgRangeText(j){
+  if(!j) return "";
+  if(j.note==="old") return "Instagram keeps only the last 90 days";
+  if(j.note==="cut") return "last 90 days only (Instagram keeps 90 days)";
+  if(anStart&&j.since) return anRangeText({custom:true,start:j.since,end:j.until});
+  return "last "+j.days+" days";
+}
 
 // vlog: open on one vlog's clips (its card's Analytics button); platform: "youtube" / "instagram" to start on one.
 function openAnalytics(vlog,platform){
@@ -42,22 +53,37 @@ function anSetPlat(p){ anPlat=p||""; $("anPlat").querySelectorAll("button").forE
 $("anPlat").querySelectorAll("button").forEach(b=>b.onclick=()=>{ anSetPlat(b.dataset.p); anRepaint(); });
 $("analyticsNav").onclick=openAnalytics;
 $("anRefresh").onclick=()=>{ anIgAcct=null; anRead=null; if(typeof anForget==="function") anForget(); loadAnalytics(); };
-$("anRange").querySelectorAll("button").forEach(b=>b.onclick=()=>{
-  if(anLoading) return;
-  $("anRange").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",x===b));
-  if(b.dataset.days==="custom"){  // pick dates, then Apply
-    $("anCustom").hidden=false;
-    if(!$("anTo").value){ const t=new Date(), f=new Date(Date.now()-27*864e5), iso=d=>new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,10);
-      $("anTo").value=iso(t); $("anFrom").value=iso(f); $("anTo").max=iso(t); $("anFrom").max=iso(t); }
-    $("anFrom").focus(); return;
+// Time range: "All time" (the default) or "Custom ▾", which opens 7 / 28 / 90 days / a year, or two dates.
+function anRangeShow(){  // the two buttons reflect the range in use
+  const custom=!!(anStart||anDays);
+  $("anAll").setAttribute("aria-pressed",!custom); $("anRangeMore").setAttribute("aria-pressed",custom);
+  $("anRangeLbl").textContent=custom?anRangeText({custom:!!anStart,start:anStart,end:anEnd,days:anDays}):"Custom";
+  $("anRangePop").querySelectorAll("[data-days]").forEach(b=>b.setAttribute("aria-pressed",!anStart&&+b.dataset.days===anDays));
+}
+function anRangePop(open){
+  $("anRangePop").hidden=!open; $("anRangeMore").setAttribute("aria-expanded",open);
+  if(open){
+    const iso=d=>new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,10), t=new Date();
+    $("anTo").max=$("anFrom").max=iso(t);
+    if(!$("anTo").value){ $("anTo").value=anEnd||iso(t); $("anFrom").value=anStart||iso(new Date(Date.now()-27*864e5)); }
+    ($("anRangePop").querySelector('[aria-pressed="true"]')||$("anRangePop").querySelector("[data-days]")).focus();
   }
-  $("anCustom").hidden=true; anStart=anEnd=""; anDays=+b.dataset.days; loadAnalytics();
-});
+}
+function anRangeSet(days,start,end){
+  if(anLoading) return;
+  anDays=days; anStart=start||""; anEnd=end||""; anRangePop(false); anRangeShow(); loadAnalytics();
+}
+$("anAll").onclick=()=>anRangeSet(0);
+$("anRangeMore").onclick=e=>{ e.stopPropagation(); anRangePop($("anRangePop").hidden); };
+$("anRangePop").querySelectorAll("[data-days]").forEach(b=>b.onclick=()=>anRangeSet(+b.dataset.days));
 $("anApply").onclick=()=>{
   const f=$("anFrom").value, t=$("anTo").value;
   if(!f||!t){ (f?$("anTo"):$("anFrom")).focus(); return; }
-  anStart=f<=t?f:t; anEnd=f<=t?t:f; loadAnalytics();
+  anRangeSet(0,f<=t?f:t,f<=t?t:f);
 };
+$("anRangePop").onclick=e=>e.stopPropagation();
+document.addEventListener("click",()=>{ if(!$("anRangePop").hidden) anRangePop(false); });
+$("anRangePop").addEventListener("keydown",e=>{ if(e.key==="Escape"){ anRangePop(false); $("anRangeMore").focus(); } });
 $("anContent").querySelectorAll("button").forEach(b=>b.onclick=()=>{
   if(anLoading) return;
   $("anContent").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",x===b));
@@ -67,7 +93,9 @@ $("anContent").querySelectorAll("button").forEach(b=>b.onclick=()=>{
 const anTabPick=pageTabs("anTabs",t=>{ anTab=t; anTabLoad(); });
 function anTabLoad(){
   anTab=["overview","videos","audience","grow"].find(t=>!$(({overview:"anPanOverview",videos:"anPanVideos",audience:"anPanAudience",grow:"anPanGrow"})[t]).hidden)||"overview";
-  $("anContent").hidden=anTab==="grow"||(anTab==="videos"&&anVidView!=="compare")||anPlat==="instagram";
+  const sincePosted=anTab==="videos"&&anVidView!=="compare";  // clips on both apps: totals since each went out, the range doesn't apply
+  $("anContent").hidden=anTab==="grow"||sincePosted||anPlat==="instagram";
+  document.querySelector(".an-range-wrap").hidden=sincePosted; $("anAsof").hidden=sincePosted;
   if(anTab==="overview"){ anIgAcctLoad(); anReadLoad(); }
   if(anTab==="videos" && typeof anVideosLoad==="function") anVideosLoad();
   if(anTab==="audience" && typeof anAudienceLoad==="function") anAudienceLoad();
@@ -87,9 +115,20 @@ async function anFetch(url,ms){
   finally{ clearTimeout(t); }
 }
 const AN_SLOW="YouTube took too long to answer. Try Refresh in a minute.";
-async function anGet(url){
-  try{ const r=await anFetch(url), j=await r.json(); return r.ok?j:{error:j.error||"Couldn't load these numbers. Try Refresh."}; }
-  catch(e){ return {error:e.message==="timeout"?AN_SLOW:"Couldn't reach Pit Crew. Check your internet connection, then try again."}; }
+// One retry for a dropped connection or a server hiccup; then a message that says which of the two it was.
+async function anGet(url,again){
+  let r;
+  try{ r=await anFetch(url); }
+  catch(e){
+    if(e.message==="timeout") return {error:AN_SLOW};
+    if(!again){ await new Promise(z=>setTimeout(z,1500)); return anGet(url,true); }
+    return {error:"Couldn't reach Pit Crew. Check your internet connection, then press Refresh."};
+  }
+  let j=null; try{ j=await r.json(); }catch(e){}
+  if(r.ok&&j) return j;
+  if(!j&&!again&&r.status>=500){ await new Promise(z=>setTimeout(z,1500)); return anGet(url,true); }
+  console.error("Analytics request failed:",url,r.status);
+  return {error:(j&&j.error)||"Pit Crew hit a problem getting these numbers. Press Refresh in a minute."};
 }
 async function loadAnalytics(){
   anLoading=true;
@@ -103,13 +142,14 @@ async function loadAnalytics(){
   renderAnalytics(anData);
   anTabLoad();
 }
-// Instagram account numbers for the Overview's paired tiles and chart (7 or 30 days).
+// Instagram account numbers for the Overview's paired tiles and chart, for the page's range.
 async function anIgAcctLoad(){
-  const d=anIgDaysFor(), st=(anData&&anData.instagram_state)||{};
-  if(!st.signed_in || (anIgAcct&&anIgAcct.days===d&&!anIgAcct.loading)) return;
-  anIgAcct={days:d,loading:true};
-  const j=await anGet("/api/analytics/instagram?days="+d);
-  anIgAcct={...j,days:d};
+  const q=anIgQ(), st=(anData&&anData.instagram_state)||{};
+  if(!st.signed_in || (anIgAcct&&anIgAcct.q===q)) return;
+  anIgAcct={q,loading:true};
+  const j=await anGet("/api/analytics/instagram?"+q);
+  if(q!==anIgQ()) return;
+  anIgAcct={...j,q};
   if(anData) renderAnalytics(anData);
 }
 
@@ -130,7 +170,9 @@ function renderAnalytics(j){
   const t=(y&&y.totals)||{}, p=(y&&y.previous)||null, ok=!!(y&&y.full);
   $("anLede").textContent=[y&&y.channel&&y.channel.title?y.channel.title+" · "+full(y.channel.subscribers)+" subscribers":"",
     st.signed_in&&st.username?"@"+st.username:""].filter(Boolean).join(" · ")||"YouTube and Instagram, side by side.";
-  $("anAsof").textContent=y&&y.range?anRangeText(y.range)+" · YouTube's numbers are about 2 days behind":"";
+  // All time uses YouTube's live counts (what each video's page shows); a date range can only come from YouTube
+  // Analytics, which is ~2 days behind and can count a comment or two differently (seen on a real channel: 1 vs 2)
+  $("anAsof").textContent=!y||!y.range?"":anRangeText(y.range)+(anIgLifetime()?" · views, likes and comments are YouTube's live counts":" · from YouTube Analytics, about 2 days behind; a video's own page can show a comment or two more");
   if(y&&!y.full&&y.enable_url){  // the API is off in Google Cloud: reconnecting won't help, enabling it will
     note.hidden=false;
     note.innerHTML='<span class="ms" aria-hidden="true">lock_open</span><span>These are the live counts for the Shorts Pit Crew uploaded. To see views per day, watch time, retention and who watches, '+
@@ -145,21 +187,28 @@ function renderAnalytics(j){
       '<button type="button" class="ghost" id="anRecon">Connect again</button>';
     $("anRecon").onclick=()=>signIn(()=>{ anData=null; loadAnalytics(); });
   }
-  const it=(ig&&ig.totals)||{}, fol=(ig&&ig.follows)||{};
-  const showYt=anShowYt()&&!!y, showIg=anShowIg()&&igOn, igDays=ig?ig.days:anIgDaysFor();
-  const igLate=ig&&(anStart||anDays!==igDays)?'<small class="an-pnote">last '+igDays+' days</small>':'';
+  // Instagram's side: on All time each Reel's lifetime totals (and total followers); otherwise the account's numbers
+  // for the same days, labelled whenever they can't match YouTube's range exactly
+  const life=anIgLifetime(), lt=(j.instagram&&j.instagram.totals)||null, nReels=lt?lt.reels||0:0;
+  const it=life?(lt||{}):(ig&&ig.totals)||{}, fol=(ig&&ig.follows)||{}, followers=((j.instagram||{}).account||{}).followers;
+  const igReady=life?!!lt:!!ig;
+  const showYt=anShowYt()&&!!y, showIg=anShowIg()&&igOn;
+  const igText=life?(nReels>=30?"your latest 30 Reels, all time":"all your Reels, all time"):anIgRangeText(ig);
+  const igLate=igReady&&(life?nReels>=30:!!(ig.note||(anStart&&!ig.since)))?'<small class="an-pnote">'+esc(igText)+'</small>':'';
   const d=k=>p&&p[k]!=null&&p[k]>0 ? deltaHTML((t[k]-p[k])/p[k]*100) : "";
   const B=[];
   if(showYt && showIg){
-    const pair=(label,yv,iv,yd)=>'<div class="an-card an-pair-tile"><div class="lab">'+esc(label)+'</div><div class="pp">'+
+    const pair=(label,yv,iv,yd,inote)=>'<div class="an-card an-pair-tile"><div class="lab">'+esc(label)+'</div><div class="pp">'+
       '<div><span class="pl yt"><i></i>YouTube</span><b>'+esc(yv)+'</b>'+(yd||"")+'</div>'+
-      '<div><span class="pl ig"><i></i>Instagram</span><b>'+(iv===anSkelNum?iv:esc(iv))+'</b>'+igLate+'</div></div></div>';
-    const igv=k=>ig&&it[k]!=null?compact(it[k]):(anIgAcct&&anIgAcct.loading?anSkelNum:"–");
+      '<div><span class="pl ig"><i></i>Instagram</span><b>'+(iv===anSkelNum?iv:esc(iv))+'</b>'+(inote?'<small class="an-pnote">'+esc(inote)+'</small>':igLate)+'</div></div></div>';
+    const igv=k=>igReady&&it[k]!=null?compact(it[k]):(!life&&anIgAcct&&anIgAcct.loading?anSkelNum:"–");
     B.push('<div class="an-pairs4">'+
       pair("Views",compact(t.views),igv("views"),d("views"))+
       pair("Likes",compact(t.likes),igv("likes"),d("likes"))+
-      pair("Comments and shares",compact((t.comments||0)+(t.shares||0)),ig?compact((it.comments||0)+(it.shares||0)):igv("comments"),"")+
-      pair("New subscribers / followers",t.subs!=null?(t.subs>0?"+":"")+compact(t.subs):"–",ig&&fol.FOLLOWER!=null?"+"+compact(fol.FOLLOWER):igv("x"),d("subs"))+'</div>');
+      pair("Comments and shares",compact((t.comments||0)+(t.shares||0)),igReady?compact((it.comments||0)+(it.shares||0)):igv("comments"),"")+
+      (life?pair("Subscribers gained / followers",t.subs!=null?(t.subs>0?"+":"")+compact(t.subs):"–",followers!=null?compact(followers):"–",d("subs"),"followers in all")
+           :pair("New subscribers / followers",t.subs!=null?(t.subs>0?"+":"")+compact(t.subs):"–",ig&&fol.FOLLOWER!=null?"+"+compact(fol.FOLLOWER):igv("x"),d("subs")))+'</div>'+
+      (showIg&&igReady?'<p class="sub an-pairs-note">Instagram: '+esc(igText)+'. YouTube: '+esc(anRangeText((y&&y.range)||{days:anDays}).toLowerCase())+(life?". Instagram doesn\'t give follows from before the last 90 days, so the last tile shows your followers in all.":".")+'</p>':''));
   } else if(showYt){
     B.push('<div class="an-tiles">'+
       tile("visibility",({shorts:"Shorts views",videos:"Video views",all:"Views"})[anContent],compact(t.views),d("views"))+
@@ -172,10 +221,11 @@ function renderAnalytics(j){
       tile("share","Shares",t.shares!=null?compact(t.shares):"–",d("shares"))+'</div>');
   } else if(showIg){
     const tl=(i,l,v)=>tile(i,l,v==null?"–":compact(v),"");
-    B.push(ig?'<div class="an-tiles ig">'+tl("visibility","Views",it.views)+tl("groups","Accounts reached",it.reach)+tl("favorite","Likes",it.likes)+
-      tl("chat_bubble","Comments",it.comments)+tl("send","Shares",it.shares)+tl("bookmark","Saves",it.saves)+
-      tile("person_add","New followers",fol.FOLLOWER!=null?"+"+compact(fol.FOLLOWER):"–","")+tl("link","Profile link taps",it.profile_links_taps)+'</div>'+
-      '<p class="sub">Instagram account, last '+igDays+' days.</p>':anWait("Getting your Instagram numbers...","igtiles"));
+    B.push(igReady?'<div class="an-tiles ig">'+tl("visibility","Views",it.views)+tl("groups","Accounts reached",it.reach)+tl("favorite","Likes",it.likes)+
+      tl("chat_bubble","Comments",it.comments)+tl("send","Shares",it.shares)+tl("bookmark","Saves",life?it.saved:it.saves)+
+      (life?tl("person_add","Followers",followers):tile("person_add","New followers",fol.FOLLOWER!=null?"+"+compact(fol.FOLLOWER):"–",""))+
+      (life?tl("movie","Reels counted",nReels):tl("link","Profile link taps",it.profile_links_taps))+'</div>'+
+      '<p class="sub">Instagram, '+esc(igText)+'.'+(!life&&it.reach==null&&ig.days>30?' Accounts reached can\'t be added up over more than 30 days, so it\'s left out.':'')+'</p>':anWait("Getting your Instagram numbers...","igtiles"));
   } else if(anPlat==="instagram"){
     B.push(anMsg("photo_camera","Connect a professional Instagram account to see your Reels here.",'<button type="button" class="ghost" id="anIgConnect">Connect Instagram</button>'));
   } else if(anPlat==="youtube"){
@@ -184,12 +234,16 @@ function renderAnalytics(j){
   // one chart: YouTube views per day, and Instagram accounts reached per day when both cover the same days
   const daily=(y&&y.daily)||[], igd=(ig&&ig.reach_daily)||[], igBy={};
   igd.forEach(r=>igBy[r.day]=r.reach);
-  const withIg=showIg&&igd.length>1&&!anStart&&(anDays===7||anDays===28), series=[];
-  if(showYt&&daily.length>1) series.push({name:"YouTube views",color:AN_YT,values:daily.map(r=>r.views)});
-  let xs=daily.map(r=>r.day);
+  const withIg=showIg&&igd.length>1&&!life&&!(ig&&ig.note), series=[];
+  // All time starts at the channel's first day: skip the empty days before the first view (a week before it stays,
+  // so the first rise is visible), like the Compare chart
+  let d0=life?Math.max(0,daily.findIndex(r=>r.views>0)-7):0; if(d0<0||daily.length-d0<2) d0=0;
+  const dd=daily.slice(d0);
+  if(showYt&&dd.length>1) series.push({name:"YouTube views",color:AN_YT,values:dd.map(r=>r.views)});
+  let xs=dd.map(r=>r.day);
   if(withIg){ if(!series.length) xs=igd.map(r=>r.day); series.push({name:"Instagram accounts reached",color:AN_IG,values:xs.map(day=>igBy[day]||0)}); }
   if(series.length) B.push(card("anDaily",series.length>1?"YouTube views and Instagram reach per day":series[0].name+" per day",
-    (showYt&&daily.length>1?"YouTube is about 2 days behind; Instagram is up to date. ":"")+(showIg&&!withIg&&igOn&&showYt?"Instagram's day-by-day numbers show for 7 or 28 days.":""),
+    (d0?"From a week before your first view. ":"")+(showYt&&dd.length>1?"YouTube is about 2 days behind"+(withIg?"; Instagram is up to date. ":". "):"")+(showIg&&!withIg&&igOn&&showYt?(life?"To see Instagram day by day too, pick dates in the last 90 days under Custom.":"Instagram keeps day-by-day numbers for 90 days."):""),
     '<div class="an-viz" id="anDailyViz"></div>',
     table(["Day"].concat(series.map(s=>s.name)),xs.map((day,i)=>[day].concat(series.map(s=>full(s.values[i])))),series.map((_,i)=>i+1))));
   // the clips on both apps
@@ -203,41 +257,41 @@ function renderAnalytics(j){
   anReadPaint();
 }
 
-// ---------- Pit Crew's read (AI, from youtube/analytics_coach.py): a headline on top, 3 things to try at the bottom
+// ---------- Pit Crew's read (AI, from youtube/analytics_coach.py): ONE read per day for the whole page, whatever the
+// range or platform (the AI is asked at most once a day per creator). The page picks the headline and tips for the
+// platform it shows. While the AI writes (it can take a minute), the rule-based read shows, and the page asks again.
 async function anReadLoad(){
-  const q=anQuery()+"&plat="+anPlat;
-  if(anRead&&anRead.q===q) { anReadPaint(); return; }
-  anRead={q,loading:true}; anReadPaint();
-  const j=await anGet("/api/analytics/coach?"+q);
-  if(q!==anQuery()+"&plat="+anPlat) return;
-  anRead={q,...j}; anReadPaint();
-  anReadPoll(q,0);
+  if(anRead&&(anRead.loading||anRead.headline!==undefined)){ anReadPaint(); return; }
+  anRead={loading:true}; anReadPaint();
+  const j=await anGet("/api/analytics/coach");
+  anRead={...j}; anReadPaint();
+  anReadPoll(0);
 }
-// The AI's read is written in the background (it can take a minute); meanwhile the rule-based one shows, and the
-// page asks again every 6 s (at most 2 minutes) and swaps it in.
-function anReadPoll(q,n){
-  if(!anRead||anRead.q!==q||!anRead.pending) return;
+function anReadPoll(n){
+  if(!anRead||!anRead.pending) return;
   if(n>=20){ anRead.pending=false; anReadPaint(); return; }
   setTimeout(async()=>{
-    if(!anRead||anRead.q!==q||$("s6").hidden) return;
-    const j=await anGet("/api/analytics/coach?"+q);
-    if(!anRead||anRead.q!==q) return;
-    if(!j.error){ anRead={q,...j}; anReadPaint(); }
-    anReadPoll(q,n+1);
+    if(!anRead||$("s6").hidden) return;
+    const j=await anGet("/api/analytics/coach");
+    if(!j.error){ anRead={...j}; anReadPaint(); }
+    anReadPoll(n+1);
   },6000);
 }
 const AN_PLAT_TAG={youtube:["YouTube","yt"],instagram:["Instagram","ig"],both:["Both apps","both"]};
 function anReadPaint(){
   const r=anRead;
-  if(!r||r.error||r.source==="none"||(!r.loading&&!r.headline)){ $("anRead").innerHTML=""; $("anTry").innerHTML=""; return; }
-  if(r.loading){
+  if(!$("anRead")) return;
+  if(r&&r.loading){
     $("anRead").innerHTML='<div class="an-read loading"><div class="eyebrow-ai"><span class="ms" aria-hidden="true">auto_awesome</span>Pit Crew\'s read</div><div class="sk-lines" aria-hidden="true"><span class="sk" style="width:92%"></span><span class="sk" style="width:64%"></span></div><p class="sub an-read-wait" role="status">Reading your numbers<span class="sk-dots" aria-hidden="true"><i></i><i></i><i></i></span></p></div>';
     $("anTry").innerHTML=""; return;
   }
-  $("anRead").innerHTML='<div class="an-read"><div class="eyebrow-ai"><span class="ms" aria-hidden="true">auto_awesome</span>Pit Crew\'s read on '+esc(anRangeText((anData&&anData.youtube&&anData.youtube.range)||{days:anDays}).toLowerCase())+'</div>'+
-    '<p class="headline"></p>'+(r.pending?'<p class="sub an-read-wait" role="status">Pit Crew is writing a fuller read; it appears here in a moment<span class="sk-dots" aria-hidden="true"><i></i><i></i><i></i></span></p>':'')+'</div>';
-  $("anRead").querySelector(".headline").textContent=r.headline;
-  const tips=(r.tips||[]).filter(t=>anPlat===""||t.platform==="both"||t.platform===anPlat);
+  const head=!r||r.error||r.source==="none"?"":(anPlat==="youtube"?r.headline_youtube:anPlat==="instagram"?r.headline_instagram:r.headline)||"";
+  if(!head){ $("anRead").innerHTML=""; $("anTry").innerHTML=""; return; }
+  $("anRead").innerHTML='<div class="an-read"><div class="eyebrow-ai"><span class="ms" aria-hidden="true">auto_awesome</span>Pit Crew\'s read · today</div>'+
+    '<p class="headline"></p>'+(r.pending?'<p class="sub an-read-wait" role="status">Pit Crew is writing a fuller read; it appears here in a moment<span class="sk-dots" aria-hidden="true"><i></i><i></i><i></i></span></p>':
+      '<p class="sub an-read-note">Written once a day from all your Shorts and Reels, so it stays the same when you change the dates above.</p>')+'</div>';
+  $("anRead").querySelector(".headline").textContent=head;
+  const tips=(r.tips||[]).filter(t=>anPlat===""||t.platform==="both"||t.platform===anPlat).slice(0,3);
   $("anTry").innerHTML=tips.length?'<h2 class="an-h2">What to try next</h2><div class="an-tries">'+tips.map(t=>{ const g=AN_PLAT_TAG[t.platform]||AN_PLAT_TAG.both;
     return '<article class="an-card an-try"><span class="tag-plat '+g[1]+'">'+g[0]+'</span><h3></h3><p class="because"></p><p class="try"><b>Try:</b> <span></span></p></article>'; }).join("")+'</div>':"";
   $("anTry").querySelectorAll(".an-try").forEach((el,i)=>{ const t=tips[i]; el.querySelector("h3").textContent=t.title; el.querySelector(".because").textContent=t.because||""; el.querySelector(".try span").textContent=t.try; });
@@ -271,25 +325,10 @@ function barsHTML(rows){
   const max=Math.max(...rows.map(r=>r.v),1);
   return '<div class="bars">'+rows.map(r=>'<div class="bar-row" title="'+esc(r.nm+": "+r.lab)+'"><span class="nm">'+esc(r.nm)+'</span><span class="tr"><i style="width:'+(r.v/max*100).toFixed(1)+'%"></i></span><span class="v">'+esc(r.lab)+'</span></div>').join("")+'</div>';
 }
-function splitHTML(gs){
-  const col={female:"var(--c-g1)",male:"var(--c-g2)"}, other="var(--faint)";
-  return '<div class="split">'+gs.map(g=>'<i style="flex:'+Math.max(g.pct,0.5)+';background:'+(col[g.gender]||other)+'" title="'+esc((GENDER[g.gender]||g.gender)+": "+pct(g.pct))+'"></i>').join("")+'</div>'+
-    '<div class="split-lab">'+gs.map(g=>'<span style="--k:'+(col[g.gender]||other)+'">'+esc(GENDER[g.gender]||g.gender)+' <b>'+pct(g.pct)+'</b></span>').join("")+'</div>';
-}
-function topsHTML(sh){
-  if(!sh.length) return '<p class="sub">Once your Shorts get views in this period, they show up here.</p>';
-  const max=Math.max(...sh.map(s=>s.views),1);
-  return '<div class="tops'+(anContent!=="shorts"?" wide":"")+'">'+sh.map((s,i)=>'<button type="button" class="top-row" data-id="'+esc(s.id)+'">'+
-    '<span class="rk">'+(i+1)+'</span><img src="'+esc(s.thumb||"")+'" alt="" referrerpolicy="no-referrer" loading="lazy">'+
-    '<span class="tt"><b>'+esc(s.title||"Untitled")+(s.clipline?'<span class="tag clip">Pit Crew</span>':'')+'</b>'+
-    '<small>'+(s.published?new Date(s.published).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}):"")+(s.secs?" · "+secs(s.secs):"")+'</small></span>'+
-    '<span class="tr"><i style="width:'+(s.views/max*100).toFixed(1)+'%"></i></span>'+
-    '<span class="vv"><b>'+compact(s.views)+'</b><small>'+(s.avg_pct?pct(s.avg_pct)+" viewed":full(s.likes)+" likes")+'</small></span></button>').join("")+'</div>';
-}
 // "Last 28 days", "All time" or "Oct 1 – Oct 9, 2026" for a range from the API.
 function anRangeText(r){
   if(r.custom){ const f=d=>new Date(d+"T00:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}); return f(r.start)+" – "+f(r.end); }
-  return r.days?"Last "+r.days+" days":"All time";
+  return r.days===365?"Last year":r.days?"Last "+r.days+" days":"All time";
 }
 function dayLabel(s){ const d=new Date(s+"T00:00:00"); return d.toLocaleDateString(undefined,{month:"short",day:"numeric"}); }
 
@@ -321,14 +360,18 @@ function lineChart(el,o){
   if(o.ref!=null && o.ref<=max){  // a dashed reference line with its meaning
     s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(o.ref)+'" y2="'+Y(o.ref)+'" stroke="var(--muted)" stroke-dasharray="4 4" stroke-width="1"/>'+
       '<text x="'+(W-R)+'" y="'+(Y(o.ref)-6)+'" text-anchor="end" style="fill:var(--muted);font-size:11px">'+esc(o.refLabel||"")+'</text>'; }
+  const ends=[];  // last-value labels, spread apart afterwards so close lines don't print on top of each other
   o.series.forEach(se=>{
     const pts=se.values.map((v,i)=>X(i).toFixed(1)+","+Y(v).toFixed(1)).join(" ");
     s+='<polygon points="'+X(0)+","+Y(0)+" "+pts+" "+X(n-1)+","+Y(0)+'" fill="'+se.color+'" fill-opacity=".1"/>';
     s+='<polyline points="'+pts+'" fill="none" stroke="'+se.color+'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
     const lv=se.values[n-1];
     s+='<circle cx="'+X(n-1)+'" cy="'+Y(lv)+'" r="4" fill="'+se.color+'" stroke="var(--panel)" stroke-width="2"/>';
-    if(!bare) s+='<text x="'+(X(n-1)+8)+'" y="'+(Y(lv)+4)+'" style="fill:var(--muted);font-size:11px;font-weight:600">'+esc(fy(lv))+'</text>';
+    if(!bare) ends.push({y:Y(lv)+4,t:fy(lv)});
   });
+  ends.sort((a,b)=>a.y-b.y).forEach((e,i)=>{ if(i&&e.y-ends[i-1].y<12) e.y=ends[i-1].y+12; });
+  const over=ends.length?Math.max(0,ends[ends.length-1].y-(H-Bm+4)):0;  // keep them above the x axis
+  ends.forEach(e=>{ s+='<text x="'+(X(n-1)+8)+'" y="'+(e.y-over).toFixed(1)+'" style="fill:var(--muted);font-size:11px;font-weight:600">'+esc(e.t)+'</text>'; });
   s+='<line class="xh" y1="'+T+'" y2="'+(H-Bm)+'" x1="'+L+'" x2="'+L+'" visibility="hidden"/><g class="hov"></g><rect x="'+L+'" y="0" width="'+(W-L-R)+'" height="'+H+'" fill="transparent"/></svg>';
   if(o.series.length>1) s+='<div class="an-legend">'+o.series.map(se=>'<span><i style="background:'+se.color+'"></i>'+esc(se.name)+'</span>').join("")+'</div>';
   el.innerHTML=s;

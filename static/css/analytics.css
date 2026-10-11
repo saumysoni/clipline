@@ -26,12 +26,6 @@
 .an-grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
 
 /* hero + tiles */
-.an-top{display:grid;grid-template-columns:minmax(260px,1.1fr) minmax(0,2fr);gap:16px}
-.an-hero{display:flex;flex-direction:column;justify-content:space-between;gap:10px}
-.an-hero .lab{font-size:.86rem;color:var(--muted);font-weight:600}
-.an-hero .big{font-size:3.4rem;font-weight:700;line-height:1;letter-spacing:-.02em;color:var(--ink)}
-.an-hero .spark{flex:1;min-height:70px}
-.an-hero .vs{font-size:.76rem;color:var(--faint);margin-top:4px}
 .an-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
 .an-tile{background:var(--raised);border-radius:14px;padding:12px 14px;min-width:0}
 .an-tile .lab{font-size:.78rem;color:var(--muted);font-weight:600;display:flex;align-items:center;gap:5px}
@@ -111,11 +105,9 @@ dialog#anDetail::backdrop{background:rgba(8,10,18,.62)}
 #anDBody{display:grid;gap:14px}
 
 @media (max-width:820px){
-  .an-top{grid-template-columns:minmax(0,1fr)}
   .top-row{grid-template-columns:18px 40px minmax(0,1fr) auto}
   .top-row .tr{display:none}
   .top-row .vv{max-width:96px}
-  .an-hero .big{font-size:2.8rem}
 }
 
 /* platform headings, Instagram parts */
@@ -131,12 +123,9 @@ dialog#anDetail::backdrop{background:rgba(8,10,18,.62)}
 a.top-row{color:inherit;text-decoration:none}
 .top-row.ig .tr i{background:var(--c-ig)}
 .top-row .noimg{width:44px;height:78px;border-radius:7px;background:var(--raised)}
-#anIgMix .bar-row .tr i{background:var(--c-ig)}
-.an-top.flat{align-items:start}
 
 /* "Your clips" (js/analytics-clips.js) and the platform switch */
 .an-filters select#anVlog{width:auto;max-width:260px;padding:7px 10px;font-size:.86rem}
-#anBody[data-plat=youtube] .an-ig,#anBody[data-plat=instagram] .an-yt{display:none}
 #anClips .an-plat .linkbtn{margin-left:auto;font-size:.86rem}
 .an-sub{font-size:1rem;margin:22px 0 10px}
 .an-ins.wait{opacity:.85}
@@ -153,8 +142,7 @@ a.top-row{color:inherit;text-decoration:none}
 .ac-wait .ms{color:var(--warn);font-size:20px;flex:none}
 #anClips{margin-top:14px}
 /* the switch wraps the YouTube and Instagram parts: their sections keep the page's spacing */
-.an-yt,.an-ig,#anClips{display:grid;gap:16px;align-content:start}
-.an-yt:empty,.an-ig:empty{display:none}
+#anClips{display:grid;gap:16px;align-content:start}
 #anClips:not(:empty){margin-bottom:12px}
 .an-plat{margin:22px 0 2px}
 .an-sub{margin:10px 0 0}

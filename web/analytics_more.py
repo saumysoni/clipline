@@ -1,8 +1,8 @@
 """
-More of the Analytics page (youtube/analytics_more.py, instagram/account_insights.py): the Compare tab (every video
+More of the Analytics page (youtube/analytics_more.py, instagram/account_insights.py): Videos › Compare (every video
 in the period with all its numbers, any of them day by day, and a CSV download), the Audience tab, the Instagram
-account tab, the vlog -> Shorts link and the "this week" summary. Also `period_args()`, the range every analytics
-route reads: ?days=7|28|90|365|0, or ?start=YYYY-MM-DD&end=YYYY-MM-DD, and ?content=shorts|videos|all.
+account numbers for any window in its 90 days, and the vlog -> Shorts link. Also `period_args()`, the range every
+analytics route reads: ?days=7|28|90|365|0, or ?start=YYYY-MM-DD&end=YYYY-MM-DD, and ?content=shorts|videos|all.
 """
 import csv
 import io
@@ -157,36 +157,18 @@ def analytics_instagram_account():
         d = int(request.args.get("days", 30))
     except ValueError:
         d = 30
+    start = end = None
     try:
-        out = account_insights(g.user["id"], d)
+        if request.args.get("start") and request.args.get("end"):
+            start, end = date.fromisoformat(request.args["start"]), date.fromisoformat(request.args["end"])
+            start, end = min(start, end), max(start, end)
+    except ValueError:
+        start = end = None
+    try:
+        out = account_insights(g.user["id"], d, start, end)
     except ig.InstagramError as e:
         return jsonify(error=str(e)), 502
     except Exception:  # noqa: BLE001
         traceback.print_exc()
         return jsonify(error="Couldn't load your Instagram account numbers. Try Refresh."), 502
     return jsonify(connected=out is not None, **(out or {}))
-
-
-@app.get("/api/analytics/week")
-def analytics_week():
-    """This week at a glance: YouTube (all videos) and Instagram over the last 7 days, against the 7 before."""
-    uid = g.user["id"]
-    out = {}
-    if yt.account(uid)["signed_in"]:
-        try:
-            d = yt.analytics_dashboard(uid, 7, _clip_ids(uid), content="all")
-            t, p = d.get("totals") or {}, d.get("previous") or {}
-            best = next((s for s in d.get("shorts") or [] if s.get("views")), None)
-            out["youtube"] = {"views": t.get("views"), "prev": p.get("views"), "subs": t.get("subs"),
-                              "watch_hours": t.get("watch_hours"), "full": d.get("full"),
-                              "best": {"title": best.get("title"), "views": best.get("views"), "id": best.get("id")} if best else None}
-        except Exception:  # noqa: BLE001
-            traceback.print_exc()
-    try:
-        a = account_insights(uid, 7)
-        if a:
-            out["instagram"] = {"views": a["totals"].get("views"), "reach": a["totals"].get("reach"),
-                                "follows": a["follows"].get("FOLLOWER")}
-    except Exception:  # noqa: BLE001
-        traceback.print_exc()
-    return jsonify(out)

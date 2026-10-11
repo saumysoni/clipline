@@ -32,6 +32,26 @@ HOOKS = {"curiosity": "Curiosity hooks", "bold": "Bold hooks", "story": "Story h
          "none": "Shorts with no hook banner"}
 
 
+def fill_dates(user_id, clips):
+    """Clips posted before Pit Crew saved the posting time (a Short posted at once has "when": None and, before Oct
+    2026, no "uploaded_at") get YouTube's published date, so dates, order and the follows window work. Oldest first."""
+    need = [c["youtube"]["video_id"] for c in clips if c.get("youtube") and not c["youtube"].get("at")]
+    if need:
+        try:
+            from youtube.analytics_more import published_dates
+            got = published_dates(user_id, need) if yt.account(user_id)["signed_in"] else {}
+        except Exception:  # noqa: BLE001  (no dates is better than no clips)
+            traceback.print_exc()
+            got = {}
+        for c in clips:
+            y = c.get("youtube")
+            if y and not y.get("at") and got.get(y["video_id"]):
+                y["at"] = got[y["video_id"]]
+                c["posted_at"] = min(t for t in (y["at"], (c.get("instagram") or {}).get("at")) if t)
+    clips.sort(key=lambda c: c["posted_at"] or "")
+    return clips
+
+
 def _dt(iso):
     return datetime.fromisoformat(iso) if iso else None
 
@@ -158,7 +178,7 @@ def takeaways(clips, plat):
 def analytics_clips():
     vlog = request.args.get("vlog", "")
     vlog = vlog if re.fullmatch(r"[0-9a-f]{10}", vlog) else ""
-    clips = add_numbers(g.user["id"], posted_clips(g.user["id"], vlog))
+    clips = add_numbers(g.user["id"], fill_dates(g.user["id"], posted_clips(g.user["id"], vlog)))
     return jsonify(clips=clips, youtube=takeaways(clips, "youtube"), instagram=takeaways(clips, "instagram"))
 
 

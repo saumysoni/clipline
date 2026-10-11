@@ -9,7 +9,7 @@ function anAudForget(){ anAud=null; anAudIg=null; }
 function anAudienceLoad(){
   const q=anQuery(), st=(anData&&anData.instagram_state)||{};
   if(anShowYt()&&anData&&anData.connected&&(!anAud||anAud.q!==q)) anAudYtLoad(q); else anAudYtPaint();
-  if(anShowIg()&&st.signed_in&&(!anAudIg||anAudIg.days!==anIgDaysFor())) anAudIgLoad(); else anAudIgPaint();
+  if(anShowIg()&&st.signed_in&&(!anAudIg||anAudIg.q!==anIgQ())) anAudIgLoad(); else anAudIgPaint();
 }
 async function anAudYtLoad(q){
   $("anAudBox").innerHTML=anWait("Getting who watches...","audience");
@@ -18,17 +18,21 @@ async function anAudYtLoad(q){
   anAud={q,...j}; anAudYtPaint();
 }
 async function anAudIgLoad(){
-  const d=anIgDaysFor();
+  const q=anIgQ();
   $("anIgBox").innerHTML=anWait("Getting your Instagram audience...","igaudience");
-  const j=await anGet("/api/analytics/instagram?days="+d);
-  anAudIg={...j,days:d}; anAudIgPaint();
+  const j=await anGet("/api/analytics/instagram?"+q);
+  if(q!==anIgQ()) return;
+  anAudIg={...j,q}; anAudIgPaint();
 }
 // Column chart: one column per row with its number on top (rows: {label, v, lab, sub, color}).
 function colsHTML(rows,o){
   o=o||{};
   const max=Math.max(...rows.map(r=>r.v||0),1e-9);
-  return '<div class="an-vcols" role="img" aria-label="'+esc((o.label||"")+": "+rows.map(r=>r.label+" "+(r.lab||full(r.v))).join(", "))+'">'+rows.map(r=>
-    '<div class="vc" title="'+esc(r.label+": "+(r.title||r.lab||full(r.v)))+'"><div class="vbar"><b>'+esc(r.lab||full(r.v))+'</b>'+
+  // o.unit names what every bar counts ("views", "shares", "% of views"): shown above the bars and in each hover
+  const u=o.unit||"", num=r=>(r.lab||full(r.v))+(u&&!/^%/.test(u)?" "+u:"");
+  return (u?'<p class="an-vunit">Each bar: <b>'+esc(u.replace(/^%/,"share"))+'</b>'+(o.unitNote?' · '+esc(o.unitNote):'')+'</p>':'')+
+    '<div class="an-vcols" role="img" aria-label="'+esc((o.label||"")+(u?" ("+u.replace(/^%/,"share")+")":"")+": "+rows.map(r=>r.label+" "+num(r)).join(", "))+'">'+rows.map(r=>
+    '<div class="vc" title="'+esc(r.label+": "+num(r)+(r.title?" ("+r.title+")":""))+'"><div class="vbar"><b>'+esc(r.lab||full(r.v))+'</b>'+
     (r.stack?r.stack.map(s=>'<i style="height:'+(s.v/max*84).toFixed(1)+'%;background:'+s.color+'"></i>').join(""):'<i style="height:'+Math.max(1.5,(r.v||0)/max*84).toFixed(1)+'%;background:'+(r.color||AN_S(0))+'"></i>')+
     '</div><span class="nm">'+esc(r.label)+'</span>'+(r.sub?'<small>'+esc(r.sub)+'</small>':'')+'</div>').join("")+'</div>';
 }
@@ -79,20 +83,20 @@ function anAudYtPaint(){
   const ag=y.age_gender||[];
   if(ages.length){
     const by={}; ag.forEach(r=>{ (by[r.group]=by[r.group]||{})[r.gender]=r.pct; });
-    lists.push(card("anAuAge","Age","Signed-in viewers; each column split into men (blue) and women (orange)",
+    lists.push(card("anAuAge","Age","Share of views from signed-in viewers in each age group",
       colsHTML(ages.map(a=>({label:a.group,v:a.pct,lab:pct(a.pct),title:"men "+pct((by[a.group]||{}).male||0)+", women "+pct((by[a.group]||{}).female||0),
-        stack:ag.length?[{v:(by[a.group]||{}).female||0,color:AN_S(1)},{v:(by[a.group]||{}).male||0,color:AN_S(0)}]:null})),{label:"Age"}),
+        stack:ag.length?[{v:(by[a.group]||{}).female||0,color:AN_S(1)},{v:(by[a.group]||{}).male||0,color:AN_S(0)}]:null})),{label:"Age",unit:"% of views",unitNote:ag.length?"blue = men, orange = women":""}),
       table(["Age","Viewers","Men","Women"],ages.map(a=>[a.group,pct(a.pct),pct((by[a.group]||{}).male||0),pct((by[a.group]||{}).female||0)]),[1,2,3])));
   }
   if(cv.length){ const known=cv.reduce((s,r)=>s+r.views,0), rows=cv.slice(0,6).map(r=>({label:regionName(r.code),v:r.views,sub:t.views?pct(r.views/t.views*100):""}));
     if(t.views&&t.views-known>0) rows.push({label:"Not known",v:t.views-known,sub:pct((t.views-known)/t.views*100),color:"var(--faint)"});
-    lists.push(card("anAuCountry","Countries","Views and share",colsHTML(rows,{label:"Countries"}),table(["Country","Views","Share"],rows.map(r=>[r.label,full(r.v),r.sub]),[1,2]))); }
-  if((j.cities||[]).length) lists.push(card("anAuCity","Cities","YouTube names a city only once enough people watch from it",colsHTML(j.cities.slice(0,8).map(r=>({label:r.label,v:r.views,color:AN_S(2)})),{label:"Cities"}),table(["City","Views"],j.cities.map(r=>[r.label,full(r.views)]),[1])));
-  if((j.os||[]).length) lists.push(card("anAuOs","Phones and computers","Operating systems",colsHTML(j.os.slice(0,6).map(r=>({label:r.label,v:r.views,color:AN_S(3)})),{label:"Operating systems"}),table(["System","Views"],j.os.map(r=>[r.label,full(r.views)]),[1])));
-  if(lists.length) B.push('<div class="an-grid2">'+lists.join("")+'</div>');
+    lists.push(card("anAuCountry","Countries","How many views came from each country, and its share of all views",colsHTML(rows,{label:"Countries",unit:"views"}),table(["Country","Views","Share"],rows.map(r=>[r.label,full(r.v),r.sub]),[1,2]))); }
+  if((j.cities||[]).length) lists.push(card("anAuCity","Cities","Views from each city. YouTube names a city only once enough people watch from it",colsHTML(j.cities.slice(0,8).map(r=>({label:r.label,v:r.views,color:AN_S(2)})),{label:"Cities",unit:"views"}),table(["City","Views"],j.cities.map(r=>[r.label,full(r.views)]),[1])));
+  if((j.os||[]).length) lists.push(card("anAuOs","Phones and computers","Views from each kind of phone or computer",colsHTML(j.os.slice(0,6).map(r=>({label:r.label,v:r.views,color:AN_S(3)})),{label:"Operating systems",unit:"views"}),table(["System","Views"],j.os.map(r=>[r.label,full(r.views)]),[1])));
+  if(lists.length) B.push('<div class="an-grid2 two">'+lists.join("")+'</div>');
   if((j.search||[]).length) B.push(card("anAuSearch","What they typed to find you",full(srch?srch.views:0)+" views came from YouTube search",
-    colsHTML(j.search.slice(0,8).map(r=>({label:r.label,v:r.views,color:AN_S(4)})),{label:"Searches"}),table(["Search","Views"],j.search.map(r=>[r.label,full(r.views)]),[1])));
-  if((j.sharing||[]).length) B.push(card("anAuShare","Where they share","Shares by app",colsHTML(j.sharing.slice(0,6).map(r=>({label:({WHATSAPP:"WhatsApp",COPY_PASTE:"Copied the link",TEXT_MESSAGE:"Text message"})[r.key]||String(r.label).replace(/_/g," ").toLowerCase().replace(/^\w/,c=>c.toUpperCase()),v:r.shares,color:AN_S(5)})),{label:"Shares"}),
+    colsHTML(j.search.slice(0,8).map(r=>({label:r.label,v:r.views,color:AN_S(4)})),{label:"Searches",unit:"views"}),table(["Search","Views"],j.search.map(r=>[r.label,full(r.views)]),[1])));
+  if((j.sharing||[]).length) B.push(card("anAuShare","Where they share","How many times your videos were shared, by app",colsHTML(j.sharing.slice(0,6).map(r=>({label:({WHATSAPP:"WhatsApp",COPY_PASTE:"Copied the link",TEXT_MESSAGE:"Text message"})[r.key]||String(r.label).replace(/_/g," ").toLowerCase().replace(/^\w/,c=>c.toUpperCase()),v:r.shares,color:AN_S(5)})),{label:"Shares",unit:"shares"}),
     table(["App","Shares"],j.sharing.map(r=>[r.label,full(r.shares)]),[1])));
   box.innerHTML=B.join("");
   const ph=box.querySelector(".an-persona .headline");
@@ -107,17 +111,19 @@ function anAudIgPaint(){
   const j=anAudIg; if(!j) return;
   if(j.error){ box.innerHTML=anMsg("error",j.error); return; }
   if(!j.connected){ box.innerHTML=""; return; }
-  const B=['<div class="an-plat"><i style="background:var(--c-ig)"></i><h2>Instagram audience</h2><span>Last '+j.days+' days · Instagram describes your followers, YouTube describes your viewers</span></div>'];
+  const B=['<div class="an-plat"><i style="background:var(--c-ig)"></i><h2>Instagram audience</h2><span>'+esc(anIgRangeText(j).replace(/^l/,"L"))+' · Instagram describes your followers, YouTube describes your viewers</span></div>'];
   const FT={FOLLOWER:"Your followers",NON_FOLLOWER:"People who don't follow you",UNKNOWN:"Unknown"};
-  const rb=Object.entries(j.reach_by||{}).map(([k,v])=>({nm:FT[k]||k,v})), tot=rb.reduce((a,r)=>a+r.v,0)||1;
-  rb.forEach(r=>{ r.pct=r.v/tot*100; r.lab=full(r.v)+" accounts"; });
+  // accounts reached (one 30-day piece) or, over longer windows where accounts can't be added up, views
+  const byReach=Object.keys(j.reach_by||{}).length>0, unit=byReach?"accounts":"views";
+  const rb=Object.entries((byReach?j.reach_by:j.views_by)||{}).map(([k,v])=>({nm:FT[k]||k,v})), tot=rb.reduce((a,r)=>a+r.v,0)||1;
+  rb.forEach(r=>{ r.pct=r.v/tot*100; r.lab=full(r.v)+" "+unit; });
   const F=j.followers||{}, rowsOf=(o,lab)=>Object.entries(o||{}).map(([k,v])=>({label:lab?lab(k):k,v})).sort((a,b)=>b.v-a.v);
   const g1=[];
-  if(rb.some(r=>r.v>0)) g1.push(card("anIgRb","Who your Reels reached","Accounts reached in the last "+j.days+" days",donutHTML(rb),table(["","Accounts","Share"],rb.map(r=>[r.nm,full(r.v),pct(r.pct)]),[1,2])));
+  if(rb.some(r=>r.v>0)) g1.push(card("anIgRb",byReach?"Who your Reels reached":"Who watched your Reels",(byReach?"Accounts reached, ":"Views, ")+anIgRangeText(j),donutHTML(rb),table(["",byReach?"Accounts":"Views","Share"],rb.map(r=>[r.nm,full(r.v),pct(r.pct)]),[1,2])));
   const gen=rowsOf(F.gender,k=>({F:"Women",M:"Men",U:"Other"})[k]||k);
   if(gen.length){ const gt=gen.reduce((a,r)=>a+r.v,0)||1; g1.push(card("anIgGen","Followers: men and women","",donutHTML(gen.map(r=>({nm:r.label,v:r.v,pct:r.v/gt*100}))),table(["","Followers"],gen.map(r=>[r.label,full(r.v)]),[1]))); }
   const colsOf=(id,title,o,lab,color)=>{ const rows=rowsOf(o,lab); if(!rows.length) return ""; const tt=rows.reduce((a,r)=>a+r.v,0)||1;
-    return card(id,title,"",colsHTML(rows.slice(0,6).map(r=>({label:r.label,v:r.v,lab:pct(r.v/tt*100),color})),{label:title}),table(["","Followers"],rows.map(r=>[r.label,full(r.v)]),[1])); };
+    return card(id,title,"Share of your followers",colsHTML(rows.slice(0,6).map(r=>({label:r.label,v:r.v,lab:pct(r.v/tt*100),title:full(r.v)+" followers",color})),{label:title,unit:"% of followers"}),table(["","Followers"],rows.map(r=>[r.label,full(r.v)]),[1])); };
   const g2=[colsOf("anIgCountry","Followers by country",F.country,c=>regionName(c),"var(--c-ig)"),colsOf("anIgAge","Followers by age",F.age,null,"var(--c-ig)"),colsOf("anIgCity","Followers by city",F.city,c=>c.split(",")[0],"var(--c-ig)")].filter(Boolean);
   if(g1.length) B.push('<div class="an-grid4">'+g1.join("")+'</div>');
   B.push(g2.length?'<div class="an-grid2">'+g2.join("")+'</div>':anMsg("groups","Instagram shares who your followers are (country, city, age, gender) once the account has at least 100 followers."));
