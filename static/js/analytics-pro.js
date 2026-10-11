@@ -24,8 +24,8 @@ function anProLoad(){
 const anWait=t=>'<div class="an-card an-empty"><span class="spin" aria-hidden="true"></span><p>'+esc(t)+'</p></div>';
 const anMsg=(icon,t,html)=>'<div class="an-card an-mini"><span class="ms" aria-hidden="true">'+icon+'</span><p>'+esc(t)+'</p>'+(html||"")+'</div>';
 async function anGet(url){
-  try{ const r=await fetch(url), j=await r.json(); return r.ok?j:{error:j.error||"Couldn't load these numbers. Try Refresh."}; }
-  catch(e){ return {error:"Couldn't reach Pit Crew. Check your internet connection, then try again."}; }
+  try{ const r=await anFetch(url), j=await r.json(); return r.ok?j:{error:j.error||"Couldn't load these numbers. Try Refresh."}; }
+  catch(e){ return {error:e.message==="timeout"?AN_SLOW:"Couldn't reach Pit Crew. Check your internet connection, then try again."}; }
 }
 
 // ---------- donut: parts of a whole (devices, subscribers, followers...). Up to 5 slices, the rest folded into "Other".
@@ -89,7 +89,7 @@ async function anWeekLoad(){
     if(i.reach!=null) bits.push('<div class="wk-n ig"><span>Accounts reached</span><b>'+compact(i.reach)+'</b></div>');
     if(i.follows) bits.push('<div class="wk-n ig"><span>New followers</span><b>+'+compact(i.follows)+'</b></div>');
   }
-  $("anWeek").innerHTML='<div class="an-card wk"><div class="wk-head"><span class="ms" aria-hidden="true">calendar_view_week</span><h2>This week</h2><span class="sub">Last 7 days, YouTube Shorts and videos'+(i?" plus Instagram":"")+'</span></div>'+
+  $("anWeek").innerHTML='<div class="an-card wk"><div class="wk-head"><span class="ms" aria-hidden="true">calendar_view_week</span><h2>This week</h2><span class="sub">Always the last 7 days (the dates above don\'t change this card), YouTube Shorts and videos'+(i?" plus Instagram":"")+'</span></div>'+
     '<div class="wk-row">'+bits.join("")+'</div>'+(says.length?'<p class="wk-say">'+esc(says.join(" "))+'</p>':'')+'</div>';
 }
 
@@ -145,7 +145,9 @@ function anCmpPaint(){
       '<td class="vt"><button type="button" class="cmp-v" data-id="'+esc(v.id)+'">'+(v.thumb?'<img src="'+esc(v.thumb)+'" alt="" referrerpolicy="no-referrer" loading="lazy">':'<span class="noimg"></span>')+
       '<span><b>'+esc(v.title||"Untitled")+(v.clipline?'<span class="tag clip">Pit Crew</span>':'')+'</b><small>'+(v.published?new Date(v.published).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}):"")+(v.secs?" · "+secs(v.secs):"")+'</small></span></button></td>'+
       cols.map(([k])=>cell(v,k)).join("")+'</tr>'; }).join("");
-  const total='<tr class="tot"><td></td><td class="vt"><b>Total</b><small>'+d.videos.length+' '+(d.videos.length===1?W[0]:W[1])+'</small></td>'+cols.map(([k])=>'<td class="n"><b>'+esc(CMP_SHARE.has(k)?anCmpVal(tot,k):"")+'</b></td>').join("")+'</tr>';
+  // Total = the channel's (same as the Overview); "Other" = views on videos deleted, made private or not listed since.
+  const total='<tr class="tot"><td></td><td class="vt"><b>Total</b><small>'+d.videos.length+' '+(d.videos.length===1?W[0]:W[1])+(d.other?' + other':'')+'</small></td>'+cols.map(([k])=>'<td class="n"><b>'+esc(CMP_SHARE.has(k)?anCmpVal(tot,k):"")+'</b></td>').join("")+'</tr>'+
+    (d.other&&!anCmpFind?'<tr class="oth"><td></td><td class="vt"><b>Other '+W[1]+'</b><small>Deleted, private or no longer listed</small></td>'+cols.map(([k])=>CMP_SHARE.has(k)?cell(d.other,k):'<td></td>').join("")+'</tr>':'');
   $("anCmpBox").innerHTML=
     '<div class="an-card"><div class="an-head"><div><h2>Compare your '+W[1]+'</h2><p class="sub">Tick up to 8 to see them day by day. Each number shows its share of the total. '+anRangeText(d.range?{...d.range,custom:true}:{})+'.</p></div>'+
     '<a class="ghost sm" id="anCsv" href="/api/analytics/videos.csv?'+anQuery()+'" download><span class="ms" aria-hidden="true">download</span>Download CSV</a></div>'+
@@ -198,14 +200,12 @@ async function anAudLoad(q){
   const dn=(id,title,sub,rows,key)=>rows.length?card(id,title,sub,donutHTML(share(rows,key)),table(["",key==="shares"?"Shares":"Views","Share"],share(rows,key).map(r=>[r.nm,full(r.v),pct(r.pct)]),[1,2])):"";
   const bars=(id,title,sub,rows,key,lab)=>rows.length?card(id,title,sub,barsHTML(rows.slice(0,10).map(r=>({nm:lab?lab(r):r.label,v:r[key]||0,lab:compact(r[key])}))),table(["",key==="shares"?"Shares":"Views"],rows.map(r=>[lab?lab(r):r.label,full(r[key])]),[1])):"";
   const g1=[dn("anAuDev","Devices","What they watch your "+W[1]+" on",j.devices||[],"views"),
-    j.subscribed&&j.subscribed.length?card("anAuSub","Subscribers vs everyone else","Share of views from people subscribed to you",
-      donutHTML(share(j.subscribed,"views")),table(["","Views","Watch time"],j.subscribed.map(r=>[r.label,full(r.views),compact((r.minutes||0)/60)+" h"]),[1,2])):"",
     dn("anAuPlay","Where they watch","Where on YouTube (or off it) your "+W[1]+" are played",j.playback||[],"views"),
-    (y.genders||[]).length?card("anAuGen","Gender","Share of your channel's viewers",donutHTML(y.genders.map(g=>({nm:GENDER[g.gender]||g.gender,v:g.pct}))),table(["","Viewers"],y.genders.map(g=>[GENDER[g.gender]||g.gender,pct(g.pct)]),[1])):""].filter(Boolean);
+    (y.genders||[]).length?card("anAuGen","Gender","Share of signed-in viewers of your "+anWord()[1],donutHTML(y.genders.map(g=>({nm:GENDER[g.gender]||g.gender,v:g.pct}))),table(["","Viewers"],y.genders.map(g=>[GENDER[g.gender]||g.gender,pct(g.pct)]),[1])):""].filter(Boolean);
   if(g1.length) B.push('<div class="an-grid2">'+g1.join("")+'</div>');
   const g2=[(y.countries||[]).length?bars("anAuCountry","Countries","Top countries by views",y.countries.map(r=>({label:regionName(r.code),views:r.views})),"views"):"",
     bars("anAuCity","Cities","Top cities by views",j.cities||[],"views"),
-    (y.ages||[]).length?card("anAuAge","Age","Share of your channel's viewers",barsHTML(y.ages.map(r=>({nm:r.group,v:r.pct,lab:pct(r.pct)}))),table(["Age","Viewers"],y.ages.map(r=>[r.group,pct(r.pct)]),[1])):"",
+    (y.ages||[]).length?card("anAuAge","Age","Share of signed-in viewers of your "+anWord()[1],barsHTML(y.ages.map(r=>({nm:r.group,v:r.pct,lab:pct(r.pct)}))),table(["Age","Viewers"],y.ages.map(r=>[r.group,pct(r.pct)]),[1])):"",
     bars("anAuOs","Operating systems","",j.os||[],"views")].filter(Boolean);
   if(g2.length) B.push('<div class="an-grid2">'+g2.join("")+'</div>');
   const g3=[(y.traffic||[]).length?(()=>{ const tot=y.traffic.reduce((a,r)=>a+r.views,0)||1; return card("anAuTraffic","How they find you","Share of views by where they came from",barsHTML(y.traffic.slice(0,8).map(r=>({nm:TRAFFIC[r.source]||r.source,v:r.views/tot*100,lab:pct(r.views/tot*100)}))),table(["Source","Views"],y.traffic.map(r=>[TRAFFIC[r.source]||r.source,full(r.views)]),[1])); })():"",

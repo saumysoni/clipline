@@ -312,7 +312,7 @@ Open Pit Crew at `http://localhost:8000`, the address it opens by itself. Google
 **Analytics.** **Analytics** in the sidebar has four tabs, for any range (7, 28, 90 days, a year, all time or your own dates) and for Shorts, long videos or both:
 - **Overview:** views, watch time, engaged views, likes, comments, shares, subscribers, views per day, top videos (click one for its retention curve), "This week" at a glance, each clip's first week, what's working, and for vlogs uploaded with Pit Crew how many viewers their Shorts sent them. Instagram Reels sit next to the Shorts.
 - **Compare:** every video in the period with all its numbers and its share of the total (like YouTube Studio's advanced mode). Tick up to 8 to see them day by day, sort any column, and download it all as a CSV.
-- **Audience:** devices, subscribers vs everyone else, where they watch, gender, countries, cities, age, operating systems, how they find you, what they searched and where they share.
+- **Audience:** devices, where they watch, gender, countries, cities, age, operating systems, how they find you, what they searched and where they share.
 - **Instagram:** the account's reach per day, followers vs new people, new followers and unfollows, profile link taps, when your followers are online, and who they are (country, city, age, gender; Instagram shares these from 100 followers).
 
 If you connected YouTube before Analytics existed, click **Connect again** there once so Pit Crew can read YouTube Analytics.

@@ -58,14 +58,22 @@ $("anContent").querySelectorAll("button").forEach(b=>b.onclick=()=>{
   anContent=b.dataset.c; $("anH").textContent="How your "+({shorts:"Shorts",videos:"videos",all:"videos"})[anContent]+" are doing"; loadAnalytics();
 });
 
+// fetch() with a time limit: a request YouTube never answers ends with a message instead of a spinner forever.
+async function anFetch(url,ms){
+  const c=new AbortController(), t=setTimeout(()=>c.abort(),ms||90000);
+  try{ return await fetch(url,{signal:c.signal}); }
+  catch(e){ if(e.name==="AbortError") throw new Error("timeout"); throw e; }
+  finally{ clearTimeout(t); }
+}
+const AN_SLOW="YouTube took too long to answer. Try Refresh in a minute.";
 async function loadAnalytics(){
   loadClipStats();
   anLoading=true; $("anBody").classList.add("loading");
   if(!$("anBody").children.length) $("anBody").innerHTML='<div class="an-card an-empty"><span class="spin" aria-hidden="true"></span><p>Getting your numbers...</p></div>';
   let r,j;
   const q=anQuery();
-  try{ r=await fetch("/api/analytics?"+q); j=await r.json(); }
-  catch(e){ j={error:"Couldn't reach Pit Crew. Check your internet connection, then try again."}; }
+  try{ r=await anFetch("/api/analytics?"+q); j=await r.json(); }
+  catch(e){ j={error:e.message==="timeout"?AN_SLOW:"Couldn't reach Pit Crew. Check your internet connection, then try again."}; }
   anLoading=false; $("anBody").classList.remove("loading");
   if(q!==anQuery()) return;  // the creator changed the range meanwhile: that load will paint
   anData={days:anDays,q,...j};
@@ -137,9 +145,9 @@ function renderAnalytics(j){
   if((y.countries||[]).length){ const tot=y.countries.reduce((a,r)=>a+r.views,0)||1;
     g2.push(card("anGeo","Where they watch from","Top countries by views",barsHTML(y.countries.map(r=>({nm:regionName(r.code),v:r.views,lab:compact(r.views)}))),
       table(["Country","Views"],y.countries.map(r=>[regionName(r.code),full(r.views)]),[1]))); }
-  if((y.ages||[]).length) g2.push(card("anAge","Age","Share of your channel's viewers",barsHTML(y.ages.map(r=>({nm:r.group,v:r.pct,lab:pct(r.pct)}))),
+  if((y.ages||[]).length) g2.push(card("anAge","Age","Share of signed-in viewers of your "+anWord()[1],barsHTML(y.ages.map(r=>({nm:r.group,v:r.pct,lab:pct(r.pct)}))),
     table(["Age","Viewers"],y.ages.map(r=>[r.group,pct(r.pct)]),[1])));
-  if((y.genders||[]).length) g2.push(card("anGender","Gender","Share of your channel's viewers",splitHTML(y.genders),
+  if((y.genders||[]).length) g2.push(card("anGender","Gender","Share of signed-in viewers of your "+anWord()[1],splitHTML(y.genders),
     table(["Gender","Viewers"],y.genders.map(r=>[GENDER[r.gender]||r.gender,pct(r.pct)]),[1])));
   if(g2.length) B.push('<div class="an-grid2">'+g2.join("")+'</div>');
   $("anBody").innerHTML='<div class="an-yt">'+B.join("")+'</div><div class="an-ig">'+igAnalyticsHTML(j)+'</div>';
@@ -275,7 +283,7 @@ async function openShortAnalytics(id,channel,whole){
   $("anDBody").innerHTML=shortHead(s)+'<div class="an-card an-empty"><span class="spin" aria-hidden="true"></span><p>Getting this Short\'s numbers...</p></div>';
   if(!$("anDetail").open) $("anDetail").showModal();
   const q="?"+anQuery()+(whole?"&whole=1":"")+(channel?"&channel="+encodeURIComponent(channel):"");
-  let j; try{ j=await (await fetch("/api/analytics/short/"+encodeURIComponent(id)+q)).json(); }catch(e){ j={error:"Couldn't reach Pit Crew."}; }
+  let j; try{ j=await (await anFetch("/api/analytics/short/"+encodeURIComponent(id)+q)).json(); }catch(e){ j={error:e.message==="timeout"?AN_SLOW:"Couldn't reach Pit Crew."}; }
   if(!anDOpen||anDOpen.id!==id) return;  // another video was opened meanwhile
   const m0={...s,...(j.short||{})};
   const span=allTime?"":'<div class="an-seg an-dwin" role="group" aria-label="Time range"><button type="button" data-w="0" aria-pressed="'+!whole+'">'+

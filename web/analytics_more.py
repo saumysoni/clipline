@@ -40,6 +40,12 @@ def period_args():
         d = 28
     d = d if d in (0, 7, 28, 90, 365) else 28
     start, end, _, _, _ = period(d)
+    if d == 0:  # all time: from the day the channel was created (not 2005: thousands of empty days are slow)
+        from youtube.analytics import channel_start
+        try:
+            start = channel_start(g.user["id"])
+        except Exception:  # noqa: BLE001  (not connected: the route says so itself)
+            pass
     return start, end, content, d
 
 
@@ -62,9 +68,9 @@ def _clip_ids(uid):
 def analytics_videos():
     if not yt.account(g.user["id"])["signed_in"]:
         return jsonify(connected=False)
-    start, end, content, _ = period_args()
+    start, end, content, days = period_args()
     try:
-        d = more.videos(g.user["id"], start, end, content, _clip_ids(g.user["id"]))
+        d = more.videos(g.user["id"], start, end, content, _clip_ids(g.user["id"]), live=days == 0)
         return jsonify({**d, "range": {"start": str(start), "end": str(end)}, "content": content})
     except Exception as e:  # noqa: BLE001
         return _err(e)
@@ -72,9 +78,9 @@ def analytics_videos():
 
 @app.get("/api/analytics/videos.csv")
 def analytics_videos_csv():
-    start, end, content, _ = period_args()
+    start, end, content, days = period_args()
     try:
-        d = more.videos(g.user["id"], start, end, content, _clip_ids(g.user["id"]))
+        d = more.videos(g.user["id"], start, end, content, _clip_ids(g.user["id"]), live=days == 0)
     except Exception as e:  # noqa: BLE001
         return _err(e)
     buf = io.StringIO()
@@ -86,6 +92,9 @@ def analytics_videos_csv():
     w.writerow([c[0] for c in cols])
     for v in d["videos"]:
         w.writerow(["" if v.get(k) is None else v.get(k) for _, k in cols])
+    if d.get("other"):  # views on videos deleted, made private or no longer listed (in the channel's totals)
+        w.writerow(["Other (deleted, private or no longer listed)"] + ["" if d["other"].get(k) is None or k in ("id", "published", "secs", "avg_secs", "avg_pct", "clipline") else d["other"].get(k) for _, k in cols[1:]])
+    w.writerow(["Total"] + ["" if d["total"].get(k) is None or k in ("id", "published", "secs", "avg_secs", "avg_pct", "clipline") else d["total"].get(k) for _, k in cols[1:]])
     name = f"pit-crew-{content}-{start}-to-{end}.csv"
     return Response(buf.getvalue(), mimetype="text/csv", headers={"Content-Disposition": f'attachment; filename="{name}"'})
 

@@ -1,7 +1,7 @@
 """
 More YouTube analytics for the Analytics page, on top of youtube/analytics.py: the Compare tab (any videos side by
 side, day by day, with every number YouTube Studio's advanced mode shows), the Audience tab (devices, playback
-location, subscribers vs not, search terms, sharing services, cities) and the vlog -> Shorts link (how many viewers
+location, search terms, sharing services, cities) and the vlog -> Shorts link (how many viewers
 a vlog's Shorts sent to it). Same rules as analytics.py: everything comes from the YouTube Analytics API (about
 2 days behind) for the active channel, cached 10 minutes, and a report YouTube refuses is left out, never an error.
 """
@@ -31,6 +31,18 @@ def _cached(key, fn):
     return out
 
 
+def _per_thread(user_id):
+    """A getter for a YouTube Analytics client of this thread's own. Google's client (httplib2) must never be shared
+    between threads: a shared one can hang or mix up answers, so each worker of a ThreadPoolExecutor builds its own."""
+    local = threading.local()
+
+    def get():
+        if not hasattr(local, "ya"):
+            local.ya = base._services(user_id)[1]
+        return local.ya
+    return get
+
+
 def _chan(user_id):
     return (db.connection(user_id, "youtube") or {}).get("account_id")
 
@@ -45,9 +57,11 @@ def _row(r, meta):
             "avg_pct": round(r.get("averageViewPercentage", 0) or 0, 1)}
 
 
-def videos(user_id, start, end, content="shorts", clipline_ids=()):
+def videos(user_id, start, end, content="shorts", clipline_ids=(), live=False):
     """Every video with views in the period (up to 200, most viewed first), plus Pit Crew's Shorts posted by then
-    (at 0 if they had none), each with all the Compare numbers, plus the period's totals. The page works out each video's share of the total."""
+    (at 0 if they had none), each with all the Compare numbers, plus the period's totals. The page works out each
+    video's share of the total. live (All time): views, likes and comments are YouTube's live counts, the same
+    numbers the Overview and YouTube Studio show (Analytics is ~2 days behind)."""
     flt = CONTENT.get(content, CONTENT["shorts"])
     clip = set(clipline_ids)
 
@@ -60,65 +74,90 @@ def videos(user_id, start, end, content="shorts", clipline_ids=()):
             rows = rows + [{"video": v} for v in sorted(clip) if v in meta and v not in shown
                            and (meta[v].get("published") or "")[:10] <= str(end)]
         vids = [{**_row(r, meta), "clipline": r["video"] in clip} for r in rows]
+        if live:
+            for v in vids:
+                m = meta.get(v["id"]) or {}
+                v.update(views=max(v["views"], m.get("live_views", 0)), likes=m.get("live_likes", v["likes"]),
+                         comments=m.get("live_comments", v["comments"]))
+            vids.sort(key=lambda v: -v["views"])
         keys = ("views", "engaged", "likes", "comments", "shares", "subs", "minutes")
-        total = {k: sum((v.get(k) or 0) for v in vids) for k in keys}
+        listed = {k: sum((v.get(k) or 0) for v in vids) for k in keys}
+        # The total is the channel's (the same number as the Overview), not the sum of the list: views on videos
+        # that are deleted, private or not listed any more still count in YouTube's totals. That part is "other".
+        ch = (_with_engaged(ya, start, end, "views,likes,comments,shares,subscribersGained,subscribersLost,"
+                            "estimatedMinutesWatched", filters=flt) or [{}])[0]
+        total = {"views": ch.get("views", 0), "engaged": ch.get("engagedViews"), "likes": ch.get("likes", 0),
+                 "comments": ch.get("comments", 0), "shares": ch.get("shares", 0),
+                 "subs": (ch.get("subscribersGained", 0) or 0) - (ch.get("subscribersLost", 0) or 0),
+                 "minutes": round(ch.get("estimatedMinutesWatched", 0) or 0, 1)}
+        for k in keys:  # never below what the list adds up to (live counts can be ahead of Analytics)
+            if total[k] is not None:
+                total[k] = max(total[k], listed[k])
         if not any(v.get("engaged") is not None for v in vids):
             total["engaged"] = None
-        return {"videos": vids, "total": total}
-    return _cached(("videos", user_id, _chan(user_id), str(start), str(end), content, tuple(sorted(clip))), build)
+        other = {k: (round(total[k] - listed[k], 1) if total[k] is not None else None) for k in keys}
+        return {"videos": vids, "total": total, "other": other if (other["views"] or 0) > 0 else None}
+    return _cached(("videos", user_id, _chan(user_id), str(start), str(end), content, tuple(sorted(clip)), live), build)
 
 
 def compare(user_id, ids, start, end):
     """Day-by-day views (and engaged views where YouTube gives them) for up to 8 videos, for the Compare chart."""
     ids = [i for i in dict.fromkeys(ids) if i][:8]
 
-    def one(ya, vid):
-        rows = _try(_with_engaged, ya, start, end, "views", "day", filters=f"video=={vid}", sort="day")
+    def one(get, vid):
+        rows = _try(_with_engaged, get(), start, end, "views", "day", filters=f"video=={vid}", sort="day")
         return vid, {r["day"]: {"views": r.get("views", 0), "engaged": r.get("engagedViews")} for r in rows}
 
     def build():
-        _, ya = base._services(user_id)
+        base._services(user_id)  # signs in (and refreshes the token) once, before the workers start
+        get = _per_thread(user_id)
         with ThreadPoolExecutor(4) as ex:
-            got = dict(ex.map(lambda v: one(ya, v), ids))
+            got = dict(ex.map(lambda v: one(get, v), ids))
         return {"series": [{"id": v, "days": got.get(v, {})} for v in ids]}
     return _cached(("compare", user_id, _chan(user_id), str(start), str(end), tuple(ids)), build)
 
 
 DEVICE = {"MOBILE": "Phone", "DESKTOP": "Computer", "TABLET": "Tablet", "TV": "TV", "GAME_CONSOLE": "Game console",
           "UNKNOWN_PLATFORM": "Other"}
-PLAYBACK = {"SHORTS": "Shorts feed", "WATCH": "YouTube watch page", "CHANNEL": "Your channel page",
+PLAYBACK = {"SHORTS_FEED": "Shorts feed", "SHORTS": "Shorts feed", "WATCH": "YouTube watch page", "CHANNEL": "Your channel page",
             "EMBEDDED": "Other websites", "BROWSE": "Home and browse", "SEARCH": "Search results",
             "YT_OTHER": "Other YouTube pages", "EXTERNAL_APP": "Other apps", "MOBILE": "YouTube mobile site",
             "UNKNOWN": "Other"}
-SUBSCRIBED = {"SUBSCRIBED": "Subscribers", "UNSUBSCRIBED": "Not subscribed"}
+OS = {"ANDROID": "Android", "IOS": "iOS", "WINDOWS": "Windows", "MACINTOSH": "macOS", "LINUX": "Linux",
+      "CHROMECAST": "Chromecast", "SMART_TV": "Smart TV", "PLAYSTATION": "PlayStation", "XBOX": "Xbox",
+      "NINTENDO_3DS": "Nintendo", "WII": "Nintendo", "ROKU": "Roku", "TIZEN": "Samsung TV", "WEBOS": "LG TV",
+      "FIREFOX": "Firefox OS", "KAIOS": "KaiOS", "DOCOMO": "Docomo", "BLACKBERRY": "BlackBerry", "OTHER": "Other",
+      "UNKNOWN": "Other"}
 
 
 def audience(user_id, start, end, content="shorts"):
+    # No "subscribers vs not" (subscribedStatus): YouTube answers HTTP 500 for it with every metric and filter
+    # (checked on a real channel, Oct 2026), so asking would only cost a failed request on every load.
     """The Audience tab's breakdowns. Each is a list of {"key", "label", "views"} (sharing: "shares"); a breakdown
     YouTube won't give for this channel (too few viewers, or not offered for Shorts) is an empty list."""
     flt = CONTENT.get(content, CONTENT["shorts"])
 
-    def rows(ya, metric, dim, labels=None, max_results=None, extra=None):
+    def rows(get, metric, dim, labels=None, max_results=None, extra=None):
         f = ";".join(x for x in (flt, extra) if x) or None
-        got = _try(_report, ya, start, end, metric, dim, filters=f, sort="-" + metric.split(",")[0], max_results=max_results)
-        return [{"key": r[dim], "label": (labels or {}).get(r[dim], r[dim]), metric.split(",")[0]: r.get(metric.split(",")[0], 0),
+        got = _try(_report, get(), start, end, metric, dim, filters=f, sort="-" + metric.split(",")[0], max_results=max_results)
+        return [{"key": r[dim], "label": (labels or {}).get(r[dim]) or (str(r[dim]).replace("_", " ").capitalize() if labels else r[dim]), metric.split(",")[0]: r.get(metric.split(",")[0], 0),
                  **({"minutes": round(r.get("estimatedMinutesWatched", 0) or 0)} if "estimatedMinutesWatched" in metric else {})}
                 for r in got]
 
     def build():
-        _, ya = base._services(user_id)
+        base._services(user_id)  # signs in (and refreshes the token) once, before the workers start
+        get = _per_thread(user_id)
         jobs = {
             "devices": ("views", "deviceType", DEVICE, None, None),
-            "os": ("views", "operatingSystem", None, 8, None),
+            "os": ("views", "operatingSystem", OS, 8, None),
             "playback": ("views", "insightPlaybackLocationType", PLAYBACK, None, None),
-            "subscribed": ("views,estimatedMinutesWatched", "subscribedStatus", SUBSCRIBED, None, None),
             "sharing": ("shares", "sharingService", None, 8, None),
             "search": ("views", "insightTrafficSourceDetail", None, 25, "insightTrafficSourceType==YT_SEARCH"),
             "cities": ("views", "city", None, 10, None),
         }
         out = {}
         with ThreadPoolExecutor(4) as ex:
-            futs = {k: ex.submit(rows, ya, *v) for k, v in jobs.items()}
+            futs = {k: ex.submit(rows, get, *v) for k, v in jobs.items()}
             for k, f in futs.items():
                 try:
                     out[k] = f.result()

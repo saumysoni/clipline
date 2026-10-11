@@ -16,7 +16,7 @@ function paintClipStats(){
   const plats=AC_PLATS.filter(([k])=>(!anPlat||anPlat===k) && d.clips.some(c=>c[k]));
   const clips=d.clips.filter(c=>plats.some(([k])=>c[k]));
   const vname=anVlog&&(d.clips[0]||{}).vlog;
-  const B=['<div class="an-plat"><i style="background:var(--primary)"></i><h2>'+(anVlog?"Clips from "+esc(vname||"this vlog"):"Your clips")+'</h2><span>Shorts &amp; Reels Pit Crew posted</span>'+
+  const B=['<div class="an-plat"><i style="background:var(--primary)"></i><h2>'+(anVlog?"Clips from "+esc(vname||"this vlog"):"Your clips")+'</h2><span>Shorts &amp; Reels Pit Crew posted · each clip\'s first 7 days, so old and new clips compare fairly (the dates above don\'t change this part)</span>'+
     (anVlog?'<button type="button" class="linkbtn" id="acAll">Show all vlogs</button>':'')+'</div>'];
   if(!clips.length){
     B.push('<div class="an-card an-mini"><span class="ms" aria-hidden="true">movie</span><p>'+(anVlog?"None of this vlog's clips are posted yet.":"Once Pit Crew posts your clips, each one's first week shows up here, so you can see if new ones do better than old ones.")+'</p></div>');

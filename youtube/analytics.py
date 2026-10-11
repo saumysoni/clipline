@@ -5,7 +5,7 @@ Two sources:
   - YouTube Analytics API (scope yt-analytics.readonly, "YouTube Analytics API" enabled in Google Cloud):
     views, likes, comments, shares, subscribers, watch time, % viewed, day by day, top Shorts, how viewers
     found them, who they are and where, and per Short the audience-retention curve. Its numbers are
-    about 2 days behind. creatorContentType==SHORTS keeps it to Shorts, so every Short on the channel
+    about 2 days behind. creatorContentType==shorts keeps it to Shorts, so every Short on the channel
     counts, not only Pit Crew's.
   - YouTube Data API (the posting scope): live view/like/comment counts, titles, thumbnails, lengths.
 If the analytics part isn't allowed (an older connection, or the API isn't enabled), the page still gets
@@ -20,9 +20,12 @@ from accounts import db
 from youtube.connection import load_creds
 
 
-SHORTS = "creatorContentType==SHORTS"
+# creatorContentType filter values are camelCase ("shorts", "videoOnDemand"), as YouTube returns them. The
+# UPPER_CASE names in Google's docs (SHORTS, VIDEO_ON_DEMAND) are refused with HTTP 400 "Invalid value"
+# (checked against a real channel, Oct 2026: _test/an_diag2.py).
+SHORTS = "creatorContentType==shorts"
 # What the page's Shorts / Videos / All switch shows (creatorContentType; "all" = no filter).
-CONTENT = {"shorts": SHORTS, "videos": "creatorContentType==VIDEO_ON_DEMAND", "all": None}
+CONTENT = {"shorts": SHORTS, "videos": "creatorContentType==videoOnDemand", "all": None}
 CACHE_SECS = 600  # YouTube's numbers change slowly; don't ask again for 10 minutes
 _CACHE, _LOCK = {}, threading.Lock()
 
@@ -41,15 +44,23 @@ def _services(user_id, channel=None):
     creds = load_creds(user_id, channel)
     if not creds:
         raise RuntimeError("Your YouTube channel isn't connected. Click Connect YouTube, then try again.")
-    return (build("youtube", "v3", credentials=creds, cache_discovery=False),
-            build("youtubeAnalytics", "v2", credentials=creds, cache_discovery=False))
+    return (build("youtube", "v3", http=_http(creds), cache_discovery=False),
+            build("youtubeAnalytics", "v2", http=_http(creds), cache_discovery=False))
+
+
+def _http(creds):
+    """A signed-in HTTP client with a time limit (Google's default has none, so a stuck request would hang the page)."""
+    import httplib2
+    from google_auth_httplib2 import AuthorizedHttp
+    return AuthorizedHttp(creds, http=httplib2.Http(timeout=40))
 
 
 def _report(ya, start, end, metrics, dimensions=None, filters=SHORTS, sort=None, max_results=None):
     """Rows as dicts ({"day": "2026-10-01", "views": 120, ...}). Raises NeedsReconnect when not allowed.
 
-    Shorts are picked with the filter creatorContentType==SHORTS. Some report/metric combinations refuse that filter
-    (HTTP 400); then the same report is asked with creatorContentType as a dimension and only the SHORTS rows kept."""
+    Shorts are picked with the filter creatorContentType==shorts. If a report refuses that filter (HTTP 400), the same
+    report is asked with creatorContentType as a dimension and only that kind's rows kept. (YouTube refuses
+    video,creatorContentType together, so lists of videos must use the filter.)"""
     from googleapiclient.errors import HttpError
 
     q = {"ids": "channel==MINE", "startDate": str(start), "endDate": str(end), "metrics": metrics}
@@ -75,16 +86,20 @@ def _report(ya, start, end, metrics, dimensions=None, filters=SHORTS, sort=None,
     return [dict(zip(names, row)) for row in resp.get("rows") or []]
 
 
-def _report_by_type(ya, start, end, metrics, dimensions, filters, sort, max_results, kind="SHORTS"):
-    """The same report with creatorContentType as a dimension, keeping the rows of that kind (SHORTS,
-    VIDEO_ON_DEMAND). Totals that are sums (views, likes...) are exact; averages (averageViewDuration/Percentage)
-    come straight from YouTube's row for that kind."""
+def _report_by_type(ya, start, end, metrics, dimensions, filters, sort, max_results, kind="shorts"):
+    """The same report with creatorContentType as a dimension, keeping the rows of that kind (shorts,
+    videoOnDemand; compared ignoring case and underscores). Totals that are sums (views, likes...) are exact;
+    averages (averageViewDuration/Percentage) come straight from YouTube's row for that kind."""
     rest = ";".join(f for f in filters.split(";") if not f.startswith("creatorContentType==")) or None
     dims = ",".join(d for d in ((dimensions or "").split(",") + ["creatorContentType"]) if d)
     rows = _report(ya, start, end, metrics, dims, rest, sort, (max_results * 4) if max_results else None)
     rows = [{k: v for k, v in r.items() if k != "creatorContentType"} for r in rows
-            if str(r.get("creatorContentType", "")).upper() in ({kind, "SHORT"} if kind == "SHORTS" else {kind})]
+            if _kind(r.get("creatorContentType")) == _kind(kind)]
     return rows[:max_results] if max_results else rows
+
+
+def _kind(v):
+    return str(v or "").replace("_", "").lower()
 
 
 def _try(fn, *a, **k):
@@ -151,6 +166,24 @@ def _totals(ya, start, end, flt=SHORTS):
             "engagement": round(100 * eng / views, 2) if views else 0}
 
 
+_BORN = {}
+
+
+def channel_start(user_id, yt3=None):
+    """The day the active channel was created: where "All time" starts. Asking from 2005 instead makes YouTube
+    work through thousands of empty days (10-35 s per report on a new channel)."""
+    chan = (db.connection(user_id, "youtube") or {}).get("account_id")
+    hit = _BORN.get((user_id, chan))
+    if hit:
+        return hit
+    yt3 = yt3 or _services(user_id)[0]
+    ch = (yt3.channels().list(part="snippet", mine=True).execute().get("items") or [{}])[0]
+    at = (ch.get("snippet") or {}).get("publishedAt")
+    born = datetime.fromisoformat(at.replace("Z", "+00:00")).date() - timedelta(days=1) if at else date(2005, 4, 23)
+    _BORN[(user_id, chan)] = born
+    return born
+
+
 def period(days=28, start=None, end=None):
     """(start, end, previous start, previous end, days) for the last `days` days (0 = all time), or a custom
     start..end (dates). The previous period has the same length, just before it (none for all time)."""
@@ -180,6 +213,11 @@ def dashboard(user_id, days=28, clipline_ids=(), content="shorts", start=None, e
     out = {"range": {"start": str(start), "end": str(end), "days": days, "custom": custom}, "content": content,
            "notes": [], "full": True}
     ch = (yt3.channels().list(part="snippet,statistics", mine=True).execute().get("items") or [{}])[0]
+    if not days and not custom:  # all time: from the day the channel was created
+        at = (ch.get("snippet") or {}).get("publishedAt")
+        if at:
+            start = datetime.fromisoformat(at.replace("Z", "+00:00")).date() - timedelta(days=1)
+            out["range"]["start"] = str(start)
     out["channel"] = {"title": (ch.get("snippet") or {}).get("title", ""),
                       "subscribers": int((ch.get("statistics") or {}).get("subscriberCount", 0) or 0),
                       "thumb": (((ch.get("snippet") or {}).get("thumbnails") or {}).get("default") or {}).get("url", "")}
@@ -221,7 +259,7 @@ def dashboard(user_id, days=28, clipline_ids=(), content="shorts", start=None, e
         out["countries"] = [{"code": r["country"], "views": r.get("views", 0)}
                             for r in _try(_report, ya, start, end, "views", "country", filters=flt, sort="-views",
                                           max_results=8)]
-        demo = _try(_report, ya, start, end, "viewerPercentage", "ageGroup,gender", filters=None)
+        demo = _try(_report, ya, start, end, "viewerPercentage", "ageGroup,gender", filters=flt)
         ages, genders = {}, {}
         for r in demo:
             ages[r["ageGroup"]] = ages.get(r["ageGroup"], 0) + r["viewerPercentage"]

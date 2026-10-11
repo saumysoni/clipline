@@ -82,6 +82,8 @@ table.cmp td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:no
 table.cmp td.n b{font-weight:600}
 table.cmp td.n small{display:block;color:var(--faint);font-size:.74rem}
 table.cmp tr.tot td{background:var(--raised);border-bottom:1px solid var(--line-2)}
+table.cmp tr.oth td{color:var(--muted)}
+table.cmp tr.oth .vt small{display:block;color:var(--faint);font-size:.76rem}
 table.cmp tr.tot .vt small{display:block;color:var(--muted);font-size:.76rem}
 table.cmp tr.on td{background:color-mix(in srgb,var(--raised) 60%,transparent)}
 table.cmp td.ck,table.cmp th.ck{width:34px;text-align:center}
