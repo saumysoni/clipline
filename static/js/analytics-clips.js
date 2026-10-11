@@ -1,7 +1,7 @@
 // Analytics, "Your clips" part (web/analytics_clips.py): each Pit Crew clip's first-week views, one line per
 // platform in posting order (hollow dots: still in their first week), "What's working", top clips. Uses the
 // helpers in analytics.js (tip, niceMax, compact, full, card, table).
-let anPlat="", anVlog="", acData=null;
+let acData=null;  // (anPlat, anVlog: analytics.js)
 async function loadClipStats(){
   try{ const r=await fetch("/api/analytics/clips"+(anVlog?"?vlog="+anVlog:"")); acData=r.ok?await r.json():null; }catch(e){ acData=null; }
   paintClipStats();
@@ -9,21 +9,19 @@ async function loadClipStats(){
 const AC_PLATS=[["youtube","YouTube","var(--c-yt)"],["instagram","Instagram","var(--c-ig)"]];
 function paintClipStats(){
   const box=$("anClips"), d=acData;
-  $("anBody").dataset.plat=anPlat;
-  $("anBody").hidden=!!anVlog;  // one vlog: only its clips (the channel-wide numbers are for everything)
   if(!d){ box.innerHTML=""; return; }
   // platforms asked for that have any of these clips on them
   const plats=AC_PLATS.filter(([k])=>(!anPlat||anPlat===k) && d.clips.some(c=>c[k]));
   const clips=d.clips.filter(c=>plats.some(([k])=>c[k]));
   const vname=anVlog&&(d.clips[0]||{}).vlog;
-  const B=['<div class="an-plat"><i style="background:var(--primary)"></i><h2>'+(anVlog?"Clips from "+esc(vname||"this vlog"):"Your clips")+'</h2><span>Shorts &amp; Reels Pit Crew posted · each clip\'s first 7 days, so old and new clips compare fairly (the dates above don\'t change this part)</span>'+
+  const B=['<div class="an-plat"><i style="background:var(--primary)"></i><h2>'+(anVlog?"First week of the clips from "+esc(vname||"this vlog"):"Each clip's first week")+'</h2><span>Views in each clip\'s first 7 days, so old and new clips compare fairly (the dates above don\'t change this part)</span>'+
     (anVlog?'<button type="button" class="linkbtn" id="acAll">Show all vlogs</button>':'')+'</div>'];
   if(!clips.length){
     B.push('<div class="an-card an-mini"><span class="ms" aria-hidden="true">movie</span><p>'+(anVlog?"None of this vlog's clips are posted yet.":"Once Pit Crew posts your clips, each one's first week shows up here, so you can see if new ones do better than old ones.")+'</p></div>');
     box.innerHTML=B.join(""); wireAc(); return;
   }
   const points=plats.reduce((a,[k])=>a+clips.filter(c=>c[k]&&c[k].first7!=null).length,0);
-  B.push(card("anCmp","Each clip's first week","Views in each clip's first 7 days, oldest to newest. Hollow dots: still in their first week.",
+  B.push(card("anCmp","First 7 days, clip by clip","Views in each clip's first 7 days, oldest to newest. Hollow dots: still in their first week.",
     points>=2 ? '<div class="an-viz" id="anCmpViz"></div>'
       : '<p class="sub ac-wait"><span class="ms" aria-hidden="true">hourglass_top</span>The chart fills in as clips finish their first week (YouTube\'s numbers arrive about 2 days later). '+
         clips.length+' posted so far: '+clips.map(c=>'<b>'+esc(c.title)+'</b> ('+plats.map(([k,n])=>c[k]?n+' '+esc(acVal(c[k])):'').filter(Boolean).join(", ")+')').join(", ")+'.</p>',
@@ -51,7 +49,7 @@ function paintClipStats(){
 // YouTube numbers that aren't in yet just need a few days; an Instagram Reel posted before Pit Crew saved daily numbers can't be known.
 const acVal=p=>!p?"–":p.first7==null?(p.media_id?"not enough history":"not in yet"):full(p.first7)+(p.complete?"":" so far");
 function wireAc(){
-  if($("acAll")) $("acAll").onclick=()=>{ anVlog=""; $("anVlog").value=""; location.hash="analytics"; loadClipStats(); };
+  if($("acAll")) $("acAll").onclick=()=>{ anVlog=""; location.hash="analytics"; anForget(); anVideosLoad(); };
   document.querySelectorAll(".ac-row").forEach(b=>b.onclick=()=>acOpen(acData.clips.find(c=>c.job+":"+c.idx===b.dataset.k)));
 }
 // A clip's own numbers: its YouTube detail, else its Reel on Instagram.

@@ -91,3 +91,29 @@ def snapshot_reels(user_id, posts):
         if "error" not in row:
             db.save_reel_snapshot(user_id, p["media_id"], today,
                                   {k: row.get(k, 0) for k in ("views", "reach", "likes", "comments", "shares", "saved")})
+
+
+def reel_numbers(user_id, posts):
+    """Lifetime numbers of these Reels (posts = [{"media_id", "ig_id"}]), each read with its own account's token:
+    {media id: {"views", "reach", "likes", "comments", "shares", "saved", "avg_watch_s", ...}}. A Reel whose account
+    isn't connected any more is left out. Cached for 10 minutes."""
+    out, todo = {}, []
+    for p in posts:
+        hit = _CACHE.get(("reel", p["media_id"]))
+        if hit and time.time() - hit[0] < TTL:
+            out[p["media_id"]] = hit[1]
+        else:
+            todo.append(p)
+    base = f"{GRAPH}/{API_VERSION}"
+
+    def one(p):
+        info = load(user_id, p.get("ig_id"))
+        if not info:
+            return p["media_id"], None
+        return p["media_id"], _reel_numbers(base, info["token"], {"id": p["media_id"]})
+    with ThreadPoolExecutor(6) as ex:
+        for mid, row in ex.map(one, todo):
+            if row and "error" not in row:
+                _CACHE[("reel", mid)] = (time.time(), row)
+                out[mid] = row
+    return out

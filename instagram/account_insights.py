@@ -107,3 +107,33 @@ def account_insights(user_id, days=30):
     }
     _CACHE[key] = (time.time(), out)
     return out
+
+
+_FOLLOWS = {}  # (ig_id, since, hours) -> new followers in a finished window (never changes, so kept)
+
+
+def follows_after(user_id, ig_id, posted_at, hours=48):
+    """New followers the account got in the `hours` after `posted_at` (an aware datetime), as {"follows", "complete"};
+    None when Instagram can't say (account not connected, or the window is older than the 90 days Meta keeps).
+    Instagram doesn't tell which Reel brought a follower, so this is the account's new followers right after a Reel."""
+    since = posted_at.astimezone(timezone.utc)
+    until = since + timedelta(hours=hours)
+    now = datetime.now(timezone.utc)
+    if now - since > timedelta(days=88):
+        return None
+    key = (ig_id, int(since.timestamp()), hours)
+    if key in _FOLLOWS:
+        return _FOLLOWS[key]
+    info = load(user_id, ig_id)
+    if not info:
+        return None
+    rows = _safe(_q, f"{GRAPH}/{API_VERSION}", info["token"], ig_id, metric="follows_and_unfollows",
+                 metric_type="total_value", breakdown="follow_type", period="day",
+                 since=int(since.timestamp()), until=int(min(until, now).timestamp()))
+    if not rows:
+        return None
+    got = _breakdown(rows, "follows_and_unfollows")
+    out = {"follows": int(got.get("FOLLOWER", 0) or 0), "complete": until <= now}
+    if out["complete"]:
+        _FOLLOWS[key] = out
+    return out

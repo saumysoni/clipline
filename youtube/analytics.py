@@ -266,6 +266,8 @@ def dashboard(user_id, days=28, clipline_ids=(), content="shorts", start=None, e
             genders[r["gender"]] = genders.get(r["gender"], 0) + r["viewerPercentage"]
         out["ages"] = [{"group": a.replace("age", "").replace("-", "–"), "pct": round(p, 1)} for a, p in sorted(ages.items())]
         out["genders"] = [{"gender": g, "pct": round(p, 1)} for g, p in sorted(genders.items(), key=lambda x: -x[1])]
+        out["age_gender"] = [{"group": r["ageGroup"].replace("age", "").replace("-", "–"), "gender": r["gender"],
+                              "pct": round(r["viewerPercentage"], 1)} for r in demo]
     except Exception as e:  # noqa: BLE001  (not allowed, or YouTube refused a report: show the live counts instead)
         if isinstance(e, NeedsReconnect):
             out["notes"].append("reconnect")

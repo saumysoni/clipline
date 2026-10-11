@@ -7,6 +7,7 @@ a vlog's Shorts sent to it). Same rules as analytics.py: everything comes from t
 """
 import threading
 import time
+from datetime import date, timedelta
 from concurrent.futures import ThreadPoolExecutor
 
 from accounts import db
@@ -130,9 +131,30 @@ OS = {"ANDROID": "Android", "IOS": "iOS", "WINDOWS": "Windows", "MACINTOSH": "ma
       "UNKNOWN": "Other"}
 
 
+SUBSCRIBED = {"SUBSCRIBED": "Subscribers", "UNSUBSCRIBED": "Not subscribed"}
+SUB_RETRY = 24 * 3600  # after YouTube refuses "subscribers vs not" for a channel, ask again a day later
+_SUB_REFUSED = {}      # channel id -> time YouTube last refused it
+
+
+def _subscribed(get, start, end, flt, chan):
+    """Views from subscribers vs everyone else, or None when YouTube won't give it. YouTube answers HTTP 500 for
+    subscribedStatus on some channels (a real one, Oct 2026, whatever the metric), so after a refusal Pit Crew
+    waits a day before asking that channel again instead of failing on every load."""
+    if time.time() - _SUB_REFUSED.get(chan, 0) < SUB_RETRY:
+        return None
+    try:
+        got = _report(get(), start, end, "views", "subscribedStatus", filters=flt)
+    except NeedsReconnect:
+        raise
+    except Exception as e:  # noqa: BLE001
+        print("YouTube refused subscribers vs not; asking again in 24 h:", repr(e)[:160])
+        _SUB_REFUSED[chan] = time.time()
+        return None
+    return [{"key": r["subscribedStatus"], "label": SUBSCRIBED.get(r["subscribedStatus"], r["subscribedStatus"]),
+             "views": r.get("views", 0)} for r in got if r.get("views")]
+
+
 def audience(user_id, start, end, content="shorts"):
-    # No "subscribers vs not" (subscribedStatus): YouTube answers HTTP 500 for it with every metric and filter
-    # (checked on a real channel, Oct 2026), so asking would only cost a failed request on every load.
     """The Audience tab's breakdowns. Each is a list of {"key", "label", "views"} (sharing: "shares"); a breakdown
     YouTube won't give for this channel (too few viewers, or not offered for Shorts) is an empty list."""
     flt = CONTENT.get(content, CONTENT["shorts"])
@@ -157,6 +179,7 @@ def audience(user_id, start, end, content="shorts"):
         }
         out = {}
         with ThreadPoolExecutor(4) as ex:
+            sub = ex.submit(_subscribed, get, start, end, flt, _chan(user_id))
             futs = {k: ex.submit(rows, get, *v) for k, v in jobs.items()}
             for k, f in futs.items():
                 try:
@@ -166,8 +189,45 @@ def audience(user_id, start, end, content="shorts"):
                 except Exception as e:  # noqa: BLE001
                     print("Audience report skipped:", k, repr(e)[:160])
                     out[k] = []
+            out["subscribed"] = sub.result()  # None = YouTube didn't give it (the page shows the card waiting)
         return out
     return _cached(("audience", user_id, _chan(user_id), str(start), str(end), content), build)
+
+
+CLIP_METRICS = "views,likes,comments,shares,subscribersGained,subscribersLost,averageViewPercentage,averageViewDuration"
+
+
+def clip_totals(user_id, ids):
+    """Every number of these videos since they were posted, for the YouTube-vs-Instagram charts: views, likes and
+    comments are YouTube's live counts (what Studio shows; Analytics is ~2 days behind), shares, subscribers and
+    % viewed come from Analytics. Only videos on the active channel get Analytics numbers; the rest get live counts.
+    {video id: {...}}"""
+    ids = [i for i in dict.fromkeys(ids) if i]
+
+    def build():
+        yt3, ya = base._services(user_id)
+        meta = _videos(yt3, ids)
+        start = min((date.fromisoformat(m["published"][:10]) for m in meta.values() if m.get("published")),
+                    default=date.today()) - timedelta(days=1)
+        rows = {}
+        for k in range(0, len(ids), 200):  # a video== filter takes up to 500 ids; stay well under
+            for r in _try(_with_engaged, ya, start, date.today(), CLIP_METRICS, "video",
+                          filters="video==" + ",".join(ids[k:k + 200]), sort="-views", max_results=200):
+                rows[r["video"]] = r
+        out = {}
+        for v in ids:
+            m, r = meta.get(v), rows.get(v, {})
+            if not m:
+                continue  # deleted or on another account
+            out[v] = {"views": max(r.get("views", 0) or 0, m.get("live_views", 0)), "likes": m.get("live_likes", 0),
+                      "comments": m.get("live_comments", 0), "shares": r.get("shares"),
+                      "subs": (r.get("subscribersGained", 0) or 0) - (r.get("subscribersLost", 0) or 0) if r else None,
+                      "engaged": r.get("engagedViews"),
+                      "avg_pct": round(r["averageViewPercentage"], 1) if r.get("averageViewPercentage") else None,
+                      "avg_secs": round(r["averageViewDuration"], 1) if r.get("averageViewDuration") else None,
+                      "title": m.get("title", ""), "thumb": m.get("thumb", ""), "secs": m.get("secs"), "published": m.get("published")}
+        return out
+    return _cached(("clips", user_id, _chan(user_id), tuple(ids)), build)
 
 
 def vlog_links(user_id, vlogs, start, end):
