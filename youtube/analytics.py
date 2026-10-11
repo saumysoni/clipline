@@ -5,7 +5,7 @@ Two sources:
   - YouTube Analytics API (scope yt-analytics.readonly, "YouTube Analytics API" enabled in Google Cloud):
     views, likes, comments, shares, subscribers, watch time, % viewed, day by day, top Shorts, how viewers
     found them, who they are and where, and per Short the audience-retention curve. Its numbers are
-    about 2 days behind. creatorContentType==SHORTS keeps it to Shorts, so every Short on the channel
+    about 2 days behind. creatorContentType==shorts keeps it to Shorts, so every Short on the channel
     counts, not only Pit Crew's.
   - YouTube Data API (the posting scope): live view/like/comment counts, titles, thumbnails, lengths.
 If the analytics part isn't allowed (an older connection, or the API isn't enabled), the page still gets
@@ -20,7 +20,12 @@ from accounts import db
 from youtube.connection import load_creds
 
 
-SHORTS = "creatorContentType==SHORTS"
+# creatorContentType filter values are camelCase ("shorts", "videoOnDemand"), as YouTube returns them. The
+# UPPER_CASE names in Google's docs (SHORTS, VIDEO_ON_DEMAND) are refused with HTTP 400 "Invalid value"
+# (checked against a real channel, Oct 2026: _test/an_diag2.py).
+SHORTS = "creatorContentType==shorts"
+# What the page's Shorts / Videos / All switch shows (creatorContentType; "all" = no filter).
+CONTENT = {"shorts": SHORTS, "videos": "creatorContentType==videoOnDemand", "all": None}
 CACHE_SECS = 600  # YouTube's numbers change slowly; don't ask again for 10 minutes
 _CACHE, _LOCK = {}, threading.Lock()
 
@@ -39,15 +44,23 @@ def _services(user_id, channel=None):
     creds = load_creds(user_id, channel)
     if not creds:
         raise RuntimeError("Your YouTube channel isn't connected. Click Connect YouTube, then try again.")
-    return (build("youtube", "v3", credentials=creds, cache_discovery=False),
-            build("youtubeAnalytics", "v2", credentials=creds, cache_discovery=False))
+    return (build("youtube", "v3", http=_http(creds), cache_discovery=False),
+            build("youtubeAnalytics", "v2", http=_http(creds), cache_discovery=False))
+
+
+def _http(creds):
+    """A signed-in HTTP client with a time limit (Google's default has none, so a stuck request would hang the page)."""
+    import httplib2
+    from google_auth_httplib2 import AuthorizedHttp
+    return AuthorizedHttp(creds, http=httplib2.Http(timeout=40))
 
 
 def _report(ya, start, end, metrics, dimensions=None, filters=SHORTS, sort=None, max_results=None):
     """Rows as dicts ({"day": "2026-10-01", "views": 120, ...}). Raises NeedsReconnect when not allowed.
 
-    Shorts are picked with the filter creatorContentType==SHORTS. Some report/metric combinations refuse that filter
-    (HTTP 400); then the same report is asked with creatorContentType as a dimension and only the SHORTS rows kept."""
+    Shorts are picked with the filter creatorContentType==shorts. If a report refuses that filter (HTTP 400), the same
+    report is asked with creatorContentType as a dimension and only that kind's rows kept. (YouTube refuses
+    video,creatorContentType together, so lists of videos must use the filter.)"""
     from googleapiclient.errors import HttpError
 
     q = {"ids": "channel==MINE", "startDate": str(start), "endDate": str(end), "metrics": metrics}
@@ -65,22 +78,28 @@ def _report(ya, start, end, metrics, dimensions=None, filters=SHORTS, sort=None,
                    + (f"?project={proj.group(1)}" if proj else "")) if off else ""
             raise NeedsReconnect(str(e), url) from e
         print("YouTube Analytics refused", {k: v for k, v in q.items() if k != "ids"}, "->", e.resp.status, body[:400])
-        if e.resp.status == 400 and filters and SHORTS in filters:
-            return _report_by_type(ya, start, end, metrics, dimensions, filters, sort, max_results)
+        kind = re.search(r"creatorContentType==(\w+)", filters or "")
+        if e.resp.status == 400 and kind and "creatorContentType" not in (dimensions or ""):
+            return _report_by_type(ya, start, end, metrics, dimensions, filters, sort, max_results, kind.group(1))
         raise
     names = [h["name"] for h in resp.get("columnHeaders", [])]
     return [dict(zip(names, row)) for row in resp.get("rows") or []]
 
 
-def _report_by_type(ya, start, end, metrics, dimensions, filters, sort, max_results):
-    """The same report with creatorContentType as a dimension, keeping the SHORTS rows. Totals that are sums (views,
-    likes...) are exact; averages (averageViewDuration/Percentage) come straight from YouTube's SHORTS row."""
-    rest = ";".join(f for f in filters.split(";") if f != SHORTS) or None
+def _report_by_type(ya, start, end, metrics, dimensions, filters, sort, max_results, kind="shorts"):
+    """The same report with creatorContentType as a dimension, keeping the rows of that kind (shorts,
+    videoOnDemand; compared ignoring case and underscores). Totals that are sums (views, likes...) are exact;
+    averages (averageViewDuration/Percentage) come straight from YouTube's row for that kind."""
+    rest = ";".join(f for f in filters.split(";") if not f.startswith("creatorContentType==")) or None
     dims = ",".join(d for d in ((dimensions or "").split(",") + ["creatorContentType"]) if d)
     rows = _report(ya, start, end, metrics, dims, rest, sort, (max_results * 4) if max_results else None)
     rows = [{k: v for k, v in r.items() if k != "creatorContentType"} for r in rows
-            if str(r.get("creatorContentType", "")).upper() in ("SHORTS", "SHORT")]
+            if _kind(r.get("creatorContentType")) == _kind(kind)]
     return rows[:max_results] if max_results else rows
+
+
+def _kind(v):
+    return str(v or "").replace("_", "").lower()
 
 
 def _try(fn, *a, **k):
@@ -122,8 +141,19 @@ TOTALS = ("views,likes,comments,shares,subscribersGained,subscribersLost,estimat
           "averageViewDuration,averageViewPercentage")
 
 
-def _totals(ya, start, end):
-    rows = _report(ya, start, end, TOTALS)
+def _with_engaged(ya, start, end, metrics, *a, **k):
+    """The report with engagedViews added when YouTube allows it for that combination (else without it)."""
+    try:
+        return _report(ya, start, end, metrics + ",engagedViews", *a, **k)
+    except NeedsReconnect:
+        raise
+    except Exception as e:  # noqa: BLE001
+        print("engagedViews not available here:", repr(e)[:160])
+        return _report(ya, start, end, metrics, *a, **k)
+
+
+def _totals(ya, start, end, flt=SHORTS):
+    rows = _with_engaged(ya, start, end, TOTALS, filters=flt)
     t = rows[0] if rows else {}
     views = t.get("views", 0) or 0
     eng = (t.get("likes", 0) or 0) + (t.get("comments", 0) or 0) + (t.get("shares", 0) or 0)
@@ -132,42 +162,86 @@ def _totals(ya, start, end):
             "watch_hours": round((t.get("estimatedMinutesWatched", 0) or 0) / 60, 1),
             "avg_secs": round(t.get("averageViewDuration", 0) or 0, 1),
             "avg_pct": round(t.get("averageViewPercentage", 0) or 0, 1),
+            "engaged": t.get("engagedViews"),
             "engagement": round(100 * eng / views, 2) if views else 0}
 
 
-def dashboard(user_id, days=28, clipline_ids=()):
+_BORN = {}
+
+
+def channel_start(user_id, yt3=None):
+    """The day the active channel was created: where "All time" starts. Asking from 2005 instead makes YouTube
+    work through thousands of empty days (10-35 s per report on a new channel)."""
+    chan = (db.connection(user_id, "youtube") or {}).get("account_id")
+    hit = _BORN.get((user_id, chan))
+    if hit:
+        return hit
+    yt3 = yt3 or _services(user_id)[0]
+    ch = (yt3.channels().list(part="snippet", mine=True).execute().get("items") or [{}])[0]
+    at = (ch.get("snippet") or {}).get("publishedAt")
+    born = datetime.fromisoformat(at.replace("Z", "+00:00")).date() - timedelta(days=1) if at else date(2005, 4, 23)
+    _BORN[(user_id, chan)] = born
+    return born
+
+
+def period(days=28, start=None, end=None):
+    """(start, end, previous start, previous end, days) for the last `days` days (0 = all time), or a custom
+    start..end (dates). The previous period has the same length, just before it (none for all time)."""
+    if start and end:
+        start, end = min(start, end), max(start, end)
+        n = (end - start).days + 1
+        return start, end, start - timedelta(days=n), start - timedelta(days=1), n
+    end = date.today()
+    start = end - timedelta(days=days - 1) if days else date(2005, 4, 23)
+    return start, end, (start - timedelta(days=days) if days else None), start - timedelta(days=1), days
+
+
+def dashboard(user_id, days=28, clipline_ids=(), content="shorts", start=None, end=None):
     """Everything for the Analytics page (the active channel), for the last `days` days (0 = since the channel
-    started)."""
-    key = (user_id, (db.connection(user_id, "youtube") or {}).get("account_id"), days)  # per channel
+    started) or a custom start..end, for Shorts, long videos or both (`content`)."""
+    content = content if content in CONTENT else "shorts"
+    flt = CONTENT[content]
+    key = (user_id, (db.connection(user_id, "youtube") or {}).get("account_id"), days, content, str(start), str(end))
     with _LOCK:
         hit = _CACHE.get(key)
         if hit and time.time() - hit[0] < CACHE_SECS:
             return hit[1]
     yt3, ya = _services(user_id)
-    end = date.today()
-    start = end - timedelta(days=days - 1) if days else date(2005, 4, 23)
-    prev_end, prev_start = start - timedelta(days=1), start - timedelta(days=days) if days else None
+    custom = bool(start and end)
+    start, end, prev_start, prev_end, days = period(days, start, end)
     clip = set(clipline_ids)
-    out = {"range": {"start": str(start), "end": str(end), "days": days}, "notes": [], "full": True}
+    out = {"range": {"start": str(start), "end": str(end), "days": days, "custom": custom}, "content": content,
+           "notes": [], "full": True}
     ch = (yt3.channels().list(part="snippet,statistics", mine=True).execute().get("items") or [{}])[0]
+    if not days and not custom:  # all time: from the day the channel was created
+        at = (ch.get("snippet") or {}).get("publishedAt")
+        if at:
+            start = datetime.fromisoformat(at.replace("Z", "+00:00")).date() - timedelta(days=1)
+            out["range"]["start"] = str(start)
     out["channel"] = {"title": (ch.get("snippet") or {}).get("title", ""),
                       "subscribers": int((ch.get("statistics") or {}).get("subscriberCount", 0) or 0),
                       "thumb": (((ch.get("snippet") or {}).get("thumbnails") or {}).get("default") or {}).get("url", "")}
     try:
-        out["totals"] = _totals(ya, start, end)
-        out["previous"] = _totals(ya, prev_start, prev_end) if prev_start else None
+        out["totals"] = _totals(ya, start, end, flt)
+        out["previous"] = _totals(ya, prev_start, prev_end, flt) if prev_start else None
         out["daily"] = [{"day": r["day"], "views": r.get("views", 0), "likes": r.get("likes", 0),
                          "subs": (r.get("subscribersGained", 0) or 0) - (r.get("subscribersLost", 0) or 0)}
                         for r in _try(_report, ya, start, end, "views,likes,subscribersGained,subscribersLost",
-                                      "day", sort="day")]
-        top = _try(_report, ya, start, end, "views,likes,comments,shares,averageViewPercentage,"
-                   "averageViewDuration,subscribersGained", "video", sort="-views", max_results=50)
+                                      "day", filters=flt, sort="day")]
+        top = _try(_with_engaged, ya, start, end, "views,likes,comments,shares,averageViewPercentage,"
+                   "averageViewDuration,subscribersGained,estimatedMinutesWatched", "video", filters=flt,
+                   sort="-views", max_results=50)
         meta = _videos(yt3, [r["video"] for r in top] + list(clip))
+        shown = {r["video"] for r in top}
+        if content in ("shorts", "all"):  # Pit Crew's Shorts with no views in this period: listed at 0, so they can be opened
+            top = top + [{"video": v} for v in clip if v in meta and v not in shown
+                         and (meta[v].get("published") or "")[:10] <= str(end)]
         out["shorts"] = [{**meta.get(r["video"], {"id": r["video"], "title": "", "thumb": ""}),
                           "views": r.get("views", 0), "likes": r.get("likes", 0), "comments": r.get("comments", 0),
                           "shares": r.get("shares", 0), "avg_pct": round(r.get("averageViewPercentage", 0) or 0, 1),
                           "avg_secs": round(r.get("averageViewDuration", 0) or 0, 1),
-                          "subs": r.get("subscribersGained", 0), "clipline": r["video"] in clip} for r in top]
+                          "subs": r.get("subscribersGained", 0), "engaged": r.get("engagedViews"),
+                          "minutes": r.get("estimatedMinutesWatched", 0), "clipline": r["video"] in clip} for r in top]
         if not days:  # all time: Studio's live counts (Analytics lags ~2 days and counts comments differently)
             live = {k: sum(m.get("live_" + k, 0) for m in meta.values() if m.get("id") in {r["video"] for r in top})
                     for k in ("views", "likes", "comments")}
@@ -180,16 +254,20 @@ def dashboard(user_id, days=28, clipline_ids=()):
             eng = (t.get("likes") or 0) + (t.get("comments") or 0) + (t.get("shares") or 0)
             t["engagement"] = round(100 * eng / t["views"], 2) if t.get("views") else 0
         out["traffic"] = [{"source": r["insightTrafficSourceType"], "views": r.get("views", 0)}
-                          for r in _try(_report, ya, start, end, "views", "insightTrafficSourceType", sort="-views")]
+                          for r in _try(_report, ya, start, end, "views", "insightTrafficSourceType", filters=flt,
+                                        sort="-views")]
         out["countries"] = [{"code": r["country"], "views": r.get("views", 0)}
-                            for r in _try(_report, ya, start, end, "views", "country", sort="-views", max_results=8)]
-        demo = _try(_report, ya, start, end, "viewerPercentage", "ageGroup,gender", filters=None)
+                            for r in _try(_report, ya, start, end, "views", "country", filters=flt, sort="-views",
+                                          max_results=8)]
+        demo = _try(_report, ya, start, end, "viewerPercentage", "ageGroup,gender", filters=flt)
         ages, genders = {}, {}
         for r in demo:
             ages[r["ageGroup"]] = ages.get(r["ageGroup"], 0) + r["viewerPercentage"]
             genders[r["gender"]] = genders.get(r["gender"], 0) + r["viewerPercentage"]
         out["ages"] = [{"group": a.replace("age", "").replace("-", "–"), "pct": round(p, 1)} for a, p in sorted(ages.items())]
         out["genders"] = [{"gender": g, "pct": round(p, 1)} for g, p in sorted(genders.items(), key=lambda x: -x[1])]
+        out["age_gender"] = [{"group": r["ageGroup"].replace("age", "").replace("-", "–"), "gender": r["gender"],
+                              "pct": round(r["viewerPercentage"], 1)} for r in demo]
     except Exception as e:  # noqa: BLE001  (not allowed, or YouTube refused a report: show the live counts instead)
         if isinstance(e, NeedsReconnect):
             out["notes"].append("reconnect")
@@ -212,19 +290,27 @@ def dashboard(user_id, days=28, clipline_ids=()):
     return out
 
 
-def short_detail(user_id, video_id, channel=None):
-    """One Short over its whole life, asked on its own channel: day-by-day views, the audience-retention curve, how
-    viewers found it. Views, likes and comments are YouTube's live counts (what Studio shows); the Analytics API's
-    totals are ~2 days behind, so they're only used for what has no live count (average view, % viewed, subscribers)."""
+def short_detail(user_id, video_id, channel=None, start=None, end=None):
+    """One video, asked on its own channel: day-by-day views, the audience-retention curve, how viewers found it.
+    Over its whole life by default: then views, likes and comments are YouTube's live counts (what Studio shows; the
+    Analytics API is ~2 days behind). With start..end (the page's range), everything is that period's Analytics
+    numbers; a range starting before it was posted starts at its publish day."""
     yt3, ya = _services(user_id, channel)
-    end = date.today()
     meta = _videos(yt3, [video_id]).get(video_id, {})
     if not meta:  # deleted in YouTube Studio, or on a channel that isn't connected: Analytics would refuse it
-        raise RuntimeError("This Short isn't on the YouTube channel any more (deleted in YouTube Studio?), so it has no numbers.")
-    start = (datetime.fromisoformat(meta["published"].replace("Z", "+00:00")).date() - timedelta(days=1)
-             if meta.get("published") else date(2005, 4, 23))
+        raise RuntimeError("This video isn't on the YouTube channel any more (deleted in YouTube Studio?), so it has no numbers.")
+    born = (datetime.fromisoformat(meta["published"].replace("Z", "+00:00")).date() - timedelta(days=1)
+            if meta.get("published") else date(2005, 4, 23))
+    lifetime = not (start and end)
+    if lifetime:
+        start, end = born, date.today()
+    else:
+        start = max(start, born)
+        if start > end:  # the whole range is before it was posted
+            return {"short": meta, "full": True, "range": {"start": str(start), "end": str(end), "lifetime": False},
+                    "before": True, "totals": {}, "daily": [], "retention": [], "traffic": []}
     f = f"video=={video_id}"
-    out = {"short": meta, "full": True}
+    out = {"short": meta, "full": True, "range": {"start": str(start), "end": str(end), "lifetime": lifetime}}
     try:
         out["daily"] = [{"day": r["day"], "views": r.get("views", 0)}
                         for r in _try(_report, ya, start, end, "views", "day", filters=f, sort="day")]
@@ -239,7 +325,7 @@ def short_detail(user_id, video_id, channel=None):
         out["totals"] = tot[0] if tot else {}
     except NeedsReconnect:
         out["full"] = False
-    if meta:  # live counts: up to date, and the same numbers YouTube Studio shows
+    if meta and lifetime:  # live counts: up to date, and the same numbers YouTube Studio shows
         out.setdefault("totals", {}).update(views=meta["live_views"], likes=meta["live_likes"], comments=meta["live_comments"])
     return out
 
@@ -249,7 +335,7 @@ def insights(d):
     tips, shorts, t = [], [s for s in d.get("shorts", []) if s.get("views")], d.get("totals") or {}
     if shorts:
         best = shorts[0]
-        tips.append({"kind": "best", "text": f"Your top Short is “{best['title']}” with {best['views']:,} views"
+        tips.append({"kind": "best", "text": f"Your top {'Short' if d.get('content', 'shorts') == 'shorts' else 'video'} is “{best['title']}” with {best['views']:,} views"
                      + (f", watched for {best['avg_pct']:.0f}% of its length on average." if best.get("avg_pct") else ".")})
     if t.get("views") and t.get("subs"):
         tips.append({"kind": "subs", "text": f"You gain {1000 * t['subs'] / t['views']:.1f} subscribers per 1,000 Shorts views."})
@@ -278,7 +364,7 @@ def insights(d):
         if len(by_day) >= 2:
             day = max(by_day, key=by_day.get)
             tips.append({"kind": "day", "text": f"Shorts published on a {day} do best for you ({by_day[day]:,.0f} views on average)."})
-    if d.get("traffic"):
+    if d.get("traffic") and d.get("content", "shorts") == "shorts":
         total = sum(r["views"] for r in d["traffic"]) or 1
         shorts_feed = sum(r["views"] for r in d["traffic"] if r["source"] == "SHORTS")
         tips.append({"kind": "feed", "text": f"{100 * shorts_feed / total:.0f}% of your Shorts views come from the Shorts feed."})

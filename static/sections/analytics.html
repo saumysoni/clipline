@@ -1,35 +1,68 @@
-  <!-- Analytics: how the creator's Shorts are doing -->
+  <!-- Analytics: how the creator's videos are doing, on YouTube and Instagram -->
   <section id="s6" hidden>
     <div class="work wide an-root">
       <div class="page-head">
         <div>
           <div class="eyebrow">Analytics</div>
-          <h1>How your Shorts are doing</h1>
-          <p class="lede" id="anLede">Your Shorts and Reels, not only the ones Pit Crew made.</p>
+          <h1 id="anH">How your videos are doing</h1>
+          <p class="lede" id="anLede">YouTube and Instagram, side by side.</p>
         </div>
         <button class="ghost" id="anRefresh" type="button"><span class="ms" aria-hidden="true">refresh</span>Refresh</button>
       </div>
 
-      <div class="an-filters" role="group" aria-label="Time range">
-        <div class="an-seg" id="anRange">
+      <div class="ptabs an-tabs" role="tablist" id="anTabs" aria-label="Analytics">
+        <button type="button" role="tab" data-tab="overview" aria-controls="anPanOverview" aria-selected="true"><span class="ms" aria-hidden="true">dashboard</span>Overview</button>
+        <button type="button" role="tab" data-tab="videos" aria-controls="anPanVideos" aria-selected="false" tabindex="-1"><span class="ms" aria-hidden="true">video_library</span>Videos</button>
+        <button type="button" role="tab" data-tab="audience" aria-controls="anPanAudience" aria-selected="false" tabindex="-1"><span class="ms" aria-hidden="true">groups</span>Audience</button>
+        <button type="button" role="tab" data-tab="grow" aria-controls="anPanGrow" aria-selected="false" tabindex="-1"><span class="ms" aria-hidden="true">trending_up</span>Grow</button>
+      </div>
+
+      <div class="an-filters" role="group" aria-label="What to show">
+        <div class="an-seg an-plat-seg" id="anPlat" role="group" aria-label="Platform">
+          <button type="button" data-p="" aria-pressed="true">Both</button>
+          <button type="button" data-p="youtube"><i class="dot yt" aria-hidden="true"></i>YouTube</button>
+          <button type="button" data-p="instagram"><i class="dot ig" aria-hidden="true"></i>Instagram</button>
+        </div>
+        <div class="an-seg" id="anRange" role="group" aria-label="Time range">
           <button type="button" data-days="7">7 days</button>
           <button type="button" data-days="28" aria-pressed="true">28 days</button>
           <button type="button" data-days="90">90 days</button>
           <button type="button" data-days="365">Year</button>
           <button type="button" data-days="0">All time</button>
+          <button type="button" data-days="custom">Custom</button>
         </div>
-        <div class="an-seg" id="anPlat" role="group" aria-label="Platform">
-          <button type="button" data-p="" aria-pressed="true">All</button>
-          <button type="button" data-p="youtube">YouTube</button>
-          <button type="button" data-p="instagram">Instagram</button>
+        <div class="an-custom" id="anCustom" hidden>
+          <input type="date" id="anFrom" aria-label="From"><span>to</span><input type="date" id="anTo" aria-label="To">
+          <button type="button" class="ghost sm" id="anApply">Apply</button>
         </div>
-        <select id="anVlog" aria-label="Vlog"><option value="">All vlogs</option></select>
+        <div class="an-seg" id="anContent" role="group" aria-label="Which YouTube videos">
+          <button type="button" data-c="shorts" aria-pressed="true">Shorts</button>
+          <button type="button" data-c="videos">Long videos</button>
+          <button type="button" data-c="all">All</button>
+        </div>
         <span class="an-asof" id="anAsof"></span>
       </div>
-      <div id="anClips" aria-live="polite"></div>
 
-      <div class="banner warn" id="anNote" role="status" hidden></div>
-      <div id="anBody" aria-live="polite"></div>
+      <div id="anPanOverview" role="tabpanel">
+        <div class="banner warn" id="anNote" role="status" hidden></div>
+        <div id="anRead" aria-live="polite"></div>
+        <div id="anBody" aria-live="polite"></div>
+        <div id="anTry" aria-live="polite"></div>
+      </div>
+      <div id="anPanVideos" role="tabpanel" hidden>
+        <div class="an-seg an-sub-seg" id="anVidView" role="group" aria-label="Show">
+          <button type="button" data-v="clips" aria-pressed="true">Your clips on both apps</button>
+          <button type="button" data-v="compare">Compare any videos</button>
+        </div>
+        <div id="anVidClips">
+          <div id="anPairs" aria-live="polite"></div>
+          <div id="anClips" aria-live="polite"></div>
+          <div id="anVlogs" aria-live="polite"></div>
+        </div>
+        <div id="anCmpBox" aria-live="polite" hidden></div>
+      </div>
+      <div id="anPanAudience" role="tabpanel" hidden><div id="anAudBox" aria-live="polite"></div><div id="anIgBox" aria-live="polite"></div></div>
+      <div id="anPanGrow" role="tabpanel" hidden><div id="anGrowBox" aria-live="polite"></div></div>
     </div>
   </section>
 

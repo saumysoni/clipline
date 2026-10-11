@@ -59,7 +59,7 @@ Most clipping tools cut a video into pieces and stop there. Pit Crew carries eac
 5. **Thumbnails.** Gemini looks at 12 frames of each Short, picks one and writes a two-line text. Pit Crew crops it around the face and draws the text in one of two looks: **Frame** (colour-graded) or **Duotone** (a two-colour poster).
 6. **Review.** Play every Short, edit titles and captions, pick a hook, **Try again** for a different moment, **Add a Short** for one the AI missed, or **Choose on the video** to mark start and end yourself.
 7. **Post.** Upload and schedule on YouTube; plan Reels on Instagram on their own schedule. Pit Crew posts each Reel itself at its time.
-8. **Learn.** Analytics shows each clip's first-week views per platform and what's working.
+8. **Learn.** Analytics puts YouTube and Instagram side by side for every clip, explains your numbers in plain words and suggests when to post.
 
 ---
 
@@ -93,6 +93,8 @@ Most clipping tools cut a video into pieces and stop there. Pit Crew carries eac
 
 ### Analytics
 - YouTube Shorts and Instagram Reels side by side: views, watch time, retention, traffic sources, audience
+- **Compare** any videos day by day with every number and its share of the total (CSV download), **Audience** (devices, subscribers, cities, search terms, sharing) and the **Instagram** account (reach, followers, when they're online, who they are)
+- Shorts, long videos or both, for any date range
 - **Your clips**: each Pit Crew clip's first-week views per platform, top clips and "What's working" (only when the difference is real)
 
 ---
@@ -307,7 +309,15 @@ If posting stops halfway (no internet, YouTube's daily limit), press the button 
 
 Open Pit Crew at `http://localhost:8000`, the address it opens by itself. Google only sends you back to the exact address registered in step 4, so `http://127.0.0.1:8000` won't work for Google sign-in. Continue with Google and Connect YouTube both use that one address. When Pit Crew runs on a server, register that server's address instead (for example `https://pitcrew.example.com/api/youtube/callback`), set `YOUTUBE_REDIRECT_URI` to the same address, and set `SECRET_KEY`, `DATABASE_PATH` and `SESSION_COOKIE_SECURE=1` in `.env`.
 
-**Analytics.** **Analytics** in the sidebar shows how every Short on your channel is doing: views, watch time, likes, comments, shares, subscribers, a views-per-day chart, top Shorts (click one for its retention curve), how viewers find you, countries, age and gender, plus Instagram Reels once Instagram is connected. If you connected YouTube before Analytics existed, click **Connect again** there once so Pit Crew can read YouTube Analytics.
+**Analytics.** **Analytics** in the sidebar shows YouTube and Instagram side by side (or just one: Both / YouTube / Instagram), for any range (7, 28, 90 days, a year, all time or your own dates) and for Shorts, long videos or both. Four tabs:
+- **Overview:** Pit Crew's read (one plain sentence on what happened and three things to try next, written by AI from your own numbers; it never quotes a number that isn't in them), views, likes, comments and shares, and new subscribers / followers for both apps, and a chart of YouTube views and Instagram reach per day.
+- **Videos:** every clip Pit Crew posted, YouTube against Instagram (likes, comments, shares, new subscribers vs new followers), as totals or per 1,000 views; click a clip for both apps' numbers. **Compare any videos** puts up to 8 videos on one chart, by date or by days since posting. Plus each clip's first week, so old and new clips compare fairly.
+- **Audience:** your typical viewer, how they find you, devices, gender, age, countries, cities, what they searched and where they share; your Instagram followers' countries, ages and cities (Instagram shares these from 100 followers).
+- **Grow:** three times to post your next clips (from when your viewers' evenings are and when your Instagram followers are online, on your clock), and short lessons from your own numbers.
+
+Instagram doesn't say which Reel brought a follower, so a Reel's "new followers" are your account's new followers in the 2 days after it went out. The AI read uses `GEMINI_API_KEY` (or `OPENAI_API_KEY`); without one, Pit Crew writes it from simple rules.
+
+If you connected YouTube before Analytics existed, click **Connect again** there once so Pit Crew can read YouTube Analytics.
 
 **Things to know about posting**
 - **Uploads stay private until your project passes YouTube's API audit.** This is YouTube's rule for new projects. During a trial, open each upload in YouTube Studio and set it to public or scheduled there (Pit Crew shows an "Open in Studio" link for each one). To lift the limit, apply for the free audit from the YouTube API Services page; you'll need a short privacy policy and a description of the app.

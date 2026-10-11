@@ -1,7 +1,14 @@
-// Analytics page: how the creator's Shorts are doing. Data from /api/analytics (web/analytics.py,
-// youtube/analytics.py). Charts are plain SVG drawn here: thin lines with a 10% area wash, a crosshair
-// tooltip, keyboard arrows, and a Table button on every chart so no number needs hovering to read.
-let anDays=28, anData=null, anLoading=false;
+// Analytics page: how the creator's videos are doing on YouTube and Instagram. Four tabs: Overview (this file:
+// Pit Crew's read, the paired numbers, one chart, what to try next), Videos (analytics-videos.js), Audience
+// (analytics-audience.js) and Grow (analytics-grow.js). The Both / YouTube / Instagram switch (anPlat) applies to
+// every tab. Charts are plain SVG drawn here (lineChart): one axis, a crosshair tooltip, keyboard arrows, and a
+// Table button on every chart so no number needs hovering to read.
+let anDays=28, anData=null, anLoading=false, anContent="shorts", anStart="", anEnd="", anPlat="", anTab="overview", anVlog="";
+let anIgAcct=null, anRead=null;  // Instagram account numbers (anIgAcct.days 7 or 30), Pit Crew's read (per range)
+// The range and content the page asks for: ?days=28 (or ?start=&end= for Custom) and ?content=shorts|videos|all.
+const anQuery=()=>"content="+anContent+(anStart&&anEnd?"&start="+anStart+"&end="+anEnd:"&days="+anDays);
+// Words for what's shown: Shorts, videos, or both.
+const anWord=()=>({shorts:["Short","Shorts"],videos:["video","videos"],all:["video","videos"]})[anContent];
 const nf=new Intl.NumberFormat("en"), cf=new Intl.NumberFormat("en",{notation:"compact",maximumFractionDigits:1});
 const full=n=>nf.format(Math.round(n||0)), compact=n=>cf.format(Math.abs(n||0)>=1000?(n||0):Math.round(n||0));
 const pct=n=>(n||0).toFixed((n||0)<10?1:0)+"%";
@@ -14,118 +21,226 @@ const TRAFFIC={SHORTS:"Shorts feed",YT_SEARCH:"YouTube search",SUBSCRIBER:"Home 
   ADVERTISING:"Ads",CAMPAIGN_CARD:"Campaign cards",NO_LINK_EMBEDDED:"Embedded players",ANNOTATION:"Annotations",
   LIVE_REDIRECT:"Live redirects",PROMOTED:"Promoted"};
 const GENDER={female:"Women",male:"Men",user_specified:"Other"};
+// Series colours (css/analytics-pro.css --s1..--s8, validated): fixed order, and a video keeps its colour while ticked.
+const AN_S=n=>"var(--s"+(n+1)+")";
+const AN_YT="var(--c-yt)", AN_IG="var(--c-ig)";
+const anShowYt=()=>anPlat!=="instagram", anShowIg=()=>anPlat!=="youtube";
+const anWait=(t,kind)=>anSkel(kind,t);  // loading skeleton shaped like what's coming (analytics-loading.js)
+const anMsg=(icon,t,html)=>'<div class="an-card an-mini"><span class="ms" aria-hidden="true">'+icon+'</span><p>'+esc(t)+'</p>'+(html||"")+'</div>';
+// The Instagram account's numbers cover the last 7 or 30 days (Instagram gives at most 30 at a time).
+const anIgDaysFor=()=>anDays===7&&!anStart?7:30;
 
-// vlog: open on one vlog's clips (from its card); platform: "youtube" / "instagram" to start on one.
+// vlog: open on one vlog's clips (its card's Analytics button); platform: "youtube" / "instagram" to start on one.
 function openAnalytics(vlog,platform){
-  clearInterval(poll); anVlog=typeof vlog==="string"?vlog:""; if(platform!==undefined) anSetPlat(platform);
-  location.hash="analytics"+(anVlog?"/"+anVlog:""); show(6); anVlogMenu();
-  if(!anData||anData.days!==anDays) loadAnalytics(); else loadClipStats();
+  clearInterval(poll); anVlog=typeof vlog==="string"?vlog:"";
+  if(platform!==undefined) anSetPlat(platform);
+  location.hash="analytics"+(anVlog?"/"+anVlog:""); show(6);
+  if(anVlog) anTabPick("videos");
+  if(!anData||anData.q!==anQuery()) loadAnalytics(); else anTabLoad();
 }
 function anSetPlat(p){ anPlat=p||""; $("anPlat").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.p===anPlat)); }
-$("anPlat").querySelectorAll("button").forEach(b=>b.onclick=()=>{ anSetPlat(b.dataset.p); paintClipStats(); });
-// The vlog menu lists every vlog (newest first); picking one shows only its clips.
-async function anVlogMenu(){
-  if(!vlData){ try{ vlData=(await (await fetch("/api/vlogs")).json()).items||[]; }catch(e){ vlData=[]; } }
-  $("anVlog").innerHTML='<option value="">All vlogs</option>'+vlData.filter(v=>v.status==="ready").map(v=>'<option value="'+esc(v.id)+'">'+esc(v.title)+' · '+esc(vlDate(v.created))+'</option>').join("");
-  $("anVlog").value=anVlog;
-}
-$("anVlog").onchange=()=>{ anVlog=$("anVlog").value; location.hash="analytics"+(anVlog?"/"+anVlog:""); loadClipStats(); };
+$("anPlat").querySelectorAll("button").forEach(b=>b.onclick=()=>{ anSetPlat(b.dataset.p); anRepaint(); });
 $("analyticsNav").onclick=openAnalytics;
-$("anRefresh").onclick=()=>loadAnalytics(true);
+$("anRefresh").onclick=()=>{ anIgAcct=null; anRead=null; if(typeof anForget==="function") anForget(); loadAnalytics(); };
 $("anRange").querySelectorAll("button").forEach(b=>b.onclick=()=>{
   if(anLoading) return;
   $("anRange").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",x===b));
-  anDays=+b.dataset.days; loadAnalytics();
+  if(b.dataset.days==="custom"){  // pick dates, then Apply
+    $("anCustom").hidden=false;
+    if(!$("anTo").value){ const t=new Date(), f=new Date(Date.now()-27*864e5), iso=d=>new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,10);
+      $("anTo").value=iso(t); $("anFrom").value=iso(f); $("anTo").max=iso(t); $("anFrom").max=iso(t); }
+    $("anFrom").focus(); return;
+  }
+  $("anCustom").hidden=true; anStart=anEnd=""; anDays=+b.dataset.days; loadAnalytics();
 });
-
-async function loadAnalytics(){
-  loadClipStats();
-  anLoading=true; $("anBody").classList.add("loading");
-  if(!$("anBody").children.length) $("anBody").innerHTML='<div class="an-card an-empty"><span class="spin" aria-hidden="true"></span><p>Getting your numbers...</p></div>';
-  let r,j;
-  try{ r=await fetch("/api/analytics?days="+anDays); j=await r.json(); }
-  catch(e){ j={error:"Couldn't reach Pit Crew. Check your internet connection, then try again."}; }
-  anLoading=false; $("anBody").classList.remove("loading");
-  anData={days:anDays,...j};
-  renderAnalytics(j);
+$("anApply").onclick=()=>{
+  const f=$("anFrom").value, t=$("anTo").value;
+  if(!f||!t){ (f?$("anTo"):$("anFrom")).focus(); return; }
+  anStart=f<=t?f:t; anEnd=f<=t?t:f; loadAnalytics();
+};
+$("anContent").querySelectorAll("button").forEach(b=>b.onclick=()=>{
+  if(anLoading) return;
+  $("anContent").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",x===b));
+  anContent=b.dataset.c; loadAnalytics();
+});
+// Tabs: each loads what it needs the first time it's shown for this range.
+const anTabPick=pageTabs("anTabs",t=>{ anTab=t; anTabLoad(); });
+function anTabLoad(){
+  anTab=["overview","videos","audience","grow"].find(t=>!$(({overview:"anPanOverview",videos:"anPanVideos",audience:"anPanAudience",grow:"anPanGrow"})[t]).hidden)||"overview";
+  $("anContent").hidden=anTab==="grow"||(anTab==="videos"&&anVidView!=="compare")||anPlat==="instagram";
+  if(anTab==="overview"){ anIgAcctLoad(); anReadLoad(); }
+  if(anTab==="videos" && typeof anVideosLoad==="function") anVideosLoad();
+  if(anTab==="audience" && typeof anAudienceLoad==="function") anAudienceLoad();
+  if(anTab==="grow" && typeof anGrowLoad==="function") anGrowLoad();
+}
+// The platform switch changes what's drawn, not what's loaded.
+function anRepaint(){
+  if(anData) renderAnalytics(anData);
+  anTabLoad();
 }
 
+// fetch() with a time limit: a request YouTube never answers ends with a message instead of a spinner forever.
+async function anFetch(url,ms){
+  const c=new AbortController(), t=setTimeout(()=>c.abort(),ms||90000);
+  try{ return await fetch(url,{signal:c.signal}); }
+  catch(e){ if(e.name==="AbortError") throw new Error("timeout"); throw e; }
+  finally{ clearTimeout(t); }
+}
+const AN_SLOW="YouTube took too long to answer. Try Refresh in a minute.";
+async function anGet(url){
+  try{ const r=await anFetch(url), j=await r.json(); return r.ok?j:{error:j.error||"Couldn't load these numbers. Try Refresh."}; }
+  catch(e){ return {error:e.message==="timeout"?AN_SLOW:"Couldn't reach Pit Crew. Check your internet connection, then try again."}; }
+}
+async function loadAnalytics(){
+  anLoading=true;
+  if(!$("anBody").children.length||$("anBody").querySelector(".an-skel")) $("anBody").innerHTML=anWait("Getting your numbers...","overview");
+  else $("anBody").classList.add("loading");  // numbers already on screen: dim them under a stripe bar until the new ones come
+  const q=anQuery();
+  const j=await anGet("/api/analytics?"+q);
+  anLoading=false; $("anBody").classList.remove("loading");
+  if(q!==anQuery()) return;  // the creator changed the range meanwhile: that load will paint
+  anData={days:anDays,q,...j};
+  renderAnalytics(anData);
+  anTabLoad();
+}
+// Instagram account numbers for the Overview's paired tiles and chart (7 or 30 days).
+async function anIgAcctLoad(){
+  const d=anIgDaysFor(), st=(anData&&anData.instagram_state)||{};
+  if(!st.signed_in || (anIgAcct&&anIgAcct.days===d&&!anIgAcct.loading)) return;
+  anIgAcct={days:d,loading:true};
+  const j=await anGet("/api/analytics/instagram?days="+d);
+  anIgAcct={...j,days:d};
+  if(anData) renderAnalytics(anData);
+}
+
+// ---------- Overview
 function renderAnalytics(j){
   const note=$("anNote"); note.hidden=true;
-  if(j.connected===false || j.error){
-    $("anAsof").textContent="";
-    const B=[];
-    if(j.connected===false) B.push('<div class="an-card an-empty"><span class="ms" aria-hidden="true">insights</span><h2>Connect YouTube to see your analytics</h2>'+
-      '<p>Views, likes, comments, watch time, who watches and how they find your Shorts, all in one place.</p>'+
-      '<button type="button" class="primary" id="anConnect"><span class="ms" aria-hidden="true">smart_display</span>Connect YouTube</button></div>');
-    else { note.hidden=false; note.innerHTML='<span class="ms" aria-hidden="true">error</span><span></span>'; note.lastChild.textContent=j.error; }
-    $("anBody").innerHTML='<div class="an-yt">'+B.join("")+'</div><div class="an-ig">'+igAnalyticsHTML(j)+'</div>'; wireCards(); igAnalyticsWire();
-    if($("anConnect")) $("anConnect").onclick=()=>signIn(()=>loadAnalytics());
+  const st=j.instagram_state||{}, igOn=!!(st.signed_in&&st.can_post), y=j.youtube, ig=anIgAcct&&!anIgAcct.loading&&!anIgAcct.error&&anIgAcct.connected?anIgAcct:null;
+  if(!j.connected && !igOn){
+    $("anAsof").textContent=""; $("anRead").innerHTML=""; $("anTry").innerHTML="";
+    $("anBody").innerHTML='<div class="an-card an-empty"><span class="ms" aria-hidden="true">insights</span><h2>Connect YouTube or Instagram to see your analytics</h2>'+
+      '<p>Views, likes, comments, shares and new followers for every clip, on both apps, side by side.</p>'+
+      '<div class="an-connect"><button type="button" class="primary" id="anConnect"><span class="ms" aria-hidden="true">smart_display</span>Connect YouTube</button>'+
+      '<button type="button" class="ghost" id="anIgConnect"><span class="ms" aria-hidden="true">photo_camera</span>Connect Instagram</button></div></div>';
+    $("anConnect").onclick=()=>signIn(()=>loadAnalytics()); $("anIgConnect").onclick=()=>igSignIn(()=>{ anIgAcct=null; loadAnalytics(); });
     return;
   }
-  const y=j.youtube, t=y.totals||{}, p=y.previous||null;
-  $("anLede").textContent=(y.channel&&y.channel.title ? y.channel.title+" · "+full(y.channel.subscribers)+" subscribers. " : "")+
-    "Every Short on your channel, not only the ones Pit Crew made.";
-  $("anAsof").textContent=(y.range.days?"Last "+y.range.days+" days":"All time")+" · YouTube's numbers are about 2 days behind";
-  if(!y.full && y.enable_url){  // the API is off in Google Cloud: reconnecting won't help, enabling it will
+  if(j.error){ note.hidden=false; note.innerHTML='<span class="ms" aria-hidden="true">error</span><span></span>'; note.lastChild.textContent=j.error; }
+  const t=(y&&y.totals)||{}, p=(y&&y.previous)||null, ok=!!(y&&y.full);
+  $("anLede").textContent=[y&&y.channel&&y.channel.title?y.channel.title+" · "+full(y.channel.subscribers)+" subscribers":"",
+    st.signed_in&&st.username?"@"+st.username:""].filter(Boolean).join(" · ")||"YouTube and Instagram, side by side.";
+  $("anAsof").textContent=y&&y.range?anRangeText(y.range)+" · YouTube's numbers are about 2 days behind":"";
+  if(y&&!y.full&&y.enable_url){  // the API is off in Google Cloud: reconnecting won't help, enabling it will
     note.hidden=false;
-    note.innerHTML='<span class="ms" aria-hidden="true">lock_open</span><span>These are the live counts for the Shorts Pit Crew uploaded. To see views per day, watch time, retention, '+
-      'first-week numbers and who watches, turn on <b>YouTube Analytics API</b> in Google Cloud (one click: <b>Enable</b>), wait a few minutes, then press Refresh.</span>'+
+    note.innerHTML='<span class="ms" aria-hidden="true">lock_open</span><span>These are the live counts for the Shorts Pit Crew uploaded. To see views per day, watch time, retention and who watches, '+
+      'turn on <b>YouTube Analytics API</b> in Google Cloud (one click: <b>Enable</b>), wait a few minutes, then press Refresh.</span>'+
       '<a class="ghost" id="anEnable" href="'+esc(y.enable_url)+'" target="_blank" rel="noopener">Turn it on<span class="ms" aria-hidden="true">open_in_new</span></a>';
-  } else if(!y.full && (y.notes||[]).includes("unavailable")){  // YouTube Analytics refused a report: not the creator's doing
+  } else if(y&&!y.full&&(y.notes||[]).includes("unavailable")){
     note.hidden=false;
     note.innerHTML='<span class="ms" aria-hidden="true">info</span><span>YouTube Analytics didn\'t answer this time, so these are the live counts for the Shorts Pit Crew uploaded. Press Refresh in a few minutes for watch time, retention and trends.</span>';
-  } else if(!y.full){
+  } else if(y&&!y.full){
     note.hidden=false;
-    note.innerHTML='<span class="ms" aria-hidden="true">lock_open</span><span>These are the live counts for the Shorts Pit Crew uploaded. <b>Connect YouTube once more</b> '+
-      'to see watch time, retention, trends, how viewers find you and who they are.</span>'+
+    note.innerHTML='<span class="ms" aria-hidden="true">lock_open</span><span>These are the live counts for the Shorts Pit Crew uploaded. <b>Connect YouTube once more</b> to see watch time, retention, trends, how viewers find you and who they are.</span>'+
       '<button type="button" class="ghost" id="anRecon">Connect again</button>';
     $("anRecon").onclick=()=>signIn(()=>{ anData=null; loadAnalytics(); });
   }
-  const daily=y.daily||[], B=['<div class="an-plat"><i style="background:var(--c-yt)"></i><h2>YouTube</h2><span>Shorts</span></div>'];
-  // headline + tiles
+  const it=(ig&&ig.totals)||{}, fol=(ig&&ig.follows)||{};
+  const showYt=anShowYt()&&!!y, showIg=anShowIg()&&igOn, igDays=ig?ig.days:anIgDaysFor();
+  const igLate=ig&&(anStart||anDays!==igDays)?'<small class="an-pnote">last '+igDays+' days</small>':'';
   const d=k=>p&&p[k]!=null&&p[k]>0 ? deltaHTML((t[k]-p[k])/p[k]*100) : "";
-  B.push('<div class="an-top'+(daily.length>1?'':' flat')+'"><div class="an-card an-hero"><div><div class="lab">Shorts views</div><div class="big">'+full(t.views)+'</div>'+d("views")+
-    (p?'<div class="vs">Arrows compare with the '+(y.range.days)+' days before</div>':'')+
-    (!y.full?'<div class="vs">Lifetime views of the '+(y.shorts||[]).length+' Shorts Pit Crew uploaded</div>':'')+'</div>'+
-    (daily.length>1?'<div class="spark an-viz" id="anSpark"></div>':'')+'</div><div class="an-tiles">'+
-    tile("schedule","Watch time",t.watch_hours!=null?compact(t.watch_hours)+" h":"–",d("watch_hours"))+
-    tile("percent","Avg. viewed",t.avg_pct!=null&&y.full?pct(t.avg_pct):"–",d("avg_pct"))+
-    tile("timer","Avg. view",t.avg_secs!=null&&y.full?secs(t.avg_secs):"–",d("avg_secs"))+
-    tile("person_add","Subscribers",t.subs!=null?(t.subs>0?"+":"")+compact(t.subs):"–",d("subs"))+
-    tile("favorite","Likes",compact(t.likes),d("likes"))+
-    tile("chat_bubble","Comments",compact(t.comments),d("comments"))+
-    tile("share","Shares",t.shares!=null?compact(t.shares):"–",d("shares"))+
-    tile("bolt","Engagement",pct(t.engagement),d("engagement"))+'</div></div>');
-  if((y.insights||[]).length) B.push('<div class="an-insights">'+y.insights.map(i=>'<div class="an-ins"><span class="ms" aria-hidden="true">'+
-    ({best:"emoji_events",subs:"person_add",trend:"trending_up",length:"straighten",day:"event",feed:"swipe_up"}[i.kind]||"lightbulb")+'</span><span>'+esc(i.text)+'</span></div>').join("")+'</div>');
-  if(daily.length>1) B.push(card("anDaily","Views per day","Your Shorts' daily views",
-    '<div class="an-seg" id="anMetric" style="margin-bottom:10px"><button type="button" data-m="views" aria-pressed="true">Views</button><button type="button" data-m="likes">Likes</button><button type="button" data-m="subs">Subscribers</button></div><div class="an-viz" id="anDailyViz"></div>',
-    table(["Day","Views","Likes","Subscribers"],daily.map(r=>[r.day,full(r.views),full(r.likes),full(r.subs)]),[1,2,3])));
-  const sh=(y.shorts||[]).filter(s=>s.title||s.views);
-  B.push(card("anTop","Top Shorts",sh.length?"Click a Short for its retention curve and where its viewers came from":"No Shorts with views in this period yet",
-    topsHTML(sh.slice(0,12)),table(["Short","Views","Avg. viewed","Likes","Comments"],sh.map(s=>[s.title,full(s.views),s.avg_pct!=null?pct(s.avg_pct):"–",full(s.likes),full(s.comments)]),[1,2,3,4])));
-  const g2=[];
-  if((y.traffic||[]).length){ const tot=y.traffic.reduce((a,r)=>a+r.views,0)||1;
-    g2.push(card("anTraffic","How viewers find your Shorts","Share of views by where they came from",barsHTML(y.traffic.slice(0,8).map(r=>({nm:TRAFFIC[r.source]||r.source,v:r.views/tot*100,lab:pct(r.views/tot*100)}))),
-      table(["Source","Views","Share"],y.traffic.map(r=>[TRAFFIC[r.source]||r.source,full(r.views),pct(r.views/tot*100)]),[1,2]))); }
-  if((y.countries||[]).length){ const tot=y.countries.reduce((a,r)=>a+r.views,0)||1;
-    g2.push(card("anGeo","Where they watch from","Top countries by views",barsHTML(y.countries.map(r=>({nm:regionName(r.code),v:r.views,lab:compact(r.views)}))),
-      table(["Country","Views"],y.countries.map(r=>[regionName(r.code),full(r.views)]),[1]))); }
-  if((y.ages||[]).length) g2.push(card("anAge","Age","Share of your channel's viewers",barsHTML(y.ages.map(r=>({nm:r.group,v:r.pct,lab:pct(r.pct)}))),
-    table(["Age","Viewers"],y.ages.map(r=>[r.group,pct(r.pct)]),[1])));
-  if((y.genders||[]).length) g2.push(card("anGender","Gender","Share of your channel's viewers",splitHTML(y.genders),
-    table(["Gender","Viewers"],y.genders.map(r=>[GENDER[r.gender]||r.gender,pct(r.pct)]),[1])));
-  if(g2.length) B.push('<div class="an-grid2">'+g2.join("")+'</div>');
-  $("anBody").innerHTML='<div class="an-yt">'+B.join("")+'</div><div class="an-ig">'+igAnalyticsHTML(j)+'</div>';
-  wireCards(); igAnalyticsWire();
-  if($("anSpark")) lineChart($("anSpark"),{x:daily.map(r=>r.day),series:[{name:"Views",color:"var(--c-yt)",values:daily.map(r=>r.views)}],height:Math.max(70,$("anSpark").clientHeight||120),bare:true});
-  if($("anDailyViz")){
-    const draw=m=>lineChart($("anDailyViz"),{x:daily.map(r=>r.day),fmtX:dayLabel,series:[{name:{views:"Views",likes:"Likes",subs:"Subscribers"}[m],color:"var(--c-yt)",values:daily.map(r=>r[m])}],height:220});
-    draw("views");
-    $("anMetric").querySelectorAll("button").forEach(b=>b.onclick=()=>{ $("anMetric").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",x===b)); draw(b.dataset.m); });
+  const B=[];
+  if(showYt && showIg){
+    const pair=(label,yv,iv,yd)=>'<div class="an-card an-pair-tile"><div class="lab">'+esc(label)+'</div><div class="pp">'+
+      '<div><span class="pl yt"><i></i>YouTube</span><b>'+esc(yv)+'</b>'+(yd||"")+'</div>'+
+      '<div><span class="pl ig"><i></i>Instagram</span><b>'+(iv===anSkelNum?iv:esc(iv))+'</b>'+igLate+'</div></div></div>';
+    const igv=k=>ig&&it[k]!=null?compact(it[k]):(anIgAcct&&anIgAcct.loading?anSkelNum:"–");
+    B.push('<div class="an-pairs4">'+
+      pair("Views",compact(t.views),igv("views"),d("views"))+
+      pair("Likes",compact(t.likes),igv("likes"),d("likes"))+
+      pair("Comments and shares",compact((t.comments||0)+(t.shares||0)),ig?compact((it.comments||0)+(it.shares||0)):igv("comments"),"")+
+      pair("New subscribers / followers",t.subs!=null?(t.subs>0?"+":"")+compact(t.subs):"–",ig&&fol.FOLLOWER!=null?"+"+compact(fol.FOLLOWER):igv("x"),d("subs"))+'</div>');
+  } else if(showYt){
+    B.push('<div class="an-tiles">'+
+      tile("visibility",({shorts:"Shorts views",videos:"Video views",all:"Views"})[anContent],compact(t.views),d("views"))+
+      tile("schedule","Watch time",t.watch_hours!=null?compact(t.watch_hours)+" h":"–",d("watch_hours"))+
+      tile("percent","Avg. viewed",t.avg_pct!=null&&ok?pct(t.avg_pct):"–",d("avg_pct"))+
+      tile("timer","Avg. view",t.avg_secs!=null&&ok?secs(t.avg_secs):"–",d("avg_secs"))+
+      tile("person_add","Subscribers",t.subs!=null?(t.subs>0?"+":"")+compact(t.subs):"–",d("subs"))+
+      tile("favorite","Likes",compact(t.likes),d("likes"))+
+      tile("chat_bubble","Comments",compact(t.comments),d("comments"))+
+      tile("share","Shares",t.shares!=null?compact(t.shares):"–",d("shares"))+'</div>');
+  } else if(showIg){
+    const tl=(i,l,v)=>tile(i,l,v==null?"–":compact(v),"");
+    B.push(ig?'<div class="an-tiles ig">'+tl("visibility","Views",it.views)+tl("groups","Accounts reached",it.reach)+tl("favorite","Likes",it.likes)+
+      tl("chat_bubble","Comments",it.comments)+tl("send","Shares",it.shares)+tl("bookmark","Saves",it.saves)+
+      tile("person_add","New followers",fol.FOLLOWER!=null?"+"+compact(fol.FOLLOWER):"–","")+tl("link","Profile link taps",it.profile_links_taps)+'</div>'+
+      '<p class="sub">Instagram account, last '+igDays+' days.</p>':anWait("Getting your Instagram numbers...","igtiles"));
+  } else if(anPlat==="instagram"){
+    B.push(anMsg("photo_camera","Connect a professional Instagram account to see your Reels here.",'<button type="button" class="ghost" id="anIgConnect">Connect Instagram</button>'));
+  } else if(anPlat==="youtube"){
+    B.push(anMsg("smart_display","Connect YouTube to see your Shorts here.",'<button type="button" class="ghost" id="anConnect">Connect YouTube</button>'));
   }
-  document.querySelectorAll(".top-row").forEach(b=>b.onclick=()=>openShortAnalytics(b.dataset.id));
+  // one chart: YouTube views per day, and Instagram accounts reached per day when both cover the same days
+  const daily=(y&&y.daily)||[], igd=(ig&&ig.reach_daily)||[], igBy={};
+  igd.forEach(r=>igBy[r.day]=r.reach);
+  const withIg=showIg&&igd.length>1&&!anStart&&(anDays===7||anDays===28), series=[];
+  if(showYt&&daily.length>1) series.push({name:"YouTube views",color:AN_YT,values:daily.map(r=>r.views)});
+  let xs=daily.map(r=>r.day);
+  if(withIg){ if(!series.length) xs=igd.map(r=>r.day); series.push({name:"Instagram accounts reached",color:AN_IG,values:xs.map(day=>igBy[day]||0)}); }
+  if(series.length) B.push(card("anDaily",series.length>1?"YouTube views and Instagram reach per day":series[0].name+" per day",
+    (showYt&&daily.length>1?"YouTube is about 2 days behind; Instagram is up to date. ":"")+(showIg&&!withIg&&igOn&&showYt?"Instagram's day-by-day numbers show for 7 or 28 days.":""),
+    '<div class="an-viz" id="anDailyViz"></div>',
+    table(["Day"].concat(series.map(s=>s.name)),xs.map((day,i)=>[day].concat(series.map(s=>full(s.values[i])))),series.map((_,i)=>i+1))));
+  // the clips on both apps
+  B.push('<button type="button" class="an-card an-golink" id="anGoVideos"><b>Your clips on YouTube and Instagram</b><span>Likes, comments, shares and new followers, side by side for every clip</span><span class="go">Open Videos<span class="ms" aria-hidden="true">arrow_forward</span></span></button>');
+  $("anBody").innerHTML=B.join("");
+  wireCards();
+  if($("anConnect")) $("anConnect").onclick=()=>signIn(()=>loadAnalytics());
+  if($("anIgConnect")) $("anIgConnect").onclick=()=>igSignIn(()=>{ anIgAcct=null; loadAnalytics(); });
+  $("anGoVideos").onclick=()=>{ anTabPick("videos"); anTab="videos"; anTabLoad(); };
+  if($("anDailyViz")) lineChart($("anDailyViz"),{x:xs,fmtX:dayLabel,series,height:230});
+  anReadPaint();
+}
+
+// ---------- Pit Crew's read (AI, from youtube/analytics_coach.py): a headline on top, 3 things to try at the bottom
+async function anReadLoad(){
+  const q=anQuery()+"&plat="+anPlat;
+  if(anRead&&anRead.q===q) { anReadPaint(); return; }
+  anRead={q,loading:true}; anReadPaint();
+  const j=await anGet("/api/analytics/coach?"+q);
+  if(q!==anQuery()+"&plat="+anPlat) return;
+  anRead={q,...j}; anReadPaint();
+  anReadPoll(q,0);
+}
+// The AI's read is written in the background (it can take a minute); meanwhile the rule-based one shows, and the
+// page asks again every 6 s (at most 2 minutes) and swaps it in.
+function anReadPoll(q,n){
+  if(!anRead||anRead.q!==q||!anRead.pending) return;
+  if(n>=20){ anRead.pending=false; anReadPaint(); return; }
+  setTimeout(async()=>{
+    if(!anRead||anRead.q!==q||$("s6").hidden) return;
+    const j=await anGet("/api/analytics/coach?"+q);
+    if(!anRead||anRead.q!==q) return;
+    if(!j.error){ anRead={q,...j}; anReadPaint(); }
+    anReadPoll(q,n+1);
+  },6000);
+}
+const AN_PLAT_TAG={youtube:["YouTube","yt"],instagram:["Instagram","ig"],both:["Both apps","both"]};
+function anReadPaint(){
+  const r=anRead;
+  if(!r||r.error||r.source==="none"||(!r.loading&&!r.headline)){ $("anRead").innerHTML=""; $("anTry").innerHTML=""; return; }
+  if(r.loading){
+    $("anRead").innerHTML='<div class="an-read loading"><div class="eyebrow-ai"><span class="ms" aria-hidden="true">auto_awesome</span>Pit Crew\'s read</div><div class="sk-lines" aria-hidden="true"><span class="sk" style="width:92%"></span><span class="sk" style="width:64%"></span></div><p class="sub an-read-wait" role="status">Reading your numbers<span class="sk-dots" aria-hidden="true"><i></i><i></i><i></i></span></p></div>';
+    $("anTry").innerHTML=""; return;
+  }
+  $("anRead").innerHTML='<div class="an-read"><div class="eyebrow-ai"><span class="ms" aria-hidden="true">auto_awesome</span>Pit Crew\'s read on '+esc(anRangeText((anData&&anData.youtube&&anData.youtube.range)||{days:anDays}).toLowerCase())+'</div>'+
+    '<p class="headline"></p>'+(r.pending?'<p class="sub an-read-wait" role="status">Pit Crew is writing a fuller read; it appears here in a moment<span class="sk-dots" aria-hidden="true"><i></i><i></i><i></i></span></p>':'')+'</div>';
+  $("anRead").querySelector(".headline").textContent=r.headline;
+  const tips=(r.tips||[]).filter(t=>anPlat===""||t.platform==="both"||t.platform===anPlat);
+  $("anTry").innerHTML=tips.length?'<h2 class="an-h2">What to try next</h2><div class="an-tries">'+tips.map(t=>{ const g=AN_PLAT_TAG[t.platform]||AN_PLAT_TAG.both;
+    return '<article class="an-card an-try"><span class="tag-plat '+g[1]+'">'+g[0]+'</span><h3></h3><p class="because"></p><p class="try"><b>Try:</b> <span></span></p></article>'; }).join("")+'</div>':"";
+  $("anTry").querySelectorAll(".an-try").forEach((el,i)=>{ const t=tips[i]; el.querySelector("h3").textContent=t.title; el.querySelector(".because").textContent=t.because||""; el.querySelector(".try span").textContent=t.try; });
 }
 
 // ---------- pieces
@@ -164,12 +279,17 @@ function splitHTML(gs){
 function topsHTML(sh){
   if(!sh.length) return '<p class="sub">Once your Shorts get views in this period, they show up here.</p>';
   const max=Math.max(...sh.map(s=>s.views),1);
-  return '<div class="tops">'+sh.map((s,i)=>'<button type="button" class="top-row" data-id="'+esc(s.id)+'">'+
+  return '<div class="tops'+(anContent!=="shorts"?" wide":"")+'">'+sh.map((s,i)=>'<button type="button" class="top-row" data-id="'+esc(s.id)+'">'+
     '<span class="rk">'+(i+1)+'</span><img src="'+esc(s.thumb||"")+'" alt="" referrerpolicy="no-referrer" loading="lazy">'+
-    '<span class="tt"><b>'+esc(s.title||"Untitled Short")+(s.clipline?'<span class="tag clip">Pit Crew</span>':'')+'</b>'+
+    '<span class="tt"><b>'+esc(s.title||"Untitled")+(s.clipline?'<span class="tag clip">Pit Crew</span>':'')+'</b>'+
     '<small>'+(s.published?new Date(s.published).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}):"")+(s.secs?" · "+secs(s.secs):"")+'</small></span>'+
     '<span class="tr"><i style="width:'+(s.views/max*100).toFixed(1)+'%"></i></span>'+
     '<span class="vv"><b>'+compact(s.views)+'</b><small>'+(s.avg_pct?pct(s.avg_pct)+" viewed":full(s.likes)+" likes")+'</small></span></button>').join("")+'</div>';
+}
+// "Last 28 days", "All time" or "Oct 1 – Oct 9, 2026" for a range from the API.
+function anRangeText(r){
+  if(r.custom){ const f=d=>new Date(d+"T00:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}); return f(r.start)+" – "+f(r.end); }
+  return r.days?"Last "+r.days+" days":"All time";
 }
 function dayLabel(s){ const d=new Date(s+"T00:00:00"); return d.toLocaleDateString(undefined,{month:"short",day:"numeric"}); }
 
@@ -189,7 +309,7 @@ function lineChart(el,o){
   if(!bare){
     s+='<g class="grid">'+[0,1,2,3,4].map(k=>'<line x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(max*k/4)+'" y2="'+Y(max*k/4)+'"/>').join("")+'</g>';
     s+='<g class="axis">'+[0,1,2,3,4].map(k=>'<text x="'+(L-8)+'" y="'+(Y(max*k/4)+4)+'" text-anchor="end">'+esc(fy(max*k/4))+'</text>').join("");
-    const step=Math.max(1,Math.ceil(n/6));
+    const step=Math.max(1,Math.ceil(n/Math.max(2,Math.min(6,Math.floor((W-L-R)/80)))));  // labels at least ~80px apart
     const near=v=>o.x.reduce((b,x,i)=>Math.abs(x-v)<Math.abs(o.x[b]-v)?i:b,0);  // index of the x closest to v
     const ticks=o.xTicks ? [...new Set(o.xTicks.map(near))] : [...Array(n).keys()].filter(i=>i%step===0);
     ticks.forEach(i=>{ s+='<text x="'+X(i)+'" y="'+(H-6)+'" text-anchor="'+(i===0?"start":i===n-1&&o.xTicks?"end":"middle")+'">'+esc(fx(o.xTicks?o.xTicks[ticks.indexOf(i)]:o.x[i]))+'</text>'; });
@@ -235,19 +355,38 @@ function lineChart(el,o){
 
 // ---------- one Short
 $("anDClose").onclick=()=>$("anDetail").close();
-$("anDetail").addEventListener("close",()=>{ tip.hidden=true; });
-async function openShortAnalytics(id,channel){
-  const s=((anData&&anData.youtube&&anData.youtube.shorts)||[]).find(x=>x.id===id)||{id};
-  $("anDBody").innerHTML=shortHead(s)+'<div class="an-card an-empty"><span class="spin" aria-hidden="true"></span><p>Getting this Short\'s numbers...</p></div>';
-  $("anDetail").showModal();
-  let j; try{ j=await (await fetch("/api/analytics/short/"+encodeURIComponent(id)+(channel?"?channel="+encodeURIComponent(channel):""))).json(); }catch(e){ j={error:"Couldn't reach Pit Crew."}; }
-  if(j.error){ $("anDBody").innerHTML=shortHead(s)+'<p class="err"></p>'; $("anDBody").querySelector(".err").textContent=j.error; return; }
-  const m={...s,...(j.short||{})}, t=j.totals||{}, B=[shortHead(m)];
-  B.push('<div class="an-tiles">'+tile("visibility","Views",compact(t.views!=null?t.views:m.views),"")+tile("percent","Avg. viewed",t.averageViewPercentage!=null?pct(t.averageViewPercentage):"–","")+
-    tile("timer","Avg. view",t.averageViewDuration!=null?secs(t.averageViewDuration):"–","")+tile("favorite","Likes",compact(t.likes!=null?t.likes:m.likes),"")+
-    tile("chat_bubble","Comments",compact(t.comments!=null?t.comments:m.comments),"")+tile("person_add","Subscribers",t.subscribersGained!=null?"+"+compact(t.subscribersGained):"–","")+'</div>');
+$("anDetail").addEventListener("close",()=>{ tip.hidden=true; anDOpen=null; });
+// The window follows the page's range ("Last 28 days", a custom range...); "Whole life" shows it since it was posted.
+let anDOpen=null;
+// pair: the clip on both apps (analytics-videos.js), shown on top when the Short is also a Reel.
+async function openShortAnalytics(id,channel,whole,pair){
+  const allTime=!anStart&&!anEnd&&!anDays;
+  whole=allTime||!!whole; anDOpen={id,channel};
+  const s=((anData&&anData.youtube&&anData.youtube.shorts)||[]).find(x=>x.id===id)||{id,title:pair&&pair.title};
+  const both=pair&&pair.instagram?h=>anPairWindow(pair,h):h=>h;
+  $("anDBody").innerHTML=both(shortHead(s))+anSkel("detail","Getting this Short's numbers...");
+  if(pair) anPairWindowWire(pair);
+  if(!$("anDetail").open) $("anDetail").showModal();
+  const q="?"+anQuery()+(whole?"&whole=1":"")+(channel?"&channel="+encodeURIComponent(channel):"");
+  let j; try{ j=await (await anFetch("/api/analytics/short/"+encodeURIComponent(id)+q)).json(); }catch(e){ j={error:e.message==="timeout"?AN_SLOW:"Couldn't reach Pit Crew."}; }
+  if(!anDOpen||anDOpen.id!==id) return;  // another video was opened meanwhile
+  const m0={...s,...(j.short||{})};
+  const span=allTime?"":'<div class="an-seg an-dwin" role="group" aria-label="Time range"><button type="button" data-w="0" aria-pressed="'+!whole+'">'+
+    esc(anRangeText({custom:!!(anStart&&anEnd),start:anStart,end:anEnd,days:anDays}))+'</button><button type="button" data-w="1" aria-pressed="'+whole+'">Whole life</button></div>';
+  const wire=()=>$("anDBody").querySelectorAll(".an-dwin button").forEach(b=>b.onclick=()=>{ if((b.dataset.w==="1")!==whole) openShortAnalytics(id,channel,b.dataset.w==="1",pair); });
+  if(j.error){ $("anDBody").innerHTML=both(shortHead(m0))+span+'<p class="err"></p>'; $("anDBody").querySelector(".err").textContent=j.error; wire(); return; }
+  if(j.before){ $("anDBody").innerHTML=both(shortHead(m0))+span+'<div class="an-card an-empty"><span class="ms" aria-hidden="true">event_busy</span><p>It was posted after this period, so there are no numbers for it here. Pick <b>Whole life</b> to see how it has done since.</p></div>'; wire(); return; }
+  const life=!j.range||j.range.lifetime;
+  const m=m0, t=j.totals||{}, B=[both(shortHead(m)),pair&&pair.instagram?'<h3 class="an-sub">On YouTube</h3>':'',span];
+  const pick=(k,live)=>t[k]!=null?t[k]:(life?live:0);  // outside "whole life", never fall back to lifetime counts
+  B.push('<div class="an-tiles">'+tile("visibility","Views",compact(pick("views",m.views)),"")+tile("percent","Avg. viewed",t.averageViewPercentage!=null?pct(t.averageViewPercentage):"–","")+
+    tile("timer","Avg. view",t.averageViewDuration!=null?secs(t.averageViewDuration):"–","")+tile("favorite","Likes",compact(pick("likes",m.likes)),"")+
+    tile("chat_bubble","Comments",compact(pick("comments",m.comments)),"")+tile("person_add","Subscribers",t.subscribersGained!=null?"+"+compact(t.subscribersGained):"–","")+'</div>');
   if(!j.full) B.push('<p class="sub">Connect YouTube once more to see this Short\'s retention curve and where its viewers came from.</p>');
-  B.push('<p class="sub an-d-note">Since it was posted. Views, likes and comments are live; the rest come from YouTube Analytics, about 2 days behind.</p>');
+  const fd=d=>new Date(d+"T00:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"});
+  B.push('<p class="sub an-d-note">'+(life?"Since it was posted. Views, likes and comments are live; the rest come from YouTube Analytics, about 2 days behind."
+    :esc(fd(j.range.start)+" – "+fd(j.range.end))+". All numbers come from YouTube Analytics, about 2 days behind, so the last 2 days may still be filling in.")+'</p>');
+  if(!life&&!(t.views>0)) B.push('<p class="sub">No views in this period yet. Pick <b>Whole life</b> to see everything since it was posted.</p>');
   const ret=j.retention||[], dd=j.daily||[], tr=j.traffic||[], len=m.secs||0;
   const at=p=>len?secs(len*p/100)+" ("+Math.round(p)+"%)":Math.round(p)+"%";  // a point in the Short: its time, and how far in
   const rs=retSummary(ret,len);
@@ -263,7 +402,7 @@ async function openShortAnalytics(id,channel){
   if(tr.length){ const tot=tr.reduce((a,r)=>a+r.views,0)||1;
     B.push(card("anDTraffic","How viewers found it","",barsHTML(tr.slice(0,6).map(r=>({nm:TRAFFIC[r.source]||r.source,v:r.views/tot*100,lab:pct(r.views/tot*100)}))),
       table(["Source","Views"],tr.map(r=>[TRAFFIC[r.source]||r.source,full(r.views)]),[1]))); }
-  $("anDBody").innerHTML=B.join(""); wireCards();
+  $("anDBody").innerHTML=B.join(""); wireCards(); wire(); if(pair) anPairWindowWire(pair);
   if($("anRetViz")) lineChart($("anRetViz"),{x:ret.map(r=>r.at),xTicks:[0,50,100],fmtX:v=>len?secs(len*v/100):Math.round(v)+"%",fmtY:v=>Math.round(v)+"%",
     series:[{name:"Still watching",color:"var(--c-yt)",values:ret.map(r=>r.watching)}],height:220,ref:100,
     max:Math.max(100,Math.ceil(Math.max(...ret.map(r=>r.watching))*1.05/25)*25),refLabel:"Everyone who started",
@@ -294,7 +433,7 @@ function retSummary(ret,len){
 }
 function shortHead(s){
   return '<div class="an-d-head">'+(s.thumb?'<img src="'+esc(s.thumb)+'" alt="" referrerpolicy="no-referrer">':'')+'<div><h2 id="anDTitle">'+esc(s.title||"Your Short")+'</h2>'+
-    '<div class="links"><a href="https://www.youtube.com/shorts/'+esc(s.id)+'" target="_blank" rel="noopener">Watch on YouTube</a>'+
+    '<div class="links"><a href="https://www.youtube.com/watch?v='+esc(s.id)+'" target="_blank" rel="noopener">Watch on YouTube</a>'+
     '<a href="'+esc(studioLink(s.id))+'" target="_blank" rel="noopener">Open in Studio</a></div></div></div>';
 }
 window.addEventListener("resize",()=>{ if(!$("s6").hidden && anData && anData.youtube){ clearTimeout(window._anRs); window._anRs=setTimeout(()=>renderAnalytics(anData),200); } });

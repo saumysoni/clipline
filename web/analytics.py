@@ -12,15 +12,8 @@ import youtube as yt
 
 from web.instagram_posting import clipline_reel_ids
 from web.on_youtube import posted_shorts
+from web.analytics_more import period_args
 from web.server import app
-
-
-def _days():
-    try:
-        d = int(request.args.get("days", 28))
-    except ValueError:
-        d = 28
-    return d if d in (0, 7, 28, 90, 365) else 28
 
 
 def _plain(e):
@@ -52,7 +45,9 @@ def analytics():
     out["connected"] = True
     try:
         ids = [u["video_id"] for u in posted_shorts(uid) if u.get("video_id")]
-        out["youtube"] = yt.analytics_dashboard(uid, _days(), ids)
+        start, end, content, days = period_args()
+        out["youtube"] = (yt.analytics_dashboard(uid, days, ids, content=content) if days is not None else
+                          yt.analytics_dashboard(uid, 0, ids, content=content, start=start, end=end))
         return jsonify(out)
     except Exception as e:  # noqa: BLE001
         traceback.print_exc()
@@ -75,7 +70,10 @@ def analytics_short(video_id):
         channel = request.args.get("channel") or None  # the channel it went up on (several can be connected)
         if channel and not re.fullmatch(r"UC[\w-]{22}", channel):
             channel = None
-        return jsonify(yt.analytics_short(g.user["id"], video_id, channel=channel))
+        start, end, _, days = period_args()
+        whole = days == 0 or request.args.get("whole") == "1"
+        return jsonify(yt.analytics_short(g.user["id"], video_id, channel=channel,
+                                          start=None if whole else start, end=None if whole else end))
     except Exception as e:  # noqa: BLE001
         traceback.print_exc()
         return jsonify(error=_plain(e)), 502
