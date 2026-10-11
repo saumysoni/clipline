@@ -21,6 +21,8 @@ from youtube.connection import load_creds
 
 
 SHORTS = "creatorContentType==SHORTS"
+# What the page's Shorts / Videos / All switch shows (creatorContentType; "all" = no filter).
+CONTENT = {"shorts": SHORTS, "videos": "creatorContentType==VIDEO_ON_DEMAND", "all": None}
 CACHE_SECS = 600  # YouTube's numbers change slowly; don't ask again for 10 minutes
 _CACHE, _LOCK = {}, threading.Lock()
 
@@ -65,21 +67,23 @@ def _report(ya, start, end, metrics, dimensions=None, filters=SHORTS, sort=None,
                    + (f"?project={proj.group(1)}" if proj else "")) if off else ""
             raise NeedsReconnect(str(e), url) from e
         print("YouTube Analytics refused", {k: v for k, v in q.items() if k != "ids"}, "->", e.resp.status, body[:400])
-        if e.resp.status == 400 and filters and SHORTS in filters:
-            return _report_by_type(ya, start, end, metrics, dimensions, filters, sort, max_results)
+        kind = re.search(r"creatorContentType==(\w+)", filters or "")
+        if e.resp.status == 400 and kind and "creatorContentType" not in (dimensions or ""):
+            return _report_by_type(ya, start, end, metrics, dimensions, filters, sort, max_results, kind.group(1))
         raise
     names = [h["name"] for h in resp.get("columnHeaders", [])]
     return [dict(zip(names, row)) for row in resp.get("rows") or []]
 
 
-def _report_by_type(ya, start, end, metrics, dimensions, filters, sort, max_results):
-    """The same report with creatorContentType as a dimension, keeping the SHORTS rows. Totals that are sums (views,
-    likes...) are exact; averages (averageViewDuration/Percentage) come straight from YouTube's SHORTS row."""
-    rest = ";".join(f for f in filters.split(";") if f != SHORTS) or None
+def _report_by_type(ya, start, end, metrics, dimensions, filters, sort, max_results, kind="SHORTS"):
+    """The same report with creatorContentType as a dimension, keeping the rows of that kind (SHORTS,
+    VIDEO_ON_DEMAND). Totals that are sums (views, likes...) are exact; averages (averageViewDuration/Percentage)
+    come straight from YouTube's row for that kind."""
+    rest = ";".join(f for f in filters.split(";") if not f.startswith("creatorContentType==")) or None
     dims = ",".join(d for d in ((dimensions or "").split(",") + ["creatorContentType"]) if d)
     rows = _report(ya, start, end, metrics, dims, rest, sort, (max_results * 4) if max_results else None)
     rows = [{k: v for k, v in r.items() if k != "creatorContentType"} for r in rows
-            if str(r.get("creatorContentType", "")).upper() in ("SHORTS", "SHORT")]
+            if str(r.get("creatorContentType", "")).upper() in ({kind, "SHORT"} if kind == "SHORTS" else {kind})]
     return rows[:max_results] if max_results else rows
 
 
@@ -122,8 +126,19 @@ TOTALS = ("views,likes,comments,shares,subscribersGained,subscribersLost,estimat
           "averageViewDuration,averageViewPercentage")
 
 
-def _totals(ya, start, end):
-    rows = _report(ya, start, end, TOTALS)
+def _with_engaged(ya, start, end, metrics, *a, **k):
+    """The report with engagedViews added when YouTube allows it for that combination (else without it)."""
+    try:
+        return _report(ya, start, end, metrics + ",engagedViews", *a, **k)
+    except NeedsReconnect:
+        raise
+    except Exception as e:  # noqa: BLE001
+        print("engagedViews not available here:", repr(e)[:160])
+        return _report(ya, start, end, metrics, *a, **k)
+
+
+def _totals(ya, start, end, flt=SHORTS):
+    rows = _with_engaged(ya, start, end, TOTALS, filters=flt)
     t = rows[0] if rows else {}
     views = t.get("views", 0) or 0
     eng = (t.get("likes", 0) or 0) + (t.get("comments", 0) or 0) + (t.get("shares", 0) or 0)
@@ -132,42 +147,59 @@ def _totals(ya, start, end):
             "watch_hours": round((t.get("estimatedMinutesWatched", 0) or 0) / 60, 1),
             "avg_secs": round(t.get("averageViewDuration", 0) or 0, 1),
             "avg_pct": round(t.get("averageViewPercentage", 0) or 0, 1),
+            "engaged": t.get("engagedViews"),
             "engagement": round(100 * eng / views, 2) if views else 0}
 
 
-def dashboard(user_id, days=28, clipline_ids=()):
+def period(days=28, start=None, end=None):
+    """(start, end, previous start, previous end, days) for the last `days` days (0 = all time), or a custom
+    start..end (dates). The previous period has the same length, just before it (none for all time)."""
+    if start and end:
+        start, end = min(start, end), max(start, end)
+        n = (end - start).days + 1
+        return start, end, start - timedelta(days=n), start - timedelta(days=1), n
+    end = date.today()
+    start = end - timedelta(days=days - 1) if days else date(2005, 4, 23)
+    return start, end, (start - timedelta(days=days) if days else None), start - timedelta(days=1), days
+
+
+def dashboard(user_id, days=28, clipline_ids=(), content="shorts", start=None, end=None):
     """Everything for the Analytics page (the active channel), for the last `days` days (0 = since the channel
-    started)."""
-    key = (user_id, (db.connection(user_id, "youtube") or {}).get("account_id"), days)  # per channel
+    started) or a custom start..end, for Shorts, long videos or both (`content`)."""
+    content = content if content in CONTENT else "shorts"
+    flt = CONTENT[content]
+    key = (user_id, (db.connection(user_id, "youtube") or {}).get("account_id"), days, content, str(start), str(end))
     with _LOCK:
         hit = _CACHE.get(key)
         if hit and time.time() - hit[0] < CACHE_SECS:
             return hit[1]
     yt3, ya = _services(user_id)
-    end = date.today()
-    start = end - timedelta(days=days - 1) if days else date(2005, 4, 23)
-    prev_end, prev_start = start - timedelta(days=1), start - timedelta(days=days) if days else None
+    custom = bool(start and end)
+    start, end, prev_start, prev_end, days = period(days, start, end)
     clip = set(clipline_ids)
-    out = {"range": {"start": str(start), "end": str(end), "days": days}, "notes": [], "full": True}
+    out = {"range": {"start": str(start), "end": str(end), "days": days, "custom": custom}, "content": content,
+           "notes": [], "full": True}
     ch = (yt3.channels().list(part="snippet,statistics", mine=True).execute().get("items") or [{}])[0]
     out["channel"] = {"title": (ch.get("snippet") or {}).get("title", ""),
                       "subscribers": int((ch.get("statistics") or {}).get("subscriberCount", 0) or 0),
                       "thumb": (((ch.get("snippet") or {}).get("thumbnails") or {}).get("default") or {}).get("url", "")}
     try:
-        out["totals"] = _totals(ya, start, end)
-        out["previous"] = _totals(ya, prev_start, prev_end) if prev_start else None
+        out["totals"] = _totals(ya, start, end, flt)
+        out["previous"] = _totals(ya, prev_start, prev_end, flt) if prev_start else None
         out["daily"] = [{"day": r["day"], "views": r.get("views", 0), "likes": r.get("likes", 0),
                          "subs": (r.get("subscribersGained", 0) or 0) - (r.get("subscribersLost", 0) or 0)}
                         for r in _try(_report, ya, start, end, "views,likes,subscribersGained,subscribersLost",
-                                      "day", sort="day")]
-        top = _try(_report, ya, start, end, "views,likes,comments,shares,averageViewPercentage,"
-                   "averageViewDuration,subscribersGained", "video", sort="-views", max_results=50)
+                                      "day", filters=flt, sort="day")]
+        top = _try(_with_engaged, ya, start, end, "views,likes,comments,shares,averageViewPercentage,"
+                   "averageViewDuration,subscribersGained,estimatedMinutesWatched", "video", filters=flt,
+                   sort="-views", max_results=50)
         meta = _videos(yt3, [r["video"] for r in top] + list(clip))
         out["shorts"] = [{**meta.get(r["video"], {"id": r["video"], "title": "", "thumb": ""}),
                           "views": r.get("views", 0), "likes": r.get("likes", 0), "comments": r.get("comments", 0),
                           "shares": r.get("shares", 0), "avg_pct": round(r.get("averageViewPercentage", 0) or 0, 1),
                           "avg_secs": round(r.get("averageViewDuration", 0) or 0, 1),
-                          "subs": r.get("subscribersGained", 0), "clipline": r["video"] in clip} for r in top]
+                          "subs": r.get("subscribersGained", 0), "engaged": r.get("engagedViews"),
+                          "minutes": r.get("estimatedMinutesWatched", 0), "clipline": r["video"] in clip} for r in top]
         if not days:  # all time: Studio's live counts (Analytics lags ~2 days and counts comments differently)
             live = {k: sum(m.get("live_" + k, 0) for m in meta.values() if m.get("id") in {r["video"] for r in top})
                     for k in ("views", "likes", "comments")}
@@ -180,9 +212,11 @@ def dashboard(user_id, days=28, clipline_ids=()):
             eng = (t.get("likes") or 0) + (t.get("comments") or 0) + (t.get("shares") or 0)
             t["engagement"] = round(100 * eng / t["views"], 2) if t.get("views") else 0
         out["traffic"] = [{"source": r["insightTrafficSourceType"], "views": r.get("views", 0)}
-                          for r in _try(_report, ya, start, end, "views", "insightTrafficSourceType", sort="-views")]
+                          for r in _try(_report, ya, start, end, "views", "insightTrafficSourceType", filters=flt,
+                                        sort="-views")]
         out["countries"] = [{"code": r["country"], "views": r.get("views", 0)}
-                            for r in _try(_report, ya, start, end, "views", "country", sort="-views", max_results=8)]
+                            for r in _try(_report, ya, start, end, "views", "country", filters=flt, sort="-views",
+                                          max_results=8)]
         demo = _try(_report, ya, start, end, "viewerPercentage", "ageGroup,gender", filters=None)
         ages, genders = {}, {}
         for r in demo:
@@ -249,7 +283,7 @@ def insights(d):
     tips, shorts, t = [], [s for s in d.get("shorts", []) if s.get("views")], d.get("totals") or {}
     if shorts:
         best = shorts[0]
-        tips.append({"kind": "best", "text": f"Your top Short is “{best['title']}” with {best['views']:,} views"
+        tips.append({"kind": "best", "text": f"Your top {'Short' if d.get('content', 'shorts') == 'shorts' else 'video'} is “{best['title']}” with {best['views']:,} views"
                      + (f", watched for {best['avg_pct']:.0f}% of its length on average." if best.get("avg_pct") else ".")})
     if t.get("views") and t.get("subs"):
         tips.append({"kind": "subs", "text": f"You gain {1000 * t['subs'] / t['views']:.1f} subscribers per 1,000 Shorts views."})
@@ -278,7 +312,7 @@ def insights(d):
         if len(by_day) >= 2:
             day = max(by_day, key=by_day.get)
             tips.append({"kind": "day", "text": f"Shorts published on a {day} do best for you ({by_day[day]:,.0f} views on average)."})
-    if d.get("traffic"):
+    if d.get("traffic") and d.get("content", "shorts") == "shorts":
         total = sum(r["views"] for r in d["traffic"]) or 1
         shorts_feed = sum(r["views"] for r in d["traffic"] if r["source"] == "SHORTS")
         tips.append({"kind": "feed", "text": f"{100 * shorts_feed / total:.0f}% of your Shorts views come from the Shorts feed."})

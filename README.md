@@ -93,6 +93,8 @@ Most clipping tools cut a video into pieces and stop there. Pit Crew carries eac
 
 ### Analytics
 - YouTube Shorts and Instagram Reels side by side: views, watch time, retention, traffic sources, audience
+- **Compare** any videos day by day with every number and its share of the total (CSV download), **Audience** (devices, subscribers, cities, search terms, sharing) and the **Instagram** account (reach, followers, when they're online, who they are)
+- Shorts, long videos or both, for any date range
 - **Your clips**: each Pit Crew clip's first-week views per platform, top clips and "What's working" (only when the difference is real)
 
 ---
@@ -307,7 +309,13 @@ If posting stops halfway (no internet, YouTube's daily limit), press the button 
 
 Open Pit Crew at `http://localhost:8000`, the address it opens by itself. Google only sends you back to the exact address registered in step 4, so `http://127.0.0.1:8000` won't work for Google sign-in. Continue with Google and Connect YouTube both use that one address. When Pit Crew runs on a server, register that server's address instead (for example `https://pitcrew.example.com/api/youtube/callback`), set `YOUTUBE_REDIRECT_URI` to the same address, and set `SECRET_KEY`, `DATABASE_PATH` and `SESSION_COOKIE_SECURE=1` in `.env`.
 
-**Analytics.** **Analytics** in the sidebar shows how every Short on your channel is doing: views, watch time, likes, comments, shares, subscribers, a views-per-day chart, top Shorts (click one for its retention curve), how viewers find you, countries, age and gender, plus Instagram Reels once Instagram is connected. If you connected YouTube before Analytics existed, click **Connect again** there once so Pit Crew can read YouTube Analytics.
+**Analytics.** **Analytics** in the sidebar has four tabs, for any range (7, 28, 90 days, a year, all time or your own dates) and for Shorts, long videos or both:
+- **Overview:** views, watch time, engaged views, likes, comments, shares, subscribers, views per day, top videos (click one for its retention curve), "This week" at a glance, each clip's first week, what's working, and for vlogs uploaded with Pit Crew how many viewers their Shorts sent them. Instagram Reels sit next to the Shorts.
+- **Compare:** every video in the period with all its numbers and its share of the total (like YouTube Studio's advanced mode). Tick up to 8 to see them day by day, sort any column, and download it all as a CSV.
+- **Audience:** devices, subscribers vs everyone else, where they watch, gender, countries, cities, age, operating systems, how they find you, what they searched and where they share.
+- **Instagram:** the account's reach per day, followers vs new people, new followers and unfollows, profile link taps, when your followers are online, and who they are (country, city, age, gender; Instagram shares these from 100 followers).
+
+If you connected YouTube before Analytics existed, click **Connect again** there once so Pit Crew can read YouTube Analytics.
 
 **Things to know about posting**
 - **Uploads stay private until your project passes YouTube's API audit.** This is YouTube's rule for new projects. During a trial, open each upload in YouTube Studio and set it to public or scheduled there (Pit Crew shows an "Open in Studio" link for each one). To lift the limit, apply for the free audit from the YouTube API Services page; you'll need a short privacy policy and a description of the app.

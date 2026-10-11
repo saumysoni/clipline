@@ -32,6 +32,7 @@ from web import (  # noqa: E402,F401
     delete_account,
     analytics,
     analytics_clips,
+    analytics_more,
     clips,
     hooks,
     instagram_connect,

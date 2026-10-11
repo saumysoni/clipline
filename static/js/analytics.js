@@ -1,7 +1,11 @@
 // Analytics page: how the creator's Shorts are doing. Data from /api/analytics (web/analytics.py,
 // youtube/analytics.py). Charts are plain SVG drawn here: thin lines with a 10% area wash, a crosshair
 // tooltip, keyboard arrows, and a Table button on every chart so no number needs hovering to read.
-let anDays=28, anData=null, anLoading=false;
+let anDays=28, anData=null, anLoading=false, anContent="shorts", anStart="", anEnd="";
+// The range and content the page asks for: ?days=28 (or ?start=&end= for Custom) and ?content=shorts|videos|all.
+const anQuery=()=>"content="+anContent+(anStart&&anEnd?"&start="+anStart+"&end="+anEnd:"&days="+anDays);
+// Words for what's shown: Shorts, videos, or both.
+const anWord=()=>({shorts:["Short","Shorts"],videos:["video","videos"],all:["video","videos"]})[anContent];
 const nf=new Intl.NumberFormat("en"), cf=new Intl.NumberFormat("en",{notation:"compact",maximumFractionDigits:1});
 const full=n=>nf.format(Math.round(n||0)), compact=n=>cf.format(Math.abs(n||0)>=1000?(n||0):Math.round(n||0));
 const pct=n=>(n||0).toFixed((n||0)<10?1:0)+"%";
@@ -19,7 +23,7 @@ const GENDER={female:"Women",male:"Men",user_specified:"Other"};
 function openAnalytics(vlog,platform){
   clearInterval(poll); anVlog=typeof vlog==="string"?vlog:""; if(platform!==undefined) anSetPlat(platform);
   location.hash="analytics"+(anVlog?"/"+anVlog:""); show(6); anVlogMenu();
-  if(!anData||anData.days!==anDays) loadAnalytics(); else loadClipStats();
+  if(!anData||anData.q!==anQuery()) loadAnalytics(); else { loadClipStats(); if(typeof anProLoad==="function") anProLoad(); }
 }
 function anSetPlat(p){ anPlat=p||""; $("anPlat").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.p===anPlat)); }
 $("anPlat").querySelectorAll("button").forEach(b=>b.onclick=()=>{ anSetPlat(b.dataset.p); paintClipStats(); });
@@ -35,7 +39,23 @@ $("anRefresh").onclick=()=>loadAnalytics(true);
 $("anRange").querySelectorAll("button").forEach(b=>b.onclick=()=>{
   if(anLoading) return;
   $("anRange").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",x===b));
-  anDays=+b.dataset.days; loadAnalytics();
+  if(b.dataset.days==="custom"){  // pick dates, then Apply
+    $("anCustom").hidden=false;
+    if(!$("anTo").value){ const t=new Date(), f=new Date(Date.now()-27*864e5), iso=d=>new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,10);
+      $("anTo").value=iso(t); $("anFrom").value=iso(f); $("anTo").max=iso(t); $("anFrom").max=iso(t); }
+    $("anFrom").focus(); return;
+  }
+  $("anCustom").hidden=true; anStart=anEnd=""; anDays=+b.dataset.days; loadAnalytics();
+});
+$("anApply").onclick=()=>{
+  const f=$("anFrom").value, t=$("anTo").value;
+  if(!f||!t){ (f?$("anTo"):$("anFrom")).focus(); return; }
+  anStart=f<=t?f:t; anEnd=f<=t?t:f; loadAnalytics();
+};
+$("anContent").querySelectorAll("button").forEach(b=>b.onclick=()=>{
+  if(anLoading) return;
+  $("anContent").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",x===b));
+  anContent=b.dataset.c; $("anH").textContent="How your "+({shorts:"Shorts",videos:"videos",all:"videos"})[anContent]+" are doing"; loadAnalytics();
 });
 
 async function loadAnalytics(){
@@ -43,11 +63,14 @@ async function loadAnalytics(){
   anLoading=true; $("anBody").classList.add("loading");
   if(!$("anBody").children.length) $("anBody").innerHTML='<div class="an-card an-empty"><span class="spin" aria-hidden="true"></span><p>Getting your numbers...</p></div>';
   let r,j;
-  try{ r=await fetch("/api/analytics?days="+anDays); j=await r.json(); }
+  const q=anQuery();
+  try{ r=await fetch("/api/analytics?"+q); j=await r.json(); }
   catch(e){ j={error:"Couldn't reach Pit Crew. Check your internet connection, then try again."}; }
   anLoading=false; $("anBody").classList.remove("loading");
-  anData={days:anDays,...j};
+  if(q!==anQuery()) return;  // the creator changed the range meanwhile: that load will paint
+  anData={days:anDays,q,...j};
   renderAnalytics(j);
+  if(typeof anProLoad==="function") anProLoad();
 }
 
 function renderAnalytics(j){
@@ -65,8 +88,8 @@ function renderAnalytics(j){
   }
   const y=j.youtube, t=y.totals||{}, p=y.previous||null;
   $("anLede").textContent=(y.channel&&y.channel.title ? y.channel.title+" · "+full(y.channel.subscribers)+" subscribers. " : "")+
-    "Every Short on your channel, not only the ones Pit Crew made.";
-  $("anAsof").textContent=(y.range.days?"Last "+y.range.days+" days":"All time")+" · YouTube's numbers are about 2 days behind";
+    "Every "+anWord()[0]+" on your channel, not only the ones Pit Crew made.";
+  $("anAsof").textContent=anRangeText(y.range)+" · YouTube's numbers are about 2 days behind";
   if(!y.full && y.enable_url){  // the API is off in Google Cloud: reconnecting won't help, enabling it will
     note.hidden=false;
     note.innerHTML='<span class="ms" aria-hidden="true">lock_open</span><span>These are the live counts for the Shorts Pit Crew uploaded. To see views per day, watch time, retention, '+
@@ -82,12 +105,14 @@ function renderAnalytics(j){
       '<button type="button" class="ghost" id="anRecon">Connect again</button>';
     $("anRecon").onclick=()=>signIn(()=>{ anData=null; loadAnalytics(); });
   }
-  const daily=y.daily||[], B=['<div class="an-plat"><i style="background:var(--c-yt)"></i><h2>YouTube</h2><span>Shorts</span></div>'];
+  const W=anWord(), Wc=W[1][0].toUpperCase()+W[1].slice(1);
+  const daily=y.daily||[], B=['<div class="an-plat"><i style="background:var(--c-yt)"></i><h2>YouTube</h2><span>'+({shorts:"Shorts",videos:"Long videos",all:"Shorts and long videos"})[anContent]+'</span></div>'];
   // headline + tiles
   const d=k=>p&&p[k]!=null&&p[k]>0 ? deltaHTML((t[k]-p[k])/p[k]*100) : "";
-  B.push('<div class="an-top'+(daily.length>1?'':' flat')+'"><div class="an-card an-hero"><div><div class="lab">Shorts views</div><div class="big">'+full(t.views)+'</div>'+d("views")+
+  B.push('<div class="an-top'+(daily.length>1?'':' flat')+'"><div class="an-card an-hero"><div><div class="lab">'+({shorts:"Shorts views",videos:"Video views",all:"Views"})[anContent]+'</div><div class="big">'+full(t.views)+'</div>'+d("views")+
     (p?'<div class="vs">Arrows compare with the '+(y.range.days)+' days before</div>':'')+
-    (!y.full?'<div class="vs">Lifetime views of the '+(y.shorts||[]).length+' Shorts Pit Crew uploaded</div>':'')+'</div>'+
+    (t.engaged!=null&&y.full?'<div class="vs">'+full(t.engaged)+' engaged views</div>':'')+
+    (!y.full?'<div class="vs">Lifetime views of the '+(y.shorts||[]).length+' '+W[1]+' Pit Crew uploaded</div>':'')+'</div>'+
     (daily.length>1?'<div class="spark an-viz" id="anSpark"></div>':'')+'</div><div class="an-tiles">'+
     tile("schedule","Watch time",t.watch_hours!=null?compact(t.watch_hours)+" h":"–",d("watch_hours"))+
     tile("percent","Avg. viewed",t.avg_pct!=null&&y.full?pct(t.avg_pct):"–",d("avg_pct"))+
@@ -99,15 +124,15 @@ function renderAnalytics(j){
     tile("bolt","Engagement",pct(t.engagement),d("engagement"))+'</div></div>');
   if((y.insights||[]).length) B.push('<div class="an-insights">'+y.insights.map(i=>'<div class="an-ins"><span class="ms" aria-hidden="true">'+
     ({best:"emoji_events",subs:"person_add",trend:"trending_up",length:"straighten",day:"event",feed:"swipe_up"}[i.kind]||"lightbulb")+'</span><span>'+esc(i.text)+'</span></div>').join("")+'</div>');
-  if(daily.length>1) B.push(card("anDaily","Views per day","Your Shorts' daily views",
+  if(daily.length>1) B.push(card("anDaily","Views per day","Your "+W[1]+"' daily views",
     '<div class="an-seg" id="anMetric" style="margin-bottom:10px"><button type="button" data-m="views" aria-pressed="true">Views</button><button type="button" data-m="likes">Likes</button><button type="button" data-m="subs">Subscribers</button></div><div class="an-viz" id="anDailyViz"></div>',
     table(["Day","Views","Likes","Subscribers"],daily.map(r=>[r.day,full(r.views),full(r.likes),full(r.subs)]),[1,2,3])));
   const sh=(y.shorts||[]).filter(s=>s.title||s.views);
-  B.push(card("anTop","Top Shorts",sh.length?"Click a Short for its retention curve and where its viewers came from":"No Shorts with views in this period yet",
-    topsHTML(sh.slice(0,12)),table(["Short","Views","Avg. viewed","Likes","Comments"],sh.map(s=>[s.title,full(s.views),s.avg_pct!=null?pct(s.avg_pct):"–",full(s.likes),full(s.comments)]),[1,2,3,4])));
+  B.push(card("anTop","Top "+W[1],sh.length?"Click a "+W[0]+" for its retention curve and where its viewers came from":"No "+W[1]+" with views in this period yet",
+    topsHTML(sh.slice(0,12)),table([Wc.slice(0,-1),"Views","Avg. viewed","Likes","Comments"],sh.map(s=>[s.title,full(s.views),s.avg_pct!=null?pct(s.avg_pct):"–",full(s.likes),full(s.comments)]),[1,2,3,4])));
   const g2=[];
   if((y.traffic||[]).length){ const tot=y.traffic.reduce((a,r)=>a+r.views,0)||1;
-    g2.push(card("anTraffic","How viewers find your Shorts","Share of views by where they came from",barsHTML(y.traffic.slice(0,8).map(r=>({nm:TRAFFIC[r.source]||r.source,v:r.views/tot*100,lab:pct(r.views/tot*100)}))),
+    g2.push(card("anTraffic","How viewers find your "+W[1],"Share of views by where they came from",barsHTML(y.traffic.slice(0,8).map(r=>({nm:TRAFFIC[r.source]||r.source,v:r.views/tot*100,lab:pct(r.views/tot*100)}))),
       table(["Source","Views","Share"],y.traffic.map(r=>[TRAFFIC[r.source]||r.source,full(r.views),pct(r.views/tot*100)]),[1,2]))); }
   if((y.countries||[]).length){ const tot=y.countries.reduce((a,r)=>a+r.views,0)||1;
     g2.push(card("anGeo","Where they watch from","Top countries by views",barsHTML(y.countries.map(r=>({nm:regionName(r.code),v:r.views,lab:compact(r.views)}))),
@@ -164,12 +189,17 @@ function splitHTML(gs){
 function topsHTML(sh){
   if(!sh.length) return '<p class="sub">Once your Shorts get views in this period, they show up here.</p>';
   const max=Math.max(...sh.map(s=>s.views),1);
-  return '<div class="tops">'+sh.map((s,i)=>'<button type="button" class="top-row" data-id="'+esc(s.id)+'">'+
+  return '<div class="tops'+(anContent!=="shorts"?" wide":"")+'">'+sh.map((s,i)=>'<button type="button" class="top-row" data-id="'+esc(s.id)+'">'+
     '<span class="rk">'+(i+1)+'</span><img src="'+esc(s.thumb||"")+'" alt="" referrerpolicy="no-referrer" loading="lazy">'+
-    '<span class="tt"><b>'+esc(s.title||"Untitled Short")+(s.clipline?'<span class="tag clip">Pit Crew</span>':'')+'</b>'+
+    '<span class="tt"><b>'+esc(s.title||"Untitled")+(s.clipline?'<span class="tag clip">Pit Crew</span>':'')+'</b>'+
     '<small>'+(s.published?new Date(s.published).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}):"")+(s.secs?" · "+secs(s.secs):"")+'</small></span>'+
     '<span class="tr"><i style="width:'+(s.views/max*100).toFixed(1)+'%"></i></span>'+
     '<span class="vv"><b>'+compact(s.views)+'</b><small>'+(s.avg_pct?pct(s.avg_pct)+" viewed":full(s.likes)+" likes")+'</small></span></button>').join("")+'</div>';
+}
+// "Last 28 days", "All time" or "Oct 1 – Oct 9, 2026" for a range from the API.
+function anRangeText(r){
+  if(r.custom){ const f=d=>new Date(d+"T00:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}); return f(r.start)+" – "+f(r.end); }
+  return r.days?"Last "+r.days+" days":"All time";
 }
 function dayLabel(s){ const d=new Date(s+"T00:00:00"); return d.toLocaleDateString(undefined,{month:"short",day:"numeric"}); }
 
@@ -189,7 +219,7 @@ function lineChart(el,o){
   if(!bare){
     s+='<g class="grid">'+[0,1,2,3,4].map(k=>'<line x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(max*k/4)+'" y2="'+Y(max*k/4)+'"/>').join("")+'</g>';
     s+='<g class="axis">'+[0,1,2,3,4].map(k=>'<text x="'+(L-8)+'" y="'+(Y(max*k/4)+4)+'" text-anchor="end">'+esc(fy(max*k/4))+'</text>').join("");
-    const step=Math.max(1,Math.ceil(n/6));
+    const step=Math.max(1,Math.ceil(n/Math.max(2,Math.min(6,Math.floor((W-L-R)/80)))));  // labels at least ~80px apart
     const near=v=>o.x.reduce((b,x,i)=>Math.abs(x-v)<Math.abs(o.x[b]-v)?i:b,0);  // index of the x closest to v
     const ticks=o.xTicks ? [...new Set(o.xTicks.map(near))] : [...Array(n).keys()].filter(i=>i%step===0);
     ticks.forEach(i=>{ s+='<text x="'+X(i)+'" y="'+(H-6)+'" text-anchor="'+(i===0?"start":i===n-1&&o.xTicks?"end":"middle")+'">'+esc(fx(o.xTicks?o.xTicks[ticks.indexOf(i)]:o.x[i]))+'</text>'; });
@@ -294,7 +324,7 @@ function retSummary(ret,len){
 }
 function shortHead(s){
   return '<div class="an-d-head">'+(s.thumb?'<img src="'+esc(s.thumb)+'" alt="" referrerpolicy="no-referrer">':'')+'<div><h2 id="anDTitle">'+esc(s.title||"Your Short")+'</h2>'+
-    '<div class="links"><a href="https://www.youtube.com/shorts/'+esc(s.id)+'" target="_blank" rel="noopener">Watch on YouTube</a>'+
+    '<div class="links"><a href="https://www.youtube.com/watch?v='+esc(s.id)+'" target="_blank" rel="noopener">Watch on YouTube</a>'+
     '<a href="'+esc(studioLink(s.id))+'" target="_blank" rel="noopener">Open in Studio</a></div></div></div>';
 }
 window.addEventListener("resize",()=>{ if(!$("s6").hidden && anData && anData.youtube){ clearTimeout(window._anRs); window._anRs=setTimeout(()=>renderAnalytics(anData),200); } });
