@@ -197,6 +197,18 @@ def audience(user_id, start, end, content="shorts"):
 CLIP_METRICS = "views,likes,comments,shares,subscribersGained,subscribersLost,averageViewPercentage,averageViewDuration"
 
 
+def published_dates(user_id, ids):
+    """{video id: when YouTube says it went public (ISO)} for these videos (one Data API call per 50, cached)."""
+    ids = [i for i in dict.fromkeys(ids) if i]
+    if not ids:
+        return {}
+
+    def build():
+        yt3, _ = base._services(user_id)
+        return {v: m.get("published") for v, m in _videos(yt3, ids).items() if m.get("published")}
+    return _cached(("pub", user_id, _chan(user_id), tuple(ids)), build)
+
+
 def clip_totals(user_id, ids):
     """Every number of these videos since they were posted, for the YouTube-vs-Instagram charts: views, likes and
     comments are YouTube's live counts (what Studio shows; Analytics is ~2 days behind), shares, subscribers and

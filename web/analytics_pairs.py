@@ -19,7 +19,7 @@ from instagram.account_insights import follows_after
 from instagram.insights import reel_numbers
 from youtube.analytics_more import clip_totals
 
-from web.analytics_clips import posted_clips
+from web.analytics_clips import fill_dates, posted_clips
 from web.server import app
 
 FOLLOW_HOURS = 48
@@ -27,7 +27,7 @@ FOLLOW_HOURS = 48
 
 def clip_pairs(user_id, vlog=""):
     """Every posted clip (newest first) with its YouTube and Instagram numbers."""
-    clips = posted_clips(user_id, vlog)
+    clips = fill_dates(user_id, posted_clips(user_id, vlog))
     yt_ids = [c["youtube"]["video_id"] for c in clips if c["youtube"]]
     posts = [{"media_id": c["instagram"]["media_id"], "ig_id": c["instagram"]["ig_id"]} for c in clips if c["instagram"]]
     ytn, ign, notes = {}, {}, []
