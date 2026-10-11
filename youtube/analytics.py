@@ -194,6 +194,10 @@ def dashboard(user_id, days=28, clipline_ids=(), content="shorts", start=None, e
                    "averageViewDuration,subscribersGained,estimatedMinutesWatched", "video", filters=flt,
                    sort="-views", max_results=50)
         meta = _videos(yt3, [r["video"] for r in top] + list(clip))
+        shown = {r["video"] for r in top}
+        if content in ("shorts", "all"):  # Pit Crew's Shorts with no views in this period: listed at 0, so they can be opened
+            top = top + [{"video": v} for v in clip if v in meta and v not in shown
+                         and (meta[v].get("published") or "")[:10] <= str(end)]
         out["shorts"] = [{**meta.get(r["video"], {"id": r["video"], "title": "", "thumb": ""}),
                           "views": r.get("views", 0), "likes": r.get("likes", 0), "comments": r.get("comments", 0),
                           "shares": r.get("shares", 0), "avg_pct": round(r.get("averageViewPercentage", 0) or 0, 1),
@@ -246,19 +250,27 @@ def dashboard(user_id, days=28, clipline_ids=(), content="shorts", start=None, e
     return out
 
 
-def short_detail(user_id, video_id, channel=None):
-    """One Short over its whole life, asked on its own channel: day-by-day views, the audience-retention curve, how
-    viewers found it. Views, likes and comments are YouTube's live counts (what Studio shows); the Analytics API's
-    totals are ~2 days behind, so they're only used for what has no live count (average view, % viewed, subscribers)."""
+def short_detail(user_id, video_id, channel=None, start=None, end=None):
+    """One video, asked on its own channel: day-by-day views, the audience-retention curve, how viewers found it.
+    Over its whole life by default: then views, likes and comments are YouTube's live counts (what Studio shows; the
+    Analytics API is ~2 days behind). With start..end (the page's range), everything is that period's Analytics
+    numbers; a range starting before it was posted starts at its publish day."""
     yt3, ya = _services(user_id, channel)
-    end = date.today()
     meta = _videos(yt3, [video_id]).get(video_id, {})
     if not meta:  # deleted in YouTube Studio, or on a channel that isn't connected: Analytics would refuse it
-        raise RuntimeError("This Short isn't on the YouTube channel any more (deleted in YouTube Studio?), so it has no numbers.")
-    start = (datetime.fromisoformat(meta["published"].replace("Z", "+00:00")).date() - timedelta(days=1)
-             if meta.get("published") else date(2005, 4, 23))
+        raise RuntimeError("This video isn't on the YouTube channel any more (deleted in YouTube Studio?), so it has no numbers.")
+    born = (datetime.fromisoformat(meta["published"].replace("Z", "+00:00")).date() - timedelta(days=1)
+            if meta.get("published") else date(2005, 4, 23))
+    lifetime = not (start and end)
+    if lifetime:
+        start, end = born, date.today()
+    else:
+        start = max(start, born)
+        if start > end:  # the whole range is before it was posted
+            return {"short": meta, "full": True, "range": {"start": str(start), "end": str(end), "lifetime": False},
+                    "before": True, "totals": {}, "daily": [], "retention": [], "traffic": []}
     f = f"video=={video_id}"
-    out = {"short": meta, "full": True}
+    out = {"short": meta, "full": True, "range": {"start": str(start), "end": str(end), "lifetime": lifetime}}
     try:
         out["daily"] = [{"day": r["day"], "views": r.get("views", 0)}
                         for r in _try(_report, ya, start, end, "views", "day", filters=f, sort="day")]
@@ -273,7 +285,7 @@ def short_detail(user_id, video_id, channel=None):
         out["totals"] = tot[0] if tot else {}
     except NeedsReconnect:
         out["full"] = False
-    if meta:  # live counts: up to date, and the same numbers YouTube Studio shows
+    if meta and lifetime:  # live counts: up to date, and the same numbers YouTube Studio shows
         out.setdefault("totals", {}).update(views=meta["live_views"], likes=meta["live_likes"], comments=meta["live_comments"])
     return out
 

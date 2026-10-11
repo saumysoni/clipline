@@ -150,7 +150,7 @@ function renderAnalytics(j){
     draw("views");
     $("anMetric").querySelectorAll("button").forEach(b=>b.onclick=()=>{ $("anMetric").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",x===b)); draw(b.dataset.m); });
   }
-  document.querySelectorAll(".top-row").forEach(b=>b.onclick=()=>openShortAnalytics(b.dataset.id));
+  $("anBody").querySelectorAll(".top-row[data-id]").forEach(b=>b.onclick=()=>openShortAnalytics(b.dataset.id));  // only this list: the Pit Crew clips list and Reels rows have their own clicks
 }
 
 // ---------- pieces
@@ -265,19 +265,35 @@ function lineChart(el,o){
 
 // ---------- one Short
 $("anDClose").onclick=()=>$("anDetail").close();
-$("anDetail").addEventListener("close",()=>{ tip.hidden=true; });
-async function openShortAnalytics(id,channel){
+$("anDetail").addEventListener("close",()=>{ tip.hidden=true; anDOpen=null; });
+// The window follows the page's range ("Last 28 days", a custom range...); "Whole life" shows it since it was posted.
+let anDOpen=null;
+async function openShortAnalytics(id,channel,whole){
+  const allTime=!anStart&&!anEnd&&!anDays;
+  whole=allTime||!!whole; anDOpen={id,channel};
   const s=((anData&&anData.youtube&&anData.youtube.shorts)||[]).find(x=>x.id===id)||{id};
   $("anDBody").innerHTML=shortHead(s)+'<div class="an-card an-empty"><span class="spin" aria-hidden="true"></span><p>Getting this Short\'s numbers...</p></div>';
-  $("anDetail").showModal();
-  let j; try{ j=await (await fetch("/api/analytics/short/"+encodeURIComponent(id)+(channel?"?channel="+encodeURIComponent(channel):""))).json(); }catch(e){ j={error:"Couldn't reach Pit Crew."}; }
-  if(j.error){ $("anDBody").innerHTML=shortHead(s)+'<p class="err"></p>'; $("anDBody").querySelector(".err").textContent=j.error; return; }
-  const m={...s,...(j.short||{})}, t=j.totals||{}, B=[shortHead(m)];
-  B.push('<div class="an-tiles">'+tile("visibility","Views",compact(t.views!=null?t.views:m.views),"")+tile("percent","Avg. viewed",t.averageViewPercentage!=null?pct(t.averageViewPercentage):"–","")+
-    tile("timer","Avg. view",t.averageViewDuration!=null?secs(t.averageViewDuration):"–","")+tile("favorite","Likes",compact(t.likes!=null?t.likes:m.likes),"")+
-    tile("chat_bubble","Comments",compact(t.comments!=null?t.comments:m.comments),"")+tile("person_add","Subscribers",t.subscribersGained!=null?"+"+compact(t.subscribersGained):"–","")+'</div>');
+  if(!$("anDetail").open) $("anDetail").showModal();
+  const q="?"+anQuery()+(whole?"&whole=1":"")+(channel?"&channel="+encodeURIComponent(channel):"");
+  let j; try{ j=await (await fetch("/api/analytics/short/"+encodeURIComponent(id)+q)).json(); }catch(e){ j={error:"Couldn't reach Pit Crew."}; }
+  if(!anDOpen||anDOpen.id!==id) return;  // another video was opened meanwhile
+  const m0={...s,...(j.short||{})};
+  const span=allTime?"":'<div class="an-seg an-dwin" role="group" aria-label="Time range"><button type="button" data-w="0" aria-pressed="'+!whole+'">'+
+    esc(anRangeText({custom:!!(anStart&&anEnd),start:anStart,end:anEnd,days:anDays}))+'</button><button type="button" data-w="1" aria-pressed="'+whole+'">Whole life</button></div>';
+  const wire=()=>$("anDBody").querySelectorAll(".an-dwin button").forEach(b=>b.onclick=()=>{ if((b.dataset.w==="1")!==whole) openShortAnalytics(id,channel,b.dataset.w==="1"); });
+  if(j.error){ $("anDBody").innerHTML=shortHead(m0)+span+'<p class="err"></p>'; $("anDBody").querySelector(".err").textContent=j.error; wire(); return; }
+  if(j.before){ $("anDBody").innerHTML=shortHead(m0)+span+'<div class="an-card an-empty"><span class="ms" aria-hidden="true">event_busy</span><p>It was posted after this period, so there are no numbers for it here. Pick <b>Whole life</b> to see how it has done since.</p></div>'; wire(); return; }
+  const life=!j.range||j.range.lifetime;
+  const m=m0, t=j.totals||{}, B=[shortHead(m),span];
+  const pick=(k,live)=>t[k]!=null?t[k]:(life?live:0);  // outside "whole life", never fall back to lifetime counts
+  B.push('<div class="an-tiles">'+tile("visibility","Views",compact(pick("views",m.views)),"")+tile("percent","Avg. viewed",t.averageViewPercentage!=null?pct(t.averageViewPercentage):"–","")+
+    tile("timer","Avg. view",t.averageViewDuration!=null?secs(t.averageViewDuration):"–","")+tile("favorite","Likes",compact(pick("likes",m.likes)),"")+
+    tile("chat_bubble","Comments",compact(pick("comments",m.comments)),"")+tile("person_add","Subscribers",t.subscribersGained!=null?"+"+compact(t.subscribersGained):"–","")+'</div>');
   if(!j.full) B.push('<p class="sub">Connect YouTube once more to see this Short\'s retention curve and where its viewers came from.</p>');
-  B.push('<p class="sub an-d-note">Since it was posted. Views, likes and comments are live; the rest come from YouTube Analytics, about 2 days behind.</p>');
+  const fd=d=>new Date(d+"T00:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"});
+  B.push('<p class="sub an-d-note">'+(life?"Since it was posted. Views, likes and comments are live; the rest come from YouTube Analytics, about 2 days behind."
+    :esc(fd(j.range.start)+" – "+fd(j.range.end))+". All numbers come from YouTube Analytics, about 2 days behind, so the last 2 days may still be filling in.")+'</p>');
+  if(!life&&!(t.views>0)) B.push('<p class="sub">No views in this period yet. Pick <b>Whole life</b> to see everything since it was posted.</p>');
   const ret=j.retention||[], dd=j.daily||[], tr=j.traffic||[], len=m.secs||0;
   const at=p=>len?secs(len*p/100)+" ("+Math.round(p)+"%)":Math.round(p)+"%";  // a point in the Short: its time, and how far in
   const rs=retSummary(ret,len);
@@ -293,7 +309,7 @@ async function openShortAnalytics(id,channel){
   if(tr.length){ const tot=tr.reduce((a,r)=>a+r.views,0)||1;
     B.push(card("anDTraffic","How viewers found it","",barsHTML(tr.slice(0,6).map(r=>({nm:TRAFFIC[r.source]||r.source,v:r.views/tot*100,lab:pct(r.views/tot*100)}))),
       table(["Source","Views"],tr.map(r=>[TRAFFIC[r.source]||r.source,full(r.views)]),[1]))); }
-  $("anDBody").innerHTML=B.join(""); wireCards();
+  $("anDBody").innerHTML=B.join(""); wireCards(); wire();
   if($("anRetViz")) lineChart($("anRetViz"),{x:ret.map(r=>r.at),xTicks:[0,50,100],fmtX:v=>len?secs(len*v/100):Math.round(v)+"%",fmtY:v=>Math.round(v)+"%",
     series:[{name:"Still watching",color:"var(--c-yt)",values:ret.map(r=>r.watching)}],height:220,ref:100,
     max:Math.max(100,Math.ceil(Math.max(...ret.map(r=>r.watching))*1.05/25)*25),refLabel:"Everyone who started",

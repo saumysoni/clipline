@@ -94,6 +94,10 @@ table.cmp td.ck,table.cmp th.ck{width:34px;text-align:center}
 .cmp-v b{font-weight:600;line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .cmp-v small{color:var(--muted);font-size:.76rem}
 
+/* one video's window: its range switch */
+.an-seg.an-dwin{display:flex;width:max-content;margin:4px 0 12px}
+.an-dwin+.an-card.an-empty .ms{font-size:28px;color:var(--muted)}
+
 /* long videos: 16:9 pictures in the top list */
 .tops.wide .top-row{grid-template-columns:22px 80px minmax(0,1fr) minmax(80px,200px) 140px}
 .tops.wide .top-row img{width:80px;height:45px}

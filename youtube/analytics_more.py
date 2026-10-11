@@ -46,15 +46,19 @@ def _row(r, meta):
 
 
 def videos(user_id, start, end, content="shorts", clipline_ids=()):
-    """Every video with views in the period (up to 200, most viewed first), each with all the Compare numbers, plus
-    the period's totals. The page works out each video's share of the total."""
+    """Every video with views in the period (up to 200, most viewed first), plus Pit Crew's Shorts posted by then
+    (at 0 if they had none), each with all the Compare numbers, plus the period's totals. The page works out each video's share of the total."""
     flt = CONTENT.get(content, CONTENT["shorts"])
     clip = set(clipline_ids)
 
     def build():
         yt3, ya = base._services(user_id)
         rows = _with_engaged(ya, start, end, VIDEO_METRICS, "video", filters=flt, sort="-views", max_results=200)
-        meta = _videos(yt3, [r["video"] for r in rows])
+        meta = _videos(yt3, [r["video"] for r in rows] + (list(clip) if content in ("shorts", "all") else []))
+        shown = {r["video"] for r in rows}
+        if content in ("shorts", "all"):  # Pit Crew's Shorts with no views in this period: listed at 0, so they can be ticked
+            rows = rows + [{"video": v} for v in sorted(clip) if v in meta and v not in shown
+                           and (meta[v].get("published") or "")[:10] <= str(end)]
         vids = [{**_row(r, meta), "clipline": r["video"] in clip} for r in rows]
         keys = ("views", "engaged", "likes", "comments", "shares", "subs", "minutes")
         total = {k: sum((v.get(k) or 0) for v in vids) for k in keys}
