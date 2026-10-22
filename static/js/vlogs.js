@@ -40,6 +40,7 @@ function vlBadges(v){
     else if(p.state==="done" && p.privacy==="schedule" && when>new Date()) b.push('<span class="vl-b plan">Vlog goes public '+esc(vlDate(when/1000))+'</span>');
     else if(p.state==="done") b.push('<span class="vl-b done">Vlog on YouTube'+(["unlisted","private"].includes(p.privacy)?" · "+p.privacy:"")+'</span>');
     else if(p.state==="error") b.push('<span class="vl-b bad">Upload stopped</span>');
+    else if(p.state==="removed") b.push('<span class="vl-b bad">YouTube removed this vlog</span>');
     else b.push('<span class="vl-b">Not uploaded yet</span>');
   }
   return b.length?'<div class="vl-badges">'+b.join("")+'</div>':"";
