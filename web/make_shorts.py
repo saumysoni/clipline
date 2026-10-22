@@ -134,7 +134,7 @@ def make_shorts(job_id, src, link, count, style, vlog=None, note="", must=()):
 def start():
     count = max(1, min(10, int(request.form.get("count", 5))))
     style = request.form.get("style", "bold")
-    schedule = request.form.get("schedule", "d18")
+    schedule = request.form.get("schedule", "custom")
     link = (request.form.get("link") or "").strip()
     note = (request.form.get("note") or "").strip()[:1000]
     try:

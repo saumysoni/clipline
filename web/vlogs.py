@@ -129,6 +129,8 @@ def user_jobs(user_id):
 
 @app.get("/api/vlogs")
 def vlogs():
+    from web.youtube_sync import sync_soon  # (it imports this file)
+    sync_soon(g.user["id"])  # a vlog YouTube removed shows as removed (web/youtube_sync.py)
     items = sorted((summary(j) for j in user_jobs(g.user["id"])), key=lambda v: v["created"], reverse=True)
     return jsonify(items=items)
 

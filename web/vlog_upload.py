@@ -291,7 +291,7 @@ def vlog_shorts(job_id):
         job = JOBS[job_id]
         if job.get("status") == "working":  # pressed twice
             return jsonify(error="This vlog is still being worked on. Wait until it's ready."), 400
-        job.update(stages=STAGES, count=count, style=style, schedule="d18", note=note, must=[], vlog=vlog, shorts=[],
+        job.update(stages=STAGES, count=count, style=style, schedule="custom", note=note, must=[], vlog=vlog, shorts=[],
                    recoveries=0)
         enqueue_locked(job)  # web/job_queue.py starts it when there's a free spot
     return jsonify(ok=True)

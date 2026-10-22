@@ -1,0 +1,50 @@
+/* Date and time picker (js/when-picker.js): a field-like button, and a calendar + times panel that opens below it,
+   in the page (never floating, so dialogs and cards don't clip it). Side by side when there's room, stacked when not. */
+.wp{width:100%;min-width:0}
+.wp-btn{width:100%;display:flex;align-items:center;gap:10px;padding:11px 13px;border-radius:10px;border:1px solid var(--line-2);
+  background:var(--field);color:var(--ink);font:inherit;text-align:left;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.wp-btn b{flex:1;min-width:0;font-weight:600;font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wp-btn > .ms:first-child{color:var(--primary-text)}
+.wp-chev{color:var(--muted);transition:transform .2s}
+.wp-btn:hover:not(:disabled){border-color:var(--primary)}
+.wp-btn:focus-visible,.wp-btn[aria-expanded=true]{outline:none;border-color:var(--primary);box-shadow:0 0 0 1px var(--primary)}
+.wp-btn[aria-expanded=true] .wp-chev{transform:rotate(180deg)}
+.wp-btn.bad{border-color:var(--bad);box-shadow:0 0 0 1px var(--bad)}
+.wp-btn:disabled{opacity:.55;cursor:not-allowed}
+
+.wp-panel{margin-top:8px;display:flex;flex-wrap:wrap;gap:12px 14px;padding:12px;border:1px solid var(--line-2);border-radius:14px;
+  background:var(--panel);box-shadow:0 18px 40px -18px rgba(0,0,0,.55);animation:wp-open .16s ease-out}
+.wp-panel[hidden]{display:none}
+@keyframes wp-open{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+
+.wp-cal{flex:1 1 232px;min-width:0}
+.wp-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px}
+.wp-head b{font-weight:700;font-size:.95rem}
+.wp-nav{width:32px;height:32px;flex:none;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--ink);display:grid;place-items:center;cursor:pointer}
+.wp-nav:hover:not(:disabled){border-color:var(--primary)}
+.wp-nav:disabled{opacity:.3;cursor:default}
+.wp-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;text-align:center}
+.wp-wd{font:700 10.5px/1 var(--mono);letter-spacing:.06em;color:var(--faint);padding:8px 0 6px}
+.wp-day{height:36px;border:0;border-radius:9px;background:transparent;color:var(--ink);font:inherit;font-size:.9rem;font-variant-numeric:tabular-nums;cursor:pointer}
+.wp-day:hover:not(:disabled):not(.on){background:var(--raised)}
+.wp-day.today{box-shadow:inset 0 0 0 1px var(--line-2);font-weight:700}
+.wp-day.on{background:var(--primary);color:var(--primary-ink);font-weight:700}
+.wp-day:disabled{color:var(--faint);opacity:.4;cursor:default}
+
+/* one column beside the calendar; several columns when it wraps below it */
+.wp-times{flex:1 1 118px;min-width:0;max-height:272px;overflow-y:auto;overscroll-behavior:contain;display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(96px,1fr));align-content:start;gap:2px;padding-right:2px}
+.wp-time{padding:8px 10px;border:0;border-radius:8px;background:transparent;color:var(--ink);font:500 13px/1.2 var(--mono);
+  font-variant-numeric:tabular-nums;text-align:left;cursor:pointer;white-space:nowrap}
+.wp-time:hover:not(.on){background:var(--raised)}
+.wp-time.on{background:var(--primary-soft);color:var(--primary-text);font-weight:700}
+.wp-none{margin:6px 4px;color:var(--muted);font-size:.85rem}
+
+.wp-foot{flex:1 1 100%;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;border-top:1px solid var(--line);
+  padding-top:10px;font-size:.86rem;font-weight:600;color:var(--ink)}
+.wp-foot small{font-weight:500;color:var(--muted)}
+.wp-day:focus-visible,.wp-time:focus-visible,.wp-nav:focus-visible{outline:2px solid var(--primary);outline-offset:1px}
+
+/* Change time on Scheduled: the picker takes its own line above Save / Cancel */
+.plist .pform .wp{flex:1 1 100%}
+@media (prefers-reduced-motion:reduce){.wp-panel{animation:none}.wp-chev{transition:none}}
