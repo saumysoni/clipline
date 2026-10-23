@@ -186,6 +186,10 @@ function vuPaintPost(j){
     $("vuUpMsg").textContent="";
   }
   if(p.state==="error" && !$("vuErr3").textContent) $("vuErr3").textContent="The upload stopped: "+(p.error||"Something went wrong.")+" Press Upload to try again.";
+  // web/youtube_sync.py: it went up, then YouTube no longer had it (deleted, or removed for spam, copyright...)
+  if(p.state==="removed" && !$("vuErr3").textContent) $("vuErr3").innerHTML="YouTube removed this vlog after it was uploaded, so its link no longer works. "+
+    (p.video_id?'<a href="'+esc(studioLink(p.video_id))+'" target="_blank" rel="noopener">Open it in YouTube Studio</a> to see why (often spam rules, copyright or a duplicate). ':"Check YouTube Studio and your email for why. ")+
+    "Fix that, then press Upload to send it again. Uploading as Private or Unlisted first is safest.";
 }
 $("vuUpload").onclick=async()=>{
   $("vuErr3").textContent="";

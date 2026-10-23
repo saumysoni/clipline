@@ -97,7 +97,9 @@ input:focus,textarea:focus,select:focus,.auth-card input:focus{outline:none;bord
 .dot.on{background:var(--good);box-shadow:0 0 0 3px var(--good-soft),0 0 10px var(--good)}
 
 /* ---------- screens appear with a short rise */
-.main section:not([hidden]),#anBody>*,.auth-card{animation:pc-rise .5s var(--ease) both}
+/* backwards, never both: a transform animation that stays filled makes the section the frame for position:fixed
+   children (Chrome), so the opened Short card and its shade centred on the whole page instead of the screen */
+.main section:not([hidden]),#anBody>*,.auth-card{animation:pc-rise .5s var(--ease) backwards}
 #anBody>*:nth-child(2){animation-delay:.04s}#anBody>*:nth-child(3){animation-delay:.08s}#anBody>*:nth-child(4){animation-delay:.12s}#anBody>*:nth-child(n+5){animation-delay:.16s}
 @keyframes pc-rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 

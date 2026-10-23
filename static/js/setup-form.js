@@ -20,7 +20,7 @@ function paintPlan(){
   $("mustTag").textContent = k ? k+" / "+count+" chosen" : "Optional";
   const st=document.querySelector("input[name=style]:checked");
   $("sumStyle").textContent = st ? st.closest("label").querySelector("small").textContent : "";
-  $("sumSched").textContent = {d18:"One a day, 6 PM",d12:"One a day, 12 PM",two:"Two a day",now:"All at once",custom:"Your own times"}[$("sched").value]||"";
+  $("sumSched").textContent = {now:"All at once",custom:"You pick the times"}[$("sched").value]||"";
 }
 $("minus").onclick=()=>{count=Math.max(1,mustRows().length,count-1);renderCount();if(!$("mustHint").classList.contains("bad")) mustCountHint();};
 $("plus").onclick=()=>{count=Math.min(10,count+1);renderCount();if(!$("mustHint").classList.contains("bad")) mustCountHint();};

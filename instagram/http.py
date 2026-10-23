@@ -21,6 +21,12 @@ def _plain(err, status):
     code, sub = err.get("code"), err.get("error_subcode")
     if code == 190 or status == 401:
         return InstagramError("Your Instagram connection has expired. Click Connect Instagram, then try again.", code, True)
+    if "access blocked" in msg.lower():  # Meta blocked the app (dashboard alert, tester missing) or the account
+        print(f"Instagram: {msg} (code {code}, trace {err.get('fbtrace_id')}). Check the Meta app's dashboard "
+              "and Instagram testers at developers.facebook.com; reconnecting doesn't fix it.")
+        return InstagramError("Instagram is blocking Pit Crew from your account right now. Open the Instagram app and "
+                              "finish any security check or warning it shows, then try again. If it keeps "
+                              "happening, use Help to contact us.", code)
     if code in (10, 200) or "permission" in msg.lower():
         return InstagramError("Instagram didn't allow this. Connect Instagram again and allow every permission "
                               "(and make sure it's a Business or Creator account).", code)
