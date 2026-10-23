@@ -7,6 +7,8 @@ Keeping storage cheap: what Pit Crew deletes, and when (decided October 2026).
     edited. The Short is removed.
   - A posted Short's video file: KEEP_POSTED_DAYS (30) after it went out everywhere it was planned. Its record,
     thumbnail, link and numbers stay; it's then downloaded from YouTube Studio.
+  - A saved transcript (jobs/_transcripts, so uploading the same vlog again skips transcription): KEEP_TRANSCRIPT_DAYS
+    (30) after it was made. The privacy policy (static/legal/privacy.html) promises these limits: keep them in step.
 
 Each setting is in .env; 0 keeps forever. The creator is warned a day before a video or draft goes: on the card
 and by email (printed in the terminal when email isn't set up). Nothing is deleted while it's being made, remade or
@@ -51,6 +53,27 @@ def keep_draft():
 
 def keep_posted():
     return _setting("KEEP_POSTED_DAYS", 30) * 86400
+
+
+def keep_transcript():
+    return _setting("KEEP_TRANSCRIPT_DAYS", 30) * 86400
+
+
+def sweep_transcripts(now=None):
+    """Saved transcripts older than KEEP_TRANSCRIPT_DAYS. Each vlog keeps its own copy (jobs/<id>/transcript.json)
+    for as long as the vlog exists; this is only the "same video again" shortcut."""
+    keep, now = keep_transcript(), now or time.time()
+    gone = 0
+    if not keep:
+        return gone
+    for f in (JOBS_DIR / "_transcripts").glob("*.json"):
+        try:
+            if now - f.stat().st_mtime > keep:
+                f.unlink()
+                gone += 1
+        except OSError:
+            pass
+    return gone
 
 
 def _when(iso):
@@ -249,6 +272,12 @@ def _sweep_stopped(job, now):
 
 
 def sweep():
+    try:
+        n = sweep_transcripts()
+        if n:
+            print(f"Storage clean-up: {n} saved transcript(s) older than {keep_transcript() / 86400:g} days removed")
+    except Exception:  # noqa: BLE001
+        traceback.print_exc()
     for path in sorted(JOBS_DIR.glob("*/job.json")):
         if not re.fullmatch(r"[0-9a-f]{10}", path.parent.name):
             continue

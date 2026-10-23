@@ -76,6 +76,15 @@ def connect():
     return con
 
 
+def ping():
+    """Raises if the database can't be read (for /healthz)."""
+    con = connect()
+    try:
+        con.execute("SELECT 1 FROM users LIMIT 1").fetchall()
+    finally:
+        con.close()
+
+
 def init():
     with connect() as con:
         con.executescript(SCHEMA)

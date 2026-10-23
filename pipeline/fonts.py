@@ -33,20 +33,33 @@ def font_family(path):
         return None
 
 
-def caption_font_name(job_fonts=None):
-    """Family name libass should use for burned-in captions.
+def font_names(path):
+    """(family, full name) of a font file, e.g. ("Montserrat", "Montserrat ExtraBold"), or None."""
+    try:
+        from PIL import ImageFont
+        family, style = ImageFont.truetype(str(path), 20).getname()
+    except Exception:  # noqa: BLE001
+        return None
+    style = (style or "").strip()
+    return family, family if style.lower() in ("", "regular") else f"{family} {style}"
 
-    Uses CAPTION_FONT when that font is in the fonts folder; otherwise the font that is
-    there, so captions never come out in a missing font (or not at all).
+
+def caption_font_name(job_fonts=None):
+    """The font name libass should use for burned-in captions.
+
+    Uses CAPTION_FONT when a font in the fonts folder has that family or full name; otherwise the full name of the font
+    that is there, so captions never come out in a missing font (or not at all). The full name matters: when the
+    system also has the family's other weights (a Linux server with fonts-montserrat), asking for the family
+    ("Montserrat") gets Regular, while "Montserrat ExtraBold" gets that exact file (checked on Ubuntu 24.04, Oct 2026).
     """
     wanted = os.getenv("CAPTION_FONT", "Montserrat ExtraBold")
     if not job_fonts or not Path(job_fonts).exists():
         return wanted
-    families = [f for f in (font_family(p) for p in sorted(Path(job_fonts).iterdir())
-                            if p.suffix.lower() in (".ttf", ".otf")) if f]
-    if not families or wanted.lower() in (f.lower() for f in families):
+    names = [n for n in (font_names(p) for p in sorted(Path(job_fonts).iterdir())
+                         if p.suffix.lower() in (".ttf", ".otf")) if n]
+    if not names or any(wanted.lower() in (fam.lower(), full.lower()) for fam, full in names):
         return wanted
-    return families[0]
+    return names[0][1]
 
 
 def prepare_job_fonts(job_dir):

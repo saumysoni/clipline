@@ -1,0 +1,6 @@
+[Unit]
+Description=Pit Crew database backup (deploy/backup.sh)
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /opt/pitcrew/app/deploy/backup.sh

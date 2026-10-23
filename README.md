@@ -193,10 +193,13 @@ clipline/
 │   ├── instagram_posting.py  # Reel scheduler
 │   ├── retention.py       # storage clean-up
 │   └── ...                # one file per feature (see CLAUDE.md)
-├── static/                # the page: index.html, sections/, css/, js/ (one file per screen or feature)
+├── static/                # the page: index.html, sections/, css/, js/ (one file per screen or feature);
+│                          # legal/: the public homepage, privacy policy, terms (web/legal.py fills them in)
 ├── jobs/                  # everything Pit Crew makes, one folder per vlog (git-ignored)
 ├── data/                  # accounts database and secrets (git-ignored)
-├── docs/                  # demo video, logo, the public home, privacy and terms pages
+├── serve.py               # runs Pit Crew on a server (Waitress, one process); app.py is for your own computer
+├── deploy/                # server setup, updates, backups, invites (see LAUNCH.md)
+├── docs/                  # demo video, logo (and the old public pages, which point to the site's own)
 └── CLAUDE.md              # developer notes: where each feature lives, hard-won gotchas, how to test
 ```
 
@@ -385,26 +388,41 @@ To keep storage free, Pit Crew deletes:
 - **a vlog that stopped, 72 hours after it stopped** (its video; the whole vlog if it made nothing to keep);
 - **Shorts you never posted, 30 days after you last edited them;**
 - **a posted Short's video file 30 days after it went out** (download it from YouTube Studio after that; its record and numbers stay).
+- **the spare copy of a transcript 30 days after it was made** (it only makes uploading the same vlog again quicker; each vlog keeps its own).
 
-A day before a video or draft goes, its card says so and you get an email (step 7). Change the times in `.env` (`KEEP_ORIGINAL_HOURS`, `KEEP_DRAFT_DAYS`, `KEEP_POSTED_DAYS`); `0` keeps forever. **Delete video** on the Vlogs page deletes a vlog's video straight away; tick several (or **Select all**) to delete them together.
+A day before a video or draft goes, its card says so and you get an email (step 7). Change the times in `.env` (`KEEP_ORIGINAL_HOURS`, `KEEP_DRAFT_DAYS`, `KEEP_POSTED_DAYS`, `KEEP_TRANSCRIPT_DAYS`); `0` keeps forever. The privacy policy (`/privacy`) shows whatever these are set to. **Delete video** on the Vlogs page deletes a vlog's video straight away; tick several (or **Select all**) to delete them together.
 
 ### Running it on a server
 
-Set these in the server's environment (all are documented in `.env.example`):
+**[LAUNCH.md](LAUNCH.md)** walks through the whole launch: a free Oracle Cloud server, a domain, `deploy/setup.sh`
+(installs everything, https with Caddy, the service, nightly backups) and the Google and Meta settings. In short:
+
+```bash
+sudo bash deploy/setup.sh pitcrew.example.com you@example.com   # once, on a fresh Ubuntu 24.04 server
+sudo bash /opt/pitcrew/app/deploy/update.sh                     # after each merge into main (rolls back if it fails)
+sudo bash /opt/pitcrew/app/deploy/invite.sh friend@example.com  # private beta: who may make an account
+sudo bash /opt/pitcrew/app/deploy/status.sh                     # how it's doing
+```
+
+On a server Pit Crew runs as `python serve.py` (Waitress): **one** process with threads, behind Caddy. The vlog queue,
+the uploads and the Instagram scheduler live in that process, so never run two. The settings a server needs (all in
+`.env.example`, and `setup.sh` fills in most of them):
 
 | Setting | Why |
 |---|---|
 | `APP_URL`, `PUBLIC_URL` | Links in emails; the https address Instagram downloads Reels from |
 | `SECRET_KEY`, `SESSION_COOKIE_SECURE=1` | Signs sign-in cookies; sends them only over https |
-| `TOKEN_KEY` | Encrypts saved YouTube/Instagram tokens. Keep it in the secret manager and back it up |
-| `TRUST_PROXY=1` | Sees each visitor's real address behind a load balancer (sign-in and sign-up limits) |
+| `TOKEN_KEY` | Encrypts saved YouTube/Instagram tokens. Back it up off the server: lose it and everyone reconnects |
+| `TRUST_PROXY=1` | Sees each visitor's real address behind Caddy (sign-in and sign-up limits) |
 | `YOUTUBE_REDIRECT_URI`, `INSTAGRAM_REDIRECT_URI`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Sign-in redirects on the server's address |
-| `JOB_SLOTS`, `WHISPER_THREADS`, `WHISPER_DEVICE` | How much runs at once; `JOB_SLOTS × WHISPER_THREADS` ≈ the number of cores |
+| `JOB_SLOTS`, `WHISPER_THREADS`, `WHISPER_DEVICE`, `WHISPER_COMPUTE_TYPE` | How much runs at once; `JOB_SLOTS × WHISPER_THREADS` ≈ the number of cores |
 | `MONTHLY_VLOG_MINUTES`, `MAX_VLOG_MINUTES`, `MAX_UPLOAD_GB` | Limits per creator |
-| `SUPPORT_EMAIL` | Where creators write for help |
+| `INVITE_ONLY`, `INVITES_FILE` | Private beta: only invited emails can make an account |
+| `SUPPORT_EMAIL`, `OPERATOR_NAME`, `GEMINI_PAID` | Shown on the privacy policy and terms (`/privacy`, `/terms`), which fill them in |
 | `DATABASE_PATH`, `JOBS_DIR` | Lasting storage for accounts and vlogs |
 
-Run **one** Pit Crew process with threads (no gunicorn `--preload`): the queue, the uploads and the Instagram scheduler live in that process. Any proxy in front must accept request bodies of at least 8 MB.
+The public pages Google and Meta ask for are part of Pit Crew: `/welcome` (homepage), `/privacy`, `/terms`,
+`/data-deletion`, and `/healthz` for an uptime monitor.
 
 ---
 

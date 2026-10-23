@@ -1,0 +1,32 @@
+# Caddy in front of Pit Crew (deploy/setup.sh copies this to /etc/caddy/Caddyfile and puts in your domain).
+# Caddy gets and renews the https certificate from Let's Encrypt by itself, sends http to https, serves the page's
+# files directly and hands everything else to Pit Crew on this machine only (port 8000, serve.py).
+# No request size limit here: videos come in 8 MB pieces (web/video_upload.py). No access log (privacy policy).
+{
+	email PITCREW_EMAIL
+}
+
+PITCREW_DOMAIN {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "DENY"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+
+	# The page's CSS, scripts and pictures, straight from the code folder. "no-cache" = the browser checks for a newer
+	# file each time (cheap: unchanged files answer 304), so an update shows up without a hard refresh.
+	handle /static/* {
+		root * /opt/pitcrew/app
+		header Cache-Control "no-cache"
+		file_server
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:8000
+	}
+}

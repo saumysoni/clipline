@@ -48,6 +48,9 @@ someone else's machine. Needs Python 3.10+ and FFmpeg/ffprobe on PATH.
 
 Manual run: `.venv/bin/python app.py`. There is no build step and no test suite yet.
 
+**On a server** (the live site): `python serve.py` (Waitress) behind Caddy, set up by `deploy/setup.sh`, updated with
+`deploy/update.sh`. **LAUNCH.md** is the step-by-step launch; gotcha 24 has the rules.
+
 ## Where things live: one feature per file
 
 The code is split so two people can work on different features without touching the same file.
@@ -99,6 +102,9 @@ The code is split so two people can work on different features without touching 
 | Analytics **Videos** tab: each Pit Crew clip on YouTube vs Instagram (4 grouped column charts: likes, comments, shares, new subscribers vs new followers; Totals / Per 1,000 views; top 6 by views / newest 6 / one vlog / choose, at most 6 (`AN_PAIR_MAX`)), all clips list, clip window with both apps; "Compare any videos" (top 3 ticked, up to 8, calendar or days-since-posting, per day or running total); first-week section | `youtube/analytics_more.py` (`clip_totals`), `instagram/insights.py` (`reel_numbers`), `instagram/account_insights.py` (`follows_after`) | `web/analytics_pairs.py` (`/api/analytics/pairs`), `web/analytics_more.py` (`/videos`, `/compare`, `/vlogs`) | `js/analytics-videos.js`, `js/analytics-clips.js` |
 | Analytics **Audience** tab (typical viewer, donuts for parts of a whole (`donutHTML`, ≤5 slices), columns with numbers for lists (`colsHTML`, class `vbar`: theme.css owns `.bar`), funnel, subscribers vs not when YouTube gives it; Instagram reach, followers by country/age/city) and **Grow** tab (when to post: 3 slots from viewers' evenings + Instagram online hours, on the creator's clock; lessons with "Got it", saved in localStorage `pc-an-lessons`) | `youtube/analytics_more.py` (`audience`), `instagram/account_insights.py` | `web/analytics_more.py` (`/audience`, `/instagram`) | `js/analytics-audience.js`, `js/analytics-grow.js` |
 | Analytics loading states (`anSkel(kind, title)` / `anWait(title, kind)`: a skeleton shaped like what's coming (overview, pairs, audience, igaudience, igtiles, grow, compare, detail, chart), shimmer, racing-stripe bar, a status line that steps through what's happening and says "taking longer than usual" after 18 s; one shared timer that stops when no skeleton is left; `anSkelNum` for one number still coming; reloading over numbers already shown dims them under a stripe bar instead; no motion with reduced motion) | | | `js/analytics-loading.js` (before `analytics.js`), `css/analytics-loading.css` |
+| Running on a server (`serve.py`: Waitress, one process; `deploy/setup.sh` Ubuntu 24.04 setup: packages, `pitcrew` user, code in `/opt/pitcrew/app`, data in `/srv/pitcrew`, `.env`, systemd service, Caddy https, nightly backups, firewall; `update.sh` safe updates with rollback; `backup.sh`, `invite.sh`, `status.sh`; `envtool.py` fills `.env` without overwriting) | | `web/health.py` (`/healthz`) | `deploy/`, `LAUNCH.md` |
+| Private beta invites (`INVITE_ONLY=1`: only emails in `INVITES_FILE` (default `data/invites.txt`) can make an account, by email or Google; existing accounts unaffected; read on every sign-up, no restart) | | `web/invites.py` (used by `web/accounts.py`) | |
+| Public pages (homepage `/welcome`, `/privacy`, `/terms`, `/data-deletion`; filled from settings: `SUPPORT_EMAIL`, `OPERATOR_NAME`, `GEMINI_PAID`, AI keys, retention times; linked from the sign-in screen and Settings) | | `web/legal.py` | `static/legal/` (`page.html` shell, one HTML per page, `legal.css`) |
 | Connect Instagram | `instagram/connection.py`, `instagram/config.py`, `instagram/http.py` | `web/instagram_connect.py`, `web/google_redirect.py` | `js/instagram-connect.js` |
 | Hashtags, YouTube title, Instagram caption on each Short's editor card (hook first, then hashtags shared by both platforms, then a tab per connected platform; the caption is suggested from the title + full video (not the hook: it's on screen already, and repeated the title) until edited, then `ig_caption` is saved as typed; `caption_for()` keeps Instagram's 30 hashtags / 2,200 characters; "Generate ideas" under the title and the caption gives three AI options, `HOOK_RULE` + said-numbers check, works without the video) | `instagram/publish.py` (`suggested_caption`, `caption_for`), `pipeline/post_suggest.py` | `web/post_text.py` (`/post-text`, `/suggest`) | `js/post-text.js`, `css/post-text.css` |
 | Post to Instagram (own schedule, Pit Crew posts at the time) | `instagram/publish.py` | `web/instagram_posting.py` (scheduler thread) | `js/instagram-posting.js`, `sections/review.html` (Instagram card), `css/posting.css` |
@@ -312,7 +318,8 @@ The code is split so two people can work on different features without touching 
 21. **Storage is deleted on a timer (`web/retention.py`, checked every 15 minutes).** A vlog's video: `KEEP_ORIGINAL_HOURS`
     (72) after `job["last_edit_at"]`; a draft (on neither platform, nor planned): `KEEP_DRAFT_DAYS` (30) after the Short's
     `edited_at`; a posted Short's video file: `KEEP_POSTED_DAYS` (30) after it went out everywhere it was planned (then
-    `file_deleted_at`, Download points at Studio). 0 = keep forever. Every `update_short()` counts as an edit (stamps
+    `file_deleted_at`, Download points at Studio); a saved transcript (`jobs/_transcripts`): `KEEP_TRANSCRIPT_DAYS` (30) after it was made
+    (`sweep_transcripts()`). 0 = keep forever. Every `update_short()` counts as an edit (stamps
     both clocks), so route Short changes through it. Warnings a day before: on the card (`video_expires` / `expires` in
     the APIs) and by email (`mail.notify`, printed when SMTP isn't set). Nothing is touched while a vlog is being made,
     remade or posted, or while a Reel is still waiting. `remove_video()` (`web/vlogs.py`) is shared with the 🗑 button;
@@ -370,6 +377,28 @@ The code is split so two people can work on different features without touching 
     `/shorts` turns it into an ordinary Shorts job on the same video and transcript (no second upload, no second
     transcription), only while the video is kept (`KEEP_ORIGINAL_HOURS`, 72) and before it has any Shorts. A
     `vpost` left "uploading" by a restart becomes an error (`load_job`), and retention never deletes a video mid-upload.
+
+24. **The server (deploy/, tested on a fresh Ubuntu 24.04 with systemd, Oct 2026).** One process: `serve.py` (Waitress,
+    threads) behind Caddy (https, `/static` served directly with `Cache-Control: no-cache`, security headers, no access log).
+    The service runs as `pitcrew` with `ProtectSystem=strict`: **the code folder is read-only; anything Pit Crew writes must
+    live under `/srv/pitcrew`** (`DATABASE_PATH`, `JOBS_DIR`, `HF_HOME` for the speech model, `HOME`). A new setting whose
+    laptop default in `.env.example` is wrong for a server goes in setup.sh's first-run `--force` list (a non-empty example
+    value is otherwise kept: `JOB_SLOTS=2` once stayed on a 2-core server). `update.sh` runs from a temp copy of itself,
+    refuses if code on the server was edited, compiles before restarting (a syntax error never takes the site down),
+    and on any later failure moves the **branch** back too (`checkout -B`: a rollback that only moved HEAD once left
+    `main` on the broken commit, and the next update "rolled back" to it). In deploy scripts never pipe a long output
+    into `grep -q` under `set -o pipefail` (grep exits early, the writer gets SIGPIPE, the check fails: it stopped setup
+    at "FFmpeg can't add captions"). Oracle's Ubuntu images block 80/443 in iptables as well as in the cloud firewall.
+25. **Caption fonts by full name.** `caption_font_name()` returns `CAPTION_FONT` when it matches a font's family *or full
+    name*, else the full name ("Montserrat ExtraBold") of the font in the job's fonts folder. On Linux with all Montserrat
+    weights installed (`fonts-montserrat`), asking libass for the family "Montserrat" gave Regular; the full name gives the
+    exact file. setup.sh copies Montserrat ExtraBold into `fonts/`.
+26. **The privacy policy is a promise about the code.** `static/legal/privacy.html` says what is collected, who gets it and
+    how long it's kept; retention times come from web/retention.py's settings (so they can't drift), AI providers from
+    the keys in `.env`. When you collect something new, send data to a new service, store something longer, or change a
+    permission (scope), update the policy and `UPDATED` in `web/legal.py` in the same pull request. Not yet done and needed
+    before the YouTube audit: refreshing/deleting stored YouTube data (video IDs of posted clips) every 30 days and
+    deleting it within 30 days of a revocation in Google's settings (YouTube API policy III.E.4).
 
 ## Conventions
 
