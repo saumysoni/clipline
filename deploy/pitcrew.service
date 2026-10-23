@@ -1,0 +1,35 @@
+# Pit Crew as a system service (deploy/setup.sh installs it as /etc/systemd/system/pitcrew.service).
+# One process (serve.py, Waitress with threads): the vlog queue, the Instagram scheduler and the storage clean-up are
+# threads inside it, so never run two (CLAUDE.md gotcha 19).
+[Unit]
+Description=Pit Crew
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=pitcrew
+Group=pitcrew
+WorkingDirectory=/opt/pitcrew/app
+ExecStart=/opt/pitcrew/venv/bin/python serve.py
+Environment=PYTHONUNBUFFERED=1
+Environment=HF_HOME=/srv/pitcrew/models
+Restart=always
+RestartSec=5
+# Give a vlog being written to disk a moment; anything under way is queued again on start (web/store.py)
+TimeoutStopSec=30
+LimitNOFILE=65536
+
+# Security: the code is read-only for the service; it can only write where Pit Crew keeps its data
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/srv/pitcrew
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -12,3 +12,4 @@ google-auth-oauthlib>=1.2
 imageio-ffmpeg>=0.5  # complete FFmpeg, used if the installed one can't add captions
 tzdata>=2024.1  # time-zone names for scheduling (Windows and slim servers have none built in)
 cryptography>=42  # YouTube/Instagram tokens are stored encrypted (accounts/token_box.py)
+waitress>=3.0  # the web server on a cloud machine (serve.py); python app.py doesn't need it

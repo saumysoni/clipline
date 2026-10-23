@@ -14,6 +14,7 @@ import youtube as yt
 from accounts import db
 
 from web.google_redirect import youtube_redirect_uri
+from web.invites import invited, not_invited_message
 from web.server import app
 from web.verify_email import base_url, send_verification
 from web.store import LOCK, load_job
@@ -35,12 +36,14 @@ def login_problem_page(msg, email=""):
     return redirect("/")
 
 
-# Anyone can make an account: email + password, or Sign in with Google (name and email only).
+# Anyone can make an account (with INVITE_ONLY=1, only invited emails: web/invites.py): email + password, or Sign in
+# with Google (name and email only).
 # Every /api and /media address needs a signed-in user, and a job is only reachable by its owner.
 PUBLIC = {"index", "static", "config", "me", "auth_signup", "auth_login", "auth_logout", "auth_google",
           "auth_forgot", "auth_reset", "auth_verify",
           "youtube_callback", "instagram_callback",  # instagram_callback: its one-time state names the user
-          "instagram_video"}  # a signed, expiring link to one Reel's video, for Instagram to download
+          "instagram_video",  # a signed, expiring link to one Reel's video, for Instagram to download
+          "healthz", "welcome", "legal_page"}  # uptime check; the public homepage, privacy policy, terms (web/legal.py)
 
 
 EMAIL_RE = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
@@ -97,6 +100,8 @@ def google_user(info):
         return user
     if db.user_by_email(info["email"]):
         raise RuntimeError(EMAIL_EXISTS)
+    if not invited(info["email"]):  # private beta (web/invites.py)
+        raise RuntimeError(not_invited_message())
     try:
         uid = db.create_user(info["email"], info["name"], google_sub=info["sub"], email_verified=info["email_verified"])
     except sqlite3.IntegrityError:  # signed up a moment ago in another tab
@@ -126,6 +131,8 @@ def auth_signup():
         return jsonify(error="Choose a password with at least 8 characters.", field="password"), 400
     if len(password) > 200:
         return jsonify(error="That password is too long.", field="password"), 400
+    if not invited(email) and not db.user_by_email(email):  # private beta (web/invites.py)
+        return jsonify(error=not_invited_message(), field="email"), 403
     ip, now = request.remote_addr, time.time()
     recent = [t for t in SIGNUPS.get(ip, []) if now - t < 3600]
     if len(recent) >= SIGNUPS_PER_HOUR:

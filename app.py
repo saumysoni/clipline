@@ -30,6 +30,8 @@ from web import (  # noqa: E402,F401
     accounts,
     add_short,
     delete_account,
+    health,
+    legal,
     analytics,
     analytics_clips,
     analytics_coach,

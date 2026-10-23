@@ -21,3 +21,4 @@
 .set-del p{margin:0;color:var(--muted);font-size:.88rem}
 .set-del label{display:flex;flex-direction:column;gap:6px;font-size:.88rem;max-width:360px}
 .set-del .set-danger{color:var(--bad);border-color:var(--bad)}
+.set-legal{display:flex;flex-wrap:wrap;gap:6px 18px;margin:4px 0 0;font-size:.82rem}.set-legal a{color:var(--muted)}.set-legal a:hover{color:var(--ink)}

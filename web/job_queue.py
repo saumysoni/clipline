@@ -152,4 +152,4 @@ def _dispatch():
         threading.Thread(target=_run, args=(jid,), daemon=True).start()
 
 
-threading.Thread(target=_dispatch, daemon=True).start()
+threading.Thread(target=_dispatch, daemon=True, name="job-queue").start()  # name: /healthz looks for it

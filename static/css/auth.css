@@ -19,3 +19,4 @@
 .auth-card .forgot{align-self:flex-end;font-size:.84rem;margin-top:-6px}
 .auth-card .ok-note{color:var(--good);font-size:.88rem}
 .auth-card .ok-note:empty{display:none}
+.auth-legal{margin:14px 0 0;font-size:.78rem;line-height:1.5;color:var(--muted);text-align:center}.auth-legal a{color:var(--muted);text-decoration:underline}.auth-legal a:hover{color:var(--ink)}

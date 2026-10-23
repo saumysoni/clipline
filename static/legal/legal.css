@@ -1,0 +1,48 @@
+/* Public pages (web/legal.py): homepage, privacy policy, terms, data deletion. Colours from tokens.css only,
+   system fonts (no third-party font requests on these pages). */
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+a{color:var(--primary-text)}
+a:focus-visible,.lg-btn:focus-visible{outline:2px solid var(--primary);outline-offset:3px;border-radius:6px}
+.lg-top{max-width:1040px;margin:0 auto;padding:18px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.lg-brand{display:inline-flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;font-weight:800;font-size:1.05rem;letter-spacing:.02em}
+.lg-brand svg{width:32px;height:32px}
+.lg-brand b{color:var(--primary-text)}
+.lg-btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 20px;border-radius:12px;
+  background:var(--primary);color:var(--primary-ink);text-decoration:none;font-weight:700}
+.lg-btn:hover{background:var(--primary-hover)}
+.lg-btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line-2)}
+.lg-btn.ghost:hover{background:var(--raised)}
+.lg-main{max-width:760px;margin:0 auto;padding:12px 20px 48px}
+.lg-main h1{font-size:clamp(1.9rem,4.5vw,2.6rem);line-height:1.15;margin:.4em 0 .3em;letter-spacing:-.01em}
+.lg-main h2{font-size:1.3rem;margin:2em 0 .4em;padding-top:.6em;border-top:1px solid var(--line)}
+.lg-main h3{font-size:1.05rem;margin:1.4em 0 .3em}
+.lg-main p,.lg-main li{color:var(--ink)}
+.lg-main ul{padding-left:1.2em}
+.lg-main li{margin:.3em 0}
+.lg-meta{color:var(--muted);font-size:.9rem}
+.lg-note{background:var(--raised);border:1px solid var(--line);border-left:3px solid var(--primary);border-radius:10px;padding:12px 16px;margin:1.2em 0}
+.lg-table{width:100%;border-collapse:collapse;margin:1em 0;font-size:.95rem}
+.lg-table th,.lg-table td{text-align:left;vertical-align:top;padding:10px 8px;border-top:1px solid var(--line)}
+.lg-table th{color:var(--muted);font-weight:600;font-size:.85rem}
+/* homepage */
+.lg-welcome .lg-main{max-width:1040px}
+.lg-hero{padding:40px 0 24px;max-width:760px}
+.lg-hero h1{font-size:clamp(2.2rem,6vw,3.6rem)}
+.lg-hero p{font-size:1.15rem;color:var(--muted)}
+.lg-cta{display:flex;gap:12px;flex-wrap:wrap;margin-top:20px}
+.lg-beta{display:inline-block;font-size:.8rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--primary-text);
+  border:1px solid var(--line-2);border-radius:999px;padding:4px 12px}
+.lg-steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin:28px 0;padding:0;list-style:none;counter-reset:s}
+.lg-steps li{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;margin:0;counter-increment:s}
+.lg-steps li::before{content:counter(s);display:inline-grid;place-items:center;width:28px;height:28px;border-radius:8px;background:var(--primary-soft);
+  color:var(--primary-text);font-weight:800;margin-bottom:8px}
+.lg-steps b{display:block;margin-bottom:4px}
+.lg-steps span{color:var(--muted);font-size:.95rem}
+.lg-welcome h2{border-top:0}
+.lg-foot{max-width:1040px;margin:0 auto;padding:24px 20px 40px;border-top:1px solid var(--line);color:var(--muted);font-size:.9rem}
+.lg-foot nav{display:flex;flex-wrap:wrap;gap:8px 20px;margin-bottom:8px}
+.lg-foot a{color:var(--muted)}
+.lg-foot a:hover{color:var(--ink)}
+@media (max-width:560px){ .lg-main{padding:8px 16px 40px} .lg-top{padding:14px 16px} .lg-table{font-size:.9rem} }
