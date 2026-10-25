@@ -192,6 +192,7 @@ clipline/
 │   ├── posting.py         # YouTube upload and schedule
 │   ├── instagram_posting.py  # Reel scheduler
 │   ├── retention.py       # storage clean-up
+│   ├── youtube_upkeep.py  # YouTube's data rules (daily re-checks, forgetting disconnected channels)
 │   └── ...                # one file per feature (see CLAUDE.md)
 ├── static/                # the page: index.html, sections/, css/, js/ (one file per screen or feature);
 │                          # legal/: the public homepage, privacy policy, terms (web/legal.py fills them in)
@@ -199,6 +200,7 @@ clipline/
 ├── data/                  # accounts database and secrets (git-ignored)
 ├── serve.py               # runs Pit Crew on a server (Waitress, one process); app.py is for your own computer
 ├── deploy/                # server setup, updates, backups, invites (see LAUNCH.md)
+├── tests/                 # automated tests (python -m unittest discover -s tests -t .)
 ├── docs/                  # demo video, logo (and the old public pages, which point to the site's own)
 └── CLAUDE.md              # developer notes: where each feature lives, hard-won gotchas, how to test
 ```
@@ -390,7 +392,7 @@ To keep storage free, Pit Crew deletes:
 - **a posted Short's video file 30 days after it went out** (download it from YouTube Studio after that; its record and numbers stay).
 - **the spare copy of a transcript 30 days after it was made** (it only makes uploading the same vlog again quicker; each vlog keeps its own).
 
-A day before a video or draft goes, its card says so and you get an email (step 7). Change the times in `.env` (`KEEP_ORIGINAL_HOURS`, `KEEP_DRAFT_DAYS`, `KEEP_POSTED_DAYS`, `KEEP_TRANSCRIPT_DAYS`); `0` keeps forever. The privacy policy (`/privacy`) shows whatever these are set to. **Delete video** on the Vlogs page deletes a vlog's video straight away; tick several (or **Select all**) to delete them together.
+A day before a video or draft goes, its card says so and you get an email (step 7). Change the times in `.env` (`KEEP_ORIGINAL_HOURS`, `KEEP_DRAFT_DAYS`, `KEEP_POSTED_DAYS`, `KEEP_TRANSCRIPT_DAYS`); `0` keeps forever. The privacy policy (`/privacy`) shows whatever these are set to. YouTube's API rules add their own clean-up, once a day: Pit Crew re-checks each connected channel and every video it posted at least weekly, reads a vlog's YouTube link details again after 30 days, and forgets what it kept about a disconnected channel 5 days after it was disconnected (`web/youtube_upkeep.py`). **Delete video** on the Vlogs page deletes a vlog's video straight away; tick several (or **Select all**) to delete them together.
 
 ### Running it on a server
 
@@ -428,7 +430,14 @@ The public pages Google and Meta ask for are part of Pit Crew: `/welcome` (homep
 
 ## Running Tests
 
-There is no automated test suite yet. [`CLAUDE.md`](CLAUDE.md) explains how to test without using up Gemini or YouTube quota: a 90-second test clip, a fake Gemini client, faster encoder settings, and how to check the output frame by frame. Tests must set `DATABASE_PATH` and `JOBS_DIR` to temporary paths before importing `app`.
+```bash
+python -m unittest discover -s tests -t .                          # fast: every feature and whole journeys, ~45 s
+python -m unittest discover -s tests/system -t . -p "system_*.py"  # real FFmpeg pipeline + real server process
+python -m tests.ab.compare                                         # A/B: our options side by side
+python -m tests.stress.stress                                      # a copy of Pit Crew under load
+```
+
+None of them touch the internet, real accounts, real vlogs or API quota: YouTube, Instagram, the AI and email are fakes, and `.env` is never read. On the server: `sudo bash /opt/pitcrew/app/deploy/test.sh [fast|system|ab|stress|live|all]`; the fast suite also runs before every update (`deploy/update.sh`), which keeps the old version if a test fails. [`CLAUDE.md`](CLAUDE.md) explains how the suites work and the manual checks.
 
 ---
 
@@ -479,7 +488,7 @@ The people using Pit Crew are creators, not developers. Every error they can see
 - **More languages.** Pit Crew is English-only today. Hindi and Hinglish were tried and dropped; they need a better transcription model.
 - **Plans and billing** on top of the monthly allowance.
 - **An admin view** for support: users, stopped vlogs and their error details, the queue.
-- **Automated tests**, starting with moment cleaning, caption timing and schedule planning.
+- **More automated tests**: retention, the vlog queue, AI retries and the API routes.
 - **More platforms**, such as TikTok, once their posting APIs allow it.
 
 ---

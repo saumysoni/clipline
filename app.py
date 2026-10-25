@@ -40,6 +40,7 @@ from web import (  # noqa: E402,F401
     clips,
     hooks,
     instagram_connect,
+    instagram_deletion,
     instagram_posting,
     job_queue,
     job_status,
@@ -58,6 +59,7 @@ from web import (  # noqa: E402,F401
     vlogs,
     vlog_info,
     vlog_upload,
+    youtube_upkeep,
     youtube_connect,
 )
 

@@ -29,7 +29,7 @@ def invited(email):
         lines = invites_file().read_text(encoding="utf-8").splitlines()
     except OSError:
         return False
-    return email in {ln.split("#", 1)[0].strip().lower() for ln in lines}
+    return bool(email) and email in {ln.split("#", 1)[0].strip().lower() for ln in lines}
 
 
 def not_invited_message():

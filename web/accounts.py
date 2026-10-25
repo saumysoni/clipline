@@ -43,6 +43,7 @@ PUBLIC = {"index", "static", "config", "me", "auth_signup", "auth_login", "auth_
           "auth_forgot", "auth_reset", "auth_verify",
           "youtube_callback", "instagram_callback",  # instagram_callback: its one-time state names the user
           "instagram_video",  # a signed, expiring link to one Reel's video, for Instagram to download
+          "instagram_deauthorize", "instagram_data_deletion",  # Meta's callbacks, signed with the app secret
           "healthz", "welcome", "legal_page"}  # uptime check; the public homepage, privacy policy, terms (web/legal.py)
 
 

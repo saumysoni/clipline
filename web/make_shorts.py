@@ -70,7 +70,7 @@ def make_shorts(job_id, src, link, count, style, vlog=None, note="", must=()):
                 with LOCK:
                     owner = JOBS[job_id].get("owner")
                 info = yt.fetch_video_info(vlog["youtube_url"], yt.access_token(owner) if owner else None)
-                vlog = {**info, **{k: v for k, v in vlog.items() if v}}
+                vlog = {**info, **{k: v for k, v in vlog.items() if v}, "fetched_at": time.time()}  # web/youtube_upkeep.py
                 step(vlog=vlog)
             except Exception as e:  # noqa: BLE001  (never fail a job over optional context)
                 print(f"Couldn't read the vlog's YouTube info: {e}")

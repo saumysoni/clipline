@@ -83,10 +83,17 @@ def _mine(upload_id):
 
 
 def _clean_stale():
+    """Unfinished uploads nobody touched for STALE_HOURS. A folder without a readable meta.json counts by its own age:
+    it may be one another creator's /api/upload/new is making this very moment (found by the stress test: deleting
+    those lost other people's uploads when many started at once)."""
     now = time.time()
     for d in UPLOADS_DIR.glob("*"):
         meta = _meta(d.name)
-        if not meta or now - meta.get("touched", meta.get("created", 0)) > STALE_HOURS * 3600:
+        try:
+            touched = meta.get("touched", meta.get("created", 0)) if meta else d.stat().st_mtime
+        except OSError:
+            continue
+        if now - touched > STALE_HOURS * 3600:
             shutil.rmtree(d, ignore_errors=True)
             LOCKS.pop(d.name, None)
 
@@ -126,12 +133,13 @@ def upload_new():
         return jsonify(error="Pit Crew doesn't have room for this video right now. Try again later; if it keeps "
                              "happening, tell us."), 503
     upload_id = uuid.uuid4().hex
-    d = UPLOADS_DIR / upload_id
-    d.mkdir()
-    (d / "data").touch()
     now = time.time()
-    (d / "meta.json").write_text(json.dumps({"owner": g.user["id"], "name": name, "size": size, "created": now,
-                                             "touched": now}), encoding="utf-8")
+    part = UPLOADS_DIR / f".{upload_id}.part"  # made complete first, then put in place in one step
+    part.mkdir()
+    (part / "data").touch()
+    (part / "meta.json").write_text(json.dumps({"owner": g.user["id"], "name": name, "size": size, "created": now,
+                                                "touched": now}), encoding="utf-8")
+    os.rename(part, UPLOADS_DIR / upload_id)
     return jsonify(id=upload_id, received=0)
 
 
@@ -166,7 +174,9 @@ def upload_piece(upload_id):
                 f.write(piece)
                 left -= len(piece)
         meta["touched"] = time.time()
-        (UPLOADS_DIR / upload_id / "meta.json").write_text(json.dumps(meta), encoding="utf-8")
+        tmp = UPLOADS_DIR / upload_id / "meta.json.part"  # replaced in one step: a reader never sees half a file
+        tmp.write_text(json.dumps(meta), encoding="utf-8")
+        os.replace(tmp, UPLOADS_DIR / upload_id / "meta.json")
         return jsonify(received=_received(upload_id))
 
 

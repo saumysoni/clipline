@@ -127,7 +127,8 @@ without which every YouTube and Instagram connection has to be made again. Print
 **Meta** (https://developers.facebook.com/apps → your app):
 1. **Instagram → API setup with Instagram login → Set up Instagram business login → Business login settings →
    OAuth redirect URIs:** add `https://<your-domain>/api/instagram/callback`. Save.
-2. Same page: **Deauthorize callback URL** and **Data deletion request URL**: `https://<your-domain>/data-deletion`.
+2. Same page: **Deauthorize callback URL**: `https://<your-domain>/api/instagram/deauthorize`; **Data deletion request
+   URL**: `https://<your-domain>/api/instagram/data-deletion` (Meta calls both; `web/instagram_deletion.py`).
 3. **App settings → Basic:** Privacy policy URL `https://<your-domain>/privacy`, Terms of service URL
    `https://<your-domain>/terms`, App domains `<your-domain>`. Save.
 4. **App roles → Roles → Instagram testers → Add:** each tester's Instagram username. They accept it in the Instagram
@@ -144,6 +145,9 @@ without which every YouTube and Instagram connection has to be made again. Print
 5. Post one Short (it goes up private: make it public in YouTube Studio) and one Reel. Check the captions are bold
    Montserrat, the thumbnail looks right, and Analytics opens.
 6. `sudo bash /opt/pitcrew/app/deploy/status.sh` should show everything healthy.
+7. **Point the old pages at the site.** On your Mac, in the clipline folder on your branch:
+   `bash deploy/point-docs.sh <your-domain>`. It turns `docs/` (the old GitHub Pages homepage, privacy policy and terms)
+   into redirects to `/welcome`, `/privacy` and `/terms`, but only once the site answers. Commit `docs/` and open a PR.
 
 If anything's off, `sudo journalctl -u pitcrew -n 100 --no-pager` shows what happened; send it to me.
 
@@ -154,6 +158,7 @@ If anything's off, `sudo journalctl -u pitcrew -n 100 --no-pager` shows what hap
 | **Invite a tester** | `sudo bash /opt/pitcrew/app/deploy/invite.sh friend@example.com "their name"`, add them as a **Google test user** (section 6) and, if they use Instagram, as an **Instagram tester**. Tell them to sign up with that email. |
 | **Ship a new version** | Merge the pull request into `main` on GitHub, then on the server: `sudo bash /opt/pitcrew/app/deploy/update.sh`. It backs up the database, updates, restarts, and goes back to the old version by itself if the new one doesn't start. |
 | **See how it's doing** | `sudo bash /opt/pitcrew/app/deploy/status.sh` |
+| **Run the tests on the server** | `sudo bash /opt/pitcrew/app/deploy/test.sh` (fast, ~1 min; `system`, `ab`, `stress` for the longer ones, when few people are using it; `live --url https://<your-domain> --email <a test account>` for a gentle read-only check of the site itself). They never touch the live data or keys. |
 | **Copy the backups to your Mac** (weekly) | On your Mac: `scp -r ubuntu@<server-ip>:/srv/pitcrew/backups ~/pitcrew-backups` (the setup lets your login read them; log in again once after setup) |
 | **Know when it's down** | Free monitor: https://uptimerobot.com → New monitor → HTTP(s) → `https://<your-domain>/healthz` → alerts to your email. |
 | **Change a setting** | `sudo nano /opt/pitcrew/app/.env`, then `sudo systemctl restart pitcrew` (vlogs being made are queued again). |
@@ -177,14 +182,15 @@ YouTube audit raises it). Each creator gets **600 minutes of vlog a month** and 
 ## 10. Going public (later, after the beta settles)
 
 Each of these is free and done once. All of them need the domain, homepage, privacy policy and terms from this guide.
+**REVIEWS.md** has the text to paste into each form and the shot list for each demo video.
 
 1. **Google verification** (so anyone can connect YouTube, without the "unverified app" screen or the 100-user cap):
    verify the domain in Google Search Console, then on the OAuth consent screen **Publish app** and submit for
    verification. You'll need a demo video (unlisted on YouTube) showing the sign-in, the consent screen with the
    app name and client ID in the address bar, and each permission in use. Google says it typically takes 3–5 business days.
 2. **YouTube API audit** (uploads can be public, and more than 100 a day): the YouTube API Services Audit and Quota
-   Extension form. **Before submitting**, Pit Crew needs one more feature: refreshing or deleting stored YouTube data
-   every 30 days and noticing when a creator revokes access (YouTube's policy III.E.4). It's on the to-do list.
+   Extension form. Pit Crew keeps YouTube's stored-data rules (policy III.E.4: refresh or delete within 30 days, delete
+   after a revocation) with a daily check, `web/youtube_upkeep.py`.
 3. **Meta app review + business verification** (so any Instagram professional account can connect): request Advanced
    Access for `instagram_business_basic`, `instagram_business_content_publish` and `instagram_business_manage_insights`,
    with a screencast of each in use.

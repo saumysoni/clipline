@@ -34,3 +34,6 @@ _backups/
 .DS_Store
 .vscode/
 .idea/
+
+# A/B comparison reports (python -m tests.ab.compare)
+tests/ab/results/

@@ -64,6 +64,17 @@ CREATE TABLE IF NOT EXISTS password_resets (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     expires_at REAL NOT NULL
 );
+CREATE TABLE IF NOT EXISTS deletion_requests (
+    code TEXT PRIMARY KEY,
+    platform TEXT NOT NULL,
+    done_at REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS gone_channels (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    channel TEXT NOT NULL,
+    since REAL NOT NULL,
+    PRIMARY KEY (user_id, channel)
+);
 """
 
 
@@ -153,6 +164,12 @@ def user_by_email(email):
 def user_by_google(sub):
     with connect() as con:
         return _user(con.execute("SELECT * FROM users WHERE google_sub = ?", (sub,)).fetchone())
+
+
+def user_ids():
+    """Every user's id (for background checks that go through all accounts)."""
+    with connect() as con:
+        return [r[0] for r in con.execute("SELECT id FROM users ORDER BY id")]
 
 
 def count_users():
@@ -365,3 +382,48 @@ def reel_snapshots(user_id, media_ids):
         for r in con.execute(q % ",".join("?" * len(media_ids)), (user_id, *media_ids)):
             out[r["media_id"]].append((r["day"], json.loads(r["numbers_json"])))
     return out
+
+
+def drop_reel_snapshots(media_ids):
+    """Forget the saved daily numbers of these Reels."""
+    if not media_ids:
+        return
+    with connect() as con:
+        con.execute("DELETE FROM reel_snapshots WHERE media_id IN (%s)" % ",".join("?" * len(media_ids)), list(media_ids))
+
+
+def connections_of_account(platform, account_id):
+    """Every Pit Crew account's connection to one YouTube channel / Instagram account (people can share one)."""
+    with connect() as con:
+        return [_conn(r) for r in con.execute("SELECT * FROM connections WHERE platform = ? AND account_id = ?",
+                                              (platform, account_id))]
+
+
+# A deletion asked through Meta (web/instagram_deletion.py): the code Meta shows the person, to look it up later.
+
+def save_deletion_request(code, platform):
+    with connect() as con:
+        con.execute("INSERT INTO deletion_requests (code, platform, done_at) VALUES (?, ?, ?)", (code, platform, time.time()))
+
+
+def deletion_request(code):
+    with connect() as con:
+        r = con.execute("SELECT * FROM deletion_requests WHERE code = ?", (code,)).fetchone()
+    return dict(r) if r else None
+
+
+# YouTube channels Pit Crew still has records about but that are no longer connected (disconnected here, or access
+# removed in the Google account): since when, so their data is deleted on time (web/youtube_upkeep.py).
+
+def gone_since(user_id, channel, now):
+    """When this channel was first seen gone (now, the first time it's asked)."""
+    with connect() as con:
+        con.execute("INSERT OR IGNORE INTO gone_channels (user_id, channel, since) VALUES (?, ?, ?)",
+                    (user_id, channel, now))
+        return con.execute("SELECT since FROM gone_channels WHERE user_id = ? AND channel = ?",
+                           (user_id, channel)).fetchone()[0]
+
+
+def clear_gone(user_id, channel):
+    with connect() as con:
+        con.execute("DELETE FROM gone_channels WHERE user_id = ? AND channel = ?", (user_id, channel))
