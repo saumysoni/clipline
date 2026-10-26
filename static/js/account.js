@@ -30,7 +30,7 @@ $("authForm").onsubmit=async e=>{
 $("logoutBtn").onclick=async()=>{ try{ await fetch("/api/auth/logout",{method:"POST"}); }catch(x){} location.hash=""; location.reload(); };
 // Any reply that says "sign in first" (the session ended) shows the sign-in screen.
 const rawFetch=window.fetch.bind(window);
-window.fetch=async(...a)=>{ const r=await rawFetch(...a); if(r.status===401) showLogin(); return r; };
+window.fetch=async(...a)=>{ const r=await rawFetch(...a); if(r.status===401) showLogin(); else if(r.status===403 && booted) r.clone().json().then(j=>{ if(j&&j.verify) boot(); }).catch(()=>{}); return r; };
 async function boot(){
   if(location.hash.startsWith("#verify=")) await confirmEmail(location.hash.slice(8));  // link from the welcome email
   let m; try{ m=await (await rawFetch("/api/me")).json(); }catch(x){ m={user:null,google:false}; }
@@ -41,7 +41,9 @@ async function boot(){
     if(m.auth_error.email) $("authEmail").value=m.auth_error.email;
     $("authErr").textContent=m.auth_error.error; return;
   }
-  if(!m.user){ showLogin(); if(verifyNote){ $(verifyNote.startsWith("Email confirmed")?"authOk":"authErr").textContent=verifyNote; verifyNote=""; } return; }
+  if(!m.user){ if(location.hash==="#signup"){ signup=true; history.replaceState(null,"",location.pathname); }  // "Get started" on the homepage
+    showLogin(); if(verifyNote){ $(verifyNote.startsWith("Email confirmed")?"authOk":"authErr").textContent=verifyNote; verifyNote=""; } return; }
+  if(!m.user.verified){ showVerify(m.user); return; }  // nothing else until the email is confirmed
   myEmail=m.user.email;  // the sidebar's Account row: the person's name (email when there's no name), email on hover
   $("meEmail").textContent=(m.user.name||"").trim()||myEmail; $("accountNav").title="Signed in as "+myEmail;
   $("auth").hidden=true; $("app").hidden=false; paintVerifyBar(m.user);

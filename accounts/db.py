@@ -69,6 +69,13 @@ CREATE TABLE IF NOT EXISTS deletion_requests (
     platform TEXT NOT NULL,
     done_at REAL NOT NULL
 );
+CREATE TABLE IF NOT EXISTS youtube_uploads (
+    day TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    n INTEGER NOT NULL DEFAULT 0,
+    fair_n INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (day, user_id)
+);
 CREATE TABLE IF NOT EXISTS gone_channels (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     channel TEXT NOT NULL,
@@ -185,6 +192,14 @@ def create_user(email, name="", password_hash=None, google_sub=None, email_verif
             "VALUES (?, ?, ?, ?, ?, ?)",
             (email.strip().lower(), name.strip()[:100], password_hash, google_sub, int(email_verified), time.time()))
         return cur.lastrowid
+
+
+def change_email(user_id, email):
+    """A new address for an account that hasn't confirmed its email yet (typo at sign-up). Old confirmation links stop
+    working. Raises sqlite3.IntegrityError if the address is taken."""
+    with connect() as con:
+        con.execute("UPDATE users SET email = ? WHERE id = ? AND email_verified = 0", (email.strip().lower(), user_id))
+        con.execute("DELETE FROM email_verifications WHERE user_id = ?", (user_id,))
 
 
 RESET_HOURS = 1
@@ -427,3 +442,35 @@ def gone_since(user_id, channel, now):
 def clear_gone(user_id, channel):
     with connect() as con:
         con.execute("DELETE FROM gone_channels WHERE user_id = ? AND channel = ?", (user_id, channel))
+
+
+# YouTube uploads per Pacific day and creator (web/youtube_quota.py). fair_n: those made after the open part of the day.
+# user_id -1 marks a day YouTube itself said was used up.
+
+def youtube_uploads(day):
+    with connect() as con:
+        return {r["user_id"]: (r["n"], r["fair_n"]) for r in
+                con.execute("SELECT user_id, n, fair_n FROM youtube_uploads WHERE day = ?", (day,))}
+
+
+def add_youtube_upload(day, user_id, fair=False):
+    with connect() as con:
+        con.execute("INSERT INTO youtube_uploads (day, user_id, n, fair_n) VALUES (?, ?, 1, ?) ON CONFLICT(day, user_id) "
+                    "DO UPDATE SET n = n + 1, fair_n = fair_n + excluded.fair_n", (day, user_id, int(bool(fair))))
+        con.execute("DELETE FROM youtube_uploads WHERE day < date(?, '-30 days')", (day,))
+
+
+def remove_youtube_upload(day, user_id, fair=False):
+    with connect() as con:
+        con.execute("UPDATE youtube_uploads SET n = MAX(0, n - 1), fair_n = MAX(0, fair_n - ?) WHERE day = ? AND "
+                    "user_id = ?", (int(bool(fair)), day, user_id))
+
+
+def youtube_exhausted(day):
+    with connect() as con:
+        return con.execute("SELECT 1 FROM youtube_uploads WHERE day = ? AND user_id = -1", (day,)).fetchone() is not None
+
+
+def set_youtube_exhausted(day):
+    with connect() as con:
+        con.execute("INSERT OR IGNORE INTO youtube_uploads (day, user_id, n) VALUES (?, -1, 0)", (day,))

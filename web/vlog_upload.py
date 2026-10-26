@@ -19,6 +19,7 @@ import threading
 import time
 import traceback
 import uuid
+from datetime import datetime, timedelta, timezone
 
 from flask import abort, g, jsonify, request
 
@@ -196,13 +197,31 @@ def vlog_look(job_id):
 
 
 def _send(user_id, job_id, draft, privacy, when, channel):
+    from web import youtube_quota as quota  # (it imports this file)
     job_dir = JOBS_DIR / job_id
+    counted = None
     try:
+        counted = quota.take(user_id, "vlog")
+        if not counted:  # YouTube's daily uploads are used up: it waits and goes up after the reset
+            _post(job_id, state="waiting", pct=0, queued_at=time.time(), owner=user_id, error="",
+                  note=quota.waiting_message(1).replace("1 Short will", "The vlog will"))
+            quota._WAKE.set()
+            return
         service = yt.get_service(user_id, channel)
         src = next(job_dir.glob("source.*"))
-        vid, note = yt.upload_vlog(service, src, draft["title"], draft["description"], draft.get("tags") or [],
-                                   privacy, when, job_dir / draft["thumb"] if draft.get("thumb") else None,
-                                   progress=lambda p: _post(job_id, pct=round(p, 1)))
+        try:
+            vid, note = yt.upload_vlog(service, src, draft["title"], draft["description"], draft.get("tags") or [],
+                                       privacy, when, job_dir / draft["thumb"] if draft.get("thumb") else None,
+                                       progress=lambda p: _post(job_id, pct=round(p, 1)))
+        except Exception as e:
+            quota.give_back(user_id, counted)
+            counted = None
+            if quota.is_quota_error(e):
+                quota.youtube_says_used_up()
+                _post(job_id, state="waiting", pct=0, queued_at=time.time(), owner=user_id, error="",
+                      note=quota.waiting_message(1).replace("1 Short will", "The vlog will"))
+                return
+            raise
         own = (yt.account(user_id).get("channel") or {})
         _post(job_id, state="done", pct=100, video_id=vid, note=note, sent_at=time.time())
         with LOCK:
@@ -219,6 +238,24 @@ def _send(user_id, job_id, draft, privacy, when, channel):
         UPLOADING.discard(job_id)
 
 
+def send_waiting_vlog(job_id):
+    """A vlog that waited for YouTube's daily limit (web/youtube_quota.py): send it now, with what the creator chose.
+    A public time that has passed meanwhile becomes "public now"."""
+    with LOCK:
+        job = load_job(job_id)
+        post = dict((job or {}).get("vpost") or {})
+        if not job or post.get("state") != "waiting" or job_id in UPLOADING:
+            return
+        UPLOADING.add(job_id)
+        draft = dict(job.get("vdraft") or {})
+    when = datetime.fromisoformat(post["when"]) if post.get("when") else None
+    privacy = post.get("privacy") or "public"
+    if when and when <= datetime.now(timezone.utc) + timedelta(minutes=15):
+        when, privacy = None, "public"
+    _post(job_id, state="uploading", pct=0, when=when.isoformat() if when else None, privacy=privacy)
+    _send(post.get("owner") or job.get("owner"), job_id, draft, privacy, when, post.get("channel"))
+
+
 def _post(job_id, **kw):
     with LOCK:
         cur = dict((JOBS.get(job_id) or {}).get("vpost") or {})
@@ -233,7 +270,7 @@ def vlog_upload(job_id):
         job, err = _vlog_job(job_id)
         if err:
             return err
-        if job_id in UPLOADING or (job.get("vpost") or {}).get("state") == "uploading":
+        if job_id in UPLOADING or (job.get("vpost") or {}).get("state") in ("uploading", "waiting"):
             return jsonify(error="It's already being sent to YouTube."), 400
         if (job.get("vpost") or {}).get("state") == "done":
             return jsonify(error="This vlog is already on YouTube."), 400

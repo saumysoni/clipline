@@ -116,6 +116,10 @@ def local(users, seconds, vlogs_each):
         if code != 200:
             failures.append(f"sign-up {k}: {code}")
             return
+        code, _ = c.call("confirm email", "POST", "/api/auth/verify", {"token": srv.email_token(email)})
+        if code != 200:
+            failures.append(f"confirm email {k}: {code}")
+            return
         for n in range(vlogs_each):  # send a video in 1 MB pieces (many requests), then queue a vlog
             code, j = c.call("upload new", "POST", "/api/upload/new", {"name": "v.mp4", "size": len(video)})
             if code != 200:

@@ -167,15 +167,19 @@ Never edit code on the server: changes go through GitHub (`saumya` → pull requ
 refuses to run if server files were edited by hand.
 
 **Limits worth knowing during the beta:** YouTube gives the whole app **100 uploads a day** (shared by everyone; the
-YouTube audit raises it). Each creator gets **600 minutes of vlog a month** and vlogs up to **120 minutes**
+YouTube audit raises it). Anyone uploads freely until 60 are used, then the rest is shared fairly; anything over
+the limit waits in Pit Crew and goes up after midnight Pacific by itself, so creators never see a failure. Each creator gets **600 minutes of vlog a month** and vlogs up to **120 minutes**
 (`MONTHLY_VLOG_MINUTES`, `MAX_VLOG_MINUTES` in `.env`). One vlog is made at a time on the free server; others wait their turn.
 
 ## 9. Before you invite people beyond yourself and Nesh
 
 - **Gemini's free plan** lets Google use what Pit Crew sends (transcripts, frames) to improve its products. The
-  privacy policy says so while `GEMINI_PAID` is empty. Before real creators' vlogs go through it, turn on billing for the
-  key in Google AI Studio (at beta size it's cents a month), then set `GEMINI_PAID=1` in `.env` and restart. The
-  privacy policy then updates itself.
+  privacy policy says so while `GEMINI_PAID` is empty. For the beta we stay on the free plan (decided Oct 2026), so
+  Pit Crew sends nothing from YouTube to Gemini then: no channel numbers (Pit Crew's read on Analytics is written
+  without AI) and not a vlog's details read from its YouTube link. When there's budget, turn on billing for the key in
+  Google AI Studio, set `GEMINI_PAID=1` in `.env` and restart: the policy and the AI features update themselves.
+- **Email:** nobody can use Pit Crew until they click the link in the confirmation email, so SMTP must work before
+  you invite anyone (sign up with a test address and check the email arrives, also in spam).
 - Read the privacy policy and terms (`/privacy`, `/terms`) once, as the people responsible for them. I wrote them
   from what the code actually does, but I'm not a lawyer.
 

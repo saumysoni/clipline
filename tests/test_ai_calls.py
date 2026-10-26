@@ -92,5 +92,39 @@ class Retries(unittest.TestCase):
         self.assertEqual(got["frame"], 1)
 
 
+class YouTubeDataAndFreeGemini(unittest.TestCase):
+    """A vlog's details read from YouTube go to the AI only where Google's Limited Use rule allows it."""
+
+    def tearDown(self):
+        os.environ.pop("GEMINI_PAID", None)
+        os.environ.pop("AI_PROVIDER", None)
+
+    def test_context_left_out_on_free_gemini(self):
+        from pipeline.vlog_context import vlog_context_block
+        from_youtube = {"youtube_url": "https://youtu.be/dQw4w9WgXcQ", "title": "From YouTube", "description": "d"}
+        typed = {"title": "Typed by the creator", "description": "mine"}
+        self.assertEqual(vlog_context_block(from_youtube), "")
+        self.assertIn("Typed by the creator", vlog_context_block(typed))  # the creator's own words are fine
+        os.environ["GEMINI_PAID"] = "1"
+        self.assertIn("From YouTube", vlog_context_block(from_youtube))
+        os.environ.pop("GEMINI_PAID")
+        os.environ["AI_PROVIDER"] = "openai"
+        self.assertIn("From YouTube", vlog_context_block(from_youtube))  # OpenAI's API doesn't train on it
+
+    def test_moment_prompt_on_free_gemini(self):
+        F.install()
+        F.reset()
+        from pipeline.moments import pick_moments
+        seen = []
+        real = F.AI.answer
+        F.AI.answer = lambda model, contents: (seen.append(contents), real(model, contents))[1]
+        try:
+            pick_moments(F.transcript_for(150), 1, context={"youtube_url": "https://youtu.be/dQw4w9WgXcQ",
+                                                             "title": "Secret YouTube title"})
+        finally:
+            F.AI.answer = real
+        self.assertNotIn("Secret YouTube title", seen[0])
+
+
 if __name__ == "__main__":
     unittest.main()

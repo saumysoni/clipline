@@ -65,6 +65,19 @@ class Server:
     def url(self, path):
         return f"http://127.0.0.1:{self.port}{path}"
 
+    def email_token(self, email, kind="verify", timeout=15):
+        """The token in the latest link of this kind emailed to this address (fake_server prints every email)."""
+        import re
+        end = time.time() + timeout
+        while time.time() < end:
+            text = "".join(self.log)
+            at = text.rfind(f"EMAIL to {email}:")
+            m = at >= 0 and re.search(rf"#{kind}=([\w-]+)", text[at:])
+            if m:
+                return m.group(1)
+            time.sleep(0.1)
+        raise AssertionError(f"no {kind} email for {email}")
+
 
 class Browser:
     """A cookie-keeping client, like the page in a browser."""
@@ -98,7 +111,13 @@ class Browser:
         email = email or f"s{time.time_ns()}@example.com"
         code, j, _ = self.req("POST", "/api/auth/signup", {"email": email, "password": "password-123"})
         assert code == 200, j
+        self.confirm(email)
         return email
+
+    def confirm(self, email):
+        """Open the link in the confirmation email. Nothing works before."""
+        code, j, _ = self.req("POST", "/api/auth/verify", {"token": self.s.email_token(email, "verify")})
+        assert code == 200, j
 
     def send_video(self, data, piece=8 * 1024 * 1024):
         _, j, _ = self.req("POST", "/api/upload/new", {"name": "vlog.mp4", "size": len(data)})

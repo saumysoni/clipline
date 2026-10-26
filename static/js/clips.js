@@ -41,7 +41,8 @@ async function loadClips(){
 }
 function clPlatLine(kind,p){
   const isYt=kind==="youtube", name=isYt?"YouTube":"Instagram", icon=isYt?"smart_display":"photo_camera";
-  const txt = p.state==="scheduled" ? whenText(p.when).replace("Scheduled for ","")
+  const txt = p.waiting ? "Goes up after midnight Pacific (YouTube's daily limit)"+(p.when?", public "+whenText(p.when).replace("Scheduled for ",""):"")
+    : p.state==="scheduled" ? whenText(p.when).replace("Scheduled for ","")
     : p.state==="posted" ? (p.when?whenText(p.when).replace("Went out ","Posted "):"Posted")
     : p.state==="uploading" ? (p.msg||"Uploading")+"..." : p.state==="posting" ? "Posting now..." : "Didn't go out";
   const cls = p.state==="failed" ? "bad" : p.state==="posted" ? "done" : "plan";

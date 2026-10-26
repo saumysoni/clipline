@@ -13,6 +13,7 @@ import youtube as yt
 from settings import JOBS_DIR
 
 from web import notices
+from web import youtube_quota as quota
 from web.server import app
 from web.store import JOBS, LOCK, load_job, update
 
@@ -61,17 +62,33 @@ def do_upload(user_id, job_id, items, mode, times, earlier, channel=None):
         channel = own.get("id") or channel
         with LOCK:
             vlog = dict((JOBS.get(job_id) or {}).get("vlog") or {})
+        waited = []  # (item, when) left for after the daily reset (web/youtube_quota.py)
         for k, (it, when) in enumerate(zip(items, times)):
             old = it.get("replace")
+            counted = quota.take(user_id, "replace" if old else "short")
+            if not counted and old:
+                raise RuntimeError("YouTube's uploads for Pit Crew are used up for today, so this Short can't be replaced "
+                                   "right now. Press Replace again after midnight Pacific time.")
+            if not counted:  # today's YouTube uploads (or this creator's share) are used up: it waits, never fails
+                waited = list(zip(items[k:], times[k:]))
+                break
             label = (f"Uploading the new version of Short {it['idx']}" if old
                      else f"Uploading Short {k + 1} of {len(items)}")
             update(job_id, upload_status="uploading", upload_msg=label, upload_pct=0)
             tags = it.get("hashtags", [])
             desc = short_description(it, vlog, own)
-            vid, note = yt.upload_short(
-                service, upload_file(job_dir, it), youtube_title(it["title"]), desc, tags, when, job_dir / it["thumb"],
-                progress=lambda p: update(job_id, upload_pct=p),
-            )
+            try:
+                vid, note = yt.upload_short(
+                    service, upload_file(job_dir, it), youtube_title(it["title"]), desc, tags, when,
+                    job_dir / it["thumb"], progress=lambda p: update(job_id, upload_pct=p),
+                )
+            except Exception as e:
+                quota.give_back(user_id, counted)
+                if quota.is_quota_error(e):  # YouTube says the day is used up before our count did
+                    quota.youtube_says_used_up()
+                    waited = list(zip(items[k:], times[k:]))
+                    break
+                raise
             rec = {"idx": it["idx"], "title": it["title"], "video_id": vid, "video": it["video"],
                    "thumb": it["thumb"], "when": when.isoformat() if when else None, "note": note,
                    "channel": channel, "channel_title": own.get("title", ""),
@@ -89,6 +106,10 @@ def do_upload(user_id, job_id, items, mode, times, earlier, channel=None):
                 results.append(rec)
             update(job_id, uploads=results)  # saved at once, so a retry never posts this Short twice
         done = "Updated" if all(i.get("replace") for i in items) else "All posted" if mode == "now" else "All scheduled"
+        if waited:
+            quota.defer(job_id, user_id, channel, [(it, when) for it, when in waited if not it.get("replace")])
+            went = len(items) - len(waited)
+            done = (f"{went} on YouTube. " if went else "") + quota.waiting_message(len(waited))
         update(job_id, upload_status="done", upload_msg=done, uploads=results)
     except Exception as e:
         traceback.print_exc()
@@ -138,7 +159,7 @@ def schedule(job_id):
     if channel and channel not in {c["id"] for c in acct["channels"]}:
         return jsonify(error="That YouTube channel isn't connected any more. Pick a channel, then upload again.",
                        signin=True), 400
-    posted = {u["idx"] for u in earlier}
+    posted = {u["idx"] for u in earlier} | {w["idx"] for w in job.get("yt_waiting") or []}  # (waiting: the daily limit)
     items = []
     for row in data.get("shorts", []):
         s = by_idx.get(int(row["idx"]))

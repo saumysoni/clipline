@@ -111,6 +111,11 @@ class Pages(unittest.TestCase):
         self.assertIn("30 days", privacy)
         self.assertIn("Gemini", privacy)
         self.assertEqual(c.get("/legal-nope").status_code, 404)
+        home = c.get("/welcome").get_data(as_text=True)
+        self.assertIn("/static/legal/home.js", home)
+        self.assertIn('href="/#signup"', home)
+        self.assertNotIn("home.js", privacy)  # the animations are the homepage's only
+        self.assertEqual(c.get("/static/legal/home.css").status_code, 200)
 
     def test_privacy_follows_the_settings(self):
         os.environ["KEEP_ORIGINAL_HOURS"] = "48"

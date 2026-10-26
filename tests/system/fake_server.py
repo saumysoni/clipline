@@ -23,6 +23,12 @@ def main():
     flask_app = F.app()
     from web import accounts
     accounts.SIGNUPS_PER_HOUR = 10 ** 6  # stress tests sign many people up from one machine
+    import accounts.mail as M
+
+    def show(to, subject, text):  # emails are printed, so a test can open the confirmation link (Server.email_token)
+        F.fake_send_email(to, subject, text)
+        print(f"EMAIL to {to}: {subject}\n{text}\nEND EMAIL", flush=True)
+    M.send_email = show
 
     def ready():
         for _ in range(200):

@@ -38,6 +38,70 @@ class Confirm(unittest.TestCase):
         self.assertIn("already confirmed", done["message"])
 
 
+class ConfirmedOnly(unittest.TestCase):
+    """Nothing works until the email is confirmed (gate() in web/accounts.py)."""
+
+    def setUp(self):
+        F.install()
+        F.reset()
+
+    def test_every_feature_waits_for_the_link(self):
+        from web.accounts import PUBLIC, UNCONFIRMED_OK
+        from web.server import app
+        c = F.client(F.new_user(verified=False))
+        n = 0
+        for rule in app.url_map.iter_rules():
+            if rule.endpoint in PUBLIC or rule.endpoint in UNCONFIRMED_OK or rule.endpoint == "static":
+                continue
+            url = rule.rule.replace("<job_id>", "abcdef0123").replace("<int:idx>", "1").replace("<path:name>", "x.jpg") \
+                .replace("<upload_id>", "0" * 32).replace("<video_id>", "vid").replace("<token>", "t")
+            for m in sorted(rule.methods - {"HEAD", "OPTIONS"}):
+                r = c.open(url, method=m, json={})
+                self.assertEqual(r.status_code, 403, f"{m} {url} answered {r.status_code} before the email was confirmed")
+                self.assertTrue(r.json["verify"])
+                n += 1
+        self.assertGreater(n, 55)
+        self.assertFalse(c.get("/api/me").json["user"]["verified"])
+
+    def test_sign_up_confirm_then_use(self):
+        c = F.client()
+        email = f"c{time.time_ns()}@example.com"
+        c.post("/api/auth/signup", json={"email": email, "password": "password-123"})
+        self.assertEqual(c.get("/api/vlogs").status_code, 403)
+        _, _, text = F.wait_for_mail(email, "Confirm")
+        self.assertIn("start using it", text)
+        F.client().post("/api/auth/verify", json={"token": F.link_token(text, "verify")})  # opened on the phone
+        self.assertEqual(c.get("/api/vlogs").status_code, 200)  # this browser carries on
+
+    def test_change_email_for_a_typo(self):
+        u = F.new_user(password="password-123", verified=False)
+        c = F.client(u)
+        old_token = db.new_email_verification(u["id"])
+        taken = F.new_user()
+        self.assertEqual(c.post("/api/auth/email", json={"email": "fixed@example.com", "password": "wrong-one"}).json["field"],
+                         "password")
+        self.assertIn("already an account", c.post("/api/auth/email", json={"email": taken["email"],
+                                                                            "password": "password-123"}).json["error"])
+        new = f"fixed{time.time_ns()}@example.com"
+        r = c.post("/api/auth/email", json={"email": new, "password": "password-123"})
+        self.assertEqual(r.status_code, 200, r.json)
+        self.assertEqual(db.user_by_id(u["id"])["email"], new)
+        self.assertIsNone(db.verify_email(old_token))  # the link sent to the typo is dead
+        _, _, text = F.wait_for_mail(new, "Confirm")
+        self.assertTrue(db.verify_email(F.link_token(text, "verify")))
+        self.assertEqual(c.post("/api/auth/email", json={"email": "again@example.com"}).status_code, 400)  # confirmed now
+
+    def test_unconfirmed_can_still_delete_their_account(self):
+        u = F.new_user(verified=False)
+        self.assertEqual(F.client(u).post("/api/account/delete", json={"email": u["email"]}).status_code, 200)
+
+    def test_google_sign_ins_are_confirmed(self):
+        from web.accounts import google_user
+        sub = f"g{time.time_ns()}"
+        user = google_user({"sub": sub, "email": f"{sub}@gmail.com", "name": "G", "email_verified": True})
+        self.assertEqual(F.client(user).get("/api/vlogs").status_code, 200)
+
+
 class Reset(unittest.TestCase):
     def setUp(self):
         F.install()

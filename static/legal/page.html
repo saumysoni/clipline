@@ -10,6 +10,7 @@
 <script>(function(){ var t="auto"; try{ t=localStorage.getItem("clipline-theme")||"auto"; }catch(e){} if(t==="light"||t==="dark") document.documentElement.setAttribute("data-theme",t); })();</script>
 <link rel="stylesheet" href="/static/css/tokens.css">
 <link rel="stylesheet" href="/static/legal/legal.css">
+{{HEAD}}
 </head>
 <body class="lg-{{PAGE}}">
 <header class="lg-top">
@@ -23,5 +24,6 @@
   <nav aria-label="Pit Crew pages"><a href="/welcome">About Pit Crew</a><a href="/privacy">Privacy policy</a><a href="/terms">Terms of use</a><a href="/data-deletion">Delete your data</a></nav>
   <p>Pit Crew is not made by, endorsed by or affiliated with YouTube, Google, Instagram or Meta.</p>
 </footer>
+{{SCRIPTS}}
 </body>
 </html>

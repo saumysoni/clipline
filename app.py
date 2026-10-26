@@ -60,6 +60,7 @@ from web import (  # noqa: E402,F401
     vlog_info,
     vlog_upload,
     youtube_upkeep,
+    youtube_quota,
     youtube_connect,
 )
 

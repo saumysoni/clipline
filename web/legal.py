@@ -52,12 +52,19 @@ def _values():
                     if paid else
                     "During the beta we use Google's free Gemini API plan, under which Google may use what we send to "
                     "improve its products (people at Google may review it). Don't upload a vlog you wouldn't want reviewed. "
-                    "We'll update this page when we move to the paid plan, which doesn't allow that."),
+                    "We'll update this page when we move to the paid plan, which doesn't allow that. On the free plan "
+                    "nothing from your YouTube account goes to Gemini: no channel numbers, and not the details of a vlog "
+                    "read from its YouTube link (Pit Crew's read on Analytics is then written without AI)."),
         "KEEP_ORIGINAL": _span(keep_original(), "hours"),
         "KEEP_DRAFT": _span(keep_draft(), "days"),
         "KEEP_POSTED": _span(keep_posted(), "days"),
         "KEEP_TRANSCRIPT": _span(keep_transcript(), "days"),
     }
+
+
+# Only the homepage has its own styles and script (its animations); the other pages are plain text.
+EXTRAS = {"welcome": ('<link rel="stylesheet" href="/static/legal/home.css">',
+                      '<script src="/static/legal/home.js" defer></script>')}
 
 
 def render(name, extra=None):
@@ -69,7 +76,8 @@ def render(name, extra=None):
     body = fill((LEGAL / f"{name}.html").read_text(encoding="utf-8"))
     page = (LEGAL / "page.html").read_text(encoding="utf-8")
     page = page.replace("{{TITLE}}", html.escape(title)).replace("{{DESC}}", html.escape(desc)).replace("{{BODY}}", body)
-    page = page.replace("{{PAGE}}", name)
+    head, scripts = EXTRAS.get(name, ("", ""))
+    page = page.replace("{{HEAD}}", head).replace("{{SCRIPTS}}", scripts).replace("{{PAGE}}", name)
     return Response(page, mimetype="text/html", headers={"Cache-Control": "no-cache"})
 
 

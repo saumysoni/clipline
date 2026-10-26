@@ -5,7 +5,12 @@ function renderDone(){
   $("doneTitle").textContent = n+(now ? "posted" : "scheduled");
   $("doneLede").textContent = now ? "They're on your channel now. You can change anything in YouTube Studio."
     : "Each Short goes public at its time. You can change anything in YouTube Studio before then.";
-  $("cal").innerHTML = ups.map(u=>{
+  const waits=job.yt_waiting||[];
+  if(waits.length) $("doneLede").textContent=(ups.length?$("doneLede").textContent+" ":"")+waits.length+(waits.length===1?" Short waits":" Shorts wait")+
+    " for YouTube's daily limit and go"+(waits.length===1?"es":"")+" up by themselves after midnight Pacific, at the times you chose.";
+  if(!ups.length && waits.length) $("doneTitle").textContent=waits.length+(waits.length===1?" Short":" Shorts")+" waiting for YouTube";
+  $("cal").innerHTML = waits.map(w=>'<li><div class="day">Soon<small>after midnight Pacific</small></div><div>'+esc(w.title)+
+    '<div class="from">Waiting for YouTube\'s daily limit'+(w.when?', then public '+esc(whenText(w.when).replace("Scheduled for ","")):'')+'</div></div></li>').join("") + ups.map(u=>{
     const d=u.when?new Date(u.when):null;
     const day=d?d.toLocaleDateString(undefined,{weekday:"short"}):"Now";
     const sub=d?d.toLocaleDateString(undefined,{month:"short",day:"numeric"})+", "+d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}):"Posting now";

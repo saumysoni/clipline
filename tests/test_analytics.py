@@ -2,6 +2,7 @@
 content type, and that the numbers agree with each other (web/analytics*.py, youtube/analytics*.py, instagram/)."""
 from tests import fakes as F
 
+import os
 import time
 import unittest
 from datetime import date, datetime, timedelta, timezone
@@ -13,6 +14,7 @@ RANGES = {"7": "days=7", "28": "days=28", "90": "days=90", "365": "days=365", "a
 class Analytics(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        os.environ["GEMINI_PAID"] = "1"  # the AI read; the free-plan behaviour is tested in FreeGemini below
         F.install()
         F.reset()
         cls.u = F.new_user()
@@ -36,6 +38,10 @@ class Analytics(unittest.TestCase):
         cls.c.post(f"/api/instagram/schedule/{cls.jid}", json={"shorts": rows, "schedule": "now"})
         F.wait(lambda: all(p["status"] == "done" for p in F.job_json(cls.jid).get("ig_posts") or [{"status": ""}]),
                what="Reels")
+
+    @classmethod
+    def tearDownClass(cls):
+        os.environ.pop("GEMINI_PAID", None)
 
     def get(self, path):
         t = time.time()
@@ -155,6 +161,23 @@ class Analytics(unittest.TestCase):
         c = F.client(F.new_user())
         r = c.get("/api/analytics?content=shorts&days=28")
         self.assertEqual(r.status_code, 200)
+
+
+class FreeGemini(unittest.TestCase):
+    """GEMINI_PAID off: the channel's YouTube numbers never go to Gemini (Google's Limited Use rule)."""
+
+    def test_read_without_ai(self):
+        F.install()
+        F.reset()
+        os.environ.pop("GEMINI_PAID", None)
+        u = F.new_user()
+        c = F.client(u)
+        F.connect_youtube(u["id"], CH)
+        read = c.get("/api/analytics/coach").json
+        self.assertEqual(read["source"], "rules")
+        self.assertFalse(read.get("pending"))
+        time.sleep(0.3)
+        self.assertNotIn("coach", F.AI.kinds())
 
 
 if __name__ == "__main__":

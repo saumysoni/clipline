@@ -420,7 +420,9 @@ the uploads and the Instagram scheduler live in that process, so never run two. 
 | `JOB_SLOTS`, `WHISPER_THREADS`, `WHISPER_DEVICE`, `WHISPER_COMPUTE_TYPE` | How much runs at once; `JOB_SLOTS × WHISPER_THREADS` ≈ the number of cores |
 | `MONTHLY_VLOG_MINUTES`, `MAX_VLOG_MINUTES`, `MAX_UPLOAD_GB` | Limits per creator |
 | `INVITE_ONLY`, `INVITES_FILE` | Private beta: only invited emails can make an account |
-| `SUPPORT_EMAIL`, `OPERATOR_NAME`, `GEMINI_PAID` | Shown on the privacy policy and terms (`/privacy`, `/terms`), which fill them in |
+| `SUPPORT_EMAIL`, `OPERATOR_NAME` | Shown on the privacy policy and terms (`/privacy`, `/terms`), which fill them in |
+| `GEMINI_PAID` | 1 once the Gemini key is on the paid plan: the policy says so, and YouTube data may then go to the AI |
+| `YOUTUBE_DAILY_UPLOADS`, `YOUTUBE_OPEN_SHARE`, `YOUTUBE_RESERVE` | YouTube's daily upload limit and how it's shared; over it, uploads wait for midnight Pacific |
 | `DATABASE_PATH`, `JOBS_DIR` | Lasting storage for accounts and vlogs |
 
 The public pages Google and Meta ask for are part of Pit Crew: `/welcome` (homepage), `/privacy`, `/terms`,

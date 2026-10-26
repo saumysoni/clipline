@@ -62,7 +62,7 @@ The code is split so two people can work on different features without touching 
 |---|---|---|---|
 | Accounts (email + Google sign-in), `gate()` | `accounts/db.py` | `web/accounts.py` | `js/account.js`, `sections/auth.html`, `css/auth.css` |
 | Forgot password (reset link by email) | `accounts/db.py` (`password_resets`), `accounts/mail.py` | `web/password_reset.py` | `js/password-reset.js`, `sections/auth.html` |
-| Confirm your email (link on sign-up, `#verify=<token>`, 48 h; a bar with Resend until confirmed; notice emails wait for it) | `accounts/db.py` (`email_verifications`) | `web/verify_email.py` | `js/verify-email.js`, `css/verify-email.css` |
+| Confirm your email (link on sign-up, `#verify=<token>`, 48 h; **nothing works until it's confirmed**: `gate()` answers 403 `verify: true` except `UNCONFIRMED_OK`; the confirm screen `#verifyForm` checks every 5 s, Resend, Change email for a typo (`POST /api/auth/email`, `change_email()`), Sign out; Google sign-ins are confirmed) | `accounts/db.py` (`email_verifications`, `change_email`) | `web/verify_email.py`, `web/accounts.py` (`UNCONFIRMED_OK`) | `js/verify-email.js` (`showVerify`), `sections/auth.html`, `css/auth.css`, `css/verify-email.css` |
 | Delete account (Settings: type the email; every vlog, saved transcript, connection (YouTube revoked) and the account; refused while something is being made or posted) | `accounts/db.py` (`delete_user`) | `web/delete_account.py` | `js/delete-account.js`, `sections/settings.html` |
 | Emails when away (Shorts ready, vlog ready to upload, stopped, posting failed; not while the creator watches the page, only to confirmed emails; links use `APP_URL`) | | `web/notices.py` | |
 | Stop / Try again a whole vlog (Stop while it's made: removed, or back to ready if it was prepared for YouTube; Try again after it stopped: same video and transcript) | | `web/stop_and_retry.py` | `js/vlog-again.js` (used by `js/progress.js`, `js/vlog-upload.js`) |
@@ -95,6 +95,7 @@ The code is split so two people can work on different features without touching 
 | Add a Short / must-have moments | `pipeline/manual_moment.py` | `web/add_short.py` | `js/review-cards.js` |
 | Choose on the video | `pipeline/preview.py` | `web/preview.py` | `js/picker.js`, `sections/picker.html`, `css/picker.css` |
 | Upload / schedule | `youtube/upload.py`, `youtube/schedule_times.py` | `web/posting.py` | `js/posting.js`, `css/posting.css` |
+| YouTube's daily upload limit, shared (open until 60 %, then fair shares, 5 kept for Replace; over it a Short or vlog waits in Pit Crew and goes up after midnight Pacific by itself; gotcha 28) | `accounts/db.py` (`youtube_uploads`) | `web/youtube_quota.py` (`take`, `defer`, `send_waiting`, `/api/youtube/today`), `web/posting.py`, `web/vlog_upload.py` (`send_waiting_vlog`) | `js/youtube-today.js`, `js/posting.js`, `js/posted.js`, `js/clips.js`, `js/vlog-upload.js` |
 | Date and time picker (every "when": Post page YouTube + Instagram, Schedule dialog, vlog upload, Change time on Scheduled; a calendar + times every 15 minutes, opening in the page below its button; the hidden `datetime-local` input keeps its value, so callers didn't change; inputs added later are picked up). The choices are "On a day and time I choose" (`custom`) or "Right away" (`now`): the 12 PM / 6 PM presets were removed from the pages in Oct 2026 (the server still accepts `d18` / `d12` / `two` from old jobs) | | | `js/when-picker.js` (right after `theme.js`), `css/when-picker.css` |
 | Posted list (step 4) | | | `js/posted.js`, `sections/posted.html`, `css/posted.css` |
 | Scheduled page (sidebar "Scheduled", `#scheduled` / `#scheduled/shorts`, old `#youtube` = Shorts tab; tabs Vlogs = vlogs set to go public later, Shorts & Reels = YouTube + Instagram lists of what hasn't gone out, plus ones that need a look) | `youtube/manage.py` | `web/on_youtube.py`, `web/instagram_posting.py` (`/api/instagram/posts`) | `js/on-youtube.js`, `js/scheduled-instagram.js`, `js/nav.js` (Make Shorts link), `sections/on-youtube.html`, `sections/sidebar.html`, `css/on-youtube.css` |
@@ -106,7 +107,7 @@ The code is split so two people can work on different features without touching 
 | Running on a server (`serve.py`: Waitress, one process; `deploy/setup.sh` Ubuntu 24.04 setup: packages, `pitcrew` user, code in `/opt/pitcrew/app`, data in `/srv/pitcrew`, `.env`, systemd service, Caddy https, nightly backups, firewall; `update.sh` safe updates with rollback, runs `tests/` first; `test.sh` every test suite on the server, safely; `backup.sh`, `invite.sh`, `status.sh`; `envtool.py` fills `.env` without overwriting; `point-docs.sh` turns `docs/` into redirects to the site) | | `web/health.py` (`/healthz`) | `deploy/`, `LAUNCH.md`, `REVIEWS.md` (Google/YouTube/Meta review texts) |
 | YouTube's data rules (daily: re-check connected channels, every posted video, a vlog's link details after 30 days; forget a disconnected channel's data after 5 days; numbers in memory ≤ 30 days; gotcha 27) | `youtube/connection.py` (`recheck`), `youtube/stored_data.py` | `web/youtube_upkeep.py`, `accounts/db.py` (`gone_channels`) | |
 | Private beta invites (`INVITE_ONLY=1`: only emails in `INVITES_FILE` (default `data/invites.txt`) can make an account, by email or Google; existing accounts unaffected; read on every sign-up, no restart) | | `web/invites.py` (used by `web/accounts.py`) | |
-| Public pages (homepage `/welcome`, `/privacy`, `/terms`, `/data-deletion`; filled from settings: `SUPPORT_EMAIL`, `OPERATOR_NAME`, `GEMINI_PAID`, AI keys, retention times; linked from the sign-in screen and Settings) | | `web/legal.py` | `static/legal/` (`page.html` shell, one HTML per page, `legal.css`) |
+| Public pages (homepage `/welcome`, `/privacy`, `/terms`, `/data-deletion`; filled from settings: `SUPPORT_EMAIL`, `OPERATOR_NAME`, `GEMINI_PAID`, AI keys, retention times; linked from the sign-in screen and Settings) | | `web/legal.py` | `static/legal/` (`page.html` shell, one HTML per page, `legal.css`; the homepage also `home.css` + `home.js` (animated demo, step tabs, caption styles, example chart; `EXTRAS` in `web/legal.py` loads them there only; "Get started" = `/#signup`)) |
 | Meta's callbacks (removed in Instagram → `/api/instagram/deauthorize`: connection dropped; data deletion asked through Meta → `/api/instagram/data-deletion`: connection, Reel records and saved numbers deleted, answers a code that `/data-deletion?code=` shows; both need a `signed_request` signed with `INSTAGRAM_APP_SECRET`) | | `web/instagram_deletion.py`, `accounts/db.py` (`deletion_requests`) | `static/legal/data-deletion.html` |
 | Connect Instagram | `instagram/connection.py`, `instagram/config.py`, `instagram/http.py` | `web/instagram_connect.py`, `web/google_redirect.py` | `js/instagram-connect.js` |
 | Hashtags, YouTube title, Instagram caption on each Short's editor card (hook first, then hashtags shared by both platforms, then a tab per connected platform; the caption is suggested from the title + full video (not the hook: it's on screen already, and repeated the title) until edited, then `ig_caption` is saved as typed; `caption_for()` keeps Instagram's 30 hashtags / 2,200 characters; "Generate ideas" under the title and the caption gives three AI options, `HOOK_RULE` + said-numbers check, works without the video) | `instagram/publish.py` (`suggested_caption`, `caption_for`), `pipeline/post_suggest.py` | `web/post_text.py` (`/post-text`, `/suggest`) | `js/post-text.js`, `css/post-text.css` |
@@ -412,6 +413,19 @@ The code is split so two people can work on different features without touching 
     deleted when YouTube says it can't find the video (other errors: retried up to a week, then deleted); the title stays.
     Numbers in memory (`youtube/stored_data.py`): expired cache entries dropped, first-week views at most 30 days old.
     **Anything new you keep from a YouTube API answer needs a refresh-or-delete path here** (and a line in the policy).
+28. **YouTube's upload limit is per Google Cloud project, and Pit Crew is one project** (`YOUTUBE_DAILY_UPLOADS`, 100
+    uploads a day, reset at midnight Pacific; a scheduled Short counts the day it's sent, not the day it goes public).
+    Never add more projects to get more: it's against YouTube's API terms; the audit raises the number. Every upload goes
+    through `youtube_quota.take()` first (Shorts, vlogs, Replace) and `give_back()` if it didn't reach YouTube; YouTube's
+    own `quotaExceeded` marks the day used up (`youtube_says_used_up`). Nothing over the limit fails: Shorts go into
+    `job["yt_waiting"]` with their chosen times, a vlog into vpost state `waiting`; the `youtube-waiting` thread sends
+    them after the reset, oldest first (a time that passed meanwhile = public at once). Only Replace says "press again after
+    midnight". Settings: `YOUTUBE_OPEN_SHARE` (60), `YOUTUBE_RESERVE` (5).
+29. **Free Gemini may train on what it's sent, so nothing from YouTube's API goes to it** (Google's Limited Use rule).
+    `pipeline/ai.py` `youtube_data_ok()` is true only for OpenAI or `GEMINI_PAID=1`. Until then a vlog's title and
+    description read from its YouTube link stay out of the prompts (`vlog_context_block()`, the thumbnail plan) and
+    Pit Crew's read on Analytics is written by the rules (`analytics_coach._providers()`). What the creator typed is fine.
+    Any new prompt with YouTube data must check `youtube_data_ok()`.
 
 ## Conventions
 
@@ -455,10 +469,12 @@ How they stay safe and repeatable:
 - **`tests/fakes.py` is the outside world:** the real `ai_json()` runs against a fake `google.genai.Client` that answers by
   prompt (`AI.fail(code, msg)` makes it fail like Gemini); the youtube facade functions and `youtube.analytics._services`
   are an in-memory channel and a strict Analytics fake (gotcha 22b rules); `instagram.http.call` is an in-memory account;
-  email goes to `OUTBOX`. `fast()` swaps transcription, editing and thumbnails for quick stand-ins; the system suite keeps
+  email goes to `OUTBOX`. Fake users are confirmed unless `new_user(verified=False)`. `fast()` swaps transcription, editing and thumbnails for quick stand-ins; the system suite keeps
   the real ones (`PITCREW_REAL_MEDIA=1`) and fakes only the AI and the speech model. Test videos are generated with FFmpeg
   and cached per user in the temp folder.
 - A new prompt needs a branch in `FakeAI.kind()`; a new outside call needs a fake here, or tests will reach the internet.
+- `test_page_scripts.py` runs `node --check` on every page script (Python tests can't see a JavaScript syntax error,
+  which stops the whole page) and checks the ids they look up exist.
 - Add a test with every fix: the suites found the Instagram "Same as YouTube" refusal and the upload clean-up race.
 
 Manual checks that work well:

@@ -57,7 +57,9 @@ def plan(frames, moment, words=None, context=None):
     said = ""
     if words:
         said = " ".join(w["w"] for w in words if moment["start"] - 0.1 <= w["s"] <= moment["end"])[:1500]
-    vlog = f"Vlog title: {context['title']}\n" if context and context.get("title") else ""
+    from pipeline.ai import youtube_data_ok
+    usable = context and context.get("title") and (not context.get("youtube_url") or youtube_data_ok("gemini"))
+    vlog = f"Vlog title: {context['title']}\n" if usable else ""  # (thumbnails ask Gemini: see vlog_context_block)
     text = PLAN_PROMPT.format(n=len(frames), last=len(frames) - 1, title=moment.get("title", ""),
                               hook=moment.get("hook", ""), said=said or "(not available)", vlog=vlog,
                               accents=", ".join(ACCENTS))
