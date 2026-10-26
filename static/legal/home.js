@@ -135,6 +135,15 @@
     if(!calm){ chart.classList.add("js"); watch(chart, function(v){ if(v) chart.classList.add("in"); }, 0.35); }
   }
 
+  // ---- signed in already: the buttons open Pit Crew instead of signing in
+  if(window.fetch) fetch("/api/me").then(function(r){ return r.json(); }).then(function(m){
+    if(!m || !m.user) return;
+    [].forEach.call(document.querySelectorAll('a[href="/#signin"], a[href="/#signup"]'), function(a){
+      a.href = "/#vlogs";
+      a.firstChild.nodeValue = "Open Pit Crew" + (a.classList.contains("hm-go") ? " " : "");
+    });
+  }).catch(function(){});
+
   // ---- sections slide in as you scroll to them
   if(!calm && "IntersectionObserver" in window){
     var io = new IntersectionObserver(function(es){

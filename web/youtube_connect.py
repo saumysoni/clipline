@@ -44,7 +44,7 @@ def youtube_callback():
             traceback.print_exc()
             return login_problem_page("Something went wrong while signing in. Try again.")
         start_session(user)
-        return redirect("/")
+        return redirect("/#vlogs")  # (plain "/" is the homepage)
     nxt, popup = pending.get("next", ""), bool(pending.get("popup"))
     if not g.user:
         return youtube_done_page(False, "Sign in to Pit Crew first, then connect YouTube.", nxt, popup)

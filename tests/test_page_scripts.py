@@ -53,6 +53,14 @@ class PageFiles(unittest.TestCase):
             self.assertIn(f'id="{tab}"', home)
         self.assertTrue((STATIC / "legal" / "home.css").is_file())
 
+    def test_plain_slash_is_the_homepage(self):
+        """Plain "/" goes to /welcome (js/account.js), so the server never sends anyone to a bare "/" (they'd land on
+        the homepage instead of the app)."""
+        root = STATIC.parent
+        for py in sorted((root / "web").glob("*.py")):
+            self.assertNotIn('redirect("/")', py.read_text(encoding="utf-8"), py.name)
+        self.assertIn('location.replace("/welcome")', (STATIC / "js" / "account.js").read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()

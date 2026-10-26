@@ -108,11 +108,10 @@ button.pill:hover{border-color:var(--line-2);color:var(--ink)}
 @media (max-width:560px){
   .side-nav .navlink{padding:5px;gap:0}
   .side-nav{gap:0}
-  #accountNav{display:none}  /* only a label (Settings has the account); frees room for every page's icon on a 360 px phone */
   .side-foot,.side-me,.who-am-i{gap:6px}
   .theme-seg button{padding:5px 6px}
 }
-/* sidebar: + Create, Account / Settings / Appearance rows, channel rows with the active account */
+/* sidebar: + Create, Settings (with the person's name) / Appearance rows, channel rows with the active account */
 .side .create{width:100%;gap:8px;padding:11px 14px;flex:none}
 .side .create .ms{font-size:20px}
 .navlink:disabled{opacity:.55;cursor:default}

@@ -32,6 +32,7 @@ $("logoutBtn").onclick=async()=>{ try{ await fetch("/api/auth/logout",{method:"P
 const rawFetch=window.fetch.bind(window);
 window.fetch=async(...a)=>{ const r=await rawFetch(...a); if(r.status===401) showLogin(); else if(r.status===403 && booted) r.clone().json().then(j=>{ if(j&&j.verify) boot(); }).catch(()=>{}); return r; };
 async function boot(){
+  const asked=location.hash;  // before a #verify= link is used up
   if(location.hash.startsWith("#verify=")) await confirmEmail(location.hash.slice(8));  // link from the welcome email
   let m; try{ m=await (await rawFetch("/api/me")).json(); }catch(x){ m={user:null,google:false}; }
   $("googleBtn").hidden=$("authOr").hidden=!m.google;
@@ -41,11 +42,12 @@ async function boot(){
     if(m.auth_error.email) $("authEmail").value=m.auth_error.email;
     $("authErr").textContent=m.auth_error.error; return;
   }
-  if(!m.user){ if(location.hash==="#signup"){ signup=true; history.replaceState(null,"",location.pathname); }  // "Get started" on the homepage
+  if(!m.user){
+    if(asked==="#signup" || asked==="#signin") signup=asked==="#signup";  // the homepage's buttons (the # stays, so a reload keeps the form)
     showLogin(); if(verifyNote){ $(verifyNote.startsWith("Email confirmed")?"authOk":"authErr").textContent=verifyNote; verifyNote=""; } return; }
   if(!m.user.verified){ showVerify(m.user); return; }  // nothing else until the email is confirmed
-  myEmail=m.user.email;  // the sidebar's Account row: the person's name (email when there's no name), email on hover
-  $("meEmail").textContent=(m.user.name||"").trim()||myEmail; $("accountNav").title="Signed in as "+myEmail;
+  myEmail=m.user.email;  // under Settings in the sidebar: the person's name (email when there's no name), email on hover
+  $("meEmail").textContent=(m.user.name||"").trim()||myEmail; $("settingsNav").title="Signed in as "+myEmail;
   $("auth").hidden=true; $("app").hidden=false; paintVerifyBar(m.user);
   loadAccount(); loadIg(); refreshJobsNow(); loadLimits();
   if(booted){ if(jobId) startPolling(jobId); return; }  // signed in again mid-session: pick the job back up
@@ -77,4 +79,4 @@ window.addEventListener("hashchange",()=>{
   if(h===at || (!h && at==="vlogs")) return;
   openRoute(h);
 });
-boot();
+if(location.hash) boot(); else location.replace("/welcome");  // plain "/" is the homepage; the app's screens are /#vlogs, /#settings, ...

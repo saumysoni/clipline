@@ -33,7 +33,7 @@ def auth_google():
 def login_problem_page(msg, email=""):
     """Back to the sign-in screen, which shows msg in red (Google sign-in happens away from the page)."""
     session["auth_error"] = {"error": msg, "email": email}
-    return redirect("/")
+    return redirect("/#signin")  # (plain "/" is the homepage)
 
 
 # Anyone can make an account (with INVITE_ONLY=1, only invited emails: web/invites.py): email + password, or Sign in
