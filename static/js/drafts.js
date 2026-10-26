@@ -2,7 +2,7 @@
 // (rows from js/vlogs.js vlRow()). Shorts & Reels = clips on neither platform yet: the Shorts & Reels clip browser
 // (js/clips.js) in "drafts" mode, with its vlog filter, Select, Schedule and Delete.
 let dfVlogs=null, dfTab="vlogs";
-const dfPick=pageTabs("dfTabs",tab=>{ dfTab=tab; location.hash="drafts"+(tab==="shorts"?"/shorts":""); clDock(); });
+const dfPick=pageTabs("dfTabs",tab=>{ dfTab=tab; location.hash="drafts"+(tab==="shorts"?"/shorts":""); clDock(); qrClose(); });
 // tab: "vlogs" or "shorts" (none = the tab last clicked, else the first one with something in it); vlog: show only
 // that vlog's draft clips.
 async function openDrafts(tab,vlog){
@@ -21,5 +21,6 @@ async function loadDraftVlogs(){
   vl.querySelectorAll(".vrow").forEach(el=>vlWire(el,dfVlogs.find(v=>v.id===el.dataset.id),loadDraftVlogs,"dfErr"));
   const go=vl.querySelector(".tab-empty-go"); if(go) go.onclick=()=>openVlogUpload();
 }
-// The Shorts & Reels tab's number follows the clip browser (it changes after scheduling or deleting).
-clOnPaint=()=>{ if(clMode==="drafts") tabCount("dfNShorts",clData.filter(isDraftClip).length); };
+// The Shorts & Reels tab's number follows the clip browser (it changes after scheduling or deleting), and so do Quick
+// review (js/quick-review.js) and the editor (js/editor.js).
+clOnPaint=()=>{ if(clMode==="drafts") tabCount("dfNShorts",clData.filter(isDraftClip).length); qrSync(); edSync(); };

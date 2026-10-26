@@ -10,12 +10,13 @@ from pathlib import Path
 from pipeline.thumbnails.simple import make_simple_thumbnail
 
 
-def make_thumbnail(video_path, meta, moment, cx, idx, job_dir, words=None, context=None):
-    """Designed thumbnail (see design.py); the simple style if that fails or THUMB_STYLE=simple."""
+def make_thumbnail(video_path, meta, moment, cx, idx, job_dir, words=None, context=None, avoid=None):
+    """Designed thumbnail (see design.py); the simple style if that fails or THUMB_STYLE=simple. avoid: the last
+    thumbnail's plan, for Try again (another frame and text)."""
     if os.getenv("THUMB_STYLE", "designed").lower() != "simple":
         try:
             from pipeline.thumbnails import design
-            return design.make_designed_thumbnail(video_path, moment, idx, job_dir, words, context)
+            return design.make_designed_thumbnail(video_path, moment, idx, job_dir, words, context, avoid)
         except Exception as e:  # noqa: BLE001
             print(f"Designed thumbnail failed ({e}); using the simple style.")
     return make_simple_thumbnail(video_path, meta, moment, cx, idx, job_dir)
@@ -37,6 +38,13 @@ def retext_thumbnail(video_path, meta, moment, cx, num, job_dir):
         except Exception as e:  # noqa: BLE001
             print(f"Couldn't redraw the thumbnail ({e}); using the simple style.")
     return make_simple_thumbnail(video_path, meta, moment, cx, num, job_dir), None
+
+
+def thumb_plan(moment, job_dir):
+    """The saved plan of a designed thumbnail (frame, text, look...), or None (simple style)."""
+    import json
+    p = Path(job_dir) / work_folder(moment) / "plan.json"
+    return json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
 
 
 def relook_thumbnail(moment, num, job_dir, look):

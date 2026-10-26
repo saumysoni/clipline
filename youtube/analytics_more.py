@@ -209,6 +209,19 @@ def published_dates(user_id, ids):
     return _cached(("pub", user_id, _chan(user_id), tuple(ids)), build)
 
 
+def live_views(user_id, ids):
+    """{video id: views now} (YouTube's live count, what Studio shows) for these videos, for the Shorts & Reels cards.
+    One Data API call per 50, cached; deleted or private videos on another account are left out."""
+    ids = [i for i in dict.fromkeys(ids) if i]
+    if not ids:
+        return {}
+
+    def build():
+        yt3, _ = base._services(user_id)
+        return {v: m.get("live_views", 0) for v, m in _videos(yt3, ids).items()}
+    return _cached(("live", user_id, _chan(user_id), tuple(ids)), build)
+
+
 def clip_totals(user_id, ids):
     """Every number of these videos since they were posted, for the YouTube-vs-Instagram charts: views, likes and
     comments are YouTube's live counts (what Studio shows; Analytics is ~2 days behind), shares, subscribers and

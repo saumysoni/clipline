@@ -1,19 +1,18 @@
   <!-- Vlogs: every vlog uploaded to Pit Crew, newest first -->
   <section id="s7" hidden>
     <div class="work wide">
-      <div class="page-head">
+      <div class="page-head vl-top">
         <div>
-          <div class="eyebrow">Vlogs</div>
-          <h1>Your vlogs</h1>
+          <h1>Vlogs</h1>
           <p class="lede">Vlogs on YouTube and videos you've made Shorts from. Vlogs still being prepared are under Drafts; ones going public later, under Scheduled.</p>
         </div>
-        <button class="ghost" id="vlNew" type="button"><span class="ms" aria-hidden="true">add</span>New vlog</button>
+        <button class="primary" id="vlNew" type="button"><span class="ms" aria-hidden="true">upload</span>Upload a vlog</button>
       </div>
       <div class="vl-bar" id="vlBar" hidden>
-        <button type="button" class="ghost sm sel-toggle" id="vlSelect"><span class="ms" aria-hidden="true">checklist</span><span>Select</span></button>
+        <div class="vl-find"><span class="ms" aria-hidden="true">search</span><input id="vlFind" type="search" maxlength="120" aria-label="Find a vlog by title" placeholder="Find a vlog by title"></div>
         <label class="vl-all sel-only"><input type="checkbox" id="vlAll"><span id="vlAllT">Select all</span></label>
         <button type="button" class="ghost vl-del-many sel-only" id="vlDelMany" hidden><span class="ms" aria-hidden="true">delete</span><span>Delete videos</span></button>
-        <div class="vl-find"><span class="ms" aria-hidden="true">search</span><input id="vlFind" type="search" maxlength="120" aria-label="Find a vlog by title" placeholder="Find a vlog by title"></div>
+        <button type="button" class="ghost sm sel-toggle" id="vlSelect"><span class="ms" aria-hidden="true">checklist</span><span>Select</span></button>
       </div>
       <div class="err" id="vlErr" role="alert"></div>
       <div class="vlog-list" id="vlGrid"></div>

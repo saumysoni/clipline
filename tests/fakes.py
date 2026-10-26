@@ -458,7 +458,7 @@ def age_uploads(job_id, days=(14, 12, 10, 4, 2)):
 
 REELS = {}  # media id -> {caption, ig_id, posted (dt)}
 IG_CONTAINERS = {}  # container id -> {video_url, caption, polls}
-IG = SimpleNamespace(fail_publish=None, container_polls=1, refreshed=0, account_type="MEDIA_CREATOR",
+IG = SimpleNamespace(fail_publish=None, container_polls=1, refreshed=0, account_type="MEDIA_CREATOR", deleted_reels=set(),
                      permissions="instagram_business_basic,instagram_business_content_publish,"
                                  "instagram_business_manage_insights")
 
@@ -508,6 +508,8 @@ def ig_call(method, url, params=None, data=None, headers=None, timeout=30):
         mid = f"M{len(REELS) + 1}{random.randint(100, 999)}"
         REELS[mid] = {"caption": c["caption"], "ig_id": c["ig_id"], "posted": datetime.now(timezone.utc)}
         return {"id": mid}
+    if method == "GET" and last in IG.deleted_reels:  # deleted in the Instagram app
+        raise InstagramError("Instagram said: Object with ID '%s' does not exist" % last, 100)
     if last in REELS and method == "GET" and "insights" not in u:
         return {"permalink": f"https://www.instagram.com/reel/{last}/", "id": last}
     if last == "media" and method == "GET":
@@ -646,7 +648,11 @@ def fast_render(video_path, meta, moment, words, idx, style, job_dir, cx="find")
     return f"short_{idx}.mp4", None if cx == "find" else cx
 
 
-def fast_thumbnail(video_path, meta, moment, cx, idx, job_dir, words=None, context=None):
+THUMB_AVOIDED = []  # the last thumbnail's plan each Try again asked to avoid
+
+
+def fast_thumbnail(video_path, meta, moment, cx, idx, job_dir, words=None, context=None, avoid=None):
+    THUMB_AVOIDED.append(avoid)
     _jpeg(Path(job_dir) / f"thumb_{idx}.jpg")
     return f"thumb_{idx}.jpg"
 
@@ -724,6 +730,7 @@ def reset():
     REELS.clear()
     IG_CONTAINERS.clear()
     IG.fail_publish, IG.container_polls, IG.refreshed, IG.account_type = None, 1, 0, "MEDIA_CREATOR"
+    IG.deleted_reels.clear()
     IG.permissions = "instagram_business_basic,instagram_business_content_publish,instagram_business_manage_insights"
     OUTBOX.clear()
     ANALYTICS_CALLS.clear()

@@ -1,0 +1,77 @@
+  <!-- Editor (#edit/<vlog>/<short>): a draft Short's advanced editing, opened from Drafts (Edit) and Quick review
+       (Edit draft). The tools are laid out but not working yet (js/editor.js) -->
+  <section id="s12" hidden>
+    <div class="work wide">
+      <!-- One bar: Back, the save state (Save / Discard while something is changed), ⋮, Export, Finish (save, then
+           schedule or go back to Drafts). The sidebar is hidden on this screen (body.ed-on). -->
+      <header class="ed-bar">
+        <button type="button" class="iconbtn ed-back" id="edBack" aria-label="Back to Drafts" title="Back to Drafts"><span class="ms" aria-hidden="true">arrow_back</span></button>
+        <h1 class="ed-h1">Edit Short</h1>
+        <span class="ed-state" id="edState" role="status">Saved</span>
+        <span class="ed-unsaved" id="edSaveRow" hidden>
+          <button type="button" class="linkbtn" id="edSave">Save</button>
+          <button type="button" class="linkbtn" id="edCancel">Discard</button>
+        </span>
+        <span class="ed-bar-sp"></span>
+        <span id="edMore"></span>
+        <button type="button" class="ghost" id="edExport" aria-haspopup="menu" aria-expanded="false"><span class="ms" aria-hidden="true">download</span>Export</button>
+        <button type="button" class="primary" id="edFinish">Finish<span class="ms" aria-hidden="true">arrow_forward</span></button>
+      </header>
+      <div class="err" id="edErr" role="alert"></div>
+      <div class="ed-note" id="edGone" hidden></div>
+      <p class="ed-small" id="edSmall"><span class="ms" aria-hidden="true">desktop_windows</span><span>The editor needs a bigger screen. Open Pit Crew on a computer or tablet, or use Quick review on Drafts to change the hook, title and hashtags.</span></p>
+      <div class="ed-grid" id="edGrid">
+        <nav class="ed-rail" id="edRail" aria-label="Editing tools"></nav>
+        <div class="ed-stage">
+          <div class="ed-media">
+            <span class="ed-blur" id="edBlur" aria-hidden="true"></span>
+            <video id="edVideo" controls playsinline preload="metadata"></video>
+            <img id="edThumb" class="qr-thumb" alt="Thumbnail" hidden>
+            <div class="ed-view" id="edViewSw" role="group" aria-label="Preview">
+              <button type="button" data-v="v" aria-pressed="true"><span class="ms" aria-hidden="true">play_circle</span>Short</button>
+              <button type="button" data-v="t" aria-pressed="false"><span class="ms" aria-hidden="true">image</span>Thumbnail</button>
+            </div>
+          </div>
+          <div class="ed-tl" id="edTl">
+            <div class="ed-tl-bar">
+              <button type="button" class="iconbtn" disabled title="Soon" aria-label="Undo"><span class="ms" aria-hidden="true">undo</span></button>
+              <button type="button" class="iconbtn" disabled title="Soon" aria-label="Redo"><span class="ms" aria-hidden="true">redo</span></button>
+              <span class="ed-time" id="edTime">0:00 / 0:00</span>
+              <span class="ed-zoom" title="Zoom comes with the timeline tools"><span class="ms" aria-hidden="true">zoom_out</span><input type="range" min="1" max="4" value="1" disabled aria-label="Timeline zoom"><span class="ms" aria-hidden="true">zoom_in</span></span>
+            </div>
+            <div class="ed-tracks" id="edTracks">
+              <div class="ed-lab"></div><div class="ed-ruler" id="edRuler"></div>
+              <div class="ed-lab"><span class="ms" aria-hidden="true">movie</span>Video</div><div class="ed-track ed-vid" id="edStrip"></div>
+              <div class="ed-lab"><span class="ms" aria-hidden="true">closed_caption</span>Captions</div><div class="ed-track ed-soon">Caption editing is coming</div>
+              <div class="ed-lab"><span class="ms" aria-hidden="true">graphic_eq</span>Audio</div><div class="ed-track ed-soon">Audio tools are coming</div>
+              <div class="ed-lab"><span class="ms" aria-hidden="true">layers</span>Overlays</div><div class="ed-track ed-soon">Text and overlays are coming</div>
+              <div class="ed-head-line" id="edPlayhead" aria-hidden="true"></div>
+            </div>
+          </div>
+        </div>
+        <aside class="ed-panel">
+          <!-- Details: the Short's hook, thumbnail, hashtags, title, caption (js/short-details.js); kept while other tools show -->
+          <div id="edDetails">
+            <div class="ed-p-head"><span class="ms" aria-hidden="true">edit_note</span><h2>Details</h2></div>
+            <div class="ed-meta" id="edMeta"></div>
+            <p class="ed-p-about">Hook, thumbnail, hashtags, title and caption. Nothing changes until you save.</p>
+            <div class="err" id="edDErr" role="alert"></div>
+            <div class="qr-edit open" id="edDBox"></div>
+          </div>
+          <div id="edPanel" aria-live="polite"></div>
+        </aside>
+      </div>
+    </div>
+  </section>
+  <!-- Finish (js/editor.js): changes saved (and remade), then schedule it or go back to Drafts -->
+  <dialog id="edFin" aria-labelledby="edFinTitle">
+    <h2 id="edFinTitle">Your Short is ready</h2>
+    <p class="lede" id="edFinLede"></p>
+    <div class="ed-fin-wait" id="edFinWait" hidden><span class="spin" aria-hidden="true"></span><span>Remaking the Short with your changes...</span></div>
+    <div class="err" id="edFinErr" role="alert"></div>
+    <div class="cl-sched-acts">
+      <button type="button" class="linkbtn" id="edFinStay">Keep editing</button>
+      <button type="button" class="ghost" id="edFinDrafts">Back to Drafts</button>
+      <button type="button" class="primary" id="edFinSched"><span class="ms" aria-hidden="true">calendar_month</span>Schedule it</button>
+    </div>
+  </dialog>

@@ -1,21 +1,27 @@
-/* Vlogs page: a list like YouTube's search results (js/vlogs.js). */
-.vl-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 14px;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--glass)}
+/* Vlogs page: a grid of vlog cards (js/vlogs.js); Drafts and Scheduled use the same cards. */
+.vl-top{padding:22px 24px;border-radius:20px;border:1px solid var(--line);background:var(--glass);align-items:center;margin-bottom:22px}
+.vl-top h1{margin:0}
+.vl-top .lede{margin-bottom:0}
+.vl-top .primary{gap:8px}
+.vl-bar{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin:0 0 16px}
 .vl-all{display:inline-flex;align-items:center;gap:9px;font-weight:600;font-size:.9rem;cursor:pointer;user-select:none}
 .vl-all input{width:17px;height:17px}
 .vl-del-many{padding:7px 12px;font-size:.86rem;gap:6px}
 .vl-del-many .ms{font-size:18px}
 .vl-del-many:hover:not(:disabled){border-color:var(--bad)!important;color:var(--bad);box-shadow:0 0 0 3px var(--bad-soft)!important}
-.vl-find{position:relative;margin-left:auto;min-width:min(280px,100%)}
+.vl-find{position:relative;margin-right:auto;width:min(340px,100%)}
 .vl-find .ms{position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:18px;color:var(--faint);pointer-events:none}
 .vl-find input{width:100%;padding:8px 12px 8px 36px;border-radius:10px;border:1px solid var(--line-2);background:var(--field);font:inherit;color:var(--ink)}
-.vlog-list{display:flex;flex-direction:column;gap:6px}
-.vrow{position:relative;display:grid;grid-template-columns:minmax(180px,300px) minmax(0,1fr);gap:16px;align-items:start;padding:10px;border-radius:16px;border:1px solid transparent;transition:background .2s,border-color .2s}
-.vrow:hover{background:var(--glass);border-color:var(--line)}
-.vrow.on{background:color-mix(in srgb,var(--primary-soft) 55%,transparent);border-color:rgba(255,0,51,.22)}
-.vr-pick{display:grid;place-items:center;height:100%;max-height:170px;padding:0 2px;cursor:pointer}
-.vr-pick[hidden]{display:grid!important;visibility:hidden}
-.vr-pick input{width:17px;height:17px}
-.vr-thumb{position:relative;display:block;width:100%;aspect-ratio:16/9;border:0;padding:0;border-radius:12px;overflow:hidden;background:#0b0b10;cursor:pointer}
+.vlog-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
+.vlog-list>:not(.vrow){grid-column:1/-1}
+.vrow{position:relative;display:flex;flex-direction:column;min-width:0;border-radius:16px;overflow:hidden;border:1px solid var(--line);background:var(--glass);box-shadow:var(--shadow);transition:border-color .2s}
+.vrow:hover{border-color:var(--line-2)}
+.vrow.on{border-color:var(--primary-text);box-shadow:0 0 0 3px var(--primary-soft)}
+.vr-media{position:relative}
+.vr-pick{position:absolute;top:8px;left:8px;width:30px;height:30px;border-radius:8px;background:rgba(0,0,0,.55);display:grid;place-items:center;cursor:pointer}
+.vr-pick[hidden]{display:none!important}
+.vr-pick input{width:17px;height:17px;margin:0;accent-color:var(--primary)}
+.vr-thumb{position:relative;display:block;width:100%;aspect-ratio:16/9;border:0;padding:0;overflow:hidden;background:#0b0b10;cursor:pointer}
 .vr-thumb img{width:100%;height:100%;object-fit:cover;display:block}
 .vr-thumb .vl-blur{position:absolute;inset:-20px;background-size:cover;background-position:center;filter:blur(18px) brightness(.55)}
 .vr-thumb img.vl-tall{position:relative;object-fit:contain}
@@ -25,10 +31,10 @@
 .vl-over b{font:700 1.35rem var(--mono)}
 .vl-over small{font-size:.76rem;opacity:.85}
 .vl-over.bad .ms{color:#ff6b7a;font-size:30px}
-.vr-body{display:flex;flex-direction:column;gap:6px;min-width:0;padding-top:2px}
-.vr-title{border:0;background:none;padding:0;text-align:left;cursor:pointer;color:var(--ink);font:600 1.12rem/1.35 var(--sans);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.vr-body{display:flex;flex-direction:column;gap:5px;min-width:0;padding:10px 12px 2px}
+.vr-title{border:0;background:none;padding:0;text-align:left;cursor:pointer;color:var(--ink);font:700 .92rem/1.3 var(--sans);overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .vr-title:hover{color:var(--primary-text)}
-.vr-meta{font-size:.84rem;color:var(--muted)}
+.vr-meta{font-size:.78rem;color:var(--muted)}
 .vl-badges{display:flex;gap:6px;flex-wrap:wrap}
 .vl-b{font:600 .72rem/1 var(--mono);padding:5px 8px;border-radius:6px;background:var(--raised);color:var(--muted)}
 .vl-b.done{background:var(--good-soft);color:var(--good)}
@@ -38,10 +44,12 @@
 .vr-note .ms{font-size:15px}
 .vr-note.bad{color:var(--bad)}
 .vr-note.warn{color:var(--warn);font-weight:600}
-.vr-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.vr-foot{display:flex;align-items:flex-end;gap:6px;padding:6px 8px 10px 12px;margin-top:auto}
+.vrow .ghost.sm{padding:5px 9px;font-size:.78rem}
+.vrow .cm-more{width:28px;height:28px}
+.vr-acts{display:flex;gap:6px;flex-wrap:wrap;flex:1;min-width:0}
 .ghost.sm{padding:6px 11px;font-size:.82rem;border-radius:9px;gap:5px;text-decoration:none;color:var(--ink)}
 .ghost.sm .ms{font-size:16px}
-.ghost.sm.vl-del:hover:not(:disabled){border-color:var(--bad)!important;color:var(--bad);box-shadow:0 0 0 3px var(--bad-soft)!important}
 .vl-empty{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;padding:44px 20px}
 .vl-empty>.ms{font-size:42px;color:var(--faint)}
 .vl-empty>span{color:var(--muted)}
@@ -49,14 +57,12 @@
 /* Select mode: tick boxes, Select all and Delete appear */
 .sel-toggle[aria-pressed=true]{border-color:var(--primary-text)}
 #s7:not(.selecting) .sel-only,#s7:not(.selecting) .vr-pick{display:none!important}
-#s7.selecting .vrow{grid-template-columns:auto minmax(180px,300px) minmax(0,1fr)}
-@media (max-width:720px){
-  .vrow{grid-template-columns:minmax(0,1fr);gap:10px}
-  #s7.selecting .vrow{grid-template-columns:auto minmax(0,1fr)}
-  #s7.selecting .vr-thumb,#s7.selecting .vr-body{grid-column:2}
-  .vr-pick{grid-row:1/3;max-height:none}
-  .vl-find{margin-left:0;flex:1}
+@media (max-width:560px){
+  .vl-top{padding:16px}
+  .vl-find{width:100%;margin-right:0}
+  .vlog-list{grid-template-columns:minmax(0,1fr)}
 }
 .vr-err{align-items:flex-start;max-width:70ch}
 .vr-err span:last-child{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .vr-err .ms{margin-top:1px}
+.vl-top>div:first-child{flex:1 1 360px;min-width:0}

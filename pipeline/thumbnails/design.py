@@ -37,7 +37,8 @@ def retext(job_dir, work_name, line1, line2, out_name):
     return redraw(job_dir, work_name, out_name, line1=line1, line2=line2)
 
 
-def make_designed_thumbnail(video_path, moment, idx, job_dir, words=None, context=None):
+def make_designed_thumbnail(video_path, moment, idx, job_dir, words=None, context=None, avoid=None):
+    """avoid: the last thumbnail's plan (Try again): another frame and other text."""
     job_dir = Path(job_dir)
     work = job_dir / f"thumbwork_{idx}"
     frames = sample_frames(video_path, moment["start"], moment["end"], work)
@@ -45,13 +46,15 @@ def make_designed_thumbnail(video_path, moment, idx, job_dir, words=None, contex
     # request that never answers can't hold up the whole job (it once hung forever on "Thumbnail 2 of 6").
     pool = ThreadPoolExecutor(1)
     try:
-        pl = pool.submit(plan, frames, moment, words, context).result(timeout=AI_DEADLINE)
+        pl = pool.submit(plan, frames, moment, words, context, avoid).result(timeout=AI_DEADLINE)
+        if avoid and pl["frame"] == avoid.get("frame") and len(frames) > 1:  # the AI chose the same frame again
+            pl = {**pl, **{k: v for k, v in plan_without_ai(frames, moment, avoid["frame"]).items() if k in ("frame", "focus")}}
     except FuturesTimeout:
         print(f"Thumbnail planning took over {AI_DEADLINE}s; planning without AI.")
-        pl = plan_without_ai(frames, moment)
+        pl = plan_without_ai(frames, moment, avoid and avoid.get("frame"))
     except Exception as e:  # noqa: BLE001  (no key, Gemini busy, odd answer...)
         print(f"Thumbnail planning without AI ({e}).")
-        pl = plan_without_ai(frames, moment)
+        pl = plan_without_ai(frames, moment, avoid and avoid.get("frame"))
     finally:
         pool.shutdown(wait=False)
     with _ACCENT_LOCK:  # choose the colour and save the plan at once, so the next thumbnail sees it

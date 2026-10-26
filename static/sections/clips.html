@@ -2,28 +2,30 @@
        #clBrowse (bar + grid) is the clip browser; Drafts' Shorts & Reels tab borrows it (js/clips.js clMount) -->
   <section id="s9" hidden>
     <div class="work wide">
-      <div class="page-head">
-        <div>
-          <div class="eyebrow">Shorts &amp; Reels</div>
-          <h1 id="clTitle">Your Shorts &amp; Reels</h1>
-          <p class="lede" id="clLede">Clips that went out on YouTube or Instagram. Drafts and scheduled ones are under Drafts and Scheduled.</p>
+      <div class="cl-top">
+        <div class="page-head">
+          <div>
+            <h1 id="clTitle">Shorts &amp; Reels</h1>
+            <p class="lede" id="clLede">Clips that went out on YouTube or Instagram. Drafts and scheduled ones are under Drafts and Scheduled.</p>
+          </div>
+          <div class="cl-head-acts">
+            <button class="ghost" id="clAdd" type="button" hidden><span class="ms" aria-hidden="true">add</span>Add a Short</button>
+            <button class="primary" id="clNew" type="button"><span class="ms" aria-hidden="true">auto_awesome</span>Create from Vlog</button>
+            <button class="ghost" id="clUpload" type="button"><span class="ms" aria-hidden="true">upload</span>Upload &amp; Edit</button>
+          </div>
         </div>
-        <div class="cl-head-acts">
-          <button class="ghost" id="clAdd" type="button" hidden><span class="ms" aria-hidden="true">add</span>Add a Short</button>
-          <button class="ghost" id="clNew" type="button"><span class="ms" aria-hidden="true">auto_awesome</span>Make Shorts</button>
-        </div>
-      </div>
-      <!-- platform tabs (a clip on both platforms shows under each); Drafts' tab has no platform, so they stay here -->
-      <div class="ptabs" role="group" aria-label="Platform" id="clPlatTabs">
-        <button type="button" data-p="" aria-pressed="true">All <span class="n" id="clNAll"></span></button>
-        <button type="button" data-p="youtube" aria-pressed="false"><span class="ms yt" aria-hidden="true">smart_display</span>YouTube Shorts <span class="n" id="clNYt"></span></button>
-        <button type="button" data-p="instagram" aria-pressed="false"><span class="ms ig" aria-hidden="true">photo_camera</span>Instagram Reels <span class="n" id="clNIg"></span></button>
       </div>
       <div id="clBrowse">
       <div class="cl-bar">
-        <button type="button" class="ghost sm sel-toggle" id="clSelect"><span class="ms" aria-hidden="true">checklist</span><span>Select</span></button>
-        <label class="vl-all cl-all"><input type="checkbox" id="clAll"><span id="clAllT">Select all</span></label>
+        <!-- platform tabs (a clip on both platforms shows under each); hidden on Drafts' tab, which has no platform -->
+        <div class="ptabs" role="group" aria-label="Platform" id="clPlatTabs">
+          <button type="button" data-p="" aria-pressed="true">All <span class="n" id="clNAll"></span></button>
+          <button type="button" data-p="youtube" aria-pressed="false"><span class="ms yt" aria-hidden="true">smart_display</span>YouTube Shorts <span class="n" id="clNYt"></span></button>
+          <button type="button" data-p="instagram" aria-pressed="false"><span class="ms ig" aria-hidden="true">photo_camera</span>Instagram Reels <span class="n" id="clNIg"></span></button>
+        </div>
         <div class="cl-selects">
+          <label class="vl-all cl-all"><input type="checkbox" id="clAll"><span id="clAllT">Select all</span></label>
+          <button type="button" class="ghost sm sel-toggle" id="clSelect"><span class="ms" aria-hidden="true">checklist</span><span>Select</span></button>
           <select id="clVlog" aria-label="Vlog"><option value="">All vlogs</option></select>
           <select id="clSort" aria-label="Sort"><option value="vlog">Newest vlog first</option><option value="posted">Recently posted first</option></select>
         </div>
@@ -41,6 +43,27 @@
     <dialog id="clPlayer" aria-labelledby="clPlayTitle">
       <div class="cl-play-head"><b id="clPlayTitle"></b><button type="button" class="iconbtn" id="clPlayX" aria-label="Close"><span class="ms" aria-hidden="true">close</span></button></div>
       <video id="clVideo" controls playsinline></video>
+    </dialog>
+    <!-- Delete a clip that went out (js/clip-remove.js): YouTube by Pit Crew, Instagram by hand, then checked -->
+    <dialog id="clRm" aria-labelledby="clRmTitle">
+      <h2 id="clRmTitle">Delete this clip?</h2>
+      <p class="lede" id="clRmLede"></p>
+      <div id="clRmPick">
+        <fieldset class="cl-where"><legend>Where</legend>
+          <label class="cl-plat" id="clRmYtRow"><input type="checkbox" id="clRmYt"><span class="ms yt" aria-hidden="true">smart_display</span><span><b>Delete it on YouTube</b><small id="clRmYtWho"></small></span></label>
+          <label class="cl-plat" id="clRmIgRow"><input type="checkbox" id="clRmIg"><span class="ms ig" aria-hidden="true">photo_camera</span><span><b>Remove it from Instagram</b><small>Instagram doesn't let apps delete Reels, so you delete it in Instagram and Pit Crew checks it's gone.</small></span></label>
+        </fieldset>
+        <p class="hint">Its views, likes and comments go with it. Once it's off both, it's a draft again under Drafts, to post again or delete.</p>
+      </div>
+      <div id="clRmIgSteps" hidden>
+        <ol class="cl-rm-steps">
+          <li>Open the Reel in Instagram: <a class="ghost sm" id="clRmOpen" target="_blank" rel="noopener"><span class="ms" aria-hidden="true">open_in_new</span>Open on Instagram</a></li>
+          <li>Tap <b>⋯</b> (More), then <b>Delete</b>.</li>
+          <li>Come back here and press <b>I've deleted it</b>.</li>
+        </ol>
+      </div>
+      <div class="err" id="clRmErr" role="alert"></div>
+      <div class="cl-sched-acts"><button type="button" class="ghost" id="clRmX">Cancel</button><button type="button" class="primary" id="clRmGo">Delete</button></div>
     </dialog>
     <dialog id="clSched" aria-labelledby="clSchedTitle">
       <h2 id="clSchedTitle">Schedule</h2>
