@@ -6,4 +6,4 @@ from instagram.config import is_configured  # noqa: F401
 from instagram.http import InstagramError  # noqa: F401
 from instagram.connection import account, finish_login, sign_out, start_login, switch  # noqa: F401
 from instagram.publish import MAX_CAPTION, MAX_TAGS, caption_for, post_reel, suggested_caption  # noqa: F401
-from instagram.insights import dashboard, forget as forget_insights, snapshot_reels  # noqa: F401
+from instagram.insights import dashboard, forget as forget_insights, forget_numbers, snapshot_reels  # noqa: F401

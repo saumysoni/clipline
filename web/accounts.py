@@ -33,7 +33,7 @@ def auth_google():
 def login_problem_page(msg, email=""):
     """Back to the sign-in screen, which shows msg in red (Google sign-in happens away from the page)."""
     session["auth_error"] = {"error": msg, "email": email}
-    return redirect("/")
+    return redirect("/#signin")  # (plain "/" is the homepage)
 
 
 # Anyone can make an account (with INVITE_ONLY=1, only invited emails: web/invites.py): email + password, or Sign in
@@ -43,7 +43,13 @@ PUBLIC = {"index", "static", "config", "me", "auth_signup", "auth_login", "auth_
           "auth_forgot", "auth_reset", "auth_verify",
           "youtube_callback", "instagram_callback",  # instagram_callback: its one-time state names the user
           "instagram_video",  # a signed, expiring link to one Reel's video, for Instagram to download
+          "instagram_deauthorize", "instagram_data_deletion",  # Meta's callbacks, signed with the app secret
           "healthz", "welcome", "legal_page"}  # uptime check; the public homepage, privacy policy, terms (web/legal.py)
+
+
+# Signed in but the email isn't confirmed yet: only these (plus PUBLIC). Everything else waits for the link, so every
+# account belongs to a real, reachable address (web/verify_email.py).
+UNCONFIRMED_OK = {"auth_verify_resend", "auth_change_email", "delete_account"}
 
 
 EMAIL_RE = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
@@ -79,6 +85,9 @@ def gate():
         return None
     if not g.user:
         return jsonify(error="Sign in to Pit Crew first.", login=True), 401
+    if not g.user["email_verified"] and request.endpoint not in UNCONFIRMED_OK:
+        return jsonify(error="Confirm your email first: open the link we sent to " + g.user["email"] + ".",
+                       verify=True), 403
     job_id = (request.view_args or {}).get("job_id")
     if job_id is not None:
         with LOCK:
@@ -116,7 +125,8 @@ def google_user(info):
 def me():
     u = g.user
     problem = session.pop("auth_error", None) if not u else None  # from a Google sign-in that didn't work
-    return jsonify(user={"email": u["email"], "name": u["name"], "verified": bool(u["email_verified"])} if u else None,
+    return jsonify(user={"email": u["email"], "name": u["name"], "verified": bool(u["email_verified"]),
+                         "has_password": bool(u["password_hash"])} if u else None,
                    google=yt.is_configured(),
                    auth_error=problem)
 

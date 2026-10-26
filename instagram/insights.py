@@ -71,6 +71,16 @@ def forget(user_id):
         _CACHE.pop(key, None)
 
 
+def forget_numbers(user_id, media_ids=()):
+    """Everything about this user's Instagram numbers in memory, and these Reels' (web/instagram_deletion.py)."""
+    from instagram import account_insights
+    forget(user_id)
+    for mid in media_ids:
+        _CACHE.pop(("reel", mid), None)
+    for key in [k for k in account_insights._CACHE if k[0] == user_id]:
+        account_insights._CACHE.pop(key, None)
+
+
 def snapshot_reels(user_id, posts):
     """Save today's numbers for each of these Reels (posts = [{"media_id", "ig_id"}]), once a day. Instagram only
     reports running totals, so these daily rows are how "views in the first 7 days" is known later."""

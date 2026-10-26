@@ -206,7 +206,10 @@ def rules(f):
 
 
 def _providers():
-    return [p for p in ("gemini", "openai") if has_key(p)]
+    """The AIs that may read a channel's YouTube numbers: Gemini only on a paid plan (pipeline/ai.py youtube_data_ok);
+    none means the rule-based read."""
+    from pipeline.ai import youtube_data_ok
+    return [p for p in ("gemini", "openai") if has_key(p) and youtube_data_ok(p)]
 
 
 MAX_KEPT = 2000  # reads kept in memory (oldest dropped); one per creator per day
@@ -225,6 +228,8 @@ def read(key, facts):
     hit = cached(key)
     if hit:
         return hit
+    if not _providers():  # no AI may read these numbers (free Gemini): the rule-based read, at once
+        return rules(facts)
     with _LOCK:
         if key not in _BUSY:  # two tabs loading at once ask the AI once
             _BUSY[key] = threading.Thread(target=_work, args=(key, facts), daemon=True)

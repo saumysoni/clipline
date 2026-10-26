@@ -20,3 +20,11 @@
 .auth-card .ok-note{color:var(--good);font-size:.88rem}
 .auth-card .ok-note:empty{display:none}
 .auth-legal{margin:14px 0 0;font-size:.78rem;line-height:1.5;color:var(--muted);text-align:center}.auth-legal a{color:var(--muted);text-decoration:underline}.auth-legal a:hover{color:var(--ink)}
+
+/* Check your inbox (js/verify-email.js): the only screen until the email is confirmed */
+#verifyForm .vf-icon{width:56px;height:56px;border-radius:16px;display:grid;place-items:center;margin:4px 0 2px;
+  background:var(--primary-soft);color:var(--primary-text)}
+#verifyForm .lede b{color:var(--ink);overflow-wrap:anywhere}
+#verifyForm .vf-hint{color:var(--muted);font-size:.86rem;margin:0}
+#verifyForm #vfChange{display:grid;gap:10px}
+#verifyForm #vfChange[hidden]{display:none}

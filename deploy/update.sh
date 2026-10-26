@@ -3,8 +3,9 @@
 #
 # 1. Stops if code on the server was edited by hand (changes belong in GitHub).
 # 2. Backs up the database.
-# 3. Moves the code to the latest main, installs new Python packages if requirements.txt changed, and checks every
-#    Python file compiles. A Python error stops here, before any restart: Pit Crew keeps running the old version.
+# 3. Moves the code to the latest main, installs new Python packages if requirements.txt changed, checks every
+#    Python file compiles and runs the automated tests (tests/). A Python error or a failed test stops here, before
+#    any restart: Pit Crew keeps running the old version.
 # 4. Restarts and waits up to 2 minutes for Pit Crew to answer.
 # If anything fails after the code moved, it goes back to the version that was running (code, packages, restart)
 # and says so. Vlogs being made during a restart are queued again automatically (web/store.py).
@@ -79,6 +80,16 @@ if ! "$VENV/bin/python" -m compileall -q -x "$COMPILE_SKIP" "$APP" >/dev/null 2>
   say "The new version has a Python error, so Pit Crew wasn't restarted"
   "$VENV/bin/python" -m compileall -q -x "$COMPILE_SKIP" "$APP" 2>&1 | grep -vE "^(Listing|Compiling)" | head -n 15 | sed 's/^/  /' || true
   back_to_old
+fi
+if [ -d "$APP/tests" ]; then   # the automated tests (tests/: throwaway folders, no internet, a few seconds)
+  if ! (cd "$APP" && PYTHONDONTWRITEBYTECODE=1 timeout 600 "$VENV/bin/python" -W ignore -m unittest discover -s tests -t . \
+        >/tmp/pitcrew-tests.log 2>&1); then
+    say "The new version failed its tests, so Pit Crew wasn't restarted"
+    grep -E "^(FAIL|ERROR):|^[A-Za-z]*(Error|Exception): " /tmp/pitcrew-tests.log | head -n 15 | sed 's/^/  /' || true
+    echo "  Full output: /tmp/pitcrew-tests.log"
+    back_to_old
+  fi
+  echo "  tests passed"
 fi
 # Server files that live outside the code folder (only when they changed)
 for f in pitcrew.service pitcrew-backup.service pitcrew-backup.timer; do

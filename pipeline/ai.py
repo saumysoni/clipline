@@ -72,6 +72,18 @@ def has_key(provider):
     return bool(os.getenv({"gemini": "GEMINI_API_KEY", "openai": "OPENAI_API_KEY"}.get(provider, "")))
 
 
+def gemini_paid():
+    """GEMINI_PAID=1: the Gemini key is on a paid plan, where Google doesn't use what it's sent to improve its products."""
+    return os.getenv("GEMINI_PAID", "").strip().lower() in ("1", "true", "yes")
+
+
+def youtube_data_ok(provider=None):
+    """May YouTube data (from the YouTube APIs: a vlog's details read from its link, a channel's numbers) go to this AI
+    provider? Google's Limited Use rule forbids it going anywhere it may be used to train AI. OpenAI's API doesn't
+    train on what it's sent; Gemini's free plan may, so only with GEMINI_PAID=1."""
+    return (provider or ai_provider()).strip().lower() == "openai" or gemini_paid()
+
+
 def ai_json(contents, progress=lambda pct, msg: None, temperature=0.4, busy_hint="", provider=None,
             timeout=TIMEOUT, busy_waits=None):
     """Ask the AI for JSON: `provider` if given ("gemini" or "openai"), else AI_PROVIDER in .env.

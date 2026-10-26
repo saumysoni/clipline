@@ -4,9 +4,11 @@ The creator's own title/description/tags for the vlog, turned into guidance for 
 
 
 
-def vlog_context_block(context):
-    """The creator's own title/description/tags, as extra guidance for the AI."""
-    if not context:
+def vlog_context_block(context, provider=None):
+    """The creator's own title/description/tags, as extra guidance for the AI. Left out when they came from YouTube (the
+    vlog's YouTube link was given) and the AI may not get YouTube data (pipeline/ai.py youtube_data_ok: free Gemini)."""
+    from pipeline.ai import youtube_data_ok
+    if not context or (context.get("youtube_url") and not youtube_data_ok(provider)):
         return ""
     parts = []
     if context.get("title"):

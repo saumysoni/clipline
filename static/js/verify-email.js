@@ -1,5 +1,6 @@
-// Confirm your email (web/verify_email.py): the link from the welcome email (#verify=<token>), and a bar on every page
-// until it's confirmed, with Send link. Pit Crew works without it; only its emails (Shorts ready...) wait for it.
+// Confirm your email (web/verify_email.py): the link from the welcome email (#verify=<token>). Pit Crew can't be used
+// before it's confirmed: showVerify() is the only screen (Resend, Change email, Sign out), and it carries on by itself
+// once the link is opened, here or on another device.
 let verifyNote="";  // what the link did, shown once boot() knows whether the creator is signed in
 async function confirmEmail(token){
   history.replaceState(null,"",location.pathname);  // the token is used once: don't leave it in the address bar
@@ -29,3 +30,32 @@ function paintVerifyBar(user){
     bar.querySelector(".vb-t").textContent=j.error||j.message; $("vbSend").disabled=false;
   };
 }
+
+let vfTimer=null;
+function showVerify(user){
+  showAuthForm("verifyForm");
+  $("vfEmail").textContent=user.email; $("vfNewEmail").value=user.email;
+  $("vfPassRow").hidden=!user.has_password;
+  if(verifyNote){ $(verifyNote.startsWith("Email confirmed")?"vfOk":"vfErr").textContent=verifyNote; verifyNote=""; }
+  clearInterval(vfTimer);
+  vfTimer=setInterval(async()=>{  // opened the link on another device? carry on
+    if($("verifyForm").hidden){ clearInterval(vfTimer); return; }
+    try{ const m=await (await rawFetch("/api/me")).json(); if(!m.user || m.user.verified){ clearInterval(vfTimer); boot(); } }catch(e){}
+  },5000);
+}
+$("vfResend").onclick=async()=>{
+  $("vfErr").textContent=$("vfOk").textContent=""; $("vfResend").disabled=true;
+  let r,j; try{ r=await fetch("/api/auth/verify/resend",{method:"POST"}); j=await r.json(); }
+  catch(e){ r={ok:false}; j={error:"Couldn't reach Pit Crew. Check your internet connection, then try again."}; }
+  $("vfResend").disabled=false; $(r.ok?"vfOk":"vfErr").textContent=j.error||j.message;
+};
+$("vfChangeBtn").onclick=()=>{ $("vfChange").hidden=false; $("vfNewEmail").focus(); };
+$("verifyForm").onsubmit=async e=>{
+  e.preventDefault(); $("vfErr").textContent=$("vfOk").textContent="";
+  let r,j; try{ r=await fetch("/api/auth/email",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({email:$("vfNewEmail").value,password:$("vfPass").value})}); j=await r.json(); }
+  catch(x){ r={ok:false}; j={error:"Couldn't reach Pit Crew. Check your internet connection, then try again."}; }
+  if(!r.ok){ $("vfErr").textContent=j.error; return; }
+  $("vfEmail").textContent=j.email; $("vfChange").hidden=true; $("vfPass").value=""; $("vfOk").textContent=j.message;
+};
+$("vfOut").onclick=async()=>{ try{ await fetch("/api/auth/logout",{method:"POST"}); }catch(x){} location.hash=""; location.reload(); };

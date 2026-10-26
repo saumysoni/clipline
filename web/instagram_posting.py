@@ -202,11 +202,15 @@ def _times(data, items, job):
     if mode == "same":  # the YouTube time if it's already on YouTube, else the YouTube card's schedule
         ups = {u["idx"]: u for u in job.get("uploads") or []}
         mode = data.get("yt_schedule") if data.get("yt_schedule") in MODES else job.get("schedule", "d18")
-        planned = yt.plan_times(len(items), mode, data.get("tz"), data.get("yt_start"), _every(data.get("yt_every")))
+        # Only Shorts not on YouTube yet need the YouTube card's plan: ones already there keep their YouTube time, so
+        # an empty YouTube date field (e.g. they went up earlier) never blocks them.
+        todo = [it for it in items if it["idx"] not in ups]
+        planned = iter(yt.plan_times(len(todo), mode, data.get("tz"), data.get("yt_start"),
+                                     _every(data.get("yt_every"))) if todo else [])
         out = []
-        for it, t in zip(items, planned):
+        for it in items:
             u = ups.get(it["idx"])
-            out.append(datetime.fromisoformat(u["when"]) if u and u.get("when") else None if u else t)
+            out.append(datetime.fromisoformat(u["when"]) if u and u.get("when") else None if u else next(planned))
         return out
     if mode not in MODES:
         mode = "d18"

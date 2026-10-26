@@ -28,6 +28,9 @@ IG_BUSY = ("waiting", "posting", "done", "check")
 
 
 def _yt_state(job, s, now):
+    wait = next((w for w in job.get("yt_waiting") or [] if w["idx"] == s["idx"]), None)
+    if wait:  # over YouTube's daily limit: goes up after the reset (web/youtube_quota.py)
+        return {"state": "scheduled", "waiting": True, "when": wait.get("when"), "channel": wait.get("channel")}
     up = next((u for u in job.get("uploads") or [] if u["idx"] == s["idx"]), None)
     if up:
         when = datetime.fromisoformat(up["when"]) if up.get("when") else None
@@ -144,7 +147,8 @@ def clips_schedule():
                                  "then connect again."), 400
 
     # Only what isn't already on a platform goes to it.
-    yt_rows = [(j, i) for j, i in rows if want_yt and not any(u["idx"] == i for u in jobs[j].get("uploads") or [])]
+    yt_rows = [(j, i) for j, i in rows if want_yt and not any(u["idx"] == i for u in (jobs[j].get("uploads") or [])
+                                                              + (jobs[j].get("yt_waiting") or []))]
     ig_rows = [(j, i) for j, i in rows if want_ig and not any(p["idx"] == i and p["status"] in IG_BUSY
                                                               for p in jobs[j].get("ig_posts") or [])]
     if not yt_rows and not ig_rows:

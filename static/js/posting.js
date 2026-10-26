@@ -4,7 +4,7 @@
 function showPost(on){
   closeTile();
   $("reviewView").hidden=on; $("postView").hidden=!on;
-  if(on){ document.querySelectorAll("#reel video").forEach(v=>v.pause()); paintPostList(); if(typeof igRefresh==="function") igRefresh(); }
+  if(on){ document.querySelectorAll("#reel video").forEach(v=>v.pause()); paintPostList(); if(typeof igRefresh==="function") igRefresh(); ytToday(); }
   $("err3r").textContent="";
   window.scrollTo(0,0); dock();
 }
@@ -84,9 +84,19 @@ function whenText(iso){
   return (d>new Date() ? "Scheduled for " : "Went out ")+d.toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"})+", "+d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"});
 }
 function markPosted(){
-  const ups=new Map((job.uploads||[]).map(u=>[u.idx,u]));
+  const ups=new Map((job.uploads||[]).map(u=>[u.idx,u])), waits=new Map((job.yt_waiting||[]).map(w=>[w.idx,w]));
   document.querySelectorAll(".short[data-idx]:not(.pending)").forEach(el=>{
-    const u=ups.get(+el.dataset.idx), info=el.querySelector(".ytinfo");
+    const u=ups.get(+el.dataset.idx), info=el.querySelector(".ytinfo"), w=waits.get(+el.dataset.idx);
+    if(!u && w){  // over YouTube's daily limit: it goes up by itself after the reset (web/youtube_quota.py)
+      const box=el.querySelector(".keep input"), lab=el.querySelector(".keep");
+      box.checked=false; box.disabled=true; lab.classList.add("posted"); lab.lastChild.textContent=" Waiting for YouTube";
+      reviewPicked.delete(job.id+":"+w.idx); el.classList.remove("on");
+      let b=info; if(!b){ b=document.createElement("div"); b.className="ytinfo"; el.querySelector(".row").after(b); }
+      const html='<span><b>Waiting for YouTube</b> · goes up after midnight Pacific</span><small>YouTube gives Pit Crew a set number '+
+        'of uploads a day, shared by everyone. This one goes up by itself after the reset'+(w.when?', and goes public '+esc(whenText(w.when).replace("Scheduled for ","").toLowerCase())+' as planned':'')+'.</small>';
+      if(b.dataset.html!==html){ b.innerHTML=html; b.dataset.html=html; }
+      return;
+    }
     if(!u){ if(info) info.remove(); return; }
     const box=el.querySelector(".keep input"), lab=el.querySelector(".keep");
     box.checked=false; box.disabled=true; lab.classList.add("posted");

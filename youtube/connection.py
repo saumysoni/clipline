@@ -6,6 +6,9 @@ Every function takes channel=None (the active channel) or a YouTube channel id. 
 already on YouTube must pass the channel it went up on (its upload record's "channel"), never the active one.
 """
 import json
+import time
+import urllib.error
+import urllib.parse
 import urllib.request
 
 from accounts import db
@@ -105,6 +108,26 @@ def _fill_channel(user_id):
             continue
         if channel:
             db.set_account_id(row["id"], channel["id"], channel)
+
+
+def recheck(row):
+    """Refresh one connection's sign-in and read its channel's name, @handle and picture again (YouTube's rules:
+    stored channel details are refreshed at least every 30 days; web/youtube_upkeep.py). Returns "ok", "gone" (the
+    access was removed in the Google account, so the connection was dropped) or "offline" (try again later)."""
+    try:
+        creds = load_creds(row["user_id"], row=row)
+        if not creds:
+            if row.get("token") and not set(SCOPES) <= set(row["token"].get("scopes") or []):
+                return "ok"  # an older sign-in missing a scope: still connected, the page asks to connect again
+            return "gone"
+        channel = _lookup_channel(creds.token)
+    except (OSError, ValueError, urllib.error.HTTPError) as e:
+        print("Couldn't re-check a YouTube connection:", repr(e)[:200])
+        return "offline"
+    if not channel or channel["id"] != row["account_id"]:
+        return "offline"  # not what was expected: change nothing
+    db.update_connection(row["id"], profile={**channel, "checked_at": time.time()})
+    return "ok"
 
 
 def account(user_id):

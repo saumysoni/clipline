@@ -10,11 +10,12 @@
 <script>(function(){ var t="auto"; try{ t=localStorage.getItem("clipline-theme")||"auto"; }catch(e){} if(t==="light"||t==="dark") document.documentElement.setAttribute("data-theme",t); })();</script>
 <link rel="stylesheet" href="/static/css/tokens.css">
 <link rel="stylesheet" href="/static/legal/legal.css">
+{{HEAD}}
 </head>
 <body class="lg-{{PAGE}}">
 <header class="lg-top">
   <a class="lg-brand" href="/welcome" aria-label="Pit Crew home"><svg viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="lgRed" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF3358"/><stop offset="1" stop-color="#B3001F"/></linearGradient></defs><rect x="1" y="1" width="30" height="30" rx="8" fill="url(#lgRed)"/><g transform="translate(16 16) skewX(-14) translate(-16 -16)" fill="#fff"><rect x="8.6" y="17" width="4.4" height="7.5" rx="1.1" opacity=".55"/><rect x="14.3" y="12.5" width="4.4" height="12" rx="1.1" opacity=".8"/><rect x="20" y="7.5" width="4.4" height="17" rx="1.1"/></g></svg><span>Pit <b>Crew</b></span></a>
-  <a class="lg-btn" href="/">Sign in</a>
+  <a class="lg-btn" href="/#signin">Sign in</a>
 </header>
 <main class="lg-main">
 {{BODY}}
@@ -23,5 +24,6 @@
   <nav aria-label="Pit Crew pages"><a href="/welcome">About Pit Crew</a><a href="/privacy">Privacy policy</a><a href="/terms">Terms of use</a><a href="/data-deletion">Delete your data</a></nav>
   <p>Pit Crew is not made by, endorsed by or affiliated with YouTube, Google, Instagram or Meta.</p>
 </footer>
+{{SCRIPTS}}
 </body>
 </html>

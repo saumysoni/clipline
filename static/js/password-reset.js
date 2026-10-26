@@ -3,7 +3,7 @@
 let resetToken="";
 function showAuthForm(id){
   clearInterval(poll); $("app").hidden=true; $("auth").hidden=false;
-  for(const f of ["authForm","forgotForm","resetForm"]) $(f).hidden = f!==id;
+  for(const f of ["authForm","forgotForm","resetForm","verifyForm"]) $(f).hidden = f!==id;
 }
 function backToSignIn(){
   if(location.hash.startsWith("#reset=")) history.replaceState(null,"",location.pathname);

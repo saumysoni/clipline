@@ -2,15 +2,18 @@
 Confirm your email: after signing up with email + password, Pit Crew emails a link (<APP_URL>/#verify=<token>, valid
 48 hours; only its hash is stored). Opening it marks the email confirmed. Google sign-ins come confirmed by Google.
 
-Pit Crew works before confirming; only the notice emails (Shorts ready, stopped, posting failed: web/notices.py) wait
-for it, so nobody gets mail from an account someone else made with their address. The page shows a banner with Resend.
+Nothing works before confirming (gate() in web/accounts.py: only UNCONFIRMED_OK), so every account is a real address
+Pit Crew can write to, and nobody can use an address that isn't theirs. The page shows "Check your inbox" with Resend
+and Change email, and carries on by itself once the link is opened (also when it's opened on another device).
 """
 import os
+import sqlite3
 import threading
 import time
 import traceback
 
 from flask import g, jsonify, request
+from werkzeug.security import check_password_hash
 
 from accounts import db, mail
 
@@ -23,7 +26,7 @@ SENT = {}  # user id -> times a confirmation link was sent recently
 def send_verification(user, base_url):
     """Email a fresh link (in a background thread: SMTP can take seconds). No SMTP = the link is printed."""
     link = f"{base_url.rstrip('/')}/#verify={db.new_email_verification(user['id'])}"
-    text = (f"Welcome to Pit Crew! Confirm your email so Pit Crew can tell you when your Shorts are ready:\n\n{link}\n\n"
+    text = (f"Welcome to Pit Crew! Confirm your email to start using it:\n\n{link}\n\n"
             f"The link works for {db.VERIFY_HOURS} hours. If you didn't make a Pit Crew account, ignore this email.\n")
 
     def send():
@@ -67,3 +70,31 @@ def auth_verify_resend():
     SENT[user["id"]] = recent + [now]
     send_verification(user, base_url())
     return jsonify(ok=True, message=f"Sent. Check your inbox (and spam) at {user['email']}.")
+
+
+@app.post("/api/auth/email")
+def auth_change_email():
+    """A typo at sign-up: change the address of an account that isn't confirmed yet, and send a new link there."""
+    from web.accounts import EMAIL_RE  # (accounts imports this file)
+    from web.invites import invited, not_invited_message
+    user, data = g.user, request.get_json(force=True)
+    if user["email_verified"]:
+        return jsonify(error="Your email is already confirmed. Change it in Settings."), 400
+    email = str(data.get("email", "")).strip().lower()
+    if not EMAIL_RE.fullmatch(email) or len(email) > 200:
+        return jsonify(error="Type a valid email address.", field="email"), 400
+    if user["password_hash"] and not check_password_hash(user["password_hash"], str(data.get("password", ""))):
+        return jsonify(error="That's not your password.", field="password"), 400
+    if not invited(email):
+        return jsonify(error=not_invited_message(), field="email"), 403
+    now = time.time()
+    recent = [t for t in SENT.get(user["id"], []) if now - t < 900]
+    if len(recent) >= 3:
+        return jsonify(error="We've sent a few links already. Try again in 15 minutes."), 429
+    try:
+        db.change_email(user["id"], email)
+    except sqlite3.IntegrityError:
+        return jsonify(error="There's already an account with this email. Sign in with it instead.", field="email"), 400
+    SENT[user["id"]] = recent + [now]
+    send_verification(db.user_by_id(user["id"]), base_url())
+    return jsonify(ok=True, email=email, message=f"Sent. Check your inbox (and spam) at {email}.")

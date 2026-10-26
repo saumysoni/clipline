@@ -170,12 +170,16 @@ function vuPaintAcct(){
 // The upload button, bar and message for where the upload is.
 function vuPaintPost(j){
   if(!j) return;
-  const p=j.vpost||{}, up=p.state==="uploading";
+  const p=j.vpost||{}, wait=p.state==="waiting", up=p.state==="uploading"||wait;
   ["vuT","vuD","vuTags","vuPrivacy","vuStart"].forEach(f=>$(f).disabled=up);
   $("vuLook").querySelectorAll("button").forEach(b=>b.disabled=up);
   $("vuIdeas").querySelectorAll("button").forEach(b=>b.disabled=up);
   $("vuUpload").disabled=up; $("vuUpBar").hidden=!up;
-  if(up){
+  if(wait){  // YouTube's daily limit (web/youtube_quota.py): it goes up by itself after the reset
+    $("vuUpBar").hidden=true;
+    $("vuUpload").innerHTML='<span class="ms" aria-hidden="true">schedule</span>Waiting for YouTube';
+    $("vuUpMsg").textContent=p.note||"It goes up to YouTube by itself after midnight Pacific time.";
+  } else if(up){
     const pct=Math.round(p.pct||0);
     $("vuUpBar").firstElementChild.style.width=pct+"%";
     $("vuUpload").innerHTML='<span class="spin" aria-hidden="true"></span>Uploading '+pct+'%';
