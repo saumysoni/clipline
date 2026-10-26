@@ -34,6 +34,58 @@ Linux cloud server as on a laptop:**
 - An Apple-GPU (MLX) transcription experiment was set aside for this reason (kept outside git, in
   `_backups/apple-gpu-transcription/`).
 
+## Next: the advanced editor (decided October 2026)
+
+The editor screen (screen 12, `js/editor.js`) is laid out with every tool marked Soon. Next, those tools are built.
+They live **only in the editor of a draft** (Drafts › Edit), never on the Shorts & Reels page: clips there have
+already gone out.
+
+**The four features**
+
+| Feature | What it does |
+|---|---|
+| 1. AI Edit | Remove pauses and filler words, improve the hook, make it shorter, better pacing, edit by editing the transcript text, suggested cuts |
+| 2. Auto Captions | Edit the words, fonts and colours, highlight the spoken word, animations, timing, caption presets |
+| 3. Smart Reframe | Follow the speaker automatically, adjust the crop by hand, zoom / pan keyframes, 9:16 and other aspect ratios, split-screen layouts |
+| 4. Effects & Enhancements | Filters, transitions, text overlays, B-roll, images, music, speed changes, audio effects |
+
+**Framework: Twick** (React components for a multi-track timeline, canvas editing and live preview, with timeline
+APIs; see Twick's documentation). Don't use it until Nesh shares the implementation details.
+OpenCut stays a future option only: its new Editor API is still being rewritten.
+
+**Tech stack**
+
+| Layer | Technology | Purpose |
+|---|---|---|
+| Frontend editor | React + TypeScript + Twick | Timeline, canvas, preview, drag and drop |
+| The rest of Pit Crew | Vanilla JavaScript + CSS (as now) | Every other page stays as it is |
+| Backend | Python + Flask | Editing routes, saving editor projects, render jobs |
+| AI | Gemini / OpenAI through `ai_json()` | Edit suggestions, hooks, smart cuts |
+| Transcription | faster-whisper | Word-level transcript and timings (already in `transcript.json`) |
+| Video | FFmpeg (`ffmpeg_exe()`) | Trims, effects, audio mixing, the final render |
+| Captions | FFmpeg + libass | Styled captions in sync (gotchas 3, 4, 8, 25 still apply) |
+| Face tracking | OpenCV (+ MediaPipe, optional) | Reframing and following the subject (gotcha 2: OpenCV < 5) |
+| Project storage | JSON in the job folder first; a database + file storage in the cloud | The editable timeline and what media it uses |
+
+**What this changes in the rules here (decide each when the work starts):**
+- **The editor is the one exception to "no frontend framework, no build step".** Keep React / TypeScript inside the
+  editor: its own folder (e.g. `editor-app/`) that builds to one bundle under `static/`, mounted into `#s12` by
+  `js/editor.js`. Every other page stays plain JS. Decide whether the built bundle is committed or built by
+  `deploy/setup.sh` / `update.sh` (then the server needs Node, and `update.sh` must build before it restarts).
+- **The page's Save / Discard / Finish stay** (no undo outside the editor): the editor's own undo / redo is extra.
+  Details (`js/short-details.js`) keeps working beside the new tools.
+- **The render stays on the server, with FFmpeg.** The browser preview is only a preview: what goes to YouTube and
+  Instagram is rendered by `pipeline/` (keep it free of web code, the cloud rules above). New work goes in new
+  `pipeline/<feature>.py` files, routes in new `web/<feature>.py` files.
+- **Edits that need the vlog's video** (Trim past the moment, B-roll, Try again) only work while it's kept
+  (`KEEP_ORIGINAL_HOURS`, gotcha 21): say so on the tool, as Try again does.
+- **Hooks must stay true** (gotcha 13) and **no YouTube data to free Gemini** (gotcha 29) for every new AI prompt;
+  each new prompt needs a branch in `tests/fakes.py` `FakeAI.kind()`.
+- **Music and B-roll:** royalty-free tracks only (nothing that gets claimed or muted); B-roll only from the
+  creator's own vlog.
+- Check Twick's licence (and MediaPipe's) before shipping, and add any new service or stored data to the privacy
+  policy (gotcha 26).
+
 ## Run it
 
 ```bash
@@ -434,7 +486,7 @@ The code is split so two people can work on different features without touching 
 
 ## Conventions
 
-- Keep it **dependency-light and single-file-per-concern**. No frontend framework. The only database is
+- Keep it **dependency-light and single-file-per-concern**. No frontend framework (except the advanced editor, see "Next: the advanced editor"). The only database is
   `accounts/db.py` (SQLite from the standard library, accounts and YouTube connections); jobs are still `job.json`
   files. Both are local files for now; in the cloud they need lasting storage (a database server and file storage).
 - User-facing errors: raise `RuntimeError("plain sentence about what happened. What to do.")`. They are
