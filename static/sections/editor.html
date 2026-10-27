@@ -1,5 +1,5 @@
   <!-- Editor (#edit/<vlog>/<short>): a draft Short's advanced editing, opened from Drafts (Edit) and Quick review
-       (Edit draft). Details and AI Edit work; the other tools are laid out, marked Soon (js/editor.js) -->
+       (Edit draft). Details, AI Edit, Trim and the timeline work; the other tools are laid out, marked Soon (js/editor.js) -->
   <section id="s12" hidden>
     <div class="work wide">
       <!-- One bar: Back, the save state (Save / Discard while something is changed), ⋮, Export, Finish (save, then
@@ -37,15 +37,16 @@
               <button type="button" class="iconbtn" id="edUndo" disabled title="Undo an edit (not saved yet)" aria-label="Undo"><span class="ms" aria-hidden="true">undo</span></button>
               <button type="button" class="iconbtn" id="edRedo" disabled title="Redo" aria-label="Redo"><span class="ms" aria-hidden="true">redo</span></button>
               <span class="ed-time" id="edTime">0:00 / 0:00</span>
-              <span class="ed-zoom" title="Zoom comes with the timeline tools"><span class="ms" aria-hidden="true">zoom_out</span><input type="range" min="1" max="4" value="1" disabled aria-label="Timeline zoom"><span class="ms" aria-hidden="true">zoom_in</span></span>
+              <span class="ed-tl-note" id="edTlNote" hidden>Save to play the new parts</span>
+              <span class="ed-zoom" title="Zoom the timeline"><span class="ms" aria-hidden="true">zoom_out</span><input type="range" id="edZoom" min="1" max="8" step="0.5" value="1" aria-label="Timeline zoom"><span class="ms" aria-hidden="true">zoom_in</span></span>
             </div>
+            <!-- The video track is Twick's timeline (editor-app/, mounted by js/editor.js): its own ruler and playhead -->
             <div class="ed-tracks" id="edTracks">
-              <div class="ed-lab"></div><div class="ed-ruler" id="edRuler"></div>
-              <div class="ed-lab"><span class="ms" aria-hidden="true">movie</span>Video</div><div class="ed-track ed-vid" id="edStrip"></div>
+              <div class="ed-lab ed-lab-vid"><span class="ms" aria-hidden="true">movie</span>Video</div>
+              <div class="ed-twick" id="edTwick"><p class="ed-tl-msg">Loading the timeline...</p></div>
               <div class="ed-lab"><span class="ms" aria-hidden="true">closed_caption</span>Captions</div><div class="ed-track ed-soon">Caption editing is coming</div>
               <div class="ed-lab"><span class="ms" aria-hidden="true">graphic_eq</span>Audio</div><div class="ed-track ed-soon">Audio tools are coming</div>
               <div class="ed-lab"><span class="ms" aria-hidden="true">layers</span>Overlays</div><div class="ed-track ed-soon">Text and overlays are coming</div>
-              <div class="ed-head-line" id="edPlayhead" aria-hidden="true"></div>
             </div>
           </div>
         </div>
@@ -63,6 +64,12 @@
             <div class="ed-p-head"><span class="ms" aria-hidden="true">auto_awesome</span><h2>AI Edit</h2></div>
             <p class="ed-p-about">Cut pauses, filler words and slow parts, or let AI keep the best part. Nothing changes until you save.</p>
             <div id="edAI"></div>
+          </div>
+          <!-- Trim (js/editor.js): the timeline's tools; the change is AI Edit's pieces, saved by the same Save -->
+          <div id="edTrimWrap" hidden>
+            <div class="ed-p-head"><span class="ms" aria-hidden="true">content_cut</span><h2>Trim</h2></div>
+            <p class="ed-p-about">Where the Short starts and ends, and what it skips. It can reach past the original moment while the vlog's video is kept.</p>
+            <div id="edTrim"></div>
           </div>
           <div id="edPanel" aria-live="polite"></div>
         </aside>

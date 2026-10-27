@@ -3,8 +3,8 @@ The pieces of the vlog a Short keeps (AI Edit, pipeline/ai_edit.py): moment["pie
 seconds, in order, inside the moment's start..end. No "pieces" (every Short made before AI Edit, and every new one) means
 one piece, start..end. Rendering joins the pieces (pipeline/render.py) and the captions follow (timeline()).
 
-The same list is what a timeline editor (Twick, CLAUDE.md "Next: the advanced editor") would read and write: clips on the
-video track, each a range of the source.
+The same list is what the editor's timeline (Twick, editor-app/, gotcha 31) reads and writes: clips on the video track,
+each a range of the vlog. Trim can reach past the moment; the moment's start..end then grows to fit (web/ai_edit.py).
 """
 
 MIN_PIECE = 0.3  # seconds; anything shorter is dropped (a flash of picture isn't a piece)

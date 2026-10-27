@@ -36,8 +36,9 @@ Linux cloud server as on a laptop:**
 
 ## Next: the advanced editor (decided October 2026)
 
-The editor screen (screen 12, `js/editor.js`) is laid out with a rail of tools. **Details and AI Edit work** (AI Edit:
-Oct 2026, without Twick: plain JS + FFmpeg, gotcha 30); the others are marked Soon and are built next.
+The editor screen (screen 12, `js/editor.js`) is laid out with a rail of tools. **Details, AI Edit and Trim work, on
+Twick's timeline** (AI Edit: plain JS + FFmpeg, gotcha 30; the timeline: Twick, gotcha 31); the others are marked Soon
+and are built next.
 They live **only in the editor of a draft** (Drafts › Edit), never on the Shorts & Reels page: clips there have
 already gone out.
 
@@ -51,9 +52,13 @@ already gone out.
 | 4. Effects & Enhancements | Filters, transitions, text overlays, B-roll, images, music, speed changes, audio effects |
 
 **Framework: Twick** (React components for a multi-track timeline, canvas editing and live preview, with timeline
-APIs; see Twick's documentation). Don't use it until Nesh shares the implementation details. When it comes, its
-video track reads and writes a Short's `pieces` (gotcha 30): the server already renders any list of pieces.
-OpenCut stays a future option only: its new Editor API is still being rewritten.
+APIs). In use since October 2026 for the editor's timeline only (`editor-app/`, gotcha 31): its video track reads and
+writes a Short's `pieces` (gotcha 30), and the server renders them. Its player and canvas aren't used (the editor's own
+`<video>` plays the saved Short). **Licence:** Twick's own "Sustainable Use License" (its `LICENSE.md`, shipped in
+`static/editor-app/LICENSES.txt`): use in commercial projects and bundling it inside a larger service are allowed;
+offering Twick itself as a hosted service, a competing video-editor product, or "substantial revenue from the
+Software's functionality" need a commercial licence (contact@kifferai.com). Keep its notices, don't use its name or logo.
+"Substantial" isn't defined: get it in writing from them before launch. OpenCut stays a future option only.
 
 **Tech stack**
 
@@ -70,10 +75,11 @@ OpenCut stays a future option only: its new Editor API is still being rewritten.
 | Project storage | JSON in the job folder first; a database + file storage in the cloud | The editable timeline and what media it uses |
 
 **What this changes in the rules here (decide each when the work starts):**
-- **The editor is the one exception to "no frontend framework, no build step".** Keep React / TypeScript inside the
-  editor: its own folder (e.g. `editor-app/`) that builds to one bundle under `static/`, mounted into `#s12` by
-  `js/editor.js`. Every other page stays plain JS. Decide whether the built bundle is committed or built by
-  `deploy/setup.sh` / `update.sh` (then the server needs Node, and `update.sh` must build before it restarts).
+- **The editor is the one exception to "no frontend framework, no build step".** React lives only in `editor-app/`,
+  which builds to `static/editor-app/` (`timeline.js`, `style.css`, `LICENSES.txt`), loaded by `js/editor.js` the
+  first time the editor opens and mounted into `#edTwick`. **The built files are committed**, so the server needs no
+  Node: after changing `editor-app/`, rebuild (`cd editor-app && npm ci --ignore-scripts && npm run build`) and commit
+  both. Every other page stays plain JS.
 - **The page's Save / Discard / Finish stay** (no undo outside the editor): the editor's own undo / redo is extra.
   Details (`js/short-details.js`) keeps working beside the new tools.
 - **The render stays on the server, with FFmpeg.** The browser preview is only a preview: what goes to YouTube and
@@ -85,8 +91,8 @@ OpenCut stays a future option only: its new Editor API is still being rewritten.
   each new prompt needs a branch in `tests/fakes.py` `FakeAI.kind()`.
 - **Music and B-roll:** royalty-free tracks only (nothing that gets claimed or muted); B-roll only from the
   creator's own vlog.
-- Check Twick's licence (and MediaPipe's) before shipping, and add any new service or stored data to the privacy
-  policy (gotcha 26).
+- Twick's licence is checked (above); check MediaPipe's before using it. Add any new service or stored data to the
+  privacy policy (gotcha 26): Twick adds none (its analytics are off and its web fonts are stripped, gotcha 31).
 
 ## Run it
 
@@ -128,8 +134,9 @@ The code is split so two people can work on different features without touching 
 | What to make (+ Create asks: upload a vlog, or make Shorts; Make Shorts asks: from a vlog uploaded here, while its video is kept, or a new video file = screen 1) | | `web/vlog_upload.py` (`/shorts`) | `js/make-choice.js`, `sections/make-dialogs.html`, `css/vlog-upload.css` |
 | Shorts & Reels page (header: Create from Vlog = `openMake()`, Upload & Edit = `openCreate()`; the editing tools live in the editor on Drafts, not here (posted clips can't be edited); one filter row: platform tabs left, Select / vlog / sort right; cards (5 a row on a laptop): 9:16 thumbnail (plays), title, platform + date, status pill (one per platform when they differ), views so far (YouTube live count + Reel views, `/api/clips/views` in `web/clip_views.py` via `live_views()`, asked after the cards are drawn, at most once a minute), ⋮ = Play / Edit / Analytics / Download / Delete draft (`clMenuItems`); clips that went out or are going out now, `isOutClip`; drafts and scheduled ones are on their own pages, and a clip that's out on one platform and planned on the other shows only the platform it's out on, `clOnPlat`. `#clBrowse` (bar + grid + Select / dock / schedule dialog) is one clip browser that `clOpen(mode, box, vlog)` moves into Shorts & Reels ("out") or Drafts ("drafts"); platform tabs All / YouTube Shorts / Instagram Reels with counts (`clPlatTabs()`, Shorts & Reels only); vlog filter and sort; Select / Select all only on Drafts (not on Shorts & Reels); Analytics / Download / Edit; schedule several at once on one plan of times; a clip on one platform but not the other has "Post it on Instagram too" / "Post it on YouTube too" on its card (`clPostOne()`: the same dialog, only that platform ticked); titles saved as typed) | | `web/clips.py` | `js/clips.js`, `sections/clips.html`, `css/clips.css` |
 | Quick review (Drafts' Shorts & Reels tab: clicking a draft's picture, or ⋮ › Quick review, opens a panel beside the cards (over them below 1280 px, full screen on a phone): player with a Short / Thumbnail switch (`sdView`), vlog, status per platform, the simple editing in `js/short-details.js` (`shortDetails()`, shared with the editor's Details; hook `wireHook(el, s, {jid, pre, apply})`, look, hashtags / YouTube title / Instagram caption `postTextHTML(s, pre)` + `wirePostText(el, s, jid)`, same routes; **nothing is saved until Save**: changes wait in `qrPend` (post-text's `hold`, hook's `apply`), Cancel goes back to what's saved, closing or leaving with changes asks first), an "AI suggestions" Soon block; Edit draft / Schedule (this clip only) / Download. Saving a hook or look remakes the Short (hook first, then the look): the clip list's 3 s check follows it and `qrSync()` redraws the panel; never `sendMoment()` from here, it starts the review page's polling) | | `web/job_status.py`, `web/hooks.py`, `web/thumbnail_look.py`, `web/post_text.py`, `web/clips.py` (title) | `js/short-details.js`, `js/quick-review.js`, `sections/quick-review.html`, `css/quick-review.css` |
-| Editor (screen 12, `#edit/<vlog>/<short>`, a draft's Edit on Drafts and Quick review's Edit draft; its own layout: the sidebar is hidden (`body.ed-on`), one bar = Back (Drafts), "Edit Short", the save state (Saved / n changes not saved + Save / Discard, Cmd/Ctrl+S), ⋮, Export (video, thumbnail), Finish (saves, waits for a remake, then Schedule it / Back to Drafts: `#edFin`); the Details tool has the same editing as Quick review (`shortDetails()`, title included); player with Short / Thumbnail; tool rail (Details, AI Edit, Captions, Reframe, Trim, Text & Overlays, Audio, Thumbnail, Effects), player, timeline (playhead follows the player, click to jump), the chosen tool's panel. **Most tools are laid out but not working yet** (`ED_TOOLS`: each lists what it will do, marked Soon; `built: true` = a real panel); what works: Details, AI Edit (`js/ai-edit.js`), player, Finish, Export, ⋮ (Quick review, Open in its vlog = the old editor with Try again, Delete draft). Phones get a "needs a bigger screen" note) | | `web/clips.py` | `js/editor.js`, `sections/editor.html`, `css/editor.css` |
-| AI Edit (the editor's first tool: the Short's words as a transcript, click a word or a pause to cut it, Shift-click a stretch; Remove pauses (> 0.7 s) / Tighten pacing (> 0.35 s), Remove filler words, Make it shorter (30 / 45 / 60 s: the AI keeps the best sentences, without it the first ones that fit), Suggest cuts (the AI: repeat / false start / slow / off topic, each Apply / Dismiss), Improve hook (opens Details' hook and presses Rewrite); Undo / Redo on the timeline; while edits wait, the player skips the parts to be cut and the timeline hatches them; saved by the editor's Save as the first remake of `shortDetails()` (`o.extra`); only inside the moment, needs the vlog's video) | `pipeline/pieces.py` (`kept`, `length`, `timeline`, `said`), `pipeline/ai_edit.py`, `pipeline/render.py` (joins the pieces) | `web/ai_edit.py` (`/api/ai-edit/<job>/<idx>`, `/suggest`, `/apply`) | `js/ai-edit.js`, `css/ai-edit.css`, `sections/editor.html` (`#edAIWrap`, `#edUndo`) |
+| Editor (screen 12, `#edit/<vlog>/<short>`, a draft's Edit on Drafts and Quick review's Edit draft; its own layout: the sidebar is hidden (`body.ed-on`), one bar = Back (Drafts), "Edit Short", the save state (Saved / n changes not saved + Save / Discard, Cmd/Ctrl+S), ⋮, Export (video, thumbnail), Finish (saves, waits for a remake, then Schedule it / Back to Drafts: `#edFin`); the Details tool has the same editing as Quick review (`shortDetails()`, title included); player with Short / Thumbnail; tool rail (Details, AI Edit, Captions, Reframe, Trim, Text & Overlays, Audio, Thumbnail, Effects), player, timeline (Twick's, below), the chosen tool's panel. **Most tools are laid out but not working yet** (`ED_TOOLS`: each lists what it will do, marked Soon; `built: true` = a real panel); what works: Details, AI Edit (`js/ai-edit.js`), Trim and the timeline, player, Finish, Export, ⋮ (Quick review, Open in its vlog = the old editor with Try again, Delete draft). Phones get a "needs a bigger screen" note) | | `web/clips.py` | `js/editor.js`, `sections/editor.html`, `css/editor.css` |
+| Editor timeline and Trim (Twick's timeline: the Short's pieces as parts laid end to end, with the vlog's pictures; drag a part's ends to trim it, Split at the playhead (on the timeline only until a half is trimmed or deleted), Delete part (button or Delete key), Start / End −5 / −1 / +1 / +5 s (reach back into the vlog or carry on, up to its ends), zoom; a ruler click moves the player where the saved video has that part, else "Save to play the new parts"; the playhead follows the player; read-only, with the reason, when the vlog's video is gone. Every change goes through AI Edit's pieces, so Undo / Redo / Save / Discard cover it) | (`pipeline/pieces.py`) | `web/ai_edit.py` (`/apply` takes pieces anywhere in the vlog), `/api/preview/<job>` (the vlog's video for the pictures) | `editor-app/` (`src/main.jsx`, `src/timeline.css`, `src/player-state.jsx`, `vite.config.js`), built `static/editor-app/`; `js/editor.js` (`edTl*`, `edTrimPaint`), `#edTwick`, `#edTrimWrap` |
+| AI Edit (the editor's first tool: the Short's words as a transcript, click a word or a pause to cut it, Shift-click a stretch; Remove pauses (> 0.7 s) / Tighten pacing (> 0.35 s), Remove filler words, Make it shorter (30 / 45 / 60 s: the AI keeps the best sentences, without it the first ones that fit), Suggest cuts (the AI: repeat / false start / slow / off topic, each Apply / Dismiss), Improve hook (opens Details' hook and presses Rewrite); Undo / Redo on the timeline; while edits wait, the player skips the parts to be cut; saved by the editor's Save as the first remake of `shortDetails()` (`o.extra`); needs the vlog's video. `aiEdit()` also keeps the pending pieces for the timeline (`pieces()` / `setPieces()`): one list, one Undo, one save state for both tools) | `pipeline/pieces.py` (`kept`, `length`, `timeline`, `said`), `pipeline/ai_edit.py`, `pipeline/render.py` (joins the pieces) | `web/ai_edit.py` (`/api/ai-edit/<job>/<idx>`, `/suggest`, `/apply`) | `js/ai-edit.js`, `css/ai-edit.css`, `sections/editor.html` (`#edAIWrap`, `#edUndo`) |
 | Thumbnail text and Try again (Quick review and the editor's Details, saved with Save: the text is redrawn from the saved frames and plan, no AI; Try again asks the AI for another frame and other text than the last plan (`make_thumbnail(..., avoid=plan)`; the same frame again falls back to the best other one), keeping the creator's look; Try again needs the vlog's video) | `pipeline/thumbnails/` (`thumb_plan`, `avoid`) | `web/thumbnail_edit.py` (`/api/thumb`, `/thumb-text`, `/thumb-again`) | `js/short-details.js`, `css/quick-review.css` |
 | Delete a clip that went out (Shorts & Reels › ⋮ › Delete: tick YouTube and/or Instagram. YouTube: Pit Crew deletes the Short on the channel it went to (`yt.delete_video`, already gone = just forgotten). **Instagram can't be deleted by apps with Instagram Login** (only Facebook Login), so the dialog has the creator delete it in Instagram, then `/instagram-gone` reads the Reel: error 100 = gone, then it's forgotten. Off both = a draft again) | | `web/clip_remove.py` | `js/clip-remove.js`, `sections/clips.html` (`#clRm`), `css/clips.css` |
 | ⋮ menu on clip and vlog cards (`cardMenu(btn, items)`, `cmButton(label)`: one shared list, `position:fixed` so a card can't clip it) | | | `js/card-menu.js` (before `vlogs.js`), `css/card-menu.css` |
@@ -487,7 +494,9 @@ The code is split so two people can work on different features without touching 
     Pit Crew's read on Analytics is written by the rules (`analytics_coach._providers()`). What the creator typed is fine.
     Any new prompt with YouTube data must check `youtube_data_ok()`.
 30. **A Short can keep several pieces of its moment (AI Edit).** `s["pieces"]` = `[[a, b], ...]` in the vlog's seconds, inside
-    `start`..`end` (none = one piece, `start`..`end`: every Short made before, and every new one). **Not `keep`: that's the
+    `start`..`end` (none = one piece, `start`..`end`: every Short made before, and every new one). Trim can reach past the
+    moment: `/apply` takes pieces anywhere in the vlog (0..its duration) and sets `start` / `end` to the first piece's start
+    and the last one's end (one piece = just a new `start` / `end`, no pieces), so "inside `start`..`end`" stays true. **Not `keep`: that's the
     "Post this" tick on every Short** (the first try used it and every route broke). `pipeline/pieces.py` is the only place that
     reads it: `kept()` (normalized), `length()` (what the pages show as the Short's length: `pipeline.short_length`, `shortLen()`
     in `js/core.js`; never `end - start` again), `timeline()` (the words on the Short's own clock, for captions) and `said()` (what
@@ -496,6 +505,21 @@ The code is split so two people can work on different features without touching 
     the first piece). After a cut, `honest_hooks()` drops a hook with a number no longer said and says so (`edit_note`). Try
     again (a new moment) drops the pieces; a new hook or look keeps them. AI Edit's AI only reads the Short's own words
     (timeout 60 s, one short busy wait: the creator is waiting on the page).
+31. **Twick's timeline (`editor-app/src/main.jsx`) only works with these, each found the hard way:** the track's type is
+    `"element"` (Twick ignores a clip dragged on its own track of any other type), every clip has its `trackId` (or
+    Delete does nothing), a `frame` (or a trim throws in `getPosition`), a non-empty `src` (or its validator silently undoes
+    every trim: no vlog video = an empty `data:` URL) and `mediaDuration` (the vlog's length, so nothing waits on the
+    video). Each layout gets new clip ids (a clip keeps its own dragged size while its id stays). Twick's own split isn't
+    used (it reloads the video's details for each half and loses the clip if that fails): Split and Delete are worked out
+    on the pieces; a split alone isn't a change (touching pieces are one, `aeNorm`). Its right-click menu and dropping
+    files are caught before they reach it. Changes are reported after Twick's own update (`setTimeout`), and the page
+    lays the timeline out again from `aiEdit()`'s pieces after every change. Its calls do nothing until it's drawn.
+    Privacy: `@twick/live-player` (its canvas player, ~3 MB) is replaced by a stand-in (`src/player-state.jsx`), its
+    PostHog analytics are off (`window.__TWICK_ANALYTICS_DISABLED__` + `analytics.enabled: false`), its stylesheet's
+    `@import`s of Google Fonts / cdnfonts are dropped and every rule is scoped to `.pc-tl` (its class names are generic:
+    `.card`, `.btn`), all in `vite.config.js`. Its ruler is styled inline in white: `src/timeline.css` overrides it.
+    `npm install` needs `--ignore-scripts` (Puppeteer and telemetry downloads). The browser check
+    (`tests/browser/check_editor.py`) covers all of it: run it after any change here.
 
 ## Conventions
 
@@ -523,6 +547,7 @@ The code is split so two people can work on different features without touching 
 |---|---|---|---|
 | Fast (unit + combined flows) | `python -m unittest discover -s tests -t .` | every feature through the real routes: accounts, email links, deleting an account, uploads in pieces, the queue, Stop / Try again, restarts, limits, YouTube and Instagram posting, editing, vlog upload, analytics (a strict fake of YouTube Analytics), retention, pages, security, YouTube's data rules, Meta's callbacks; whole creator journeys (`test_flows.py`) | ~45 s |
 | System | `python -m unittest discover -s tests/system -t . -p "system_*.py"` | the real FFmpeg pipeline (vertical Shorts with sound, captions burned in with the highlight, hook banner, designed thumbnails, look switch, cover frame, preview, vlog thumbnail) and the real server process over HTTP (20 MB upload, request limits, killed mid-vlog and started again) | ~2 min |
+| Browser | `python -m tests.browser.check_editor` (needs `pip install playwright` + `python -m playwright install chromium`) | the editor in Chromium against the real server and FFmpeg: the timeline, Trim, AI Edit and Save together (drag both ends, reach past the moment, split, delete, move, undo / redo, zoom, ruler, too short, Discard, the vlog's ends, no video, theme), then what the server saved; no requests outside Pit Crew, no page errors | ~3 min |
 | A/B | `python -m tests.ab.compare [encoder captions looks slots whisper]` | our options side by side: speed, size, quality (SSIM), thumbnail text contrast, JOB_SLOTS 1 vs 2, speech settings where the model exists | ~2 min |
 | Stress | `python -m tests.stress.stress [--users 25 --seconds 60 --vlogs 1]` | a copy of Pit Crew under many people at once: p50/p95 per request, errors, every vlog finished, memory, threads | 1-4 min |
 | Live check | `python -m tests.stress.stress live --url https://<domain> --email <test account>` | gentle and read-only on the real site; stops itself on errors or slow answers | ≤ 5 min |

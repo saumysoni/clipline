@@ -6,7 +6,8 @@ token.json
 # Accounts database and the session secret (holds every user's YouTube connection)
 data/
 
-# Local Python environment and caches
+# Local Python environment and caches (and the editor timeline's packages: editor-app/, npm install)
+editor-app/node_modules/
 .venv/
 __pycache__/
 *.pyc

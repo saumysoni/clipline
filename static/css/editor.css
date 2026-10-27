@@ -66,19 +66,17 @@ dialog#edFin::backdrop{background:rgba(8,10,18,.62)}
 .ed-zoom{margin-left:auto;display:flex;align-items:center;gap:6px;color:var(--faint)}
 .ed-zoom .ms{font-size:18px}
 .ed-zoom input{width:96px;accent-color:var(--primary)}
-.ed-tracks{--lab:96px;--at:0;position:relative;display:grid;grid-template-columns:var(--lab) minmax(0,1fr);row-gap:8px;align-items:center;cursor:pointer}
+.ed-tracks{--lab:96px;position:relative;display:grid;grid-template-columns:var(--lab) minmax(0,1fr);row-gap:8px;align-items:center}
+/* The video track: Twick's timeline (its ruler above the parts), the label beside the parts */
+.ed-twick{height:112px;min-width:0;overflow:hidden}
+.ed-lab-vid{align-self:start;margin-top:52px}
+.ed-tl-msg{margin:0;padding:40px 0 0;font-size:.78rem;color:var(--faint)}
+.ed-tl-note{font-size:.74rem;color:var(--primary-text);margin-left:8px}
+.ed-tl-note[hidden]{display:none}
 .ed-lab{display:flex;align-items:center;gap:7px;font-size:.78rem;font-weight:600;color:var(--muted)}
 .ed-lab .ms{font-size:17px;color:var(--faint)}
-.ed-ruler{position:relative;height:16px;border-bottom:1px solid var(--line)}
-.ed-ruler span{position:absolute;top:0;transform:translateX(-50%);font:500 .66rem/1 var(--mono);color:var(--faint)}
-.ed-ruler span:first-child{transform:none;margin-left:7px}  /* clear of the playhead */
-.ed-ruler span:last-child:not(:first-child){transform:translateX(-100%)}
 .ed-track{height:34px;border-radius:8px}
-.ed-vid{background-color:#0b0b10;background-size:auto 100%;background-repeat:repeat-x;border:1px solid var(--line)}
 .ed-soon{display:flex;align-items:center;padding:0 10px;border:1px dashed var(--line-2);font-size:.74rem;color:var(--faint);overflow:hidden;white-space:nowrap}
-.ed-head-line{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--primary);pointer-events:none;
-  left:calc(var(--lab) + (100% - var(--lab)) * var(--at))}
-.ed-head-line::before{content:"";position:absolute;top:-2px;left:-4px;width:10px;height:10px;border-radius:50%;background:var(--primary)}
 /* the chosen tool */
 .ed-panel{padding:16px}
 .ed-p-head{display:flex;align-items:center;gap:10px}

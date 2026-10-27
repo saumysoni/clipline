@@ -1,5 +1,5 @@
 /* AI Edit in the editor (js/ai-edit.js): length line, quick actions, Make it shorter, suggested cuts, the transcript
-   (words and pauses to click), and the cuts marked on the timeline's video track. Colours from tokens.css only. */
+   (words and pauses to click); and Trim, the timeline's panel. Colours from tokens.css only. */
 #edAIWrap[hidden]{display:none}
 #edAI{display:flex;flex-direction:column;gap:12px}
 #edAI .ed-note,#edAI .ed-fin-wait{margin:0}
@@ -50,8 +50,18 @@
 .ae-p{padding:0 6px;border:1px dashed var(--line-2);font:600 .7rem/1.6 var(--mono);color:var(--muted);vertical-align:1px}
 .ae-w.cut{color:var(--faint);text-decoration:line-through 2px var(--primary-text);background:var(--primary-soft)}
 .ae-p.cut{border-style:solid;border-color:var(--primary-text);color:var(--primary-text);background:var(--primary-soft);text-decoration:line-through}
-/* cuts waiting to be saved, on the timeline's video track */
-#edStrip{position:relative;overflow:hidden}
-.ae-mark{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(135deg,var(--primary-soft) 0 6px,transparent 6px 12px),rgba(8,8,12,.55);
-  border-left:2px solid var(--primary);border-right:2px solid var(--primary);pointer-events:none}
+/* Trim (js/editor.js edTrimPaint): the length, nudging either end, split and delete */
+#edTrimWrap[hidden]{display:none}
+#edTrim{display:flex;flex-direction:column;gap:12px;margin-top:12px}
+#edTrim .ed-note{margin:0}
+.tr-sum{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;padding:10px 12px;border-radius:12px;background:var(--raised);font-size:.86rem}
+.tr-sum b{font:600 .9rem/1 var(--mono)}
+.tr-sum small{flex-basis:100%;font-size:.74rem;color:var(--muted)}
+.tr-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.tr-row>span{display:flex;flex-direction:column;gap:2px;flex:1 1 100%;font-size:.84rem}
+.tr-row small{font-size:.72rem;color:var(--muted)}
+.tr-row .ghost.sm{flex:1;min-width:0;font-family:var(--mono)}
+.tr-acts{display:flex;flex-wrap:wrap;gap:8px}
+.tr-acts .ghost{flex:1 1 140px;min-width:0;justify-content:center}
+#edTrim .ae-help{margin:0}
 @media (max-width:1023px){ .ae-acts{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))} }

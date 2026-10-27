@@ -4,7 +4,10 @@
 // keeps the best 30 / 45 / 60 seconds), suggested cuts (the AI, each with Apply), improve the hook (Details' Rewrite).
 // Nothing is saved until the editor's Save: the change goes in as the first remake of shortDetails() (js/short-details.js,
 // o.extra), so it and the other changes are made one after another. While changes wait, the player skips the parts
-// that will be cut (where the current video has them) and the timeline marks them. Undo / Redo step through them.
+// that will be cut (where the current video has them). Undo / Redo step through them.
+// It also keeps the pieces for the editor's timeline (Trim, js/editor.js: pieces() / setPieces()): one list of what the
+// Short will keep, whichever tool changed it, so Undo, the save state and Save cover both. The timeline can reach past
+// the moment, anywhere in the vlog; the words shown are the moment's (after a save, the moment is the new reach).
 // Times are the vlog's seconds; the server keeps the result as the Short's "pieces" (pipeline/pieces.py).
 const AE_PAD=0.12, AE_PAUSE={long:0.7, tight:0.35}, AE_MIN_PIECE=0.3, AE_JOIN=0.05;  // pipeline/ai_edit.py, pieces.py
 function aeNorm(ranges, s, e){  // pipeline/pieces.py normalize()
@@ -29,51 +32,71 @@ const aeIn=(p,t)=>p.some(([a,b])=>a<=t&&t<=b);
 // A time in a list of pieces as a time in the video they make (or null if it isn't in them), and back.
 function aeToFile(p,t){ let at=0; for(const [a,b] of p){ if(a<=t&&t<=b) return at+t-a; at+=b-a; } return null; }
 function aeToSrc(p,t){ let at=0; for(const [a,b] of p){ if(t<=at+b-a) return a+Math.max(0,t-at); at+=b-a; } return p.length?p[p.length-1][1]:0; }
-// o: {box, video, strip, onChange() (something changed: the editor's save state), onHook() (open Details' Rewrite)}
+// o: {box, video, onChange() (something changed: the editor's save state and timeline), onHook() (open Details'
+// Rewrite), onLoad(info) (the words and pieces are in: the editor lays out its timeline)}
 function aiEdit(o){
-  let c=null, info=null, toks=[], gaps=[], hist=[], fut=[], gen=0, video="", busy=false, last=null, sugs=null, note="", nowTok=-1;
-  const S=()=>info.start, E=()=>info.end;
-  const changed=()=>{ paintSum(); paintMarks(); o.onChange&&o.onChange(); };
-  const snap=()=>toks.map(t=>t.cut);
-  function remember(){ hist.push(snap()); if(hist.length>100) hist.shift(); fut=[]; }
-  function restore(st){ st.forEach((v,i)=>{ if(toks[i]) toks[i].cut=v; }); paintTokens(); changed(); }
-  // The words and the pauses between them, from what's kept now.
+  let c=null, info=null, cur=[], toks=[], gaps=[], hist=[], fut=[], gen=0, video="", busy=false, last=null, sugs=null, note="", nowTok=-1;
+  const S=()=>info.start, E=()=>info.end, DUR=()=>Math.max(info.duration||0, E());
+  const changed=()=>{ paintSum(); o.onChange&&o.onChange(); };
+  const same=(p,q)=>p.length===q.length && p.every((r,i)=>Math.abs(r[0]-q[i][0])<0.02 && Math.abs(r[1]-q[i][1])<0.02);
+  const mid=t=>t.k==="w"?(t.s+t.e)/2:(t.a+t.b)/2;
+  const isCut=t=>!aeIn(cur,mid(t));  // a word or pause is cut when its middle isn't in a kept piece
+  // What the Short will keep from now on (one step to undo), tidied: in order, inside the vlog, too-short bits dropped.
+  function set(p){
+    p=aeNorm(p,0,DUR());
+    if(!p.length || same(p,cur)) return false;
+    hist.push(cur); if(hist.length>100) hist.shift(); fut=[];
+    cur=p; paintTokens(); changed(); return true;
+  }
+  // The words and the pauses between them (each word knows the gap on each side).
   function build(){
     toks=[]; gaps=[];
-    const wt=info.words.map(w=>({k:"w", w:w.w, s:w.s, e:w.e, filler:w.filler, cut:!w.kept}));
-    // a gap between two words (L, R; null at the Short's start / end), and its pause chip when it's long enough
+    const wt=info.words.map(w=>({k:"w", w:w.w, s:w.s, e:w.e, filler:w.filler}));
+    // a gap between two words (L, R; null at the moment's start / end), and its pause chip when it's long enough
     const gap=(a,b,L,R)=>{
       let t=null;
       if(b-a>=AE_PAUSE.tight){
         const a2=L?a+AE_PAD:a, b2=R?b-AE_PAD:b;  // a breath stays next to speech; nothing before the first word / after the last
-        if(b2-a2>=0.15) t={k:"p", a:a2, b:b2, len:b-a, cut:!aeIn(info.pieces,(a2+b2)/2)};
+        if(b2-a2>=0.15) t={k:"p", a:a2, b:b2, len:b-a};
       }
-      gaps.push({a,b,L,R,t}); if(t) toks.push(t);
+      const g={a,b,L,R,t}; gaps.push(g); if(L) L.gr=g; if(R) R.gl=g; if(t) toks.push(t);
     };
     if(!wt.length) return;
     gap(S(), wt[0].s, null, wt[0]);
     wt.forEach((w,i)=>{ toks.push(w); gap(w.e, wt[i+1]?wt[i+1].s:E(), w, wt[i+1]||null); });
+    toks.forEach((t,i)=>t.i=i);
   }
-  // What would be kept with the cuts as they are on the page.
-  function pending(){
-    const cuts=[];
-    for(const t of toks) if(t.k==="w" && t.cut) cuts.push([t.s,t.e]);
-    for(const g of gaps){
-      const lc=g.L?g.L.cut:true, rc=g.R?g.R.cut:true;
-      if(lc && rc && (g.L||g.R)) cuts.push([g.a,g.b]);
-      else if(g.t && g.t.cut) cuts.push([g.t.a,g.t.b]);
+  // Cut (to=true) or keep these tokens, in one step. Cutting a word also cuts the gap beside it when the word on the
+  // other side is cut too (or there's none), so no silence is left between two cuts; keeping a word brings back the
+  // breath next to it (a short gap: the whole gap, if the other side is kept).
+  function mark(idx, to){
+    const fl=toks.map(isCut), ranges=[];
+    idx.forEach(i=>fl[i]=to);
+    const cutSide=w=>w?fl[w.i]:true;
+    for(const i of idx){
+      const t=toks[i];
+      if(t.k==="p"){ ranges.push([t.a,t.b]); continue; }
+      ranges.push([t.s,t.e]);
+      for(const g of [t.gl,t.gr]){
+        if(!g) continue;
+        const other=g===t.gl?g.L:g.R;
+        if(to){ if(cutSide(other)) ranges.push([g.a,g.b]); }
+        else if(!g.t){ if(!other || !fl[other.i]) ranges.push([g.a,g.b]); }
+        else ranges.push(g===t.gl?[g.t.b,g.b]:[g.a,g.t.a]);
+      }
     }
-    return aeMinus([[S(),E()]], cuts, S(), E());
+    return set(to ? aeMinus(cur,ranges,0,DUR()) : cur.concat(ranges));
   }
-  const same=(p,q)=>p.length===q.length && p.every((r,i)=>Math.abs(r[0]-q[i][0])<0.02 && Math.abs(r[1]-q[i][1])<0.02);
-  const dirty=()=>!!info && toks.length>0 && !same(pending(), info.pieces);
+  const pending=()=>cur;
+  const dirty=()=>!!info && !same(cur, info.pieces);
   async function load(){
-    const my=++gen, cl=c; info=null; toks=[]; gaps=[]; hist=[]; fut=[]; sugs=null; note=""; last=null;
+    const my=++gen, cl=c; info=null; cur=[]; toks=[]; gaps=[]; hist=[]; fut=[]; sugs=null; note=""; last=null;
     o.box.innerHTML='<p class="qr-wait">Getting the words of this Short...</p>'; changed();
     let j; try{ const r=await fetch("/api/ai-edit/"+cl.job+"/"+cl.idx); j=await r.json(); if(!r.ok) throw new Error(j.error||""); }
     catch(e){ if(my===gen) o.box.innerHTML='<p class="qr-wait">'+esc(e.message||"Couldn't load the words. Check your internet connection, then try again.")+'</p>'; return; }
     if(my!==gen) return;
-    info=j; video=cl.video; note=j.note||""; build(); paint(); changed();
+    info=j; cur=info.pieces.map(p=>[...p]); video=cl.video; note=j.note||""; build(); paint(); changed();
+    o.onLoad&&o.onLoad(info);
   }
   // ---- drawing
   function paint(){
@@ -85,7 +108,7 @@ function aiEdit(o){
       (info.can_apply?'':'<div class="ed-note ae-warn">'+esc(info.why_not)+'</div>')+
       (c&&c.remaking||busy?'<div class="ed-fin-wait"><span class="spin" aria-hidden="true"></span><span>Remaking the Short with your edits...</span></div>':'')+
       '<div class="ae-sum" id="aeSum" role="status"></div>'+
-      (info.words.length?'':'<p class="ae-empty">There\'s no talking in this Short, so there are no words to cut by. Trim is coming next.</p>')+
+      (info.words.length?'':'<p class="ae-empty">There\'s no talking in this Short, so there are no words to cut by. Use Trim to cut it on the timeline.</p>')+
       '<div class="ae-acts">'+
         aeBtn("long","graphic_eq","Remove pauses",nPause("long")?nPause("long")+" over 0.7 s":"None found",can&&nPause("long"))+
         aeBtn("tight","timer","Tighten pacing",nPause("tight")?"Every pause over 0.35 s":"Already tight",can&&nPause("tight"))+
@@ -104,7 +127,7 @@ function aiEdit(o){
         '<div class="ae-tr" id="aeTr" aria-label="Transcript of this Short"></div>':'');
     o.box.querySelectorAll(".ae-act").forEach(b=>b.onclick=()=>act(b.dataset.a));
     o.box.querySelectorAll("[data-short]").forEach(b=>b.onclick=()=>shorten(+b.dataset.short,b));
-    const all=$("aeAll"); if(all) all.onclick=()=>{ remember(); toks.forEach(t=>t.cut=false); paintTokens(); changed(); };
+    const all=$("aeAll"); if(all) all.onclick=()=>set(cur.concat([[S(),E()]]));
     paintTokens(); paintSugs(); paintSum();
   }
   function aeBtn(a,icon,name,sub,on){
@@ -114,23 +137,22 @@ function aiEdit(o){
   function paintTokens(){
     const tr=$("aeTr"); if(!tr) return;
     const can=info.can_apply && !busy && !(c&&c.remaking);
-    tr.innerHTML=toks.map((t,i)=>t.k==="w"
-      ? '<button type="button" class="ae-w'+(t.cut?' cut':'')+(t.filler?' fill':'')+(i===nowTok?' now':'')+'" data-t="'+i+'" aria-pressed="'+t.cut+'"'+(can?'':' disabled')+'>'+esc(t.w)+'</button>'
-      : '<button type="button" class="ae-p'+(t.cut?' cut':'')+'" data-t="'+i+'" aria-pressed="'+t.cut+'" title="A pause of '+t.len.toFixed(1)+' seconds"'+(can?'':' disabled')+'>'+t.len.toFixed(1)+' s</button>').join(" ");
+    tr.innerHTML=toks.map((t,i)=>{ const x=isCut(t); return t.k==="w"
+      ? '<button type="button" class="ae-w'+(x?' cut':'')+(t.filler?' fill':'')+(i===nowTok?' now':'')+'" data-t="'+i+'" aria-pressed="'+x+'"'+(can?'':' disabled')+'>'+esc(t.w)+'</button>'
+      : '<button type="button" class="ae-p'+(x?' cut':'')+'" data-t="'+i+'" aria-pressed="'+x+'" title="A pause of '+t.len.toFixed(1)+' seconds"'+(can?'':' disabled')+'>'+t.len.toFixed(1)+' s</button>'; }).join(" ");
     tr.querySelectorAll("button").forEach(b=>b.onclick=e=>click(+b.dataset.t,e.shiftKey));
   }
   function click(i,range){
-    remember();
-    const to=!toks[i].cut;
-    if(range && last!=null){ const [a,b]=[Math.min(last,i),Math.max(last,i)]; for(let k=a;k<=b;k++) toks[k].cut=to; }
-    else toks[i].cut=to;
-    last=i; paintTokens(); changed();
+    const to=!isCut(toks[i]), idx=[];
+    if(range && last!=null){ for(let k=Math.min(last,i);k<=Math.max(last,i);k++) idx.push(k); } else idx.push(i);
+    last=i; mark(idx,to);
   }
   function paintSum(){
     const el=$("aeSum"); if(!el||!info) return;
     const now=aeLen(info.pieces), then=aeLen(pending()), d=Math.round(now-then);
     el.innerHTML= dirty() ? 'Now <b>'+fmt(now)+'</b><span class="ms" aria-hidden="true">arrow_forward</span><b>'+fmt(then)+'</b> after your edits'+
-      (d?' <span class="ae-d">('+(d>0?"−":"+")+Math.abs(d)+' s)</span>':'')+(then<info.min?' <span class="ae-bad">At least '+info.min+' s</span>':'')
+      (d?' <span class="ae-d">('+(d>0?"−":"+")+Math.abs(d)+' s)</span>':'')+(then<info.min?' <span class="ae-bad">At least '+info.min+' s</span>':'')+
+      (then>info.max?' <span class="ae-bad">At most '+fmt(info.max)+'</span>':'')
       : 'This Short is <b>'+fmt(now)+'</b> long'+(info.pieces.length>1?' ('+info.pieces.length+' parts)':'');
   }
   // ---- quick actions
@@ -138,14 +160,10 @@ function aiEdit(o){
     $("aeErr").textContent="";
     if(a==="hook"){ o.onHook&&o.onHook(); return; }
     if(a==="cuts"){ suggest(); return; }
-    remember();
-    if(a==="fill") toks.forEach(t=>{ if(t.k==="w"&&t.filler) t.cut=true; });
-    else toks.forEach(t=>{ if(t.k==="p" && t.len>=AE_PAUSE[a]) t.cut=true; });
-    paintTokens(); changed();
+    mark(toks.filter(t=>a==="fill" ? t.k==="w"&&t.filler : t.k==="p"&&t.len>=AE_PAUSE[a]).map(t=>t.i), true);
   }
-  // Cuts from the AI (vlog seconds) on the page: whatever is inside them is cut.
-  function cutRange(a,b){ toks.forEach(t=>{ const m=t.k==="w"?(t.s+t.e)/2:(t.a+t.b)/2; if(a<=m&&m<=b) t.cut=true; }); }
-  function keepOnly(p){ toks.forEach(t=>{ const m=t.k==="w"?(t.s+t.e)/2:(t.a+t.b)/2; t.cut=!aeIn(p,m); }); }
+  // Cuts from the AI (vlog seconds): the words and pauses inside them are cut.
+  const inside=(a,b)=>toks.filter(t=>a<=mid(t)&&mid(t)<=b).map(t=>t.i);
   async function ask(body,btn,label){
     $("aeErr").textContent=""; btn.disabled=true; const was=btn.innerHTML; btn.textContent=label;
     let r,j={}; try{ r=await fetch("/api/ai-edit/"+c.job+"/"+c.idx+"/suggest",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}); j=await r.json().catch(()=>({})); }
@@ -156,8 +174,8 @@ function aiEdit(o){
   }
   async function shorten(n,btn){
     const my=gen, j=await ask({kind:"shorten",target:n},btn,"Choosing..."); if(!j||my!==gen) return;
-    remember(); keepOnly(j.pieces); note=(j.ai?"AI: ":"")+(j.why||("Kept about "+n+" seconds."));
-    $("aeNote").textContent=note; $("aeNote").hidden=false; paintTokens(); changed();
+    set(j.pieces); note=(j.ai?"AI: ":"")+(j.why||("Kept about "+n+" seconds."));
+    $("aeNote").textContent=note; $("aeNote").hidden=false;
   }
   async function suggest(){
     const btn=o.box.querySelector('[data-a="cuts"]'), my=gen, j=await ask({kind:"cuts"},btn,"Reading...");
@@ -172,22 +190,11 @@ function aiEdit(o){
       sugs.map((x,i)=>'<div class="ae-sug"><div class="ae-sug-top"><span class="cl-pill">'+esc(x.kind)+'</span><span class="ae-sec">−'+x.seconds+' s</span></div>'+
         '<q>'+esc(x.text)+'</q><p>'+esc(x.why)+'</p><div class="ae-sug-acts"><button type="button" class="ghost sm" data-sug="'+i+'">Apply</button>'+
         '<button type="button" class="linkbtn" data-drop="'+i+'">Dismiss</button></div></div>').join("");
-    box.querySelectorAll("[data-sug]").forEach(b=>b.onclick=()=>{ remember(); const x=sugs[+b.dataset.sug]; cutRange(x.start,x.end); sugs.splice(+b.dataset.sug,1); paintSugs(); paintTokens(); changed(); });
+    box.querySelectorAll("[data-sug]").forEach(b=>b.onclick=()=>{ const x=sugs.splice(+b.dataset.sug,1)[0]; paintSugs(); mark(inside(x.start,x.end),true); });
     box.querySelectorAll("[data-drop]").forEach(b=>b.onclick=()=>{ sugs.splice(+b.dataset.drop,1); paintSugs(); });
-    const all=$("aeSugAll"); if(all) all.onclick=()=>{ remember(); sugs.forEach(x=>cutRange(x.start,x.end)); sugs=[]; paintSugs(); paintTokens(); changed(); };
+    const all=$("aeSugAll"); if(all) all.onclick=()=>{ const idx=sugs.flatMap(x=>inside(x.start,x.end)); sugs=[]; paintSugs(); mark(idx,true); };
   }
-  // ---- the player and the timeline: the video is the Short as saved (info.pieces); pending cuts are skipped in it
-  function paintMarks(){
-    const strip=o.strip; if(!strip) return;
-    strip.querySelectorAll(".ae-mark").forEach(m=>m.remove());
-    if(!info || !dirty()) return;
-    const cur=info.pieces, total=aeLen(cur), keep=pending();
-    for(const [a,b] of aeMinus(cur, keep, S(), E())){
-      const x=aeToFile(cur,a), y=aeToFile(cur,b); if(x==null||y==null||!total) continue;
-      const m=document.createElement("span"); m.className="ae-mark"; m.title="Cut when you save";
-      m.style.left=(x/total*100)+"%"; m.style.width=Math.max(.4,(y-x)/total*100)+"%"; strip.appendChild(m);
-    }
-  }
+  // ---- the player: the video is the Short as saved (info.pieces); pending cuts are skipped in it
   o.video.addEventListener("timeupdate",()=>{
     if(!info || o.video.hidden) return;
     const src=aeToSrc(info.pieces,o.video.currentTime);
@@ -215,18 +222,22 @@ function aiEdit(o){
     },
     dirty, count:()=>dirty()?1:0,
     canUndo:()=>hist.length>0, canRedo:()=>fut.length>0,
-    undo(){ if(!hist.length) return; fut.push(snap()); restore(hist.pop()); },
-    redo(){ if(!fut.length) return; hist.push(snap()); restore(fut.pop()); },
-    reset(){ if(info){ build(); hist=[]; fut=[]; sugs=null; note=""; paint(); changed(); } },
+    undo(){ if(!hist.length) return; fut.push(cur); cur=hist.pop(); paintTokens(); changed(); },
+    redo(){ if(!fut.length) return; hist.push(cur); cur=fut.pop(); paintTokens(); changed(); },
+    reset(){ if(info){ cur=info.pieces.map(p=>[...p]); hist=[]; fut=[]; sugs=null; note=""; paint(); changed(); } },
+    // For the timeline (js/editor.js): the pieces the Short will keep, the ones its video has now, and a change
+    info:()=>info, pieces:()=>cur, saved:()=>info?info.pieces:null, setPieces:p=>!!info && set(p),
+    canEdit:()=>!!info && info.can_apply && !busy && !(c&&c.remaking),
     // For shortDetails(): the remake to make on Save, and what happens once it's sent.
     step(){
       if(!dirty()) return null;
       const p=pending();
       if(aeLen(p)<info.min) return {error:"Your edits would leave less than "+info.min+" seconds. Keep a little more."};
+      if(aeLen(p)>info.max) return {error:"A Short can be at most 3 minutes long. Trim it a little more."};
       const whole=p.length===1 && Math.abs(p[0][0]-S())<0.02 && Math.abs(p[0][1]-E())<0.02;
       return ["/api/ai-edit/"+c.job+"/"+c.idx+"/apply",{pieces:whole?null:p}];
     },
-    sent(){ info.pieces=pending(); busy=true; hist=[]; fut=[]; sugs=null; paint(); changed(); },
+    sent(){ info.pieces=cur.map(p=>[...p]); busy=true; hist=[]; fut=[]; sugs=null; paint(); changed(); },
   };
   return api;
 }

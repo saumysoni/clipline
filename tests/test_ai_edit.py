@@ -105,6 +105,28 @@ class Routes(unittest.TestCase):
         self.c.post(self.base + "/apply", json={"pieces": None})  # the whole moment again
         self.assertIsNone(self.short().get("pieces"))
 
+    def test_trim_reaches_past_the_moment(self):
+        """The timeline (Trim): pieces anywhere in the vlog; the moment becomes the first piece's start to the last's end."""
+        s, e = self.s["start"], self.s["end"]
+        self.assertEqual(self.c.get(self.base).json["duration"], 150)
+        keep = [[round(s - 1, 3), round(s + 5, 3)], [round(e - 5, 3), round(e + 4, 3)]]
+        self.assertEqual(self.c.post(self.base + "/apply", json={"pieces": keep}).status_code, 200)
+        me = self.short()
+        self.assertFalse(me.get("retry_error"), me.get("retry_error"))
+        self.assertEqual((me["start"], me["end"], me["pieces"]), (keep[0][0], keep[1][1], keep))
+        self.assertEqual(F.RENDERED[-1]["pieces"], [tuple(k) for k in keep])
+        info = self.c.get(self.base).json
+        self.assertEqual(info["pieces"], keep)
+        self.assertLess(info["words"][0]["s"], s)  # the words of the wider moment
+        # one piece: just a new start and end, no pieces
+        self.c.post(self.base + "/apply", json={"pieces": [[s + 2, e + 10]]})
+        me = self.short()
+        self.assertEqual((me["start"], me["end"], me.get("pieces")), (round(s + 2, 3), round(e + 10, 3), None))
+        # never past the vlog's ends
+        self.c.post(self.base + "/apply", json={"pieces": [[-30, 20], [140, 999]]})
+        me = self.short()
+        self.assertEqual((me["start"], me["end"], me["pieces"]), (0, 150, [[0, 20], [140, 150]]))
+
     def test_refused(self):
         s = self.s["start"]
         self.assertIn("less than", self.c.post(self.base + "/apply", json={"pieces": [[s, s + 2]]}).json["error"])

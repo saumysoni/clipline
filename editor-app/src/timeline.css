@@ -1,0 +1,16 @@
+/* Pit Crew's touches on Twick's timeline (scoped to .pc-tl like the rest, vite.config.js). Colours come from the
+   page's own variables (static/css/tokens.css), so it follows light and dark. */
+.pc-tl-root{height:100%}
+.twick-timeline-scroll-container{background:transparent;color:var(--muted);scrollbar-width:thin}
+/* One track and no adding tracks: the "+" above the track headers and the grip to reorder tracks go */
+.twick-seek-track-empty-space svg,.twick-track-header-grip{display:none}
+.twick-seek-track-empty-space,.twick-track-header,.twick-track-header-default,.twick-track-header-content{background:transparent;border:0}
+/* The ruler: the page's colours instead of Twick's white-on-black (its ticks and seconds are styled inline) */
+.twick-seek-track{background:transparent;border-color:var(--line);color:var(--faint)}
+.twick-seek-track-container-no-scrollbar>div[style*="height: 32px"]{background-color:transparent!important}
+.twick-seek-track-container-no-scrollbar div[style*="width: 1px"]{background-color:var(--line-2)!important}
+.twick-seek-track-container-no-scrollbar div[style*="translateX(-50%)"]{color:var(--muted)!important;text-shadow:none!important;font:600 10px/1 var(--mono,ui-monospace,monospace)!important}
+.twick-seek-track-pin{background-color:var(--primary);box-shadow:none}
+.twick-track{background:var(--raised);border-radius:8px}
+.twick-track-element{border-radius:8px}
+.twick-track-element-selected{outline:2px solid var(--ink);outline-offset:-1px}
