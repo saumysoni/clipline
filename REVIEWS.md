@@ -49,10 +49,11 @@ same one); JavaScript origin `https://<domain>`.
 > and vlogs they chose (videos.insert) and sets the custom thumbnail of a vlog (thumbnails.set); schedules them as
 > private videos that go public at the time they picked (status.publishAt); lets them change a scheduled time or a title
 > later from Pit Crew's Scheduled page (videos.update); replaces a clip they re-edited after uploading by uploading the
-> new version and deleting the old one, only while it isn't public yet (videos.delete); checks whether a video Pit Crew
+> new version and deleting the old one, only while it isn't public yet, and deletes a clip Pit Crew posted when the
+> creator chooses Delete on it in Pit Crew and confirms (videos.delete); checks whether a video Pit Crew
 > posted still exists, so one deleted in YouTube Studio isn't shown as posted (videos.list); and shows the connected
 > channel's name and picture (channels.list). A narrower scope isn't enough: youtube.upload can't change a scheduled
-> time, edit a title or delete the old version of a replaced clip, and youtube.readonly can't upload.
+> time, edit a title or delete a clip, and youtube.readonly can't upload.
 
 `https://www.googleapis.com/auth/yt-analytics.readonly` (sensitive):
 > Pit Crew's Analytics page shows the creator how the clips it posted are doing: views, watch time, likes, comments,
@@ -81,6 +82,8 @@ Record the browser with the address bar visible the whole time. Use a test chann
    then Post: schedule two clips. Then open **YouTube Studio** in another tab and show them there, scheduled.
 5. **youtube scope, editing:** on Pit Crew's **Scheduled** page, change one clip's time and its title; refresh Studio to
    show the change. Then edit a clip's caption in Pit Crew and use **Replace** to show the old version is deleted.
+   Then on **Shorts & Reels**, open a posted test clip's ⋮ › **Delete**, tick YouTube, confirm, and refresh Studio to
+   show it's gone.
 6. **youtube scope, vlog upload:** + Create → Upload a vlog → upload with a thumbnail; show it in Studio.
 7. **yt-analytics.readonly:** open **Analytics**: the Overview tiles and chart, the Videos tab, the Audience tab.
 8. **Your choices:** Settings → **Disconnect** the channel; then show Google's security settings page listing Pit Crew

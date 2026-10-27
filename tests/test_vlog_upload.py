@@ -60,6 +60,17 @@ class VlogUpload(unittest.TestCase):
         self.assertEqual(F.job_json(self.jid)["vlog"]["channel_handle"], "@hills")
         self.assertIn("already on YouTube", self.c.post(f"/api/vlog/{self.jid}/upload", json={}).json["error"])
 
+    def test_details_come_from_the_channel_it_went_to(self):
+        """Several channels: the vlog keeps the chosen channel's name and @handle, not the active one's (gotcha 20)."""
+        F.connect_youtube(self.u["id"], CH, title="Hills", handle="@hills")
+        F.connect_youtube(self.u["id"], "UCchannel000000000000002", title="Other", handle="@other")  # now active
+        r = self.c.post(f"/api/vlog/{self.jid}/upload", json={"privacy": "public", "channel": CH})
+        self.assertEqual(r.status_code, 200, r.json)
+        post = F.wait(lambda: F.job_json(self.jid)["vpost"]["state"] == "done" and F.job_json(self.jid)["vpost"], what="sent")
+        self.assertEqual(post["channel"], CH)
+        vlog = F.job_json(self.jid)["vlog"]
+        self.assertEqual((vlog["channel"], vlog["channel_handle"]), ("Hills", "@hills"))
+
     def test_schedule_and_bad_time(self):
         F.connect_youtube(self.u["id"], CH)
         r = self.c.post(f"/api/vlog/{self.jid}/upload", json={"privacy": "schedule", "start": "2020-01-01T10:00"})

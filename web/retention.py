@@ -165,7 +165,7 @@ def _busy(job):
 
 def _email(owner, subject, text):
     user = db.user_by_id(owner) if owner else None
-    if user:
+    if user and user["email_verified"]:  # only confirmed addresses, as web/notices.py
         mail.notify(user["email"], subject, text)
 
 

@@ -222,8 +222,10 @@ def _send(user_id, job_id, draft, privacy, when, channel):
                       note=quota.waiting_message(1).replace("1 Short will", "The vlog will"))
                 return
             raise
-        own = (yt.account(user_id).get("channel") or {})
-        _post(job_id, state="done", pct=100, video_id=vid, note=note, sent_at=time.time())
+        # The channel it went to (several can be connected; another tab may have switched the active one meanwhile)
+        acct = yt.account(user_id)
+        own = (next((c for c in acct["channels"] if c["id"] == channel), None) if channel else acct.get("channel")) or {}
+        _post(job_id, state="done", pct=100, video_id=vid, note=note, sent_at=time.time(), channel=own.get("id") or channel)
         with LOCK:
             vlog = dict((JOBS.get(job_id) or {}).get("vlog") or {})
         vlog.update(title=draft["title"], description=draft["description"], tags=draft.get("tags") or [],
