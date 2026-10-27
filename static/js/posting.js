@@ -15,7 +15,7 @@ function paintPostList(){
   $("postList").innerHTML = rows.length ? rows.map(el=>{
     const s=job.shorts.find(x=>x.idx===+el.dataset.idx)||{}, u=ups.get(s.idx);
     return '<li><img src="/media/'+job.id+'/'+esc(s.thumb||"")+'" alt=""><span><b>'+esc(el.querySelector("input.title").value)+'</b>'+
-      '<small'+(u?' class="done"':'')+'>'+(u ? "YouTube: "+esc(whenText(u.when)) : fmt(s.end-s.start)+" long")+'</small>'+(typeof igLine==="function"?igLine(s.idx):"")+'</span></li>';
+      '<small'+(u?' class="done"':'')+'>'+(u ? "YouTube: "+esc(whenText(u.when)) : fmt(shortLen(s))+" long")+'</small>'+(typeof igLine==="function"?igLine(s.idx):"")+'</span></li>';
   }).join("") : '<li class="post-empty">No Shorts ticked. Go back to review and tick the ones to post.</li>';
 }
 function dock(){

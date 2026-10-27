@@ -1,5 +1,5 @@
   <!-- Editor (#edit/<vlog>/<short>): a draft Short's advanced editing, opened from Drafts (Edit) and Quick review
-       (Edit draft). The tools are laid out but not working yet (js/editor.js) -->
+       (Edit draft). Details and AI Edit work; the other tools are laid out, marked Soon (js/editor.js) -->
   <section id="s12" hidden>
     <div class="work wide">
       <!-- One bar: Back, the save state (Save / Discard while something is changed), ⋮, Export, Finish (save, then
@@ -34,8 +34,8 @@
           </div>
           <div class="ed-tl" id="edTl">
             <div class="ed-tl-bar">
-              <button type="button" class="iconbtn" disabled title="Soon" aria-label="Undo"><span class="ms" aria-hidden="true">undo</span></button>
-              <button type="button" class="iconbtn" disabled title="Soon" aria-label="Redo"><span class="ms" aria-hidden="true">redo</span></button>
+              <button type="button" class="iconbtn" id="edUndo" disabled title="Undo an edit (not saved yet)" aria-label="Undo"><span class="ms" aria-hidden="true">undo</span></button>
+              <button type="button" class="iconbtn" id="edRedo" disabled title="Redo" aria-label="Redo"><span class="ms" aria-hidden="true">redo</span></button>
               <span class="ed-time" id="edTime">0:00 / 0:00</span>
               <span class="ed-zoom" title="Zoom comes with the timeline tools"><span class="ms" aria-hidden="true">zoom_out</span><input type="range" min="1" max="4" value="1" disabled aria-label="Timeline zoom"><span class="ms" aria-hidden="true">zoom_in</span></span>
             </div>
@@ -57,6 +57,12 @@
             <p class="ed-p-about">Hook, thumbnail, hashtags, title and caption. Nothing changes until you save.</p>
             <div class="err" id="edDErr" role="alert"></div>
             <div class="qr-edit open" id="edDBox"></div>
+          </div>
+          <!-- AI Edit (js/ai-edit.js): kept on the page like Details, so cuts stay while other tools show -->
+          <div id="edAIWrap" hidden>
+            <div class="ed-p-head"><span class="ms" aria-hidden="true">auto_awesome</span><h2>AI Edit</h2></div>
+            <p class="ed-p-about">Cut pauses, filler words and slow parts, or let AI keep the best part. Nothing changes until you save.</p>
+            <div id="edAI"></div>
           </div>
           <div id="edPanel" aria-live="polite"></div>
         </aside>

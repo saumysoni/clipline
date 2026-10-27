@@ -11,7 +11,7 @@ function cardHTML(s){
     tileCapHTML(s)+
     '<div class="toggle" role="group" aria-label="Preview"><button type="button" aria-pressed="true" data-v="v"><span class="ms" aria-hidden="true">play_circle</span>Short</button><button type="button" aria-pressed="false" data-v="t"><span class="ms" aria-hidden="true">image</span>Thumbnail</button></div>'+
     lookHTML(s)+
-    '<div class="meta"><span class="tc"><span class="ms" aria-hidden="true">schedule</span>'+fmt(s.start)+'–'+fmt(s.end)+' · '+Math.round(s.end-s.start)+'s</span>'+(s.manual?'<span class="tag cap">Your pick</span>':'')+'</div>'+
+    '<div class="meta"><span class="tc"><span class="ms" aria-hidden="true">schedule</span>'+fmt(s.start)+'–'+fmt(s.end)+' · '+Math.round(shortLen(s))+'s'+(s.pieces&&s.pieces.length>1?' (edited)':'')+'</span>'+(s.manual?'<span class="tag cap">Your pick</span>':'')+'</div>'+
     hookHTML(s)+
     postTextHTML(s)+  // hashtags, YouTube title, Instagram caption (js/post-text.js)
     '<div class="why">'+esc(s.why)+'</div>'+

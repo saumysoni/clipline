@@ -8,6 +8,8 @@ const studioLink = id => "https://accounts.google.com/ServiceLogin?service=youtu
   encodeURIComponent("https://studio.youtube.com/video/"+id+"/edit");
 const esc = t => String(t).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 let count = 5, jobId = null, poll = null, job = null;
+// A Short's length: its kept pieces added up (AI Edit, pipeline/pieces.py), else end - start.
+const shortLen = s => s.pieces && s.pieces.length ? s.pieces.reduce((n,[a,b])=>n+b-a,0) : s.end-s.start;
 
 // Screens: 1 Make Shorts from a new video, 2 Making, 3 Review/Post, 4 Posted, 5 Scheduled, 6 Analytics, 7 Vlogs, 8 Settings,
 // 9 Shorts & Reels, 10 Upload a vlog to YouTube, 11 Drafts, 12 the editor (a draft Short).

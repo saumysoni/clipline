@@ -7,7 +7,8 @@ that isn't said in the moment.
 import re
 
 from pipeline.ai import ai_json
-from pipeline.text import said_between, without_emoji
+from pipeline.pieces import said as said_kept
+from pipeline.text import without_emoji
 from pipeline.vlog_context import vlog_context_block
 
 
@@ -87,7 +88,7 @@ Short title: {title}
 
 def rewrite_hooks(transcript, moment, note="", context=None):
     """Three fresh hook options for a Short, optionally nudged by the creator ("funnier")."""
-    said = said_between(transcript, moment["start"], moment["end"])
+    said = said_kept(transcript, moment)  # (AI Edit may have cut words: pipeline/pieces.py)
     raw = ai_json(HOOK_PROMPT.format(
         hook_rule=HOOK_RULE, title=moment.get("title", ""), said=said[:4000] or "(no talking in this Short)",
         note=f"The creator asks: {note.strip()[:300]}\n" if note.strip() else "",

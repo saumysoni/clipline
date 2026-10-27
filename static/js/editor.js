@@ -3,15 +3,14 @@
 // Its own layout: the sidebar is hidden (body.ed-on) and one bar holds Back, the save state (Save / Discard while
 // something is changed), ⋮ (Quick review, the vlog's own editor, Delete draft), Export (video, thumbnail) and Finish
 // (saves, waits for a remake, then Schedule it or Back to Drafts).
-// What works: Details (js/short-details.js: title, hook, thumbnail, hashtags, caption), the player and the timeline's
-// playhead (click to jump). The other tools are laid out but not working yet: each lists what it will do, marked "Soon".
+// What works: Details (js/short-details.js: title, hook, thumbnail, hashtags, caption), AI Edit (js/ai-edit.js: cut
+// pauses, filler words, a shorter version, suggested cuts, by the transcript; Undo / Redo on the timeline), the player
+// and the timeline's playhead (click to jump). The other tools are laid out but not working yet: each lists what it
+// will do, marked "Soon".
 // The clip comes from the clip list (js/clips.js clData), loaded first when the page is opened from its address.
 const ED_TOOLS=[
   {id:"details", icon:"edit_note", name:"Details", sub:"Title, hook, thumbnail, hashtags"},
-  {id:"ai", icon:"auto_awesome", name:"AI Edit", sub:"Quick improvements", about:"Let AI do the slow parts of editing.", acts:[
-    ["graphic_eq","Remove pauses","Cut dead air and filler words"],
-    ["timer","Make it shorter","The best 30, 45 or 60 seconds"],
-    ["trending_up","Improve hook","A stronger opening line"]], suggest:true},
+  {id:"ai", icon:"auto_awesome", name:"AI Edit", sub:"Pauses, fillers, shorter", built:true},  // js/ai-edit.js
   {id:"captions", icon:"closed_caption", name:"Captions", sub:"Edit and style", about:"Word-by-word captions, the way you want them.", acts:[
     ["edit","Edit words","Fix any word that was heard wrong"],
     ["timer","Timing","Move a word, split or join lines"],
@@ -46,7 +45,9 @@ const ED_TOOLS=[
     ["video_library","B-roll from this vlog","Cut away to another moment (while the vlog's video is kept)"]]},
 ];
 let edKey=null, edC=null, edTool="details", edOpened=null, edTimer=null, edBusy=false, edSaving=false;
-const edD=shortDetails({box:$("edDBox"), err:$("edDErr"), pre:"ed", onChange:()=>edPaintSave(),
+// AI Edit's changes are saved by Details' Save (the first remake), so the one Save button covers both.
+const edAE=aiEdit({box:$("edAI"), video:$("edVideo"), strip:$("edStrip"), onChange:()=>{ edPaintSave(); edUndoPaint(); }, onHook:()=>edHook()});
+const edD=shortDetails({box:$("edDBox"), err:$("edDErr"), pre:"ed", onChange:()=>edPaintSave(), extra:edAE,
   onTitle:v=>{ const n=$("edMeta").querySelector(".ed-name"); if(n) n.textContent=v; }, onLook:()=>edView("t"),
   onRemaking:()=>{ $("edVideo").pause(); edBusy=true; edWatch(); edPaintSave(); edFinPaint(); }});  // edSync() follows it
 sdOpen.push(edD);
@@ -58,7 +59,7 @@ async function openEditor(jid,idx){
   edPaint();
 }
 // Leaving the editor (another screen): unsaved details are dropped. Buttons here ask first (edLeave).
-function edClose(){ edOpened=null; edBusy=false; edD.clear(); clearTimeout(edTimer); document.body.classList.remove("ed-on"); if($("edFin").open) $("edFin").close(); }
+function edClose(){ edOpened=null; edBusy=false; edD.clear(); edAE.clear(); clearTimeout(edTimer); document.body.classList.remove("ed-on"); if($("edFin").open) $("edFin").close(); }
 function edLeave(){
   if(!edD.dirty()) return true;
   if(!confirm("Discard your changes to this Short?\n\nThey haven't been saved.")) return false;
@@ -90,7 +91,7 @@ function edPaint(){
   $("edGrid").hidden=false; $("edSmall").hidden=false;
   $("edGone").hidden=draft && !c.remaking;
   $("edGone").textContent = !draft ? "This Short isn't a draft any more (it's scheduled or posted), so it can't be edited here." : c.remaking ? "It's being remade. The new version shows here when it's done." : "";
-  if(draft && edOpened!==edKey){ edOpened=edKey; edD.open(c); } else edD.follow(c);
+  if(draft && edOpened!==edKey){ edOpened=edKey; edD.open(c); edAE.open(c); } else { edD.follow(c); edAE.follow(c); }
   const name=edD.has("title") && $("edMeta").querySelector(".ed-name") ? $("edMeta").querySelector(".ed-name").textContent : c.title;
   $("edMeta").innerHTML='<b class="ed-name">'+esc(name)+'</b><span class="ed-sub"><span class="ed-from">From '+esc(c.vlog)+'</span>'+
     '<span class="ed-len">'+fmt(c.length)+'</span></span>';
@@ -121,8 +122,8 @@ function edRail(){
 // marked Soon (not buttons yet).
 function edPanel(){
   const t=ED_TOOLS.find(x=>x.id===edTool), det=t.id==="details";
-  $("edDetails").hidden=!det; $("edPanel").hidden=det;
-  if(det) return;
+  $("edDetails").hidden=!det; $("edAIWrap").hidden=t.id!=="ai"; $("edPanel").hidden=det||!!t.built;
+  if(det||t.built) return;
   $("edPanel").innerHTML='<div class="ed-p-head"><span class="ms" aria-hidden="true">'+t.icon+'</span><h2>'+esc(t.name)+'</h2><span class="cl-soon">Soon</span></div>'+
     '<p class="ed-p-about">'+esc(t.about)+'</p>'+
     '<ul class="ed-acts-list">'+t.acts.map(([i,n,s])=>'<li><span class="ms" aria-hidden="true">'+i+'</span><span><b>'+esc(n)+'</b><small>'+esc(s)+'</small></span></li>').join("")+'</ul>'+
@@ -146,6 +147,19 @@ $("edTracks").addEventListener("click",e=>{
   if(e.clientX<r.left || !v.duration) return;
   v.currentTime=Math.min(1,(e.clientX-r.left)/r.width)*v.duration;
 });
+// Improve hook (AI Edit): Details' hook, opened, with Rewrite pressed.
+function edHook(){
+  edTool="details"; edRail(); edPanel();
+  const box=$("edDBox"), change=box.querySelector(".hk-change"), rw=box.querySelector(".hk-rewrite");
+  if(!change) return;
+  if(box.querySelector(".hk-edit").hidden) change.click();
+  if(rw && !rw.disabled) rw.click();
+  change.scrollIntoView({block:"nearest"});
+}
+// Undo / Redo on the timeline: AI Edit's cuts not saved yet.
+function edUndoPaint(){ $("edUndo").disabled=!edAE.canUndo(); $("edRedo").disabled=!edAE.canRedo(); }
+$("edUndo").onclick=()=>edAE.undo();
+$("edRedo").onclick=()=>edAE.redo();
 const edBack=()=>openDrafts("shorts");
 $("edBack").onclick=()=>{ if(edLeave()) edBack(); };
 $("edSave").onclick=edSaveNow;

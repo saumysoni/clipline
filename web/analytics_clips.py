@@ -17,6 +17,7 @@ from datetime import date, datetime, timedelta, timezone
 from flask import g, jsonify, request
 
 import instagram as ig
+import pipeline
 import youtube as yt
 from accounts import db
 from settings import JOBS_DIR
@@ -75,7 +76,7 @@ def posted_clips(user_id, vlog=""):
                 continue
             first = min(t for t in (yt_at, ig_at) if t) if (yt_at or ig_at) else None
             out.append({"job": job["id"], "idx": s["idx"], "title": s.get("title", ""), "vlog": name,
-                        "thumb": s.get("thumb", ""), "length": round((s.get("end") or 0) - (s.get("start") or 0)),
+                        "thumb": s.get("thumb", ""), "length": round(pipeline.short_length(s)),
                         "hook": "none" if s.get("hook_mode") == "none" else (s.get("hook_style") or "custom"),
                         "posted_at": first.isoformat() if first else None,
                         "youtube": {"video_id": u["video_id"], "at": yt_at.isoformat() if yt_at else None,

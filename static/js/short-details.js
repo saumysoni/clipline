@@ -5,7 +5,9 @@
 // Saving a hook or a thumbnail change remakes the Short, one at a time: hook, then the thumbnail (Try again or its text),
 // then the look. The page calls remadeDone() when it sees a remake has finished, and the next one starts.
 // o: {box, err, pre, onChange() (pend changed), onTitle(v) (title typed), onRemaking() (a remake started), onGone()
-//     (the Short isn't there any more), onLook() (a look was picked: show the thumbnail)}
+//     (the Short isn't there any more), onLook() (a look was picked: show the thumbnail),
+//     extra (the editor's AI Edit, js/ai-edit.js: {dirty(), count(), step() -> [url, body] | {error}, sent(), reset()}:
+//     its change is saved with the rest, as the first remake)}
 function shortDetails(o){
   let c=null, s=null, pend={}, queue=[], gen=0, tinfo={};
   const changed=()=>o.onChange&&o.onChange();
@@ -94,10 +96,12 @@ function shortDetails(o){
     const p=pend, cl=c, base="/api/clips/"+cl.job+"/"+cl.idx;
     if("title" in p && !p.title){ o.err.textContent="Type a YouTube title."; return; }
     if(p.ttext && !p.tagain && !p.ttext.line2){ o.err.textContent="Type the headline for the thumbnail."; return; }
+    const ex=o.extra&&o.extra.dirty()?o.extra.step():null;
+    if(ex&&ex.error){ o.err.textContent=ex.error; return; }
     o.err.textContent="";
     if("title" in p){ if(!await post(base+"/title",{title:p.title})) return changed(); delete p.title; }
     if(p.text){ if(!await post(base+"/post-text",p.text)) return changed(); delete p.text; }
-    const steps=[];
+    const steps=ex?[ex]:[];  // the cut first: a new hook is then burned into the cut Short
     if(p.hook) steps.push(["/api/hook/"+cl.job+"/"+cl.idx,p.hook]);
     if(p.tagain) steps.push(["/api/thumb-again/"+cl.job+"/"+cl.idx,{}]);
     else if(p.ttext) steps.push(["/api/thumb-text/"+cl.job+"/"+cl.idx,p.ttext]);
@@ -105,6 +109,7 @@ function shortDetails(o){
     const remade=steps.length>0;
     if(remade){
       if(!await post(...steps[0])) return changed();
+      if(ex) o.extra.sent();
       ["hook","tagain","ttext","look"].forEach(k=>delete p[k]);
       queue=steps.slice(1);  // one remake at a time: the rest go after (remadeDone)
     }
@@ -125,10 +130,10 @@ function shortDetails(o){
     open(clip){ c=clip; queue=[]; return load(); },
     clear(){ c=s=null; pend={}; queue=[]; gen++; changed(); },
     follow(clip){ c=clip; },  // the clip list was loaded again
-    dirty:()=>Object.keys(pend).length>0,
-    count:()=>Object.keys(pend).length,
+    dirty:()=>Object.keys(pend).length>0 || !!(o.extra&&o.extra.dirty()),
+    count:()=>Object.keys(pend).length+(o.extra?o.extra.count():0),
     has:k=>k in pend,
-    cancel:()=>c&&load(), save, setTitle, remadeDone,
+    cancel:()=>{ if(o.extra) o.extra.reset(); return c&&load(); }, save, setTitle, remadeDone,
   };
   return api;
 }

@@ -29,6 +29,7 @@ from web.server import app  # noqa: E402,F401
 from web import (  # noqa: E402,F401
     accounts,
     add_short,
+    ai_edit,
     delete_account,
     health,
     legal,

@@ -117,6 +117,21 @@ class RealPipeline(unittest.TestCase):
         self.assertTrue((self.dir / s["video"]).exists())
         self.assertEqual(probe(self.dir / s["video"])["height"], 1920)
 
+    def test_ai_edit_joins_the_kept_pieces(self):
+        s = F.job_json(self.jid)["shorts"][1]
+        a, b = s["start"], s["end"]
+        keep = [[a, a + 6], [a + 10, a + 16], [a + 20, b]]
+        r = self.c.post(f"/api/ai-edit/{self.jid}/{s['idx']}/apply", json={"pieces": keep})
+        self.assertEqual(r.status_code, 200, r.get_json())
+        me = F.wait(lambda: (x := next(y for y in F.job_json(self.jid)["shorts"] if y["idx"] == s["idx"])) and
+                    not x.get("retrying") and x, timeout=120, what="cut")
+        self.assertFalse(me.get("retry_error"), me.get("retry_error"))
+        m = probe(self.dir / me["video"])
+        self.assertEqual((m["width"], m["height"]), (1080, 1920))
+        self.assertAlmostEqual(m["duration"], sum(y - x for x, y in keep), delta=0.35)
+        from pipeline.cover import audio_format
+        self.assertIsNotNone(audio_format(self.dir / me["video"]))  # the sound is joined too
+
     def test_cover_frame_for_upload(self):
         import pipeline
         s = self.st["shorts"][1]
