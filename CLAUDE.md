@@ -34,6 +34,58 @@ Linux cloud server as on a laptop:**
 - An Apple-GPU (MLX) transcription experiment was set aside for this reason (kept outside git, in
   `_backups/apple-gpu-transcription/`).
 
+## Next: the advanced editor (decided October 2026)
+
+The editor screen (screen 12, `js/editor.js`) is laid out with every tool marked Soon. Next, those tools are built.
+They live **only in the editor of a draft** (Drafts › Edit), never on the Shorts & Reels page: clips there have
+already gone out.
+
+**The four features**
+
+| Feature | What it does |
+|---|---|
+| 1. AI Edit | Remove pauses and filler words, improve the hook, make it shorter, better pacing, edit by editing the transcript text, suggested cuts |
+| 2. Auto Captions | Edit the words, fonts and colours, highlight the spoken word, animations, timing, caption presets |
+| 3. Smart Reframe | Follow the speaker automatically, adjust the crop by hand, zoom / pan keyframes, 9:16 and other aspect ratios, split-screen layouts |
+| 4. Effects & Enhancements | Filters, transitions, text overlays, B-roll, images, music, speed changes, audio effects |
+
+**Framework: Twick** (React components for a multi-track timeline, canvas editing and live preview, with timeline
+APIs; see Twick's documentation). Don't use it until Nesh shares the implementation details.
+OpenCut stays a future option only: its new Editor API is still being rewritten.
+
+**Tech stack**
+
+| Layer | Technology | Purpose |
+|---|---|---|
+| Frontend editor | React + TypeScript + Twick | Timeline, canvas, preview, drag and drop |
+| The rest of Pit Crew | Vanilla JavaScript + CSS (as now) | Every other page stays as it is |
+| Backend | Python + Flask | Editing routes, saving editor projects, render jobs |
+| AI | Gemini / OpenAI through `ai_json()` | Edit suggestions, hooks, smart cuts |
+| Transcription | faster-whisper | Word-level transcript and timings (already in `transcript.json`) |
+| Video | FFmpeg (`ffmpeg_exe()`) | Trims, effects, audio mixing, the final render |
+| Captions | FFmpeg + libass | Styled captions in sync (gotchas 3, 4, 8, 25 still apply) |
+| Face tracking | OpenCV (+ MediaPipe, optional) | Reframing and following the subject (gotcha 2: OpenCV < 5) |
+| Project storage | JSON in the job folder first; a database + file storage in the cloud | The editable timeline and what media it uses |
+
+**What this changes in the rules here (decide each when the work starts):**
+- **The editor is the one exception to "no frontend framework, no build step".** Keep React / TypeScript inside the
+  editor: its own folder (e.g. `editor-app/`) that builds to one bundle under `static/`, mounted into `#s12` by
+  `js/editor.js`. Every other page stays plain JS. Decide whether the built bundle is committed or built by
+  `deploy/setup.sh` / `update.sh` (then the server needs Node, and `update.sh` must build before it restarts).
+- **The page's Save / Discard / Finish stay** (no undo outside the editor): the editor's own undo / redo is extra.
+  Details (`js/short-details.js`) keeps working beside the new tools.
+- **The render stays on the server, with FFmpeg.** The browser preview is only a preview: what goes to YouTube and
+  Instagram is rendered by `pipeline/` (keep it free of web code, the cloud rules above). New work goes in new
+  `pipeline/<feature>.py` files, routes in new `web/<feature>.py` files.
+- **Edits that need the vlog's video** (Trim past the moment, B-roll, Try again) only work while it's kept
+  (`KEEP_ORIGINAL_HOURS`, gotcha 21): say so on the tool, as Try again does.
+- **Hooks must stay true** (gotcha 13) and **no YouTube data to free Gemini** (gotcha 29) for every new AI prompt;
+  each new prompt needs a branch in `tests/fakes.py` `FakeAI.kind()`.
+- **Music and B-roll:** royalty-free tracks only (nothing that gets claimed or muted); B-roll only from the
+  creator's own vlog.
+- Check Twick's licence (and MediaPipe's) before shipping, and add any new service or stored data to the privacy
+  policy (gotcha 26).
+
 ## Run it
 
 ```bash
@@ -67,12 +119,17 @@ The code is split so two people can work on different features without touching 
 | Emails when away (Shorts ready, vlog ready to upload, stopped, posting failed; not while the creator watches the page, only to confirmed emails; links use `APP_URL`) | | `web/notices.py` | |
 | Stop / Try again a whole vlog (Stop while it's made: removed, or back to ready if it was prepared for YouTube; Try again after it stopped: same video and transcript) | | `web/stop_and_retry.py` | `js/vlog-again.js` (used by `js/progress.js`, `js/vlog-upload.js`) |
 | Sidebar (+ Create; Workspace: Vlogs, Shorts & Reels, Drafts, Scheduled, Analytics; Channels; Settings (with the person's name; the account is the top of Settings) / Appearance; the logo goes to `/welcome`) | | | `sections/sidebar.html`, `js/nav.js`, `css/shell.css` |
-| Drafts page (screen 11, `#drafts` / `#drafts/shorts`; tabs Vlogs = `isDraftVlog` (vlog uploads not on YouTube yet), Shorts & Reels = the Shorts & Reels clip browser in "drafts" mode (`isDraftClip`: on neither platform), with vlog filter, Select, Schedule, Delete) | | `web/vlogs.py`, `web/clips.py` (same APIs) | `js/drafts.js`, `sections/drafts.html` |
+| Drafts page (screen 11, `#drafts` / `#drafts/shorts`; tabs Vlogs = `isDraftVlog` (vlog uploads not on YouTube yet), Shorts & Reels = the Shorts & Reels clip browser in "drafts" mode (`isDraftClip`: on neither platform), with vlog filter, Select, Schedule, Delete; a card opens Quick review, its Edit the editor) | | `web/vlogs.py`, `web/clips.py` (same APIs) | `js/drafts.js`, `sections/drafts.html` |
 | Vlogs / Shorts & Reels tabs (Drafts and Scheduled; `pageTabs()`, last tab clicked remembered) | | | `js/page-tabs.js`, `css/page-tabs.css` |
-| Vlogs page (home: every vlog except drafts and scheduled ones (`isDraftVlog` / `isScheduledVlog`, they have their own pages) as a row like YouTube's search results; each row's Shorts as buttons "5 drafts" / "1 scheduled" / "2 posted" to Drafts / Scheduled / Shorts & Reels (`vlShortsActs`, `vlOpen`, `vlWire` also used by Drafts and Scheduled); landscape picture = the vlog's YouTube thumbnail, else `poster.jpg`, else a Short's thumbnail on a blur; find by title; tick or Select all to delete several videos, their Shorts stay; a vlog that stopped before making any Shorts is removed completely; stopped vlogs show `web/errors.py`'s plain reason) | `pipeline/poster.py` | `web/vlogs.py` (`/api/vlogs`, `delete-video`, `delete-videos`) | `js/vlogs.js`, `sections/vlogs.html`, `css/vlogs.css` |
-| Upload a vlog to YouTube (+ Create → Upload a vlog, or New vlog on the Vlogs page; screen 10, `#vlog/new` / `#vlog/<id>`): transcribe, AI title ideas + description with chapters + tags + a 16:9 thumbnail (Frame / Duotone), the creator edits (saved as typed), uploads public / scheduled / unlisted / private, then is offered "Make Shorts & Reels from this vlog?" | `pipeline/vlog_meta.py`, `pipeline/vlog_thumbnail.py`, `youtube/vlog_upload.py` | `web/vlog_upload.py` (`/api/vlog/start`, `/<id>/draft`, `/look`, `/upload`, `/shorts`) | `js/vlog-upload.js`, `sections/vlog-upload.html`, `css/vlog-upload.css` |
+| Vlogs page (home: every vlog except drafts and scheduled ones (`isDraftVlog` / `isScheduledVlog`, they have their own pages) as a grid of cards (`vlRow`, also on Drafts and Scheduled: picture, title, details, Shorts buttons in `.vr-acts`, ⋮ = Analytics / Watch on YouTube / Delete video); each row's Shorts as buttons "5 drafts" / "1 scheduled" / "2 posted" to Drafts / Scheduled / Shorts & Reels (`vlShortsActs`, `vlOpen`, `vlWire` also used by Drafts and Scheduled); landscape picture = the vlog's YouTube thumbnail, else `poster.jpg`, else a Short's thumbnail on a blur; find by title; tick or Select all to delete several videos, their Shorts stay; a vlog that stopped before making any Shorts is removed completely; stopped vlogs show `web/errors.py`'s plain reason) | `pipeline/poster.py` | `web/vlogs.py` (`/api/vlogs`, `delete-video`, `delete-videos`) | `js/vlogs.js`, `sections/vlogs.html`, `css/vlogs.css` |
+| Upload a vlog to YouTube (+ Create → Upload a vlog, or Upload a vlog on the Vlogs page; screen 10, `#vlog/new` / `#vlog/<id>`): transcribe, AI title ideas + description with chapters + tags + a 16:9 thumbnail (Frame / Duotone), the creator edits (saved as typed), uploads public / scheduled / unlisted / private, then is offered "Make Shorts & Reels from this vlog?" | `pipeline/vlog_meta.py`, `pipeline/vlog_thumbnail.py`, `youtube/vlog_upload.py` | `web/vlog_upload.py` (`/api/vlog/start`, `/<id>/draft`, `/look`, `/upload`, `/shorts`) | `js/vlog-upload.js`, `sections/vlog-upload.html`, `css/vlog-upload.css` |
 | What to make (+ Create asks: upload a vlog, or make Shorts; Make Shorts asks: from a vlog uploaded here, while its video is kept, or a new video file = screen 1) | | `web/vlog_upload.py` (`/shorts`) | `js/make-choice.js`, `sections/make-dialogs.html`, `css/vlog-upload.css` |
-| Shorts & Reels page (clips that went out or are going out now, `isOutClip`; drafts and scheduled ones are on their own pages, and a clip that's out on one platform and planned on the other shows only the platform it's out on, `clOnPlat`. `#clBrowse` (bar + grid + Select / dock / schedule dialog) is one clip browser that `clOpen(mode, box, vlog)` moves into Shorts & Reels ("out") or Drafts ("drafts"); platform tabs All / YouTube Shorts / Instagram Reels with counts (`clPlatTabs()`, Shorts & Reels only); vlog filter and sort; Select all; Analytics / Download / Edit; schedule several at once on one plan of times; a clip on one platform but not the other has "Instagram · Post it there too" / "YouTube · Post it there too" on its card (`clPostOne()`: the same dialog, only that platform ticked); titles saved as typed) | | `web/clips.py` | `js/clips.js`, `sections/clips.html`, `css/clips.css` |
+| Shorts & Reels page (header: Create from Vlog = `openMake()`, Upload & Edit = `openCreate()`; the editing tools live in the editor on Drafts, not here (posted clips can't be edited); one filter row: platform tabs left, Select / vlog / sort right; cards (5 a row on a laptop): 9:16 thumbnail (plays), title, platform + date, status pill (one per platform when they differ), views so far (YouTube live count + Reel views, `/api/clips/views` in `web/clip_views.py` via `live_views()`, asked after the cards are drawn, at most once a minute), ⋮ = Play / Edit / Analytics / Download / Delete draft (`clMenuItems`); clips that went out or are going out now, `isOutClip`; drafts and scheduled ones are on their own pages, and a clip that's out on one platform and planned on the other shows only the platform it's out on, `clOnPlat`. `#clBrowse` (bar + grid + Select / dock / schedule dialog) is one clip browser that `clOpen(mode, box, vlog)` moves into Shorts & Reels ("out") or Drafts ("drafts"); platform tabs All / YouTube Shorts / Instagram Reels with counts (`clPlatTabs()`, Shorts & Reels only); vlog filter and sort; Select / Select all only on Drafts (not on Shorts & Reels); Analytics / Download / Edit; schedule several at once on one plan of times; a clip on one platform but not the other has "Post it on Instagram too" / "Post it on YouTube too" on its card (`clPostOne()`: the same dialog, only that platform ticked); titles saved as typed) | | `web/clips.py` | `js/clips.js`, `sections/clips.html`, `css/clips.css` |
+| Quick review (Drafts' Shorts & Reels tab: clicking a draft's picture, or ⋮ › Quick review, opens a panel beside the cards (over them below 1280 px, full screen on a phone): player with a Short / Thumbnail switch (`sdView`), vlog, status per platform, the simple editing in `js/short-details.js` (`shortDetails()`, shared with the editor's Details; hook `wireHook(el, s, {jid, pre, apply})`, look, hashtags / YouTube title / Instagram caption `postTextHTML(s, pre)` + `wirePostText(el, s, jid)`, same routes; **nothing is saved until Save**: changes wait in `qrPend` (post-text's `hold`, hook's `apply`), Cancel goes back to what's saved, closing or leaving with changes asks first), an "AI suggestions" Soon block; Edit draft / Schedule (this clip only) / Download. Saving a hook or look remakes the Short (hook first, then the look): the clip list's 3 s check follows it and `qrSync()` redraws the panel; never `sendMoment()` from here, it starts the review page's polling) | | `web/job_status.py`, `web/hooks.py`, `web/thumbnail_look.py`, `web/post_text.py`, `web/clips.py` (title) | `js/short-details.js`, `js/quick-review.js`, `sections/quick-review.html`, `css/quick-review.css` |
+| Editor (screen 12, `#edit/<vlog>/<short>`, a draft's Edit on Drafts and Quick review's Edit draft; its own layout: the sidebar is hidden (`body.ed-on`), one bar = Back (Drafts), "Edit Short", the save state (Saved / n changes not saved + Save / Discard, Cmd/Ctrl+S), ⋮, Export (video, thumbnail), Finish (saves, waits for a remake, then Schedule it / Back to Drafts: `#edFin`); the Details tool has the same editing as Quick review (`shortDetails()`, title included); player with Short / Thumbnail; tool rail (Details, AI Edit, Captions, Reframe, Trim, Text & Overlays, Audio, Thumbnail, Effects), player, timeline (playhead follows the player, click to jump), the chosen tool's panel. **The tools are laid out but not working yet** (`ED_TOOLS`: each lists what it will do, marked Soon); what works: Details, player, Finish, Export, ⋮ (Quick review, Open in its vlog = the old editor with Try again, Delete draft). Phones get a "needs a bigger screen" note) | | `web/clips.py` | `js/editor.js`, `sections/editor.html`, `css/editor.css` |
+| Thumbnail text and Try again (Quick review and the editor's Details, saved with Save: the text is redrawn from the saved frames and plan, no AI; Try again asks the AI for another frame and other text than the last plan (`make_thumbnail(..., avoid=plan)`; the same frame again falls back to the best other one), keeping the creator's look; Try again needs the vlog's video) | `pipeline/thumbnails/` (`thumb_plan`, `avoid`) | `web/thumbnail_edit.py` (`/api/thumb`, `/thumb-text`, `/thumb-again`) | `js/short-details.js`, `css/quick-review.css` |
+| Delete a clip that went out (Shorts & Reels › ⋮ › Delete: tick YouTube and/or Instagram. YouTube: Pit Crew deletes the Short on the channel it went to (`yt.delete_video`, already gone = just forgotten). **Instagram can't be deleted by apps with Instagram Login** (only Facebook Login), so the dialog has the creator delete it in Instagram, then `/instagram-gone` reads the Reel: error 100 = gone, then it's forgotten. Off both = a draft again) | | `web/clip_remove.py` | `js/clip-remove.js`, `sections/clips.html` (`#clRm`), `css/clips.css` |
+| ⋮ menu on clip and vlog cards (`cardMenu(btn, items)`, `cmButton(label)`: one shared list, `position:fixed` so a card can't clip it) | | | `js/card-menu.js` (before `vlogs.js`), `css/card-menu.css` |
 | Progress card (vlog being sent / made, "Shorts ready" pop-up) | | `web/vlogs.py` | `js/jobs-now.js`, `css/jobs-now.css` |
 | Settings page (account: change password, sign out; connected channels; appearance) | | | `js/settings.js`, `sections/settings.html`, `css/settings.css` |
 | Connect YouTube | `youtube/signin.py`, `youtube/connection.py`, `youtube/config.py` | `web/youtube_connect.py`, `web/google_redirect.py` | `js/youtube-connect.js` |
@@ -127,7 +184,7 @@ The code is split so two people can work on different features without touching 
 | `pipeline/ffmpeg.py`, `pipeline/text.py`, `pipeline/constants.py` | FFmpeg (`ffmpeg_exe()`, `run()`, `probe()`), small text helpers, shared numbers. |
 | `pipeline/__init__.py`, `youtube/__init__.py`, `instagram/__init__.py` | Only re-export what `web/` uses, so web code can write `pipeline.render_short(...)` / `yt.upload_short(...)` / `ig.post_reel(...)`. |
 | `static/index.html` | The page skeleton: lists the CSS and JS files and includes each `sections/*.html` (the `/` route fills them in). |
-| `static/js/core.js` | `$()`, `fmt()`, `esc()`, `show(n)` (screens 1 New vlog … 7 Vlogs, 8 Settings; `NAV_FOR` marks the sidebar item) and the shared page state (`job`, `jobId`, `poll`, `count`). |
+| `static/js/core.js` | `$()`, `fmt()`, `esc()`, `show(n)` (screens 1 New vlog … 7 Vlogs, 8 Settings … 11 Drafts, 12 the editor; `NAV_FOR` marks the sidebar item) and the shared page state (`job`, `jobId`, `poll`, `count`). |
 | `static/css/tokens.css`, `base.css`, `buttons.css`, `fields.css`, `cards.css`, `shell.css` | The look shared by every screen. |
 | `static/css/theme.css` | The Pit Crew look on top of everything (loads after every screen's CSS): carbon glass panels, YouTube-red buttons and glow, the checkered eyebrow, the sidebar rail, stage lights on Making, hazard-stripe progress bars, the pit-lane sign-in backdrop. Colours only from `tokens.css` (contrast-checked). Fonts: Unbounded (headings, wordmark), Plus Jakarta Sans (text), JetBrains Mono (numbers, labels). The logo (three rising slanted bars on a red tile: growth and speed. Never a play button or a red P: those copy YouTube's and Pinterest's logos) is inline SVG in `sections/sidebar.html` and `sections/auth.html` (give each copy its own ids). |
 
@@ -429,7 +486,7 @@ The code is split so two people can work on different features without touching 
 
 ## Conventions
 
-- Keep it **dependency-light and single-file-per-concern**. No frontend framework. The only database is
+- Keep it **dependency-light and single-file-per-concern**. No frontend framework (except the advanced editor, see "Next: the advanced editor"). The only database is
   `accounts/db.py` (SQLite from the standard library, accounts and YouTube connections); jobs are still `job.json`
   files. Both are local files for now; in the cloud they need lasting storage (a database server and file storage).
 - User-facing errors: raise `RuntimeError("plain sentence about what happened. What to do.")`. They are

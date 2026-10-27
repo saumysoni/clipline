@@ -53,7 +53,8 @@ ME" but "RICE / OLDER THAN ME"); no emoji; nothing that isn't true to the Short.
 """
 
 
-def plan(frames, moment, words=None, context=None):
+def plan(frames, moment, words=None, context=None, avoid=None):
+    """avoid: the last thumbnail's plan (Try again): a different frame and text are asked for."""
     said = ""
     if words:
         said = " ".join(w["w"] for w in words if moment["start"] - 0.1 <= w["s"] <= moment["end"])[:1500]
@@ -63,6 +64,9 @@ def plan(frames, moment, words=None, context=None):
     text = PLAN_PROMPT.format(n=len(frames), last=len(frames) - 1, title=moment.get("title", ""),
                               hook=moment.get("hook", ""), said=said or "(not available)", vlog=vlog,
                               accents=", ".join(ACCENTS))
+    if avoid:
+        text += (f"\nThe creator asked for a different thumbnail. Don't use frame {avoid.get('frame')}, and write "
+                 f"different text from \"{avoid.get('line1', '')} / {avoid.get('line2', '')}\".")
     contents = [text]
     for k, f in enumerate(frames):
         small = f.copy()
@@ -152,11 +156,12 @@ def sharpness(img):
     return float(np.var(np.diff(g, axis=0)) + np.var(np.diff(g, axis=1)))
 
 
-def plan_without_ai(frames, moment):
-    """The frame with the biggest, sharpest face (else the sharpest frame), cropped around that face."""
-    scores = [find_faces(f)[1] for f in frames]
-    k = max(range(len(frames)), key=lambda i: scores[i]) if max(scores) > 0 else \
-        max(range(len(frames)), key=lambda i: sharpness(frames[i]))
+def plan_without_ai(frames, moment, avoid=None):
+    """The frame with the biggest, sharpest face (else the sharpest frame), cropped around that face. avoid: a frame
+    not to use (Try again), when there's another."""
+    ks = [i for i in range(len(frames)) if i != avoid] or list(range(len(frames)))
+    scores = {i: find_faces(frames[i])[1] for i in ks}
+    k = max(ks, key=lambda i: scores[i]) if max(scores.values()) > 0 else max(ks, key=lambda i: sharpness(frames[i]))
     l1, l2 = tidy_lines(moment.get("thumb_line1", ""), moment.get("thumb_line2") or moment.get("hook", ""))
     return {"frame": k, "focus": face_box(frames[k]), "line1": l1, "line2": l2, "accent": pick_accent(moment),
             "ai": False}

@@ -6,16 +6,18 @@ function hookOptions(s){
   if(s.hook && !opts.some(([,t])=>t===s.hook)) opts.push(["custom",s.hook]);  // older Shorts: just the one hook
   return opts;
 }
-function hookOptsHTML(s,chosen){
-  return hookOptions(s).map(([k,t])=>'<li><label><input type="radio" name="hk'+s.idx+'" value="'+esc(k)+'" data-text="'+esc(t)+'"'+(chosen===k?' checked':'')+'><span><small>'+esc(HOOK_NAMES[k]||k)+'</small>'+esc(t)+'</span></label></li>').join("")+
-    '<li><label><input type="radio" name="hk'+s.idx+'" value="none"'+(chosen==="none"?' checked':'')+'><span><small>No text hook</small>Let the original audio open the Short</span></label></li>';
+function hookOptsHTML(s,chosen,pre){
+  const nm=(pre||"")+"hk"+s.idx;
+  return hookOptions(s).map(([k,t])=>'<li><label><input type="radio" name="'+nm+'" value="'+esc(k)+'" data-text="'+esc(t)+'"'+(chosen===k?' checked':'')+'><span><small>'+esc(HOOK_NAMES[k]||k)+'</small>'+esc(t)+'</span></label></li>').join("")+
+    '<li><label><input type="radio" name="'+nm+'" value="none"'+(chosen==="none"?' checked':'')+'><span><small>No text hook</small>Let the original audio open the Short</span></label></li>';
 }
-function hookHTML(s){
+// pre: a prefix for the radio group's name, so a second copy (js/quick-review.js) doesn't share the editor card's.
+function hookHTML(s,pre){
   const none=s.hook_mode==="none"||!s.hook;
   return '<div class="hookbox"><div class="hk-head"><span class="small-lab"><span class="ms fill" aria-hidden="true">bolt</span>Hook</span><button type="button" class="linkbtn hk-change">Change</button></div>'+
     '<div class="hk-now'+(none?' none':'')+'">'+(none?'No text hook (original audio)':esc(s.hook))+'</div>'+
     '<div class="hk-edit" hidden>'+
-      '<ul class="hk-opts" role="radiogroup" aria-label="Hook for Short '+s.idx+'">'+hookOptsHTML(s,none?"none":(s.hook_style||"custom"))+'</ul>'+
+      '<ul class="hk-opts" role="radiogroup" aria-label="Hook for Short '+s.idx+'">'+hookOptsHTML(s,none?"none":(s.hook_style||"custom"),pre)+'</ul>'+
       '<input type="text" class="hk-text" maxlength="60" aria-label="Hook text, edit to write your own" value="'+esc(none?"":s.hook)+'"'+(none?' disabled':'')+'>'+
       '<div class="hk-emoji" hidden>Emoji can\'t be shown in the video or thumbnail, so they\'re left out there. They stay in the title and description.</div>'+
       '<label class="hk-thumb"><input type="checkbox" class="hk-usethumb" checked> Also put it on the thumbnail</label>'+
@@ -24,7 +26,10 @@ function hookHTML(s){
       '<div class="err hk-err" role="alert"></div>'+
     '</div></div>';
 }
-function wireHook(el,s){
+// o (js/quick-review.js): {jid, pre, apply(body, err) -> true when it started}; the editor card uses the review page's job.
+function wireHook(el,s,o){
+  o=o||{}; const jid=o.jid||jobId;
+  const apply=o.apply||((body,err)=>sendMoment("/api/hook/"+jobId+"/"+s.idx,body,err));
   const box=el.querySelector(".hookbox"), edit=box.querySelector(".hk-edit"), text=box.querySelector(".hk-text"), err=box.querySelector(".hk-err");
   const usethumb=box.querySelector(".hk-usethumb"), emoji=box.querySelector(".hk-emoji");
   const paintText=()=>{
@@ -47,11 +52,11 @@ function wireHook(el,s){
   box.querySelector(".hk-rewrite").onclick=async()=>{
     const b=box.querySelector(".hk-rewrite"); err.textContent=""; b.disabled=true; b.textContent="Writing...";
     try{
-      const r=await fetch("/api/hooks/"+jobId+"/"+s.idx,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({note:box.querySelector(".hk-note").value.trim()})});
+      const r=await fetch("/api/hooks/"+jid+"/"+s.idx,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({note:box.querySelector(".hk-note").value.trim()})});
       const j=await r.json().catch(()=>({}));
       if(!r.ok){ err.textContent=j.error||"Couldn't write new hooks. Please try again."; return; }
       s.hooks=j.hooks;
-      box.querySelector(".hk-opts").innerHTML=hookOptsHTML({...s,hook:null},j.pick); wireOpts();
+      box.querySelector(".hk-opts").innerHTML=hookOptsHTML({...s,hook:null},j.pick,o.pre); wireOpts();
       text.disabled=false; text.value=j.hooks[j.pick]||""; paintText();
     }catch(e){ err.textContent="Couldn't reach Pit Crew. Check your internet connection, then try again."; }
     finally{ b.disabled=false; b.innerHTML='<span class="ms" aria-hidden="true">auto_awesome</span>Rewrite'; }
@@ -61,6 +66,6 @@ function wireHook(el,s){
     const r=box.querySelector(".hk-opts input:checked"), none=r&&r.value==="none", t=text.value.trim();
     if(!none && !t){ err.textContent="Type a hook, or choose No text hook."; return; }
     const style = none ? "none" : (r && r.dataset.text===t ? r.value : "custom");
-    if(await sendMoment("/api/hook/"+jobId+"/"+s.idx,{mode:none?"none":"text",text:t,style,thumb:usethumb.checked},err)){ edit.hidden=true; el.querySelector("video").pause(); }
+    if(await apply({mode:none?"none":"text",text:t,style,thumb:usethumb.checked},err)){ edit.hidden=true; const v=el.querySelector("video"); if(v) v.pause(); }
   };
 }

@@ -20,5 +20,5 @@ from pipeline.poster import make_poster  # noqa: F401
 from pipeline.post_suggest import suggest_post_text  # noqa: F401
 from pipeline.vlog_meta import clean_tags as clean_vlog_tags, compose_description, write_vlog_meta  # noqa: F401
 from pipeline.vlog_thumbnail import make_vlog_thumbnail, redraw_vlog_thumbnail  # noqa: F401
-from pipeline.thumbnails.make import make_thumbnail, relook_thumbnail, retext_thumbnail  # noqa: F401
+from pipeline.thumbnails.make import make_thumbnail, relook_thumbnail, retext_thumbnail, thumb_plan  # noqa: F401
 from pipeline.thumbnails.layout import LOOKS as THUMB_LOOKS  # noqa: F401

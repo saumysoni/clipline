@@ -2,11 +2,12 @@
 // redrawn on the server from the frames saved when the thumbnail was made (no AI, about a second).
 const LOOK_NAMES={frame:"Frame",duotone:"Duotone"};
 let showThumbFor=null;  // after a redraw, the new card opens on its thumbnail
-function lookHTML(s){
+function lookHTML(s,jid){
   if(!s.thumb) return "";
+  jid=jid||job.id;
   return '<div class="looks" role="group" aria-label="Thumbnail look"><span class="small-lab">Look</span>'+
     Object.entries(LOOK_NAMES).map(([k,n])=>'<button type="button" data-look="'+k+'" aria-pressed="'+(s.thumb_look===k)+'">'+n+'</button>').join("")+
-    '<a class="dl" href="/media/'+job.id+'/'+esc(s.thumb)+'?dl='+encodeURIComponent(thumbFileName(s))+'" download="'+esc(thumbFileName(s))+'" title="Download the thumbnail" aria-label="Download the thumbnail"><span class="ms" aria-hidden="true">download</span></a></div>';
+    '<a class="dl" href="/media/'+jid+'/'+esc(s.thumb)+'?dl='+encodeURIComponent(thumbFileName(s))+'" download="'+esc(thumbFileName(s))+'" title="Download the thumbnail" aria-label="Download the thumbnail"><span class="ms" aria-hidden="true">download</span></a></div>';
 }
 function thumbFileName(s){
   const t=String(s.title||"Short "+s.idx).replace(/[\\/:*?"<>|]+/g,"").trim().slice(0,60)||"Short "+s.idx;

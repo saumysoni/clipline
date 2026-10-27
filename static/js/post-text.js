@@ -13,8 +13,9 @@ function ptPlatforms(){
 const ptGen=kind=>'<div class="pt-gen"><button type="button" class="ghost sm pt-go" data-kind="'+kind+'"><span class="ms" aria-hidden="true">auto_awesome</span><span>Generate ideas</span></button>'+
   '<div class="pt-ideas" data-kind="'+kind+'" aria-live="polite"></div></div>';
 const ptChip=t=>'<span class="pt-chip">#'+esc(t)+'<button type="button" class="pt-x" data-t="'+esc(t)+'" aria-label="Remove #'+esc(t)+'"><span class="ms" aria-hidden="true">close</span></button></span>';
-function postTextHTML(s){
-  const id="pt"+s.idx;
+// pre: a prefix for the ids, so a second copy (js/quick-review.js) doesn't repeat the editor card's.
+function postTextHTML(s,pre){
+  pre=pre||""; const id=pre+"pt"+s.idx;
   const tab=(p,label,icon)=>'<button type="button" role="tab" id="'+id+p+'" aria-controls="'+id+p+'P" aria-selected="false" tabindex="-1" data-p="'+p+'">'+
     '<span class="ms '+(p==="youtube"?"yt":"ig")+'" aria-hidden="true">'+icon+'</span>'+label+'</button>';
   return '<div class="ptx">'+
@@ -24,7 +25,7 @@ function postTextHTML(s){
       '<small class="pt-hint pt-extra"></small></div>'+
     '<div class="pt-tabs" role="tablist" aria-label="Where it\'s posted">'+tab("youtube","YouTube","smart_display")+tab("instagram","Instagram","photo_camera")+'</div>'+
     '<div class="pt-panel" role="tabpanel" id="'+id+'youtubeP" aria-labelledby="'+id+'youtube" data-p="youtube" hidden>'+
-      '<div class="tfield"><label class="fld-lab" for="title'+s.idx+'">YouTube title</label><input class="title" id="title'+s.idx+'" type="text" value="'+esc(s.title)+'" maxlength="95"></div>'+
+      '<div class="tfield"><label class="fld-lab" for="'+pre+'title'+s.idx+'">YouTube title</label><input class="title" id="'+pre+'title'+s.idx+'" type="text" value="'+esc(s.title)+'" maxlength="95"></div>'+
       ptGen("title")+
       '<small class="pt-hint">The description is written for you: the hook, a link to the full video and the hashtags.</small></div>'+
     '<div class="pt-panel" role="tabpanel" id="'+id+'instagramP" aria-labelledby="'+id+'instagram" data-p="instagram" hidden>'+
@@ -49,14 +50,21 @@ function ptApply(el){
   box.querySelectorAll(".pt-panel").forEach(p=>p.hidden=p.dataset.p!==on);
   if(on==="instagram" && box._ptLoad) box._ptLoad();
 }
-function wirePostText(el,s){
+// jid: the Short's vlog (js/quick-review.js passes it; the editor card uses the review page's job).
+// hold(body) (js/quick-review.js): nothing is saved here; each change goes to hold(), which saves it when asked.
+function wirePostText(el,s,jid,hold){
   const box=el.querySelector(".ptx"); if(!box||!s) return;
-  const url="/api/clips/"+job.id+"/"+s.idx+"/post-text", err=box.querySelector(".pt-err");
+  jid=jid||job.id;
+  const url="/api/clips/"+jid+"/"+s.idx+"/post-text", err=box.querySelector(".pt-err");
   const cap=box.querySelector(".pt-cap"), state=box.querySelector(".pt-state"), reset=box.querySelector(".pt-reset");
   const count=box.querySelector(".pt-count"), note=box.querySelector(".pt-note"), tagIn=box.querySelector(".pt-tag-in");
-  let suggested="", tags=[...(s.hashtags||[])], dirty=false;
+  let suggested="", tags=[...(s.hashtags||[])], dirty=false, last={}, heldCap=null;
   async function send(body){
     err.textContent="";
+    if(hold){  // kept, not sent: answer like the server would
+      if("caption" in body) heldCap=body.caption;
+      hold(body); return {...last, ...(body.hashtags?{hashtags:body.hashtags}:{})};
+    }
     try{
       const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}), j=await r.json();
       if(!r.ok){ err.textContent=j.error||"Couldn't save it. Try again."; return null; }
@@ -64,8 +72,9 @@ function wirePostText(el,s){
     }catch(e){ err.textContent="Couldn't reach Pit Crew. Check your internet connection, then try again."; return null; }
   }
   function show(j){
-    suggested=j.suggested||""; if(!dirty) cap.value=j.caption||suggested;
-    reset.hidden=!j.caption; paintCount();
+    last=j; const mine=heldCap!==null?heldCap:j.caption;  // a caption held back (hold) wins over the saved one
+    suggested=j.suggested||""; if(!dirty) cap.value=mine||suggested;
+    reset.hidden=!mine; paintCount();
     note.hidden=!j.instagram;
     note.textContent = j.instagram==="posted" ? "Already on Instagram: changes here won't change the posted Reel."
       : j.instagram==="planned" ? "Planned for Instagram: it goes out with this caption." : "";
@@ -89,12 +98,12 @@ function wirePostText(el,s){
   cap.addEventListener("input",()=>{
     dirty=true; paintCount(); state.textContent=""; clearTimeout(cap._save);
     cap._save=setTimeout(async()=>{
-      state.textContent="Saving...";
+      if(!hold) state.textContent="Saving...";
       const j=await send({caption:cap.value});
-      state.textContent=j?"Saved":""; dirty=false; if(j) show(j);
-    },1000);
+      state.textContent=j&&!hold?"Saved":""; dirty=false; if(j) show(j);
+    },hold?0:1000);
   });
-  reset.onclick=async()=>{ clearTimeout(cap._save); dirty=false; cap.value=suggested; paintCount(); const j=await send({caption:""}); if(j){ show(j); state.textContent="Saved"; } };
+  reset.onclick=async()=>{ clearTimeout(cap._save); dirty=false; cap.value=suggested; paintCount(); const j=await send({caption:""}); if(j){ show(j); state.textContent=hold?"":"Saved"; } };
   // ---- hashtags: type and press Enter, space or comma (or paste several); Backspace in the empty box removes the last
   function paintTags(){ box.querySelectorAll(".pt-chip").forEach(c=>c.remove()); tagIn.insertAdjacentHTML("beforebegin",tags.map(ptChip).join(""));
     box.querySelectorAll(".pt-x").forEach(x=>x.onclick=()=>{ tags=tags.filter(t=>t!==x.dataset.t); paintTags(); saveTags(); }); }
@@ -120,7 +129,7 @@ function wirePostText(el,s){
   box.querySelectorAll(".pt-go").forEach(go=>go.onclick=async()=>{
     const kind=go.dataset.kind, list=box.querySelector('.pt-ideas[data-kind="'+kind+'"]'), lab=go.lastChild;
     err.textContent=""; go.disabled=true; lab.textContent="Writing ideas...";
-    let r,j; try{ r=await fetch("/api/clips/"+job.id+"/"+s.idx+"/suggest",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({kind})}); j=await r.json(); }
+    let r,j; try{ r=await fetch("/api/clips/"+jid+"/"+s.idx+"/suggest",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({kind})}); j=await r.json(); }
     catch(e){ r={ok:false}; j={error:"Couldn't reach Pit Crew. Check your internet connection, then try again."}; }
     go.disabled=false; lab.textContent=r.ok?"More ideas":"Generate ideas";
     if(!r.ok){ err.textContent=j.error||"Couldn't write ideas right now. Try again in a moment."; return; }

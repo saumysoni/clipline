@@ -1,0 +1,45 @@
+  <!-- Quick review: a draft Short's panel on Drafts (js/quick-review.js). The simple editing (hook, look, hashtags,
+       title, caption) is here; Edit draft opens the editor (js/editor.js). -->
+  <aside class="qr" id="qrPanel" aria-labelledby="qrHead" hidden>
+    <div class="qr-head">
+      <span class="ms" aria-hidden="true">visibility</span>
+      <h2 id="qrHead">Quick review</h2>
+      <button type="button" class="iconbtn" id="qrX" aria-label="Close Quick review"><span class="ms" aria-hidden="true">close</span></button>
+    </div>
+    <div class="qr-body">
+      <div class="qr-media">
+        <span class="qr-blur" id="qrBlur" aria-hidden="true"></span>
+        <video id="qrVideo" controls playsinline preload="metadata"></video>
+        <img id="qrThumb" class="qr-thumb" alt="Thumbnail" hidden>
+        <div class="qr-view" id="qrViewSw" role="group" aria-label="Preview">
+          <button type="button" data-v="v" aria-pressed="true"><span class="ms" aria-hidden="true">play_circle</span>Short</button>
+          <button type="button" data-v="t" aria-pressed="false"><span class="ms" aria-hidden="true">image</span>Thumbnail</button>
+        </div>
+        <div class="qr-busy" id="qrBusy" hidden><span class="spin" aria-hidden="true"></span><span>Being remade</span></div>
+      </div>
+      <div class="qr-titlerow"><h3 id="qrTitle"></h3><span class="qr-len" id="qrLen"></span></div>
+      <div class="qr-from" id="qrFrom"></div>
+      <div class="qr-status" id="qrStatus"></div>
+      <div class="cl-warn" id="qrWarn" hidden></div>
+      <div class="err" id="qrErr" role="alert"></div>
+      <div class="qr-edit open" id="qrEdit"></div>
+      <div class="qr-ai">
+        <div class="qr-ai-head"><span class="ms" aria-hidden="true">auto_awesome</span><b>AI suggestions</b><span class="cl-soon">Soon</span></div>
+        <p>Pit Crew will point out long pauses, captions to check and stronger hooks here, each with an Apply button.</p>
+      </div>
+    </div>
+    <div class="qr-foot">
+      <!-- shows while something is changed: nothing is saved until Save -->
+      <div class="qr-save" id="qrSaveRow" hidden>
+        <span id="qrSaveN" role="status"></span>
+        <button type="button" class="ghost" id="qrCancel">Cancel</button>
+        <button type="button" class="primary" id="qrSave"><span class="ms" aria-hidden="true">check</span><span>Save</span></button>
+      </div>
+      <button type="button" class="primary" id="qrEditBtn"><span class="ms" aria-hidden="true">edit</span>Edit draft</button>
+      <div class="qr-foot-row">
+        <button type="button" class="ghost" id="qrSched"><span class="ms" aria-hidden="true">calendar_month</span>Schedule</button>
+        <a class="ghost" id="qrDl"><span class="ms" aria-hidden="true">download</span>Download</a>
+      </div>
+    </div>
+  </aside>
+  <div class="qr-shade" id="qrShade" hidden></div>

@@ -1,5 +1,5 @@
-// Vlogs page (home): every vlog uploaded (to make Shorts, or to YouTube with js/vlog-upload.js), newest first, as a list like YouTube's search results (web/vlogs.py):
-// a landscape picture on the left, title and details on the right. Tick vlogs (or Select all) to delete several
+// Vlogs page (home): every vlog uploaded (to make Shorts, or to YouTube with js/vlog-upload.js), newest first, as a grid of
+// cards (web/vlogs.py): a landscape picture, title and details, its Shorts, and ⋮ for Analytics, YouTube and Delete. Tick vlogs (or Select all) to delete several
 // videos at once; their Shorts stay.
 let vlData=null, vlPicked=new Set();
 // Vlogs waiting to go up live on their own pages: Drafts (prepared, not uploaded; js/drafts.js) and Scheduled (uploaded,
@@ -59,9 +59,9 @@ function vlRow(v){
   const busy=v.status==="working", on=vlPicked.has(v.id);
   const meta=[vlDate(v.created), v.duration?fmt(v.duration)+" long":"", vlStats(v)].filter(Boolean).join(" · ");
   return '<article class="vrow'+(on?" on":"")+'" data-id="'+esc(v.id)+'">'+
-    '<label class="vr-pick"'+(vlDeletable(v)?'':' hidden')+'><input type="checkbox"'+(on?' checked':'')+' aria-label="Select '+esc(v.title)+'"></label>'+
-    '<button type="button" class="vr-thumb vl-open" aria-label="Open '+esc(v.title)+'">'+pic+over+
+    '<div class="vr-media"><button type="button" class="vr-thumb vl-open" aria-label="Open '+esc(v.title)+'">'+pic+over+
       (v.duration?'<span class="vl-dur">'+fmt(v.duration)+'</span>':'')+'</button>'+
+      '<label class="vr-pick"'+(vlDeletable(v)?'':' hidden')+'><input type="checkbox"'+(on?' checked':'')+' aria-label="Select '+esc(v.title)+'"></label></div>'+
     '<div class="vr-body">'+
       '<button type="button" class="vr-title vl-open" title="'+esc(v.title)+'">'+esc(v.title)+'</button>'+
       '<div class="vr-meta">'+esc(meta)+'</div>'+
@@ -69,14 +69,21 @@ function vlRow(v){
       (v.status==="working"?'<div class="vr-note">'+(v.prep?"Getting your upload ready":"Making your Shorts")+' · '+esc(v.msg||"")+'</div>':'')+
       (v.status==="error"?'<div class="vr-note bad vr-err"><span class="ms" aria-hidden="true">error</span><span>'+esc(v.error||"Something went wrong. Upload the vlog again.")+'</span></div>':'')+
       (v.video_expires && v.video_expires*1000-Date.now()<86400000 ? '<div class="vr-note warn" title="To keep storage free, a vlog\'s video is deleted after it hasn\'t been edited for a while. Its Shorts stay. Edit one of its Shorts to keep it longer."><span class="ms" aria-hidden="true">schedule</span>Video deleted '+esc(vlSoon(v.video_expires))+'</div>':'')+
-      '<div class="vr-acts">'+
-        (v.removable?'' : v.prep ? vlPrepActs(v) : vlShortsActs(v)+
-        (v.status==="ready"?'<button type="button" class="ghost sm vl-an"'+(v.posted?'':' disabled title="Post a Short to see its numbers"')+'>Analytics</button>':''))+
-        (v.youtube_url?'<a class="ghost sm" href="'+esc(v.youtube_url)+'" target="_blank" rel="noopener">On YouTube<span class="ms" aria-hidden="true">open_in_new</span></a>':'')+
-        (vlDeletable(v)?(v.removable?'<button type="button" class="ghost sm vl-del" title="It stopped before making any Shorts, so there\'s nothing to keep"><span class="ms" aria-hidden="true">delete</span>Remove</button>'
-          :'<button type="button" class="ghost sm vl-del" title="Delete this vlog\'s video (its Shorts stay)"><span class="ms" aria-hidden="true">delete</span>Delete video</button>'):'')+
-      '</div>'+
-    '</div></article>';
+    '</div>'+
+    '<div class="vr-foot"><div class="vr-acts">'+(v.removable?'' : v.prep ? vlPrepActs(v) : vlShortsActs(v))+'</div>'+
+      (vlMenuItems(v).length?cmButton(v.title):'')+'</div>'+
+    '</article>';
+}
+// What a vlog card's ⋮ menu offers (wired in vlWire, which knows what to reload after a delete).
+function vlMenuItems(v,del){
+  const items=[];
+  if(!v.removable && !v.prep && v.status==="ready")
+    items.push({label:"Analytics", icon:"bar_chart", disabled:v.posted?"":"Post a Short to see its numbers", run:()=>openAnalytics(v.id)});
+  if(v.youtube_url) items.push({label:"Watch on YouTube", icon:"open_in_new", href:v.youtube_url});
+  if(vlDeletable(v)) items.push(v.removable
+    ? {label:"Remove", icon:"delete", danger:true, title:"It stopped before making any Shorts, so there's nothing to keep", run:del}
+    : {label:"Delete video", icon:"delete", danger:true, title:"Delete this vlog's video (its Shorts stay)", run:del});
+  return items;
 }
 // Its Shorts, by where they are: "5 drafts" (Drafts), "1 scheduled" (Scheduled), "2 posted" (Shorts & Reels).
 function vlShortsActs(v){
@@ -99,8 +106,8 @@ function vlWire(el,v,after,errId){
   el.querySelectorAll(".vl-open").forEach(b=>b.onclick=()=>vlOpen(v));
   el.querySelectorAll(".vl-go").forEach(b=>b.onclick=()=>b.dataset.go==="drafts"?openDrafts("shorts",v.id):b.dataset.go==="scheduled"?openPosted("shorts"):openClips(v.id));
   const mk=el.querySelector(".vl-make"); if(mk) mk.onclick=()=>openMake(v.id);
-  const an=el.querySelector(".vl-an"); if(an) an.onclick=()=>openAnalytics(v.id);
-  const del=el.querySelector(".vl-del"); if(del) del.onclick=async()=>{ await vlDelete([v]); if(errId!=="vlErr"){ await after(); takeErr("vlErr",errId); } };
+  const del=async()=>{ await vlDelete([v]); if(errId!=="vlErr"){ await after(); takeErr("vlErr",errId); } };
+  const more=el.querySelector(".cm-more"); if(more) more.onclick=()=>cardMenu(more,vlMenuItems(v,del));
 }
 // A vlog uploaded with Pit Crew that has no Shorts yet: its upload page, and Make Shorts while its video is kept.
 function vlPrepActs(v){
