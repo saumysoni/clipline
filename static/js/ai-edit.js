@@ -1,7 +1,8 @@
 // AI Edit, the editor's first tool (web/ai_edit.py, pipeline/ai_edit.py): which parts of the moment the Short keeps.
 // The Short's words are shown as a transcript: click a word (or a pause) to cut it, Shift-click to cut a stretch.
 // Quick actions do the same in one go: remove pauses, tighten the pacing, remove filler words, make it shorter (the AI
-// keeps the best 30 / 45 / 60 seconds), suggested cuts (the AI, each with Apply), improve the hook (Details' Rewrite).
+// keeps the best 30 / 45 / 60 seconds), improve the hook (Details' Rewrite). (The AI's suggested cuts were removed: not
+// reliable enough.)
 // Nothing is saved until the editor's Save: the change goes in as the first remake of shortDetails() (js/short-details.js,
 // o.extra), so it and the other changes are made one after another. While changes wait, the player skips the parts
 // that will be cut (where the current video has them). Undo / Redo step through them.
@@ -35,7 +36,7 @@ function aeToSrc(p,t){ let at=0; for(const [a,b] of p){ if(t<=at+b-a) return a+M
 // o: {box, video, onChange() (something changed: the editor's save state and timeline), onHook() (open Details'
 // Rewrite), onLoad(info) (the words and pieces are in: the editor lays out its timeline)}
 function aiEdit(o){
-  let c=null, info=null, cur=[], toks=[], gaps=[], hist=[], fut=[], gen=0, video="", busy=false, last=null, sugs=null, note="", nowTok=-1;
+  let c=null, info=null, cur=[], toks=[], gaps=[], hist=[], fut=[], gen=0, video="", busy=false, last=null, note="", nowTok=-1;
   const S=()=>info.start, E=()=>info.end, DUR=()=>Math.max(info.duration||0, E());
   const changed=()=>{ paintSum(); o.onChange&&o.onChange(); };
   const same=(p,q)=>p.length===q.length && p.every((r,i)=>Math.abs(r[0]-q[i][0])<0.02 && Math.abs(r[1]-q[i][1])<0.02);
@@ -90,7 +91,7 @@ function aiEdit(o){
   const pending=()=>cur;
   const dirty=()=>!!info && !same(cur, info.pieces);
   async function load(){
-    const my=++gen, cl=c; info=null; cur=[]; toks=[]; gaps=[]; hist=[]; fut=[]; sugs=null; note=""; last=null;
+    const my=++gen, cl=c; info=null; cur=[]; toks=[]; gaps=[]; hist=[]; fut=[]; note=""; last=null;
     o.box.innerHTML='<p class="qr-wait">Getting the words of this Short...</p>'; changed();
     let j; try{ const r=await fetch("/api/ai-edit/"+cl.job+"/"+cl.idx); j=await r.json(); if(!r.ok) throw new Error(j.error||""); }
     catch(e){ if(my===gen) o.box.innerHTML='<p class="qr-wait">'+esc(e.message||"Couldn't load the words. Check your internet connection, then try again.")+'</p>'; return; }
@@ -113,14 +114,12 @@ function aiEdit(o){
         aeBtn("long","graphic_eq","Remove pauses",nPause("long")?nPause("long")+" over 0.7 s":"None found",can&&nPause("long"))+
         aeBtn("tight","timer","Tighten pacing",nPause("tight")?"Every pause over 0.35 s":"Already tight",can&&nPause("tight"))+
         aeBtn("fill","content_cut","Remove filler words",nFill?nFill+" um / uh":"None found",can&&nFill)+
-        aeBtn("cuts","auto_awesome","Suggest cuts","Repeats, false starts, slow parts",can&&info.words.length)+
         aeBtn("hook","bolt","Improve hook","Three new hooks to choose from",!(c&&c.remaking))+
       '</div>'+
       '<div class="ae-short"><span><span class="ms" aria-hidden="true">trending_up</span>Make it shorter</span>'+
         (short.length?short.map(n=>'<button type="button" class="ghost sm" data-short="'+n+'"'+(can?'':' disabled')+'>'+n+' s</button>').join(""):'<small>It\'s already under 30 seconds</small>')+'</div>'+
       '<div class="err" id="aeErr" role="alert"></div>'+
       '<div class="ae-note" id="aeNote"'+(note?'':' hidden')+'>'+esc(note)+'</div>'+
-      '<div class="ae-sugs" id="aeSugs"></div>'+
       (info.words.length?'<div class="ae-tr-head"><b>Transcript</b>'+
         '<button type="button" class="linkbtn" id="aeAll"'+(can?'':' disabled')+'>Keep everything</button></div>'+
         '<p class="ae-help">Click a word or a pause to cut it; click again to keep it. Shift-click to cut a whole stretch.</p>'+
@@ -128,7 +127,7 @@ function aiEdit(o){
     o.box.querySelectorAll(".ae-act").forEach(b=>b.onclick=()=>act(b.dataset.a));
     o.box.querySelectorAll("[data-short]").forEach(b=>b.onclick=()=>shorten(+b.dataset.short,b));
     const all=$("aeAll"); if(all) all.onclick=()=>set(cur.concat([[S(),E()]]));
-    paintTokens(); paintSugs(); paintSum();
+    paintTokens(); paintSum();
   }
   function aeBtn(a,icon,name,sub,on){
     return '<button type="button" class="ae-act" data-a="'+a+'"'+(on?'':' disabled')+'><span class="ms" aria-hidden="true">'+icon+'</span>'+
@@ -159,11 +158,8 @@ function aiEdit(o){
   function act(a){
     $("aeErr").textContent="";
     if(a==="hook"){ o.onHook&&o.onHook(); return; }
-    if(a==="cuts"){ suggest(); return; }
     mark(toks.filter(t=>a==="fill" ? t.k==="w"&&t.filler : t.k==="p"&&t.len>=AE_PAUSE[a]).map(t=>t.i), true);
   }
-  // Cuts from the AI (vlog seconds): the words and pauses inside them are cut.
-  const inside=(a,b)=>toks.filter(t=>a<=mid(t)&&mid(t)<=b).map(t=>t.i);
   async function ask(body,btn,label){
     $("aeErr").textContent=""; btn.disabled=true; const was=btn.innerHTML; btn.textContent=label;
     let r,j={}; try{ r=await fetch("/api/ai-edit/"+c.job+"/"+c.idx+"/suggest",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}); j=await r.json().catch(()=>({})); }
@@ -176,23 +172,6 @@ function aiEdit(o){
     const my=gen, j=await ask({kind:"shorten",target:n},btn,"Choosing..."); if(!j||my!==gen) return;
     set(j.pieces); note=(j.ai?"AI: ":"")+(j.why||("Kept about "+n+" seconds."));
     $("aeNote").textContent=note; $("aeNote").hidden=false;
-  }
-  async function suggest(){
-    const btn=o.box.querySelector('[data-a="cuts"]'), my=gen, j=await ask({kind:"cuts"},btn,"Reading...");
-    if(!j||my!==gen) return;
-    sugs=j.cuts; paintSugs();
-    if(!sugs.length){ $("aeNote").textContent="The AI didn't find anything worth cutting. It's tight already."; $("aeNote").hidden=false; }
-  }
-  function paintSugs(){
-    const box=$("aeSugs"); if(!box) return;
-    if(!sugs||!sugs.length){ box.innerHTML=""; return; }
-    box.innerHTML='<div class="ae-sugs-head"><b>Suggested cuts</b>'+(sugs.length>1?'<button type="button" class="linkbtn" id="aeSugAll">Apply all</button>':'')+'</div>'+
-      sugs.map((x,i)=>'<div class="ae-sug"><div class="ae-sug-top"><span class="cl-pill">'+esc(x.kind)+'</span><span class="ae-sec">−'+x.seconds+' s</span></div>'+
-        '<q>'+esc(x.text)+'</q><p>'+esc(x.why)+'</p><div class="ae-sug-acts"><button type="button" class="ghost sm" data-sug="'+i+'">Apply</button>'+
-        '<button type="button" class="linkbtn" data-drop="'+i+'">Dismiss</button></div></div>').join("");
-    box.querySelectorAll("[data-sug]").forEach(b=>b.onclick=()=>{ const x=sugs.splice(+b.dataset.sug,1)[0]; paintSugs(); mark(inside(x.start,x.end),true); });
-    box.querySelectorAll("[data-drop]").forEach(b=>b.onclick=()=>{ sugs.splice(+b.dataset.drop,1); paintSugs(); });
-    const all=$("aeSugAll"); if(all) all.onclick=()=>{ const idx=sugs.flatMap(x=>inside(x.start,x.end)); sugs=[]; paintSugs(); mark(idx,true); };
   }
   // ---- the player: the video is the Short as saved (info.pieces); pending cuts are skipped in it
   o.video.addEventListener("timeupdate",()=>{
@@ -224,9 +203,11 @@ function aiEdit(o){
     canUndo:()=>hist.length>0, canRedo:()=>fut.length>0,
     undo(){ if(!hist.length) return; fut.push(cur); cur=hist.pop(); paintTokens(); changed(); },
     redo(){ if(!fut.length) return; hist.push(cur); cur=fut.pop(); paintTokens(); changed(); },
-    reset(){ if(info){ cur=info.pieces.map(p=>[...p]); hist=[]; fut=[]; sugs=null; note=""; paint(); changed(); } },
+    reset(){ if(info){ cur=info.pieces.map(p=>[...p]); hist=[]; fut=[]; note=""; paint(); changed(); } },
     // For the timeline (js/editor.js): the pieces the Short will keep, the ones its video has now, and a change
     info:()=>info, pieces:()=>cur, saved:()=>info?info.pieces:null, setPieces:p=>!!info && set(p),
+    // The editor's Undo / Redo (js/editor.js keeps one history for every tool): put these pieces back as they were.
+    restore(p){ if(!info||!p) return; cur=p.map(x=>[...x]); paintTokens(); changed(); },
     canEdit:()=>!!info && info.can_apply && !busy && !(c&&c.remaking),
     // For shortDetails(): the remake to make on Save, and what happens once it's sent.
     step(){
@@ -237,7 +218,7 @@ function aiEdit(o){
       const whole=p.length===1 && Math.abs(p[0][0]-S())<0.02 && Math.abs(p[0][1]-E())<0.02;
       return ["/api/ai-edit/"+c.job+"/"+c.idx+"/apply",{pieces:whole?null:p}];
     },
-    sent(){ info.pieces=cur.map(p=>[...p]); busy=true; hist=[]; fut=[]; sugs=null; paint(); changed(); },
+    sent(){ info.pieces=cur.map(p=>[...p]); busy=true; hist=[]; fut=[]; paint(); changed(); },
   };
   return api;
 }

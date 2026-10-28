@@ -85,7 +85,7 @@ class FakeAI:
                           ("Decide what they want", "again"), ("You write on-screen hooks", "hooks"),
                           ("thumbnail for a YouTube Short", "thumb"), ("full YouTube vlog (landscape", "vthumb"),
                           ("helping a YouTube vlogger upload a full vlog", "meta"), ("analytics coach", "coach"),
-                          ("You are shortening a YouTube Short", "shorten"), ("You are suggesting cuts", "cuts")):
+                          ("You are shortening a YouTube Short", "shorten")):
             if key in text:
                 return kind
         if '{"items"' in text or "\"items\"" in text:
@@ -157,11 +157,6 @@ class FakeAI:
             keep.append(k)
             total += d
         return {"keep": keep, "why": "Cut the slow start."}
-
-    def _cuts(self, text):
-        n = len(self._sentences(text))
-        return {"cuts": [{"from": 1, "to": 1, "kind": "repeat", "why": "It says the same as the first line."},
-                         {"from": 0, "to": n - 1, "kind": "slow", "why": "Everything (must be refused)."}]}
 
     def _items(self, text):
         return {"items": ["The view was worth it", "Lost in the best way", "One road, one market, one view"]}
@@ -636,7 +631,7 @@ def transcript_for(seconds):
     return {"words": words, "segments": segs, "duration": float(seconds), "language": "en", "engine": "fake"}
 
 
-SLOW = SimpleNamespace(transcribe=float(os.getenv("PITCREW_FAKE_SLOW") or 0), fail="")  # env: for the server process
+SLOW = SimpleNamespace(transcribe=float(os.getenv("PITCREW_FAKE_SLOW") or 0), fail="", render=0.0)  # env: for the server process
 
 
 def fake_transcribe(video_path, out_json, progress=lambda pct, msg: None):
@@ -670,6 +665,7 @@ def fast_render(video_path, meta, moment, words, idx, style, job_dir, cx="find")
     from pipeline.pieces import kept, timeline
     job_dir = Path(job_dir)
     RENDERED.append({"idx": idx, "pieces": kept(moment), "hook": moment.get("hook", ""), "hook_mode": moment.get("hook_mode")})
+    time.sleep(SLOW.render)  # SLOW.render > 0: editing takes a while (Pause tests)
     build_ass(timeline(moment, words), 0.0, sum(b - a for a, b in kept(moment)), moment.get("hook", ""), style,
               job_dir / f"captions_{idx}.ass")
     (job_dir / f"short_{idx}.mp4").write_bytes(b"\x00\x00\x00\x18ftypmp42" + os.urandom(64))
@@ -763,7 +759,7 @@ def reset():
     OUTBOX.clear()
     RENDERED.clear()
     ANALYTICS_CALLS.clear()
-    SLOW.transcribe, SLOW.fail = 0.0, ""
+    SLOW.transcribe, SLOW.fail, SLOW.render = 0.0, "", 0.0
     from web import accounts as WA
     WA.FAILS.clear()
     WA.SIGNUPS.clear()

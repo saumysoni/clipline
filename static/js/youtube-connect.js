@@ -11,6 +11,10 @@ function paintAccount(){
   $("ytText").textContent = yt.signed_in ? name : "Connect YouTube";
   const more=(yt.channels||[]).length-1; $("ytMore").textContent = yt.signed_in && more>0 ? "+"+more : "";
   $("ytPill").classList.toggle("has", !!yt.signed_in);
+  // "View your channel" under the name: the channel as people see it on YouTube
+  const ch=yt.signed_in&&yt.channel, h=ch&&(ch.handle||"").trim();
+  $("ytView").hidden=!(ch&&(h||ch.id));
+  if(ch) $("ytView").href = h ? "https://www.youtube.com/"+encodeURIComponent(h.startsWith("@")?h:"@"+h) : "https://www.youtube.com/channel/"+encodeURIComponent(ch.id||"");
   $("ytPill").title = !yt.configured ? "YouTube posting isn't available right now"
     : yt.signed_in ? "Posting to "+name : "Connect your YouTube channel to post your Shorts";
   $("acct").hidden = false;

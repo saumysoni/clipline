@@ -1,4 +1,4 @@
-/* AI Edit in the editor (js/ai-edit.js): length line, quick actions, Make it shorter, suggested cuts, the transcript
+/* AI Edit in the editor (js/ai-edit.js): length line, quick actions, Make it shorter, the transcript
    (words and pauses to click); and Trim, the timeline's panel. Colours from tokens.css only. */
 #edAIWrap[hidden]{display:none}
 #edAI{display:flex;flex-direction:column;gap:12px}
@@ -26,17 +26,6 @@
 .ae-short small{font-weight:400;color:var(--muted)}
 .ae-note{padding:9px 12px;border-radius:12px;background:var(--cap-soft);font-size:.82rem;line-height:1.4}
 .ae-note[hidden]{display:none}
-/* suggested cuts */
-.ae-sugs{display:flex;flex-direction:column;gap:8px}
-.ae-sugs:empty{display:none}
-.ae-sugs-head{display:flex;align-items:center;justify-content:space-between;font-size:.88rem}
-.ae-sug{padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--panel)}
-.ae-sug-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.ae-sug .cl-pill{text-transform:capitalize}
-.ae-sec{font:600 .78rem/1 var(--mono);color:var(--muted)}
-.ae-sug q{display:block;margin:8px 0 4px;font-size:.82rem;line-height:1.4;quotes:"\201C" "\201D"}
-.ae-sug p{margin:0;font-size:.78rem;color:var(--muted);line-height:1.4}
-.ae-sug-acts{display:flex;align-items:center;gap:12px;margin-top:8px}
 /* transcript */
 .ae-tr-head{display:flex;align-items:center;justify-content:space-between;margin-top:4px;font-size:.9rem}
 .ae-help{margin:-6px 0 0;font-size:.76rem;color:var(--muted);line-height:1.4}

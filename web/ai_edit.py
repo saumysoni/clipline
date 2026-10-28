@@ -4,8 +4,8 @@ pipeline/pieces.py).
 
   GET  /api/ai-edit/<job>/<idx>            the Short's words (each with whether it's kept), what's kept, the pauses and
                                            filler words found, and whether changes can be made now
-  POST /api/ai-edit/<job>/<idx>/suggest    {"kind": "shorten", "target": 30|45|60, "note"} -> {"pieces", "why"}, or
-                                           {"kind": "cuts"} -> {"cuts": [...]}: the AI's ideas, nothing saved
+  POST /api/ai-edit/<job>/<idx>/suggest    {"kind": "shorten", "target": 30|45|60, "note"} -> {"pieces", "why"}: the
+                                           AI's shorter version, nothing saved
   POST /api/ai-edit/<job>/<idx>/apply      {"pieces": [[a, b], ...] | null (the whole moment again)}: saves it and remakes
                                            the Short in the background (like a new hook: "retrying" until it's done)
 
@@ -94,8 +94,6 @@ def ai_edit_suggest(job_id, idx):
                 return jsonify(error="Choose how long the Short should be."), 400
             out = pipeline.shorten_short(tr, me, target, note=str(data.get("note") or "")[:300])
             return jsonify(pieces=[list(p) for p in out["keep"]], why=out["why"], ai=out["ai"])
-        if data.get("kind") == "cuts":
-            return jsonify(cuts=pipeline.suggest_cuts(tr, me))
     except RuntimeError as e:
         return jsonify(error=str(e)), 400
     return jsonify(error="Pit Crew doesn't know that kind of suggestion."), 400

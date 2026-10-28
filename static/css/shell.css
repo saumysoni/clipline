@@ -139,3 +139,10 @@ button.pill:hover{border-color:var(--line-2);color:var(--ink)}
 .page:has(> section:not([hidden]) .work.wide){max-width:none}
 .navlink.static{cursor:default}
 .navlink.static:hover{background:none;color:var(--muted)}
+/* "View your channel" / "View your profile" under each connected account (js/youtube-connect.js, js/instagram-connect.js) */
+.pl-view{display:inline-flex;align-items:center;gap:4px;align-self:flex-start;margin:-2px 0 4px 40px;font-size:.76rem;font-weight:600;color:var(--muted);text-decoration:none}
+.pl-view .ms{font-size:14px}
+.pl-view:hover{color:var(--ink);text-decoration:underline}
+.pl-view:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:4px}
+.pl-view[hidden]{display:none}
+@media (max-width:1023px){ .pl-view{display:none} }

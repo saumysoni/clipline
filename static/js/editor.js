@@ -6,8 +6,9 @@
 // What works: Details (js/short-details.js: title, hook, thumbnail, hashtags, caption), AI Edit (js/ai-edit.js: cut
 // pauses, filler words, a shorter version, suggested cuts, by the transcript), the timeline and Trim (Twick's timeline,
 // editor-app/ built into static/editor-app/, loaded the first time the editor opens: drag a part's ends, split, delete,
-// reach past the moment), Undo / Redo and the player. AI Edit keeps the pieces both change, so one Save, one Undo
-// and one save state cover both. The other tools are laid out but not working yet: each lists what it will do, marked
+// reach past the moment), Undo / Redo (one history for every tool: Details, AI Edit, Trim), the Save bar at the
+// bottom of the tool panel and the player. AI Edit keeps the pieces both it and Trim change, so one Save and one save
+// state cover everything. The other tools are laid out but not working yet: each lists what it will do, marked
 // "Soon".
 // The clip comes from the clip list (js/clips.js clData), loaded first when the page is opened from its address.
 const ED_TOOLS=[
@@ -44,9 +45,10 @@ const ED_TOOLS=[
 ];
 let edKey=null, edC=null, edTool="details", edOpened=null, edTimer=null, edBusy=false, edSaving=false;
 // AI Edit's changes are saved by Details' Save (the first remake), so the one Save button covers both.
-const edAE=aiEdit({box:$("edAI"), video:$("edVideo"), onChange:()=>{ edPaintSave(); edUndoPaint(); edTlLay(); edTrimPaint(); },
-  onHook:()=>edHook(), onLoad:()=>edTlMount()});
-const edD=shortDetails({box:$("edDBox"), err:$("edDErr"), pre:"ed", onChange:()=>edPaintSave(), extra:edAE,
+const edAE=aiEdit({box:$("edAI"), video:$("edVideo"), onChange:()=>{ edPaintSave(); edRecord(); edTlLay(); edTrimPaint(); },
+  onHook:()=>edHook(), onLoad:()=>{ edHistReset(); edTlMount(); }});
+const edD=shortDetails({box:$("edDBox"), err:$("edDErr"), pre:"ed", onChange:()=>{ edPaintSave(); edRecord(); }, extra:edAE,
+  onLoad:()=>edHistReset(),
   onTitle:v=>{ const n=$("edMeta").querySelector(".ed-name"); if(n) n.textContent=v; }, onLook:()=>edView("t"),
   onRemaking:()=>{ $("edVideo").pause(); edBusy=true; edWatch(); edPaintSave(); edFinPaint(); }});  // edSync() follows it
 sdOpen.push(edD);
@@ -73,7 +75,7 @@ $("edViewSw").querySelectorAll("button").forEach(b=>b.onclick=()=>edView(b.datas
 function edPaintSave(){
   const on=edD.dirty(), n=edD.count(), busy=!!(edC&&edC.remaking)||edBusy, st=$("edState");
   $("edSaveRow").hidden=!on||edSaving; $("s12").classList.toggle("dirty",on);
-  $("edSave").disabled=busy;
+  $("edSave").disabled=busy; $("edSaveN").textContent=(n===1?"1 change":n+" changes")+" not saved";
   st.textContent = edSaving ? "Saving..." : on ? (n===1?"1 change":n+" changes")+" not saved" : busy ? "Remaking the Short..." :
     edC && !isDraftClip(edC) ? "Not a draft" : "Saved";
   st.classList.toggle("warn",on&&!edSaving); st.classList.toggle("busy",!on&&(busy||edSaving));
@@ -81,6 +83,7 @@ function edPaintSave(){
 async function edSaveNow(){
   if(!edD.dirty() || edSaving) return;
   edSaving=true; edPaintSave(); await edD.save(); edSaving=false; edPaintSave();
+  if(!edD.dirty()) edHistReset();  // saved: there's nothing to undo any more
 }
 function edPaint(){
   const c=clData.find(x=>clKey(x)===edKey); edC=c||null;
@@ -108,7 +111,7 @@ function edPaint(){
   const more=$("edMore").firstChild;
   more.onclick=()=>cardMenu(more,[
     {label:"Quick review", icon:"visibility", run:()=>{ if(!edLeave()) return; openDrafts("shorts").then(()=>{ const x=clData.find(y=>clKey(y)===edKey); if(x&&isDraftClip(x)) qrOpen(x); }); }},
-    {label:"Open in its vlog", icon:"video_library", run:()=>{ if(edLeave()) openJob(c.job,c.idx); }, disabled:c.remaking?"It's being remade":"", title:"Try again, Add a Short and this vlog's other Shorts"},
+    {label:"Review & post", icon:"fact_check", run:()=>{ if(edLeave()) openJob(c.job,c.idx); }, disabled:c.remaking?"It's being remade":"", title:"This vlog's review page: Post this, Try again, Add a Short"},
   ].concat(c.status==="draft"&&!c.remaking ? [{label:"Delete draft", icon:"delete", danger:true, run:()=>clDelete([c])}] : []));
   edRail(); edPanel();
 }
@@ -175,8 +178,8 @@ async function edTlMount(){
   edTlLast=JSON.stringify(edAE.pieces());
   edTl=PitTimeline.mount($("edTwick"),{key:c.job+"-"+c.idx+"-"+Date.now(), src, duration:edAE.info().duration, pieces:edAE.pieces(),
     onChange:p=>{ if(!edAE.canEdit() || !edAE.setPieces(p)) edTlLay(true); },  // not taken: put it back as it was
-    onSeek:t=>edTlSeek(t), onSelect:k=>{ edTlSel=k; edTrimPaint(); }});
-  edTl.setZoom(+$("edZoom").value);
+    onSeek:t=>edTlSeek(t), onSelect:k=>{ edTlSel=k; edTrimPaint(); }, onZoom:(z,max)=>edZoomPaint(z,max)});
+  edZoomPaint(1,8);
   edTimeNow(); edTrimPaint();
 }
 // Lay the timeline out again from AI Edit's pieces (after any change: closes gaps, keeps the selected part).
@@ -200,7 +203,15 @@ function edTlSeek(t){
   $("edTlNote").hidden=at!=null;
   if(at!=null && Math.abs((v.currentTime||0)-at)>0.05) v.currentTime=at;
 }
-$("edZoom").oninput=()=>{ if(edTl) edTl.setZoom(+$("edZoom").value); };
+// Zoom: out / Fit (the whole Short) / in. The label says how far in it is.
+function edZoomPaint(z,max){
+  $("edZoomOut").disabled=$("edZoomFit").disabled=!edTl||z<=1.001; $("edZoomIn").disabled=!edTl||z>=max-0.001;
+  $("edZoomFit").textContent = z<=1.001 ? "Fit" : Math.round(z*10)/10+"×";
+  $("edZoomFit").title = z<=1.001 ? "The whole Short fits" : "Zoomed in "+Math.round(z*10)/10+" times: click to show the whole Short";
+}
+$("edZoomIn").onclick=()=>edTl&&edTl.zoomIn();
+$("edZoomOut").onclick=()=>edTl&&edTl.zoomOut();
+$("edZoomFit").onclick=()=>edTl&&edTl.fit();
 
 // ---- Trim: the timeline's tools, in the panel.
 const edMove=(end,d)=>{  // the first part's start or the last part's end, d seconds (later is +)
@@ -250,13 +261,58 @@ function edHook(){
   change.scrollIntoView({block:"nearest"});
 }
 // Undo / Redo on the timeline: AI Edit's cuts not saved yet.
-function edUndoPaint(){ $("edUndo").disabled=!edAE.canUndo(); $("edRedo").disabled=!edAE.canRedo(); }
-$("edUndo").onclick=()=>edAE.undo();
-$("edRedo").onclick=()=>edAE.redo();
+// ---- Undo / Redo: one history of every change not saved yet (Details, AI Edit, Trim). A step is what was waiting to be
+// saved (edD.snap()) and the pieces the Short keeps (edAE.pieces()); typing in one field counts as one step until a
+// pause. Saving, Discard and opening a Short start it afresh.
+let edHist=[], edFut=[], edNow=null, edLast={key:"", at:0}, edRestoring=false;
+const edSnap=()=>({d:edD.snap(), p:JSON.stringify(edAE.pieces())});
+const edSame=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+// What changed between two steps, when it's typing (the same field again soon after is the same step), else "".
+function edTyping(a,b){
+  if(a.p!==b.p) return "";
+  const keys=[...new Set(Object.keys(a.d).concat(Object.keys(b.d)))].filter(k=>!edSame(a.d[k],b.d[k]));
+  if(keys.length!==1) return "";
+  const k=keys[0];
+  if(k==="title" || k==="ttext") return k;
+  if(k==="text"){ const t=Object.keys({...a.d.text,...b.d.text}).filter(x=>!edSame((a.d.text||{})[x],(b.d.text||{})[x])); return t.length===1&&t[0]==="caption"?"caption":""; }
+  return "";
+}
+function edRecord(){
+  if(edRestoring || !edC) return;
+  const now=edSnap();
+  if(!edNow){ edNow=now; edUndoPaint(); return; }
+  if(edSame(now,edNow)) return;
+  const key=edTyping(edNow,now), t=Date.now();
+  if(!(key && key===edLast.key && t-edLast.at<1500)) edHist.push(edNow);
+  if(edHist.length>200) edHist.shift();
+  edLast={key, at:t}; edNow=now; edFut=[]; edUndoPaint();
+}
+function edHistReset(){ edHist=[]; edFut=[]; edLast={key:"",at:0}; edNow=edC?edSnap():null; edUndoPaint(); }
+function edGo(from,to){
+  if(!from.length || edSaving || (edC&&edC.remaking) || edBusy) return;
+  to.push(edNow); edNow=from.pop(); edLast={key:"",at:0};
+  edRestoring=true;
+  try{ edD.restore(edNow.d); edAE.restore(JSON.parse(edNow.p)); } finally{ edRestoring=false; }
+  edPaintSave(); edTlLay(); edTrimPaint(); edUndoPaint();
+}
+function edUndoPaint(){
+  const busy=edSaving||!!(edC&&edC.remaking)||edBusy;
+  $("edUndo").disabled=busy||!edHist.length; $("edRedo").disabled=busy||!edFut.length;
+}
+$("edUndo").onclick=()=>edGo(edHist,edFut);
+$("edRedo").onclick=()=>edGo(edFut,edHist);
+// Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z (or Ctrl+Y) while the editor shows; inside a text field they undo the typing there.
+document.addEventListener("keydown",e=>{
+  if($("s12").hidden || !(e.metaKey||e.ctrlKey) || e.altKey) return;
+  const k=e.key.toLowerCase(), a=document.activeElement, tag=a&&a.tagName;
+  if(tag==="INPUT"||tag==="TEXTAREA"||(a&&a.isContentEditable)) return;
+  if(k==="z" && !e.shiftKey){ e.preventDefault(); edGo(edHist,edFut); }
+  else if((k==="z" && e.shiftKey) || k==="y"){ e.preventDefault(); edGo(edFut,edHist); }
+});
 const edBack=()=>openDrafts("shorts");
 $("edBack").onclick=()=>{ if(edLeave()) edBack(); };
 $("edSave").onclick=edSaveNow;
-$("edCancel").onclick=()=>{ edD.cancel(); if(edC){ const n=$("edMeta").querySelector(".ed-name"); if(n) n.textContent=edC.title; } };
+$("edCancel").onclick=async()=>{ const p=edD.cancel(); if(edC){ const n=$("edMeta").querySelector(".ed-name"); if(n) n.textContent=edC.title; } await p; edHistReset(); };
 // Cmd/Ctrl+S saves while the editor shows.
 document.addEventListener("keydown",e=>{
   if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==="s" && !$("s12").hidden){ e.preventDefault(); edSaveNow(); }

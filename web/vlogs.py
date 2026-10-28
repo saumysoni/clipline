@@ -70,7 +70,7 @@ def summary(job):
             "vpost": {k: vpost.get(k) for k in ("state", "pct", "when", "privacy", "video_id")} if vpost else None,
             "duration": job.get("duration"), "created": created_at(job), "status": job.get("status"),
             "stage": job.get("stage", 0), "stages": len(job.get("stages") or []), "pct": job.get("pct"),
-            "msg": job.get("msg", ""), "error": _error(job), "cover": cover, "poster": _poster(job),
+            "msg": job.get("msg", ""), "error": _error(job), "pausing": bool(job.get("pausing")), "cover": cover, "poster": _poster(job),
             "yt_thumb": f"https://i.ytimg.com/vi/{vid.group(1)}/mqdefault.jpg" if vid else "",
             "shorts": len(shorts), "posted": posted, "scheduled": scheduled, "drafts": drafts,
             "remaking": any(s.get("retrying") for s in job.get("shorts", [])),
@@ -146,6 +146,8 @@ def _cant_delete(job):
     """Why this vlog's video can't be deleted right now, or None."""
     if job.get("status") == "working":
         return "Pit Crew is still making Shorts from this vlog. Wait until they're ready."
+    if job.get("status") == "paused":
+        return "Making Shorts from this vlog is paused. Resume it, or stop it, first."
     if any(s.get("retrying") for s in job.get("shorts", [])):
         return "A Short from this vlog is being remade. Wait until it's ready."
     if job.get("upload_status") in ("starting", "connecting", "uploading"):

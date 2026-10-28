@@ -3,7 +3,9 @@
 // bar + grid, Select, the dock, the schedule dialog) is shared: Drafts' Shorts & Reels tab shows it in "drafts" mode.
 // Each card: play, and ⋮ (js/card-menu.js) for Edit (the vlog's editor panel for that Short), Analytics, Download. Tick clips to
 // schedule several at once on YouTube and/or Instagram. On Drafts a card opens Quick review (js/quick-review.js) and its
-// Edit button the editor (js/editor.js).
+// Edit button the editor (js/editor.js); there the cards are grouped under their vlog, each group with Review & post
+// (the vlog's review page), and a vlog whose Shorts are being made, are paused or stopped shows its progress instead
+// (js/drafts.js dfMaking: Pause / Resume, Stop, Try again).
 let clData=[], clPlat="", clVlog="", clPicked=new Set(), clTimer=null, clMode="out", clOnPaint=null, clViews={}, clViewsAt=0;
 const clKey=c=>c.job+":"+c.idx;
 // Where a clip belongs. Drafts: on neither platform (a draft, or its only posting failed). Scheduled: only planned.
@@ -122,7 +124,7 @@ function clMenuItems(c){
     {label:"Quick review", icon:"visibility", run:()=>qrOpen(c)},
     {label:"Play", icon:"play_arrow", run:()=>clPlay(c), disabled:c.file_deleted?"Pit Crew no longer keeps this file":""},
     {label:"Edit", icon:"edit", run:()=>openEditor(c.job,c.idx), disabled:busy},
-    {label:"Open in its vlog", icon:"video_library", run:()=>openJob(c.job,c.idx), disabled:busy, title:"Try again, Add a Short and this vlog's other Shorts"},
+    {label:"Review & post", icon:"fact_check", run:()=>openJob(c.job,c.idx), disabled:busy, title:"This vlog's review page: Post this, Try again, Add a Short"},
   ] : [
     {label:"Play", icon:"play_arrow", run:()=>clPlay(c), disabled:c.file_deleted?"Pit Crew no longer keeps this file":""},
     {label:"Edit", icon:"edit", run:()=>openJob(c.job,c.idx), disabled:busy},
@@ -156,8 +158,10 @@ function paintClips(){
   const [emptyB,emptyT] = pool.length ? ["Nothing here","Try another filter."]
     : clMode==="drafts" ? ["No Shorts or Reels drafts", clData.length?"Every clip Pit Crew made is posted or scheduled. Make Shorts from a vlog to get new ones.":"Upload a vlog and Pit Crew turns it into Shorts and Reels."]
     : ["Nothing posted yet", clData.length?"Your clips are under Drafts and Scheduled. They show up here once they go out.":"Upload a vlog and Pit Crew turns it into Shorts and Reels."];
-  $("clGrid").innerHTML = list.length ? list.map(clCard).join("") : '<div class="card cl-empty"><span class="ms" aria-hidden="true">movie</span><b>'+
-    emptyB+'</b><span>'+emptyT+'</span></div>';
+  const making=clMode==="drafts" ? dfMaking().filter(v=>!clVlog||v.id===clVlog) : [];
+  $("clGrid").innerHTML = list.length||making.length ? (clMode==="drafts" ? clGroupsHTML(list,making) : list.map(clCard).join(""))
+    : '<div class="card cl-empty"><span class="ms" aria-hidden="true">movie</span><b>'+emptyB+'</b><span>'+emptyT+'</span></div>';
+  if(clMode==="drafts") clWireGroups(making);
   $("clGrid").querySelectorAll(".clip").forEach(el=>{
     const c=clData.find(x=>clKey(x)===el.dataset.k);
     el.querySelector(".cl-play").onclick=()=>clMode==="drafts"?qrOpen(c):clPlay(c);
@@ -169,6 +173,60 @@ function paintClips(){
   });
   clDock();
   if(clOnPaint) clOnPaint();
+}
+// ---- Drafts: the clips under their vlog (newest vlog first). A group's head: the vlog, how many drafts, and Review &
+// post (its review page: Post this, Try again, Add a Short). A vlog whose Shorts are being made, are paused or stopped
+// (making: from /api/vlogs, js/drafts.js) heads its group with its progress and Pause / Resume, Stop, Try again.
+function clGroupsHTML(list,making){
+  const groups=new Map();
+  for(const v of making) groups.set(v.id,{id:v.id, at:v.created, title:v.title, v, clips:[]});
+  for(const c of list){
+    if(!groups.has(c.job)) groups.set(c.job,{id:c.job, at:c.vlog_created, title:c.vlog||"Your vlog", clips:[]});
+    groups.get(c.job).clips.push(c);
+  }
+  return [...groups.values()].sort((a,b)=>(b.at||0)-(a.at||0)).map(g=>clGroupHead(g)+g.clips.map(clCard).join("")).join("");
+}
+function clGroupHead(g){
+  const v=g.v, n=g.clips.length, k=esc(g.id);
+  const sub=[n?n+" draft"+(n===1?"":"s"):"", v&&v.duration?fmt(v.duration)+" vlog":""].filter(Boolean).join(" · ");
+  let body="";
+  if(v && (v.status==="working" || v.status==="paused")){
+    const paused=v.status==="paused", pct=vlPct(v);
+    body='<div class="clg-run'+(paused?' paused':'')+'">'+
+      (paused?'<span class="ms" aria-hidden="true">pause_circle</span>':'<span class="spin" aria-hidden="true"></span>')+
+      '<span class="clg-run-t"><b>'+(paused?"Paused":v.pausing?"Pausing after this step":"Making your Shorts")+' · '+pct+'%</b>'+
+        '<small>'+esc(paused?"What's done is kept. Resume when you're ready.":v.msg||"Working")+'</small></span>'+
+      '<i class="clg-bar"><i style="width:'+pct+'%"></i></i>'+
+      '<span class="clg-acts">'+
+        '<button type="button" class="ghost sm clg-pause" data-k="'+k+'"'+(!paused&&v.pausing?' disabled':'')+'><span class="ms" aria-hidden="true">'+(paused?"play_arrow":"pause")+'</span>'+(paused?"Resume":"Pause")+'</button>'+
+        '<button type="button" class="ghost sm clg-stop" data-k="'+k+'"><span class="ms" aria-hidden="true">stop_circle</span>Stop</button>'+
+        '<button type="button" class="linkbtn clg-see" data-k="'+k+'">See progress</button></span></div>';
+  }else if(v && v.status==="error"){
+    body='<div class="clg-run bad"><span class="ms" aria-hidden="true">error</span>'+
+      '<span class="clg-run-t"><b>Stopped</b><small>'+esc(v.error||"Something went wrong.")+'</small></span>'+
+      '<span class="clg-acts"><button type="button" class="ghost sm clg-again" data-k="'+k+'"><span class="ms" aria-hidden="true">refresh</span>Try again</button>'+
+        (v.removable?'<button type="button" class="ghost sm clg-rm" data-k="'+k+'"><span class="ms" aria-hidden="true">delete</span>Remove</button>':'')+
+        '<button type="button" class="linkbtn clg-see" data-k="'+k+'">See why</button></span></div>';
+  }
+  const review = n && !(v && ["working","paused"].includes(v.status));
+  return '<div class="clg" data-k="'+k+'"><div class="clg-head"><span class="clg-t"><b title="'+esc(g.title)+'">'+esc(g.title)+'</b>'+(sub?'<small>'+esc(sub)+'</small>':'')+'</span>'+
+    (review?'<button type="button" class="ghost sm clg-review" data-k="'+k+'"><span class="ms" aria-hidden="true">fact_check</span>Review &amp; post</button>':'')+'</div>'+body+'</div>';
+}
+function clWireGroups(making){
+  const g=$("clGrid"), V=id=>making.find(v=>v.id===id), err=$("clErr");
+  const again=async()=>{ refreshJobsNow(); await loadDraftVlogs(); paintClips(); };
+  g.querySelectorAll(".clg-review").forEach(b=>b.onclick=()=>openJob(b.dataset.k));
+  g.querySelectorAll(".clg-see").forEach(b=>b.onclick=()=>startPolling(b.dataset.k));
+  g.querySelectorAll(".clg-pause").forEach(b=>b.onclick=()=>{ const v=V(b.dataset.k); b.disabled=true;
+    (v.status==="paused"?resumeVlog:pauseVlog)(v.id, err, async()=>{ await loadDraftVlogs(); paintClips(); }); });
+  g.querySelectorAll(".clg-stop").forEach(b=>b.onclick=()=>{ const v=V(b.dataset.k);
+    stopVlog(v.id, v.kind==="vlog", err, async()=>{ await loadDraftVlogs(); await loadClips(); }); });
+  g.querySelectorAll(".clg-again").forEach(b=>b.onclick=async()=>{ b.disabled=true;
+    let r,j; try{ r=await fetch("/api/vlogs/"+b.dataset.k+"/again",{method:"POST"}); j=await r.json(); }
+    catch(e){ r={ok:false}; j={error:"Couldn't reach Pit Crew. Check your internet connection, then try again."}; }
+    if(!r.ok){ err.textContent=j.error||"Couldn't start it again."; b.disabled=false; return; }
+    err.textContent=""; again(); });
+  g.querySelectorAll(".clg-rm").forEach(b=>b.onclick=async()=>{ await vlDelete([V(b.dataset.k)]); takeErr("vlErr","clErr"); await loadDraftVlogs(); paintClips(); });
 }
 // Select all: every clip shown (with the current filters) that can be ticked.
 function clShown(){ return clSorted(clFiltered()); }

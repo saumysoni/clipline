@@ -1,5 +1,5 @@
 """AI Edit (pipeline/pieces.py, pipeline/ai_edit.py, web/ai_edit.py): a Short that keeps several pieces of its moment,
-pauses and filler words found from the word timings, the AI's shorter version and suggested cuts, and applying them."""
+pauses and filler words found from the word timings, the AI's shorter version, and applying them."""
 from tests import fakes as F
 
 import unittest
@@ -155,12 +155,9 @@ class Routes(unittest.TestCase):
         self.assertAlmostEqual(j["pieces"][0][0], self.s["start"], delta=0.5)  # from the start, up to what fits
         self.assertLessEqual(sum(b - a for a, b in j["pieces"]), 15 * 1.25)
 
-    def test_suggested_cuts_are_checked(self):
-        cuts = self.c.post(self.base + "/suggest", json={"kind": "cuts"}).json["cuts"]
-        self.assertEqual(len(cuts), 1)  # "cut everything" was refused
-        self.assertEqual(cuts[0]["kind"], "repeat")
-        self.assertTrue(self.s["start"] <= cuts[0]["start"] < cuts[0]["end"] <= self.s["end"])
-        self.assertGreater(cuts[0]["seconds"], 1)
+    def test_suggested_cuts_are_gone(self):
+        r = self.c.post(self.base + "/suggest", json={"kind": "cuts"})
+        self.assertEqual(r.status_code, 400)  # removed (not reliable): only "shorten" is left
 
     def test_new_hooks_read_only_what_is_kept(self):
         s = self.s["start"]

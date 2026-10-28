@@ -236,13 +236,31 @@ with sync_playwright() as p:
     pg.wait_for_timeout(400)
     tool("trim")
 
-    # ---------------------------------------------------------------- 9. zoom, ruler
-    print("9. Zoom and the ruler")
+    # ---------------------------------------------------------------- 9. zoom, scrolling, ruler
+    print("9. Zoom, scrolling along the timeline and the ruler")
+    sc_left = lambda: ev("document.querySelector('#edTwick .twick-timeline-scroll-container').scrollLeft")
     w1 = parts().first.bounding_box()["width"]
-    ev("const z=document.getElementById('edZoom'); z.value=4; z.dispatchEvent(new Event('input'))"); pg.wait_for_timeout(500)
+    check(pg.locator("#edZoomOut").is_disabled() and pg.inner_text("#edZoomFit") == "Fit", "at Fit: zoom out is off")
+    pg.click("#edZoomIn"); pg.wait_for_timeout(300); pg.click("#edZoomIn"); pg.wait_for_timeout(600)
     w4 = parts().first.bounding_box()["width"]
-    check(near(w4 / w1, 4, 0.2), f"zoom 4x: {w1:.0f}px -> {w4:.0f}px")
-    ev("const z=document.getElementById('edZoom'); z.value=1; z.dispatchEvent(new Event('input'))"); pg.wait_for_timeout(500)
+    check(near(w4 / w1, 1.6 * 1.6, 0.15), f"zoom in twice: {w1:.0f}px -> {w4:.0f}px")
+    check(pg.inner_text("#edZoomFit") == "2.6×" and not pg.locator("#edZoomOut").is_disabled(), "the button says how far in: " + pg.inner_text("#edZoomFit"))
+    box = pg.locator("#edTwick .twick-timeline-scroll-container").bounding_box()
+    pg.mouse.move(box["x"] + box["width"] / 2, box["y"] + 70)
+    x0 = sc_left(); pg.mouse.wheel(0, 240); pg.wait_for_timeout(400)
+    check(sc_left() > x0 + 100, f"the wheel scrolls along the timeline ({x0:.0f} -> {sc_left():.0f})")
+    sep = pg.locator("#edTwick .twick-timeline-separator").first.bounding_box()
+    x1 = sc_left(); y = sep["y"] + sep["height"] / 2
+    pg.mouse.move(box["x"] + 500, y); pg.mouse.down()
+    for n in range(1, 16):
+        pg.mouse.move(box["x"] + 500 + 12 * n, y); pg.wait_for_timeout(12)
+    pg.mouse.up(); pg.wait_for_timeout(300)
+    check(near(sc_left(), max(0, x1 - 180), 25), f"dragging an empty spot scrolls ({x1:.0f} -> {sc_left():.0f})")
+    check(P() == ev("edAE.pieces()") and state().endswith("not saved"), "scrolling changes nothing")
+    pg.keyboard.down("Control"); pg.mouse.move(box["x"] + 300, box["y"] + 70); pg.mouse.wheel(0, -120); pg.keyboard.up("Control"); pg.wait_for_timeout(500)
+    check(parts().first.bounding_box()["width"] > w4 * 1.5, "Ctrl + scroll zooms in further")
+    pg.click("#edZoomFit"); pg.wait_for_timeout(600)
+    check(near(parts().first.bounding_box()["width"], w1, 3) and sc_left() == 0 and pg.inner_text("#edZoomFit") == "Fit", "Fit shows the whole Short again")
     ruler = pg.locator("#edTwick .twick-seek-track").first.bounding_box()
     t_click = 3.0
     pps = px_per_sec()
@@ -292,6 +310,43 @@ with sync_playwright() as p:
     check(pg.locator('[data-end="0"][data-d="-1"]').is_disabled(), "earlier is off at 0:00")
     pg.click("#edCancel"); pg.wait_for_timeout(400)
     check(state() == "Saved", "discarded")
+
+    # ---------------------------------------------------------------- 12b. Save bar, one Undo for every tool
+    print("12b. The Save bar and Undo / Redo across the tools")
+    tool("ai")
+    check(pg.locator('[data-a="cuts"]').count() == 0 and "Suggest cuts" not in pg.inner_text("#edAI"), "no AI suggested cuts")
+    tool("details")
+    check(not pg.locator("#edSaveRow").is_visible() and pg.locator("#edUndo").is_disabled(), "nothing changed: no Save bar, Undo off")
+    title0 = pg.input_value("#edDBox input.title")
+    pg.fill("#edDBox input.title", title0 + " again"); pg.wait_for_timeout(300)
+    bar, panel = pg.locator("#edSaveRow").bounding_box(), pg.locator(".ed-panel").bounding_box()
+    check(pg.locator("#edSaveRow").is_visible() and abs((bar["y"] + bar["height"]) - (panel["y"] + panel["height"])) < 3
+          and bar["x"] >= panel["x"] - 1, "the Save bar sits at the bottom of the tool panel")
+    check(pg.inner_text("#edSaveN") == "1 change not saved", "it says what's waiting: " + pg.inner_text("#edSaveN"))
+    looks = pg.locator("#edDBox .looks button[aria-pressed=false]")
+    if looks.count():
+        looks.first.click(); pg.wait_for_timeout(300)
+    tool("ai")
+    w = pg.locator("#aeTr .ae-w:not(.cut)").nth(3); w.click(); pg.wait_for_timeout(400)
+    cut_p = P()
+    check(len(cut_p) == 2 and pg.inner_text("#edSaveN") == "3 changes not saved", f"three tools, three changes ({pg.inner_text('#edSaveN')})")
+    pg.click("#edUndo"); pg.wait_for_timeout(400)
+    check(P() == SV(), "Undo takes back the cut word")
+    pg.click("#edUndo"); pg.wait_for_timeout(400)
+    tool("details")
+    check(pg.locator("#edDBox .looks button[aria-pressed=true]").count() == 0 or not looks.count() or
+          ev("[...document.querySelectorAll('#edDBox .looks button')].findIndex(b=>b.getAttribute('aria-pressed')==='true')") == 0,
+          "then the look")
+    check(pg.input_value("#edDBox input.title") == title0 + " again", "the title is still changed")
+    pg.locator("body").click(position={"x": 5, "y": 5}); pg.keyboard.press("Control+z"); pg.wait_for_timeout(400)
+    check(pg.input_value("#edDBox input.title") == title0 and state() == "Saved" and not pg.locator("#edSaveRow").is_visible(),
+          "Ctrl+Z takes back the title (one step for the typing): nothing left to save")
+    pg.click("#edRedo"); pg.wait_for_timeout(300); pg.click("#edRedo"); pg.wait_for_timeout(300); pg.click("#edRedo"); pg.wait_for_timeout(400)
+    check(pg.input_value("#edDBox input.title") == title0 + " again" and P() == cut_p and pg.locator("#edRedo").is_disabled(),
+          "Redo puts all three back")
+    check(ev("document.querySelector('#edMeta .ed-name').textContent") == title0 + " again", "the name in Details follows")
+    pg.click("#edCancel"); pg.wait_for_timeout(800)
+    check(state() == "Saved" and pg.locator("#edUndo").is_disabled() and pg.input_value("#edDBox input.title") == title0, "Discard: back to saved, nothing to undo")
 
     # ---------------------------------------------------------------- 13. no video: read only
     print("13. The vlog's video is gone")

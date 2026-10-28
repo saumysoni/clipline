@@ -2,15 +2,16 @@
        (Edit draft). Details, AI Edit, Trim and the timeline work; the other tools are laid out, marked Soon (js/editor.js) -->
   <section id="s12" hidden>
     <div class="work wide">
-      <!-- One bar: Back, the save state (Save / Discard while something is changed), ⋮, Export, Finish (save, then
-           schedule or go back to Drafts). The sidebar is hidden on this screen (body.ed-on). -->
+      <!-- One bar: Back, the save state, Undo / Redo (every tool's changes not saved yet), ⋮, Export, Finish (save, then
+           schedule or go back to Drafts). Save / Discard are at the bottom of the tool panel (#edSaveRow). The sidebar
+           is hidden on this screen (body.ed-on). -->
       <header class="ed-bar">
         <button type="button" class="iconbtn ed-back" id="edBack" aria-label="Back to Drafts" title="Back to Drafts"><span class="ms" aria-hidden="true">arrow_back</span></button>
         <h1 class="ed-h1">Edit Short</h1>
         <span class="ed-state" id="edState" role="status">Saved</span>
-        <span class="ed-unsaved" id="edSaveRow" hidden>
-          <button type="button" class="linkbtn" id="edSave">Save</button>
-          <button type="button" class="linkbtn" id="edCancel">Discard</button>
+        <span class="ed-hist" role="group" aria-label="Undo and redo">
+          <button type="button" class="ghost sm" id="edUndo" disabled title="Undo (Ctrl+Z / ⌘Z)"><span class="ms" aria-hidden="true">undo</span>Undo</button>
+          <button type="button" class="ghost sm" id="edRedo" disabled title="Redo (Ctrl+Shift+Z / ⇧⌘Z)"><span class="ms" aria-hidden="true">redo</span>Redo</button>
         </span>
         <span class="ed-bar-sp"></span>
         <span id="edMore"></span>
@@ -34,11 +35,15 @@
           </div>
           <div class="ed-tl" id="edTl">
             <div class="ed-tl-bar">
-              <button type="button" class="iconbtn" id="edUndo" disabled title="Undo an edit (not saved yet)" aria-label="Undo"><span class="ms" aria-hidden="true">undo</span></button>
-              <button type="button" class="iconbtn" id="edRedo" disabled title="Redo" aria-label="Redo"><span class="ms" aria-hidden="true">redo</span></button>
               <span class="ed-time" id="edTime">0:00 / 0:00</span>
               <span class="ed-tl-note" id="edTlNote" hidden>Save to play the new parts</span>
-              <span class="ed-zoom" title="Zoom the timeline"><span class="ms" aria-hidden="true">zoom_out</span><input type="range" id="edZoom" min="1" max="8" step="0.5" value="1" aria-label="Timeline zoom"><span class="ms" aria-hidden="true">zoom_in</span></span>
+              <!-- Zoom: out / in, Fit = the whole Short; on the timeline, Ctrl or ⌘ + scroll (or a pinch) zooms too,
+                   scrolling or dragging an empty spot moves along it -->
+              <span class="ed-zoom" role="group" aria-label="Timeline zoom">
+                <button type="button" class="iconbtn" id="edZoomOut" title="Zoom out" aria-label="Zoom out" disabled><span class="ms" aria-hidden="true">zoom_out</span></button>
+                <button type="button" class="ghost sm ed-fit" id="edZoomFit" title="Show the whole Short" disabled>Fit</button>
+                <button type="button" class="iconbtn" id="edZoomIn" title="Zoom in (Ctrl or ⌘ + scroll on the timeline)" aria-label="Zoom in"><span class="ms" aria-hidden="true">zoom_in</span></button>
+              </span>
             </div>
             <!-- The video track is Twick's timeline (editor-app/, mounted by js/editor.js): its own ruler and playhead -->
             <div class="ed-tracks" id="edTracks">
@@ -72,6 +77,12 @@
             <div id="edTrim"></div>
           </div>
           <div id="edPanel" aria-live="polite"></div>
+          <!-- Save / Discard, pinned to the bottom of the panel while something isn't saved (js/editor.js edPaintSave) -->
+          <div class="ed-savebar" id="edSaveRow" hidden>
+            <span class="ed-save-n" id="edSaveN"></span>
+            <button type="button" class="linkbtn" id="edCancel">Discard</button>
+            <button type="button" class="primary" id="edSave">Save</button>
+          </div>
         </aside>
       </div>
     </div>

@@ -1,12 +1,12 @@
 """
 AI Edit (the editor's first tool, js/ai-edit.js, web/ai_edit.py): changing which parts of the moment a Short keeps.
-Everything here returns pieces to keep or cuts to make (pipeline/pieces.py); nothing is rendered here.
+Everything here returns pieces to keep or cuts to make (pipeline/pieces.py); nothing is rendered here. (The AI's
+suggested cuts were removed in October 2026: not reliable enough.)
 
   - pauses(): silences between words (and before the first / after the last word), cut down to a short breath.
     Two strengths: "long" (pauses over 0.7 s) and "tight" (over 0.35 s: a faster pace).
   - fillers(): "um", "uh", "erm"... said on their own (Whisper leaves many out, so there may be none).
   - shorten(): the AI keeps the sentences that make the best Short of about `target` seconds, in their order.
-  - suggest_cuts(): the AI points out parts worth cutting (a false start, a repeat, a slow stretch), each with why.
   - honest_hooks(): after a cut, a hook may quote a number that's no longer said: that hook is dropped (HOOK_RULE).
 
 The AI only reads the Short's words (never anything from YouTube), and every answer is checked against the words.
@@ -16,7 +16,7 @@ import re
 from pipeline.ai import ai_json
 from pipeline.hooks import _numbers
 from pipeline.manual_moment import MANUAL_MAX, MANUAL_MIN
-from pipeline.pieces import kept, normalize, subtract
+from pipeline.pieces import kept, normalize
 from pipeline.text import fmt_mmss
 
 PAD = 0.12  # seconds of quiet kept on each side of speech when a pause is cut (a breath, so it doesn't sound chopped)
@@ -90,21 +90,6 @@ SENTENCES
 """
 
 
-CUTS_PROMPT = """You are suggesting cuts for a YouTube Short ({now:.0f} seconds). Below are its sentences, numbered, with
-when each starts and how long it is.
-
-Point out up to 4 parts the creator could cut to make it tighter and more watchable: a false start or a sentence that
-is said again, a slow or off-topic stretch, a side remark that breaks the story. Never suggest cutting the payoff, and
-never cut so much that it stops making sense. If nothing is worth cutting, return no cuts.
-
-Return ONLY a JSON object: {{"cuts": [{{"from": first sentence number, "to": last sentence number (the same for one),
-  "kind": "repeat" | "false start" | "slow" | "off topic", "why": one short sentence for the creator}}]}}
-
-SENTENCES
-{lines}
-"""
-
-
 def _span(lines, i, j, moment):
     """Vlog seconds covering sentences i..j: from the end of the one before to the start of the one after (so no
     quiet is left behind), within the moment."""
@@ -155,36 +140,6 @@ def shorten(transcript, moment, target, progress=lambda pct, msg: None, note="")
     if _length(pieces) < MANUAL_MIN:
         raise RuntimeError(f"That would leave less than {MANUAL_MIN} seconds. Choose a longer length.")
     return {"keep": pieces, "why": why, "ai": used_ai}
-
-
-def suggest_cuts(transcript, moment, progress=lambda pct, msg: None):
-    """Parts worth cutting, from the AI: [{"start", "end", "seconds", "kind", "why", "text"}] (vlog seconds). Each is
-    checked: inside what's kept now, and never leaving the Short under MANUAL_MIN seconds."""
-    s, e = float(moment["start"]), float(moment["end"])
-    lines, pieces = sentences(transcript["words"], moment), kept(moment)
-    if len(lines) < 2:
-        return []
-    progress(20, "Reading the Short")
-    raw = ai_json(CUTS_PROMPT.format(now=_length(pieces), lines=_lines(lines)), progress, temperature=0.3, timeout=60,
-                  busy_waits=[5])
-    out = []
-    for c in (raw.get("cuts") if isinstance(raw, dict) else raw) or []:
-        try:
-            i, j = int(c.get("from")), int(c.get("to", c.get("from")))
-        except (TypeError, ValueError, AttributeError):
-            continue
-        if not (0 <= i <= j < len(lines)) or j - i + 1 >= len(lines):
-            continue
-        a, b = _span(lines, i, j, moment)
-        left = subtract(pieces, [(a, b)], s, e)
-        if _length(left) < MANUAL_MIN or any(a < o["end"] and o["start"] < b for o in out):
-            continue
-        kind = str(c.get("kind") or "slow").lower()
-        out.append({"start": round(a, 3), "end": round(b, 3), "seconds": round(_length(pieces) - _length(left), 1),
-                    "kind": kind if kind in ("repeat", "false start", "slow", "off topic") else "slow",
-                    "why": " ".join(str(c.get("why") or "").split())[:200],
-                    "text": " ".join(x["text"] for x in lines[i:j + 1])[:300]})
-    return out
 
 
 def honest_hooks(moment, said):

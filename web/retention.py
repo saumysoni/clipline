@@ -187,6 +187,15 @@ def sweep_job(job_id, now=None):
     with LOCK:
         job = load_job(job_id)
         failed = bool(job) and job.get("status") == "error" and (job.get("vpost") or {}).get("state") != "uploading"
+        if job and job.get("status") == "paused":  # web/pause.py: kept like a stopped vlog, then it stops for good
+            if keep_original() and now >= (job.get("last_edit_at") or created_at(job)) + keep_original():
+                job.update(status="error", pausing=False,
+                           error="It was paused for longer than Pit Crew keeps a vlog's video, so it stopped. "
+                                 "Upload the vlog again to make its Shorts.")
+                (JOBS_DIR / job_id / "job.json").write_text(json.dumps(job, default=str), encoding="utf-8")
+                failed = True
+            else:
+                return done
         if not job or (_busy(job) and not failed):
             return done
         job = json.loads(json.dumps(job, default=str))

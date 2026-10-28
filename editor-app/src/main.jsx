@@ -3,7 +3,10 @@
 // clip's ends trims it; Split and Delete are worked out here on the pieces. Every change goes to the page as pieces
 // (vlog seconds, in the vlog's order), which keeps them (js/ai-edit.js: Undo / Redo, Save) and lays them out again
 // with setPieces. Twick's own split isn't used (it reloads the video's details for each half, and loses the clip if
-// that fails), nor its right-click menu or dropping files on the timeline.
+// that fails), nor its right-click menu, dropping files or drawing a box to select clips (dragging the empty part of the
+// timeline scrolls it instead).
+// Getting around (mount): zoom in / out / fit (the page's buttons; Ctrl or Cmd + wheel, or a trackpad pinch, zooms
+// around the pointer), the wheel scrolls sideways, dragging an empty spot scrolls, and the view follows the playhead.
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { TimelineProvider, useTimelineContext } from "@twick/timeline";
@@ -86,6 +89,7 @@ function Bridge({ api, opts }) {
     };
     api.setTime = (t) => { now.current = Math.max(0, t); player.setCurrentTime(now.current); };
     api.time = () => now.current;
+    api.deselect = () => setSelectedItem(null);
     api.selected = selected;
     api.count = () => clipsOf(editor.getTimelineData()).length;  // parts on the timeline (a split shows two)
     // Split the clip under t (the Short's clock; the playhead if not given) in two, on the timeline only (the Short is the same until one half is
@@ -129,16 +133,19 @@ function Bridge({ api, opts }) {
   return null;
 }
 
-// Zoom 1 = the whole Short fits the box (Twick draws 100 px a second at its zoom 1); the page's slider multiplies it.
+// Zoom 1 = the whole Short fits the box (Twick draws 100 px a second at its zoom 1); the page's buttons multiply it.
 const HEADER = 40, ROOM = 28;  // Twick's track header column; the scroll bar and a little air at the end
+const MAX_PPS = 400;  // zoomed in all the way: 400 px a second (a word or two across a part)
 function App({ api, opts }) {
-  const [box, setBox] = useState(opts.el.clientWidth || 800), [times, setTimes] = useState(opts.zoom || 1), [len, setLen] = useState(opts.length || 30);
+  const [box, setBox] = useState(opts.el.clientWidth || 800), [times, setTimes] = useState(opts.nav.times), [len, setLen] = useState(opts.length || 30);
   useEffect(() => {
     const ro = new ResizeObserver(([e]) => setBox(e.contentRect.width));
-    ro.observe(opts.el); opts.zoomTo = setTimes; api.setLength = setLen;
+    ro.observe(opts.el); opts.nav.set = setTimes; api.setLength = setLen;
     return () => ro.disconnect();
   }, []);
-  const zoom = Math.max(0.02, (box - HEADER - ROOM) / (Math.max(len, 1) * 100)) * times;
+  const fit = Math.max(0.02, (box - HEADER - ROOM) / (Math.max(len, 1) * 100));
+  const zoom = fit * times;
+  opts.nav.pps = zoom * 100; opts.nav.fitPps = fit * 100;  // for getting around (mount)
   return (
     <LivePlayerProvider>
       <TimelineProvider contextId={"pitcrew-" + opts.key} initialData={project(opts.pieces, opts.src, opts.duration)}
@@ -156,24 +163,98 @@ function App({ api, opts }) {
 }
 
 // opts: {key, src (a playable copy of the vlog, for the clips' pictures; "" for none), duration (the vlog's), pieces, onChange(pieces),
-// onSeek(t: the Short's clock), onSelect(index of the selected clip, or -1)}
+// onSeek(t: the Short's clock), onSelect(index of the selected clip, or -1), onZoom(times: 1 = the whole Short fits)}
 function mount(el, opts) {
   // The page's handle. The timeline fills in `impl` once it's drawn; until then the calls do nothing.
-  const impl = {}, api = {};
-  for (const [name, none] of [["setPieces"], ["setTime"], ["time", 0], ["selected", -1], ["count", 0], ["split", false], ["remove", false]])
+  const impl = {}, api = {}, nav = { times: 1, pps: 0, fitPps: 0, set: null };
+  for (const [name, none] of [["setPieces"], ["time", 0], ["selected", -1], ["count", 0], ["split", false], ["remove", false]])
     api[name] = (...args) => (impl[name] ? impl[name](...args) : none);
   el.classList.add("pc-tl");  // Twick's styles only apply inside (vite.config.js)
+  const box = () => el.querySelector(".twick-timeline-scroll-container");
+  // ---- zoom: times 1 = the whole Short fits; around a point (px from the timeline's left edge), else the playhead
+  // (if it's in view), else the left edge
+  const maxTimes = () => Math.max(1, nav.fitPps ? MAX_PPS / nav.fitPps : 8);
+  function zoomTo(t, anchorX) {
+    t = Math.min(maxTimes(), Math.max(1, t));
+    if (Math.abs(t - nav.times) < 0.001) return;
+    const sc = box(), old = nav.pps || 1;
+    let ax = anchorX;
+    if (ax == null && sc) {
+      const ph = HEADER + api.time() * old - sc.scrollLeft;
+      ax = ph >= HEADER && ph <= sc.clientWidth ? ph : HEADER;
+    }
+    const at = sc ? (sc.scrollLeft + (ax || HEADER) - HEADER) / old : 0;  // the second under the anchor stays there
+    nav.times = t;
+    if (nav.set) nav.set(t);
+    opts.onZoom && opts.onZoom(t, maxTimes());
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const s2 = box(); if (s2) s2.scrollLeft = Math.max(0, at * nav.pps + HEADER - (ax || HEADER));
+    }));
+  }
+  api.zoomIn = () => zoomTo(nav.times * 1.6);
+  api.zoomOut = () => zoomTo(nav.times / 1.6);
+  api.fit = () => { zoomTo(1); const sc = box(); if (sc) sc.scrollLeft = 0; };
+  api.zoom = () => ({ times: nav.times, max: maxTimes() });
+  // ---- the playhead: set by the page as the player moves; the view follows it when it leaves the screen
+  api.setTime = (t) => {
+    if (!impl.setTime) return;
+    impl.setTime(t);
+    const sc = box(); if (!sc || !nav.pps) return;
+    const x = HEADER + Math.max(0, t) * nav.pps, left = sc.scrollLeft + HEADER, right = sc.scrollLeft + sc.clientWidth - 12;
+    if (x < left || x > right) sc.scrollLeft = Math.max(0, x - HEADER - (sc.clientWidth - HEADER) * 0.2);
+  };
+  // ---- the wheel scrolls sideways; Ctrl / Cmd + wheel (a trackpad pinch) zooms around the pointer
+  const wheel = (e) => {
+    const sc = box(); if (!sc) return;
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      zoomTo(nav.times * Math.exp(-Math.max(-60, Math.min(60, e.deltaY)) * 0.01), e.clientX - sc.getBoundingClientRect().left);
+    } else if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && sc.scrollWidth > sc.clientWidth + 1) {
+      e.preventDefault();
+      sc.scrollLeft += e.deltaY;
+    }
+  };
+  // ---- dragging an empty spot (not a part, its ends or the ruler) scrolls; a click there unselects the part
+  let pan = null, panned = false;
+  const down = (e) => {
+    const sc = box();
+    if (e.button !== 0 || !sc || !sc.contains(e.target)) return;
+    if (e.target.closest(".twick-track-element, .twick-seek-track, .twick-seek-track-empty-space, [class*='handle']")) return;
+    e.preventDefault(); e.stopPropagation();  // (no box to select clips)
+    pan = { x: e.clientX, left: sc.scrollLeft, id: e.pointerId, moved: false };
+    el.setPointerCapture(e.pointerId); el.classList.add("pc-panning");
+  };
+  const move = (e) => {
+    if (!pan || e.pointerId !== pan.id) return;
+    const dx = e.clientX - pan.x;
+    if (Math.abs(dx) > 3) pan.moved = true;
+    if (pan.moved) box().scrollLeft = pan.left - dx;
+  };
+  const up = (e) => {
+    if (!pan || e.pointerId !== pan.id) return;
+    if (!pan.moved && impl.deselect) impl.deselect();
+    panned = pan.moved; pan = null; el.classList.remove("pc-panning");
+    setTimeout(() => { panned = false; });
+  };
+  const click = (e) => { if (panned) { e.preventDefault(); e.stopPropagation(); } };
   // Twick's right-click menu and dropping files on the timeline are turned off: caught before they reach it
   const stop = (e) => { e.preventDefault(); e.stopPropagation(); };
-  ["contextmenu", "dragover", "drop"].forEach(t => el.addEventListener(t, stop, true));
+  const on = [["contextmenu", stop], ["dragover", stop], ["drop", stop], ["pointerdown", down], ["pointermove", move],
+              ["pointerup", up], ["pointercancel", up], ["click", click]];
+  on.forEach(([t, f]) => el.addEventListener(t, f, true));
+  el.addEventListener("wheel", wheel, { passive: false });
   const inner = document.createElement("div");
   inner.className = "pc-tl-root";
   el.replaceChildren(inner);
-  opts = { ...opts, el, length: total(opts.pieces || []) };
-  api.setZoom = (z) => { opts.zoom = z; if (opts.zoomTo) opts.zoomTo(z); };  // (before the timeline is drawn too)
+  opts = { ...opts, el, nav, length: total(opts.pieces || []) };
   const root = createRoot(inner);
   root.render(<App api={impl} opts={opts} />);
-  api.destroy = () => { root.unmount(); ["contextmenu", "dragover", "drop"].forEach(t => el.removeEventListener(t, stop, true)); el.replaceChildren(); };
+  api.destroy = () => {
+    root.unmount();
+    on.forEach(([t, f]) => el.removeEventListener(t, f, true));
+    el.removeEventListener("wheel", wheel);
+    el.classList.remove("pc-panning"); el.replaceChildren();
+  };
   return api;
 }
 

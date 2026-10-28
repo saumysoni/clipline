@@ -1,7 +1,16 @@
 /* Pit Crew's touches on Twick's timeline (scoped to .pc-tl like the rest, vite.config.js). Colours come from the
    page's own variables (static/css/tokens.css), so it follows light and dark. */
 .pc-tl-root{height:100%}
-.twick-timeline-scroll-container{background:transparent;color:var(--muted);scrollbar-width:thin}
+.twick-timeline-scroll-container{background:transparent;color:var(--muted);scrollbar-width:auto;scrollbar-color:var(--line-2) transparent;cursor:grab}
+/* a scroll bar that's always there to drag (macOS hides them until you scroll) */
+.twick-timeline-scroll-container::-webkit-scrollbar{height:10px}
+.twick-timeline-scroll-container::-webkit-scrollbar-track{background:transparent}
+.twick-timeline-scroll-container::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:6px;border:2px solid transparent;background-clip:padding-box}
+.twick-timeline-scroll-container::-webkit-scrollbar-thumb:hover{background-color:var(--faint)}
+.pc-panning,.pc-panning *{cursor:grabbing!important;user-select:none}
+.twick-track-element,.twick-seek-track{cursor:pointer}
+/* no box to select clips with (dragging an empty spot scrolls instead) */
+.twick-marquee-overlay{display:none}
 /* One track and no adding tracks: the "+" above the track headers and the grip to reorder tracks go */
 .twick-seek-track-empty-space svg,.twick-track-header-grip{display:none}
 .twick-seek-track-empty-space,.twick-track-header,.twick-track-header-default,.twick-track-header-content{background:transparent;border:0}

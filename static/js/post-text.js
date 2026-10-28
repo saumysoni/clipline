@@ -52,13 +52,14 @@ function ptApply(el){
 }
 // jid: the Short's vlog (js/quick-review.js passes it; the editor card uses the review page's job).
 // hold(body) (js/quick-review.js): nothing is saved here; each change goes to hold(), which saves it when asked.
-function wirePostText(el,s,jid,hold){
+// init (with hold): {caption} a caption already held back (the editor's Undo / Redo draws the fields again).
+function wirePostText(el,s,jid,hold,init){
   const box=el.querySelector(".ptx"); if(!box||!s) return;
   jid=jid||job.id;
   const url="/api/clips/"+jid+"/"+s.idx+"/post-text", err=box.querySelector(".pt-err");
   const cap=box.querySelector(".pt-cap"), state=box.querySelector(".pt-state"), reset=box.querySelector(".pt-reset");
   const count=box.querySelector(".pt-count"), note=box.querySelector(".pt-note"), tagIn=box.querySelector(".pt-tag-in");
-  let suggested="", tags=[...(s.hashtags||[])], dirty=false, last={}, heldCap=null;
+  let suggested="", tags=[...(s.hashtags||[])], dirty=false, last={}, heldCap=init&&"caption" in init?init.caption:null;
   async function send(body){
     err.textContent="";
     if(hold){  // kept, not sent: answer like the server would

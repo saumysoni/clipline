@@ -51,6 +51,7 @@ from web import (  # noqa: E402,F401
     on_youtube,
     pages,
     password_reset,
+    pause,
     retention,
     stop_and_retry,
     verify_email,

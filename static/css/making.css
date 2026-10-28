@@ -16,3 +16,9 @@ ul.tasks li.done{color:var(--ink)}
 ul.tasks li.done .tick{background:var(--good-soft);border-color:transparent;color:var(--good)}
 .sub{font-weight:500;color:var(--muted);font-size:.85rem;margin-left:auto;text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
 @keyframes spin{to{transform:rotate(360deg)}}
+/* Pause / Resume and Stop under the stages (js/progress.js) */
+.mk-acts{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.mk-acts[hidden]{display:none}
+.mk-acts .ghost{gap:8px}
+.mk-acts .ghost[hidden]{display:none}
+.mk-note{font-size:.84rem;color:var(--muted)}
