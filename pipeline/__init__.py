@@ -14,6 +14,8 @@ from pipeline.moments import pick_moments  # noqa: F401
 from pipeline.try_again import repick_moment  # noqa: F401
 from pipeline.manual_moment import manual_moment  # noqa: F401
 from pipeline.render import render_short  # noqa: F401
+from pipeline.pieces import kept as kept_pieces, length as short_length, normalize as normalize_pieces, said as pieces_said  # noqa: F401
+from pipeline.ai_edit import fillers as find_fillers, honest_hooks, pauses as find_pauses, shorten as shorten_short, words_in  # noqa: F401
 from pipeline.preview import make_preview, plays_everywhere  # noqa: F401
 from pipeline.cover import covered_video  # noqa: F401
 from pipeline.poster import make_poster  # noqa: F401

@@ -84,7 +84,8 @@ class FakeAI:
         for key, kind in (("Return ONLY a JSON array of exactly", "moments"), ("The creator chose this moment", "manual"),
                           ("Decide what they want", "again"), ("You write on-screen hooks", "hooks"),
                           ("thumbnail for a YouTube Short", "thumb"), ("full YouTube vlog (landscape", "vthumb"),
-                          ("helping a YouTube vlogger upload a full vlog", "meta"), ("analytics coach", "coach")):
+                          ("helping a YouTube vlogger upload a full vlog", "meta"), ("analytics coach", "coach"),
+                          ("You are shortening a YouTube Short", "shorten")):
             if key in text:
                 return kind
         if '{"items"' in text or "\"items\"" in text:
@@ -140,6 +141,22 @@ class FakeAI:
                              {"t": 90, "title": "The view"}],
                 "tags": ["travel vlog", "hills", "road trip", "street food", "market", "india", "vlog", "day trip"],
                 "hashtags": ["travel", "vlog", "india"], "thumb_line1": "WE GOT", "thumb_line2": "LOST"}
+
+    @staticmethod
+    def _sentences(text):
+        """(number, seconds) of each numbered sentence in an AI Edit prompt."""
+        return [(int(k), float(d)) for k, d in re.findall(r"^\[(\d+)\] \([\d:]+, ([\d.]+)s\)", text, flags=re.M)]
+
+    def _shorten(self, text):
+        """Skips the first sentence (so a test can tell the AI chose), then keeps sentences up to the target."""
+        target = float(re.search(r"to about (\d+) seconds", text).group(1))
+        keep, total = [], 0.0
+        for k, d in self._sentences(text)[1:]:
+            if total >= target * 0.9:
+                break
+            keep.append(k)
+            total += d
+        return {"keep": keep, "why": "Cut the slow start."}
 
     def _items(self, text):
         return {"items": ["The view was worth it", "Lost in the best way", "One road, one market, one view"]}
@@ -614,7 +631,7 @@ def transcript_for(seconds):
     return {"words": words, "segments": segs, "duration": float(seconds), "language": "en", "engine": "fake"}
 
 
-SLOW = SimpleNamespace(transcribe=float(os.getenv("PITCREW_FAKE_SLOW") or 0), fail="")  # env: for the server process
+SLOW = SimpleNamespace(transcribe=float(os.getenv("PITCREW_FAKE_SLOW") or 0), fail="", render=0.0)  # env: for the server process
 
 
 def fake_transcribe(video_path, out_json, progress=lambda pct, msg: None):
@@ -640,10 +657,17 @@ def _jpeg(path, size=(1080, 1920), color=(200, 40, 60)):
     Image.new("RGB", size, color).save(path, "JPEG", quality=80)
 
 
+RENDERED = []  # what each fast_render was asked to make (AI Edit tests)
+
+
 def fast_render(video_path, meta, moment, words, idx, style, job_dir, cx="find"):
     from pipeline.captions import build_ass
+    from pipeline.pieces import kept, timeline
     job_dir = Path(job_dir)
-    build_ass(words, moment["start"], moment["end"], moment.get("hook", ""), style, job_dir / f"captions_{idx}.ass")
+    RENDERED.append({"idx": idx, "pieces": kept(moment), "hook": moment.get("hook", ""), "hook_mode": moment.get("hook_mode")})
+    time.sleep(SLOW.render)  # SLOW.render > 0: editing takes a while (Pause tests)
+    build_ass(timeline(moment, words), 0.0, sum(b - a for a, b in kept(moment)), moment.get("hook", ""), style,
+              job_dir / f"captions_{idx}.ass")
     (job_dir / f"short_{idx}.mp4").write_bytes(b"\x00\x00\x00\x18ftypmp42" + os.urandom(64))
     return f"short_{idx}.mp4", None if cx == "find" else cx
 
@@ -733,8 +757,9 @@ def reset():
     IG.deleted_reels.clear()
     IG.permissions = "instagram_business_basic,instagram_business_content_publish,instagram_business_manage_insights"
     OUTBOX.clear()
+    RENDERED.clear()
     ANALYTICS_CALLS.clear()
-    SLOW.transcribe, SLOW.fail = 0.0, ""
+    SLOW.transcribe, SLOW.fail, SLOW.render = 0.0, "", 0.0
     from web import accounts as WA
     WA.FAILS.clear()
     WA.SIGNUPS.clear()

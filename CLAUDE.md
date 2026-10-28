@@ -36,7 +36,9 @@ Linux cloud server as on a laptop:**
 
 ## Next: the advanced editor (decided October 2026)
 
-The editor screen (screen 12, `js/editor.js`) is laid out with every tool marked Soon. Next, those tools are built.
+The editor screen (screen 12, `js/editor.js`) is laid out with a rail of tools. **Details, AI Edit and Trim work, on
+Twick's timeline** (AI Edit: plain JS + FFmpeg, gotcha 30; the timeline: Twick, gotcha 31); the others are marked Soon
+and are built next.
 They live **only in the editor of a draft** (Drafts › Edit), never on the Shorts & Reels page: clips there have
 already gone out.
 
@@ -44,14 +46,19 @@ already gone out.
 
 | Feature | What it does |
 |---|---|
-| 1. AI Edit | Remove pauses and filler words, improve the hook, make it shorter, better pacing, edit by editing the transcript text, suggested cuts |
+| 1. AI Edit (built) | Remove pauses and filler words, improve the hook, make it shorter, better pacing, edit by editing the transcript text (the AI's suggested cuts were tried and removed, Oct 2026: not reliable) |
 | 2. Auto Captions | Edit the words, fonts and colours, highlight the spoken word, animations, timing, caption presets |
 | 3. Smart Reframe | Follow the speaker automatically, adjust the crop by hand, zoom / pan keyframes, 9:16 and other aspect ratios, split-screen layouts |
 | 4. Effects & Enhancements | Filters, transitions, text overlays, B-roll, images, music, speed changes, audio effects |
 
 **Framework: Twick** (React components for a multi-track timeline, canvas editing and live preview, with timeline
-APIs; see Twick's documentation). Don't use it until Nesh shares the implementation details.
-OpenCut stays a future option only: its new Editor API is still being rewritten.
+APIs). In use since October 2026 for the editor's timeline only (`editor-app/`, gotcha 31): its video track reads and
+writes a Short's `pieces` (gotcha 30), and the server renders them. Its player and canvas aren't used (the editor's own
+`<video>` plays the saved Short). **Licence:** Twick's own "Sustainable Use License" (its `LICENSE.md`, shipped in
+`static/editor-app/LICENSES.txt`): use in commercial projects and bundling it inside a larger service are allowed;
+offering Twick itself as a hosted service, a competing video-editor product, or "substantial revenue from the
+Software's functionality" need a commercial licence (contact@kifferai.com). Keep its notices, don't use its name or logo.
+"Substantial" isn't defined: get it in writing from them before launch. OpenCut stays a future option only.
 
 **Tech stack**
 
@@ -68,10 +75,11 @@ OpenCut stays a future option only: its new Editor API is still being rewritten.
 | Project storage | JSON in the job folder first; a database + file storage in the cloud | The editable timeline and what media it uses |
 
 **What this changes in the rules here (decide each when the work starts):**
-- **The editor is the one exception to "no frontend framework, no build step".** Keep React / TypeScript inside the
-  editor: its own folder (e.g. `editor-app/`) that builds to one bundle under `static/`, mounted into `#s12` by
-  `js/editor.js`. Every other page stays plain JS. Decide whether the built bundle is committed or built by
-  `deploy/setup.sh` / `update.sh` (then the server needs Node, and `update.sh` must build before it restarts).
+- **The editor is the one exception to "no frontend framework, no build step".** React lives only in `editor-app/`,
+  which builds to `static/editor-app/` (`timeline.js`, `style.css`, `LICENSES.txt`), loaded by `js/editor.js` the
+  first time the editor opens and mounted into `#edTwick`. **The built files are committed**, so the server needs no
+  Node: after changing `editor-app/`, rebuild (`cd editor-app && npm ci --ignore-scripts && npm run build`) and commit
+  both. Every other page stays plain JS.
 - **The page's Save / Discard / Finish stay** (no undo outside the editor): the editor's own undo / redo is extra.
   Details (`js/short-details.js`) keeps working beside the new tools.
 - **The render stays on the server, with FFmpeg.** The browser preview is only a preview: what goes to YouTube and
@@ -83,8 +91,8 @@ OpenCut stays a future option only: its new Editor API is still being rewritten.
   each new prompt needs a branch in `tests/fakes.py` `FakeAI.kind()`.
 - **Music and B-roll:** royalty-free tracks only (nothing that gets claimed or muted); B-roll only from the
   creator's own vlog.
-- Check Twick's licence (and MediaPipe's) before shipping, and add any new service or stored data to the privacy
-  policy (gotcha 26).
+- Twick's licence is checked (above); check MediaPipe's before using it. Add any new service or stored data to the
+  privacy policy (gotcha 26): Twick adds none (its analytics are off and its web fonts are stripped, gotcha 31).
 
 ## Run it
 
@@ -117,25 +125,28 @@ The code is split so two people can work on different features without touching 
 | Confirm your email (link on sign-up, `#verify=<token>`, 48 h; **nothing works until it's confirmed**: `gate()` answers 403 `verify: true` except `UNCONFIRMED_OK`; the confirm screen `#verifyForm` checks every 5 s, Resend, Change email for a typo (`POST /api/auth/email`, `change_email()`), Sign out; Google sign-ins are confirmed) | `accounts/db.py` (`email_verifications`, `change_email`) | `web/verify_email.py`, `web/accounts.py` (`UNCONFIRMED_OK`) | `js/verify-email.js` (`showVerify`), `sections/auth.html`, `css/auth.css`, `css/verify-email.css` |
 | Delete account (Settings: type the email; every vlog, saved transcript, connection (YouTube revoked) and the account; refused while something is being made or posted) | `accounts/db.py` (`delete_user`) | `web/delete_account.py` | `js/delete-account.js`, `sections/settings.html` |
 | Emails when away (Shorts ready, vlog ready to upload, stopped, posting failed; not while the creator watches the page, only to confirmed emails; links use `APP_URL`) | | `web/notices.py` | |
-| Stop / Try again a whole vlog (Stop while it's made: removed, or back to ready if it was prepared for YouTube; Try again after it stopped: same video and transcript) | | `web/stop_and_retry.py` | `js/vlog-again.js` (used by `js/progress.js`, `js/vlog-upload.js`) |
-| Sidebar (+ Create; Workspace: Vlogs, Shorts & Reels, Drafts, Scheduled, Analytics; Channels; Settings (with the person's name; the account is the top of Settings) / Appearance; the logo goes to `/welcome`) | | | `sections/sidebar.html`, `js/nav.js`, `css/shell.css` |
-| Drafts page (screen 11, `#drafts` / `#drafts/shorts`; tabs Vlogs = `isDraftVlog` (vlog uploads not on YouTube yet), Shorts & Reels = the Shorts & Reels clip browser in "drafts" mode (`isDraftClip`: on neither platform), with vlog filter, Select, Schedule, Delete; a card opens Quick review, its Edit the editor) | | `web/vlogs.py`, `web/clips.py` (same APIs) | `js/drafts.js`, `sections/drafts.html` |
+| Stop / Try again a whole vlog (Stop while it's made, or paused: removed, or back to ready if it was prepared for YouTube; then Drafts; Try again after it stopped: same video and transcript) | | `web/stop_and_retry.py` | `js/vlog-again.js` (used by `js/progress.js`, `js/clips.js` (Drafts), `js/vlog-upload.js`) |
+| Pause / Resume while Shorts are made (the making page and Drafts' card: Pause takes effect after the current step (`pause_point()` before transcribing, finding moments, each edit, each thumbnail), a waiting vlog pauses at once; status `"paused"` leaves the queue (its spot goes to the next vlog) and keeps what's done on the job (`plan` = the moments chosen, `made` = the Shorts edited, `shorts` with thumbnails, the transcript file); Resume queues it again and the run skips what's done; Stop works on a paused vlog; kept like a stopped one (`web/retention.py`): after `KEEP_ORIGINAL_HOURS` it stops for good. Not for a vlog upload being prepared) | | `web/pause.py`, `web/make_shorts.py` (`safe()`) | `js/vlog-again.js` (`pauseVlog`, `resumeVlog`), `js/progress.js`, `js/clips.js`, `js/jobs-now.js` |
+| Sidebar (+ Create; Workspace: Vlogs, Shorts & Reels, Drafts, Scheduled, Analytics; Channels, each connected one with "View your channel" (YouTube: its @handle, else /channel/<id>) / "View your profile" (Instagram) under its name, opening in a new tab; Settings (with the person's name; the account is the top of Settings) / Appearance; the logo goes to `/welcome`. Making Shorts and their review page mark Drafts (`NAV_FOR` in `js/core.js`)) | | | `sections/sidebar.html`, `js/nav.js`, `js/youtube-connect.js`, `js/instagram-connect.js` (`#ytView`, `#igView`), `css/shell.css` |
+| Drafts page (screen 11, `#drafts` / `#drafts/shorts`; tabs Vlogs = `isDraftVlog` (vlog uploads not on YouTube yet) and ones being prepared or stopped (`dfPrepping`), Shorts & Reels = the Shorts & Reels clip browser in "drafts" mode (`isDraftClip`: on neither platform), **grouped by vlog** (`clGroupsHTML`: a head per vlog with how many drafts and **Review & post** = that vlog's review page, `openJob`), plus vlogs whose Shorts are being made, paused or stopped (`dfMaking`: progress, Pause / Resume, Stop, See progress; Try again, Remove), kept up to date by the progress card's checks (`dfFollow`); vlog filter, Select, Schedule, Delete; a card opens Quick review, its Edit the editor, ⋮ › Review & post the review page) | | `web/vlogs.py`, `web/clips.py` (same APIs) | `js/drafts.js`, `js/clips.js`, `sections/drafts.html`, `css/clips.css` (`.clg`) |
 | Vlogs / Shorts & Reels tabs (Drafts and Scheduled; `pageTabs()`, last tab clicked remembered) | | | `js/page-tabs.js`, `css/page-tabs.css` |
-| Vlogs page (home: every vlog except drafts and scheduled ones (`isDraftVlog` / `isScheduledVlog`, they have their own pages) as a grid of cards (`vlRow`, also on Drafts and Scheduled: picture, title, details, Shorts buttons in `.vr-acts`, ⋮ = Analytics / Watch on YouTube / Delete video); each row's Shorts as buttons "5 drafts" / "1 scheduled" / "2 posted" to Drafts / Scheduled / Shorts & Reels (`vlShortsActs`, `vlOpen`, `vlWire` also used by Drafts and Scheduled); landscape picture = the vlog's YouTube thumbnail, else `poster.jpg`, else a Short's thumbnail on a blur; find by title; tick or Select all to delete several videos, their Shorts stay; a vlog that stopped before making any Shorts is removed completely; stopped vlogs show `web/errors.py`'s plain reason) | `pipeline/poster.py` | `web/vlogs.py` (`/api/vlogs`, `delete-video`, `delete-videos`) | `js/vlogs.js`, `sections/vlogs.html`, `css/vlogs.css` |
+| Vlogs page (home: **only vlogs posted on YouTube with Pit Crew, or going up now** (`isPostedVlog`): drafts and scheduled ones have their own pages (`isDraftVlog` / `isScheduledVlog`), and videos sent only to make Shorts & Reels aren't vlogs here (their Shorts, progress and stops are on Drafts); a posted vlog stays after its video is deleted here; as a grid of cards (`vlRow`, also on Drafts and Scheduled: picture, title, details, Shorts buttons in `.vr-acts`, ⋮ = Analytics / Watch on YouTube / Delete video); each row's Shorts as buttons "5 drafts" / "1 scheduled" / "2 posted" to Drafts / Scheduled / Shorts & Reels (`vlShortsActs`, `vlOpen`, `vlWire` also used by Drafts and Scheduled); landscape picture = the vlog's YouTube thumbnail, else `poster.jpg`, else a Short's thumbnail on a blur; find by title; tick or Select all to delete several videos, their Shorts stay; a vlog that stopped before making any Shorts is removed completely; stopped vlogs show `web/errors.py`'s plain reason) | `pipeline/poster.py` | `web/vlogs.py` (`/api/vlogs`, `delete-video`, `delete-videos`) | `js/vlogs.js`, `sections/vlogs.html`, `css/vlogs.css` |
 | Upload a vlog to YouTube (+ Create → Upload a vlog, or Upload a vlog on the Vlogs page; screen 10, `#vlog/new` / `#vlog/<id>`): transcribe, AI title ideas + description with chapters + tags + a 16:9 thumbnail (Frame / Duotone), the creator edits (saved as typed), uploads public / scheduled / unlisted / private, then is offered "Make Shorts & Reels from this vlog?" | `pipeline/vlog_meta.py`, `pipeline/vlog_thumbnail.py`, `youtube/vlog_upload.py` | `web/vlog_upload.py` (`/api/vlog/start`, `/<id>/draft`, `/look`, `/upload`, `/shorts`) | `js/vlog-upload.js`, `sections/vlog-upload.html`, `css/vlog-upload.css` |
 | What to make (+ Create asks: upload a vlog, or make Shorts; Make Shorts asks: from a vlog uploaded here, while its video is kept, or a new video file = screen 1) | | `web/vlog_upload.py` (`/shorts`) | `js/make-choice.js`, `sections/make-dialogs.html`, `css/vlog-upload.css` |
 | Shorts & Reels page (header: Create from Vlog = `openMake()`, Upload & Edit = `openCreate()`; the editing tools live in the editor on Drafts, not here (posted clips can't be edited); one filter row: platform tabs left, Select / vlog / sort right; cards (5 a row on a laptop): 9:16 thumbnail (plays), title, platform + date, status pill (one per platform when they differ), views so far (YouTube live count + Reel views, `/api/clips/views` in `web/clip_views.py` via `live_views()`, asked after the cards are drawn, at most once a minute), ⋮ = Play / Edit / Analytics / Download / Delete draft (`clMenuItems`); clips that went out or are going out now, `isOutClip`; drafts and scheduled ones are on their own pages, and a clip that's out on one platform and planned on the other shows only the platform it's out on, `clOnPlat`. `#clBrowse` (bar + grid + Select / dock / schedule dialog) is one clip browser that `clOpen(mode, box, vlog)` moves into Shorts & Reels ("out") or Drafts ("drafts"); platform tabs All / YouTube Shorts / Instagram Reels with counts (`clPlatTabs()`, Shorts & Reels only); vlog filter and sort; Select / Select all only on Drafts (not on Shorts & Reels); Analytics / Download / Edit; schedule several at once on one plan of times; a clip on one platform but not the other has "Post it on Instagram too" / "Post it on YouTube too" on its card (`clPostOne()`: the same dialog, only that platform ticked); titles saved as typed) | | `web/clips.py` | `js/clips.js`, `sections/clips.html`, `css/clips.css` |
 | Quick review (Drafts' Shorts & Reels tab: clicking a draft's picture, or ⋮ › Quick review, opens a panel beside the cards (over them below 1280 px, full screen on a phone): player with a Short / Thumbnail switch (`sdView`), vlog, status per platform, the simple editing in `js/short-details.js` (`shortDetails()`, shared with the editor's Details; hook `wireHook(el, s, {jid, pre, apply})`, look, hashtags / YouTube title / Instagram caption `postTextHTML(s, pre)` + `wirePostText(el, s, jid)`, same routes; **nothing is saved until Save**: changes wait in `qrPend` (post-text's `hold`, hook's `apply`), Cancel goes back to what's saved, closing or leaving with changes asks first), an "AI suggestions" Soon block; Edit draft / Schedule (this clip only) / Download. Saving a hook or look remakes the Short (hook first, then the look): the clip list's 3 s check follows it and `qrSync()` redraws the panel; never `sendMoment()` from here, it starts the review page's polling) | | `web/job_status.py`, `web/hooks.py`, `web/thumbnail_look.py`, `web/post_text.py`, `web/clips.py` (title) | `js/short-details.js`, `js/quick-review.js`, `sections/quick-review.html`, `css/quick-review.css` |
-| Editor (screen 12, `#edit/<vlog>/<short>`, a draft's Edit on Drafts and Quick review's Edit draft; its own layout: the sidebar is hidden (`body.ed-on`), one bar = Back (Drafts), "Edit Short", the save state (Saved / n changes not saved + Save / Discard, Cmd/Ctrl+S), ⋮, Export (video, thumbnail), Finish (saves, waits for a remake, then Schedule it / Back to Drafts: `#edFin`); the Details tool has the same editing as Quick review (`shortDetails()`, title included); player with Short / Thumbnail; tool rail (Details, AI Edit, Captions, Reframe, Trim, Text & Overlays, Audio, Thumbnail, Effects), player, timeline (playhead follows the player, click to jump), the chosen tool's panel. **The tools are laid out but not working yet** (`ED_TOOLS`: each lists what it will do, marked Soon); what works: Details, player, Finish, Export, ⋮ (Quick review, Open in its vlog = the old editor with Try again, Delete draft). Phones get a "needs a bigger screen" note) | | `web/clips.py` | `js/editor.js`, `sections/editor.html`, `css/editor.css` |
+| Editor (screen 12, `#edit/<vlog>/<short>`, a draft's Edit on Drafts and Quick review's Edit draft; its own layout: the sidebar is hidden (`body.ed-on`), one bar = Back (Drafts), "Edit Short", the save state (Saved / n changes not saved), **Undo / Redo** (one history for every tool's changes not saved yet: Details through `shortDetails` `snap()` / `restore()`, AI Edit and Trim through `aiEdit` `restore()`; typing in one field is one step until a 1.5 s pause; Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z outside text fields; saving, Discard and opening start it afresh: `edRecord`, `edGo`), ⋮, Export (video, thumbnail), Finish (saves, waits for a remake, then Schedule it / Back to Drafts: `#edFin`); the Details tool has the same editing as Quick review (`shortDetails()`, title included); player with Short / Thumbnail; tool rail (Details, AI Edit, Captions, Reframe, Trim, Text & Overlays, Audio, Thumbnail, Effects), player, timeline (Twick's, below), the chosen tool's panel, with **Save / Discard pinned to its bottom** while something isn't saved (`#edSaveRow`, Cmd/Ctrl+S too). **Most tools are laid out but not working yet** (`ED_TOOLS`: each lists what it will do, marked Soon; `built: true` = a real panel); what works: Details, AI Edit (`js/ai-edit.js`), Trim and the timeline, player, Finish, Export, ⋮ (Quick review, Open in its vlog = the old editor with Try again, Delete draft). Phones get a "needs a bigger screen" note) | | `web/clips.py` | `js/editor.js`, `sections/editor.html`, `css/editor.css` |
+| Editor timeline and Trim (Twick's timeline: the Short's pieces as parts laid end to end, with the vlog's pictures; drag a part's ends to trim it, Split at the playhead (on the timeline only until a half is trimmed or deleted), Delete part (button or Delete key), Start / End −5 / −1 / +1 / +5 s (reach back into the vlog or carry on, up to its ends); zoom out / Fit / in (the button says how far in, e.g. "2.6×"; Ctrl or Cmd + scroll or a pinch zooms around the pointer, up to 400 px a second); the wheel scrolls along it, dragging an empty spot scrolls, the scroll bar always shows, and the view follows the playhead; a ruler click moves the player where the saved video has that part, else "Save to play the new parts"; the playhead follows the player; read-only, with the reason, when the vlog's video is gone. Every change goes through AI Edit's pieces, so Undo / Redo / Save / Discard cover it) | (`pipeline/pieces.py`) | `web/ai_edit.py` (`/apply` takes pieces anywhere in the vlog), `/api/preview/<job>` (the vlog's video for the pictures) | `editor-app/` (`src/main.jsx`, `src/timeline.css`, `src/player-state.jsx`, `vite.config.js`), built `static/editor-app/`; `js/editor.js` (`edTl*`, `edTrimPaint`), `#edTwick`, `#edTrimWrap` |
+| AI Edit (the editor's first tool: the Short's words as a transcript, click a word or a pause to cut it, Shift-click a stretch; Remove pauses (> 0.7 s) / Tighten pacing (> 0.35 s), Remove filler words, Make it shorter (30 / 45 / 60 s: the AI keeps the best sentences, without it the first ones that fit), Improve hook (opens Details' hook and presses Rewrite); while edits wait, the player skips the parts to be cut; saved by the editor's Save as the first remake of `shortDetails()` (`o.extra`); needs the vlog's video. `aiEdit()` also keeps the pending pieces for the timeline (`pieces()` / `setPieces()`): one list, one Undo, one save state for both tools) | `pipeline/pieces.py` (`kept`, `length`, `timeline`, `said`), `pipeline/ai_edit.py`, `pipeline/render.py` (joins the pieces) | `web/ai_edit.py` (`/api/ai-edit/<job>/<idx>`, `/suggest`, `/apply`) | `js/ai-edit.js`, `css/ai-edit.css`, `sections/editor.html` (`#edAIWrap`, `#edUndo`) |
 | Thumbnail text and Try again (Quick review and the editor's Details, saved with Save: the text is redrawn from the saved frames and plan, no AI; Try again asks the AI for another frame and other text than the last plan (`make_thumbnail(..., avoid=plan)`; the same frame again falls back to the best other one), keeping the creator's look; Try again needs the vlog's video) | `pipeline/thumbnails/` (`thumb_plan`, `avoid`) | `web/thumbnail_edit.py` (`/api/thumb`, `/thumb-text`, `/thumb-again`) | `js/short-details.js`, `css/quick-review.css` |
 | Delete a clip that went out (Shorts & Reels › ⋮ › Delete: tick YouTube and/or Instagram. YouTube: Pit Crew deletes the Short on the channel it went to (`yt.delete_video`, already gone = just forgotten). **Instagram can't be deleted by apps with Instagram Login** (only Facebook Login), so the dialog has the creator delete it in Instagram, then `/instagram-gone` reads the Reel: error 100 = gone, then it's forgotten. Off both = a draft again) | | `web/clip_remove.py` | `js/clip-remove.js`, `sections/clips.html` (`#clRm`), `css/clips.css` |
 | ⋮ menu on clip and vlog cards (`cardMenu(btn, items)`, `cmButton(label)`: one shared list, `position:fixed` so a card can't clip it) | | | `js/card-menu.js` (before `vlogs.js`), `css/card-menu.css` |
-| Progress card (vlog being sent / made, "Shorts ready" pop-up) | | `web/vlogs.py` | `js/jobs-now.js`, `css/jobs-now.css` |
+| Progress card (vlog being sent / made / paused, "Shorts ready" pop-up (none for a pause); its checks also keep the Vlogs page and Drafts up to date) | | `web/vlogs.py` | `js/jobs-now.js`, `css/jobs-now.css` |
 | Settings page (account: change password, sign out; connected channels; appearance) | | | `js/settings.js`, `sections/settings.html`, `css/settings.css` |
 | Connect YouTube | `youtube/signin.py`, `youtube/connection.py`, `youtube/config.py` | `web/youtube_connect.py`, `web/google_redirect.py` | `js/youtube-connect.js` |
 | Setup form (count, style, must-have moments, file, links) | `youtube/links.py` | `web/make_shorts.py` (`start`), `web/times.py` | `js/setup-form.js`, `js/must-have.js`, `js/video-file.js`, `js/links.js`, `js/start.js`, `sections/setup.html`, `css/setup.css` |
 | Vlog title/description from a YouTube link (API key, else the creator's YouTube connection, else title only) | `youtube/vlog_info.py`, `pipeline/vlog_context.py` | `web/vlog_info.py` | `js/links.js` |
-| Making Shorts (the whole run) | all of `pipeline/` | `web/make_shorts.py` | `js/progress.js`, `sections/making.html`, `css/making.css` |
+| Making Shorts (the whole run; the making page has Pause / Resume and Stop) | all of `pipeline/` | `web/make_shorts.py` | `js/progress.js`, `sections/making.html`, `css/making.css` |
 | Vlog queue (`JOB_SLOTS` at once, `JOB_SLOTS_PER_CREATOR` per creator; every vlog run goes through `enqueue_locked()` and `run_job()` builds it from the job; waiting = `working` + `queued`; vlogs under way at a restart are queued again by `load_job()` (`_restarted`, at most `MAX_RECOVERIES`)) | | `web/job_queue.py`, `web/store.py` (`RECOVERED`) | `js/progress.js` (waiting title) |
 | Limits (`MAX_VLOG_MINUTES`, `MONTHLY_VLOG_MINUTES` per account per UTC month; checked at `/api/upload/new`, at start from the sent file (`upload_problem()`: also "not a video"), and in the job after probe (`charge()`, once per vlog: `job["charged"]`); sign-ups 5 per IP per hour) | `accounts/db.py` (`usage`) | `web/allowance.py`, `web/accounts.py` | `js/allowance.js` (hint under the drop zones, length check before sending, Settings usage) |
 | Help (`SUPPORT_EMAIL`: sidebar Help, "Get help" + reference = the vlog's id on a stopped vlog and in emails) | | `web/pages.py` (`/api/config`), `web/notices.py` | `js/help.js` |
@@ -144,7 +155,7 @@ The code is split so two people can work on different features without touching 
 | Finding moments | `pipeline/moments.py` | | |
 | Editing a Short (reframe, captions, render) | `pipeline/reframe.py`, `pipeline/captions.py`, `pipeline/render.py`, `pipeline/fonts.py` | | |
 | Thumbnails | `pipeline/thumbnails/` (`make.py` → `design.py`: `frames` → `plan` → `layout` → `looks/<look>.py`; `simple.py`) | | |
-| Review cards (YouTube-sized tiles; click opens the full card as a panel; "Post this" starts unticked, ticked cards are outlined, ticks kept in `reviewPicked`) | | `web/job_status.py`, `web/pages.py` (`/media`) | `js/review.js`, `js/review-cards.js`, `js/review-tiles.js`, `sections/review.html`, `css/review.css`, `css/review-tiles.css` |
+| Review cards (the review page, `#<vlog id>`: shown when Shorts are made, and from Drafts' Review & post at any time after; YouTube-sized tiles; click opens the full card as a panel; "Post this" starts unticked, ticked cards are outlined, ticks kept in `reviewPicked`) | | `web/job_status.py`, `web/pages.py` (`/media`) | `js/review.js`, `js/review-cards.js`, `js/review-tiles.js`, `sections/review.html`, `css/review.css`, `css/review-tiles.css` |
 | Hooks | `pipeline/hooks.py` | `web/hooks.py` | `js/hooks.js`, `css/hooks.css` |
 | Thumbnail look (Frame / Duotone switch) and download | `pipeline/thumbnails/looks/` (one file per look), `make.py` (`relook_thumbnail`) | `web/thumbnail_look.py` | `js/thumbnail-look.js`, `css/thumbnail-look.css` |
 | Post page (after review: list, when, where, upload; thumbnail as first frame) | `pipeline/cover.py` | `web/posting.py` | `sections/review.html` (`#postView`), `js/posting.js` (`showPost()`), `css/posting.css` |
@@ -483,6 +494,38 @@ The code is split so two people can work on different features without touching 
     description read from its YouTube link stay out of the prompts (`vlog_context_block()`, the thumbnail plan) and
     Pit Crew's read on Analytics is written by the rules (`analytics_coach._providers()`). What the creator typed is fine.
     Any new prompt with YouTube data must check `youtube_data_ok()`.
+30. **A Short can keep several pieces of its moment (AI Edit).** `s["pieces"]` = `[[a, b], ...]` in the vlog's seconds, inside
+    `start`..`end` (none = one piece, `start`..`end`: every Short made before, and every new one). Trim can reach past the
+    moment: `/apply` takes pieces anywhere in the vlog (0..its duration) and sets `start` / `end` to the first piece's start
+    and the last one's end (one piece = just a new `start` / `end`, no pieces), so "inside `start`..`end`" stays true. **Not `keep`: that's the
+    "Post this" tick on every Short** (the first try used it and every route broke). `pipeline/pieces.py` is the only place that
+    reads it: `kept()` (normalized), `length()` (what the pages show as the Short's length: `pipeline.short_length`, `shortLen()`
+    in `js/core.js`; never `end - start` again), `timeline()` (the words on the Short's own clock, for captions) and `said()` (what
+    is still said: hooks, title and caption ideas read it, so a hook can't quote a cut word). `render_short` cuts and joins the
+    pieces in one FFmpeg run (`trim`/`atrim` + `concat`, a 20 ms sound fade at each join; `-ss` before `-i` resets the clock to
+    the first piece). After a cut, `honest_hooks()` drops a hook with a number no longer said and says so (`edit_note`). Try
+    again (a new moment) drops the pieces; a new hook or look keeps them. AI Edit's AI only reads the Short's own words
+    (timeout 60 s, one short busy wait: the creator is waiting on the page).
+31. **Twick's timeline (`editor-app/src/main.jsx`) only works with these, each found the hard way:** the track's type is
+    `"element"` (Twick ignores a clip dragged on its own track of any other type), every clip has its `trackId` (or
+    Delete does nothing), a `frame` (or a trim throws in `getPosition`), a non-empty `src` (or its validator silently undoes
+    every trim: no vlog video = an empty `data:` URL) and `mediaDuration` (the vlog's length, so nothing waits on the
+    video). Each layout gets new clip ids (a clip keeps its own dragged size while its id stays). Twick's own split isn't
+    used (it reloads the video's details for each half and loses the clip if that fails): Split and Delete are worked out
+    on the pieces; a split alone isn't a change (touching pieces are one, `aeNorm`). Its right-click menu and dropping
+    files are caught before they reach it. Changes are reported after Twick's own update (`setTimeout`), and the page
+    lays the timeline out again from `aiEdit()`'s pieces after every change. Its calls do nothing until it's drawn.
+    Privacy: `@twick/live-player` (its canvas player, ~3 MB) is replaced by a stand-in (`src/player-state.jsx`), its
+    PostHog analytics are off (`window.__TWICK_ANALYTICS_DISABLED__` + `analytics.enabled: false`), its stylesheet's
+    `@import`s of Google Fonts / cdnfonts are dropped and every rule is scoped to `.pc-tl` (its class names are generic:
+    `.card`, `.btn`), all in `vite.config.js`. Its ruler is styled inline in white: `src/timeline.css` overrides it.
+    `npm install` needs `--ignore-scripts` (Puppeteer and telemetry downloads). Getting around is ours (`mount()`):
+    Twick's box-select is off (its overlay hidden, and a press on an empty spot is caught first: it scrolls instead,
+    and a plain click there unselects), the wheel scrolls sideways, Ctrl/Cmd + wheel zooms, `setTime` keeps the
+    playhead in view. The browser check (`tests/browser/check_editor.py`) covers all of it: run it after any change here.
+32. **The icon font only has the icons listed in `static/index.html`** (`icon_names=...` on the Material Symbols link, in
+    A-Z order or Google Fonts refuses the request). An icon that isn't listed shows as its name (e.g. "pause_circle").
+    Add a new icon there; `tests/test_page_scripts.py` fails when one is used but not listed.
 
 ## Conventions
 
@@ -510,6 +553,7 @@ The code is split so two people can work on different features without touching 
 |---|---|---|---|
 | Fast (unit + combined flows) | `python -m unittest discover -s tests -t .` | every feature through the real routes: accounts, email links, deleting an account, uploads in pieces, the queue, Stop / Try again, restarts, limits, YouTube and Instagram posting, editing, vlog upload, analytics (a strict fake of YouTube Analytics), retention, pages, security, YouTube's data rules, Meta's callbacks; whole creator journeys (`test_flows.py`) | ~45 s |
 | System | `python -m unittest discover -s tests/system -t . -p "system_*.py"` | the real FFmpeg pipeline (vertical Shorts with sound, captions burned in with the highlight, hook banner, designed thumbnails, look switch, cover frame, preview, vlog thumbnail) and the real server process over HTTP (20 MB upload, request limits, killed mid-vlog and started again) | ~2 min |
+| Browser | `python -m tests.browser.check_editor` and `python -m tests.browser.check_drafts` (need `pip install playwright` + `python -m playwright install chromium`) | in Chromium against the real server and FFmpeg. Editor: the timeline, Trim, AI Edit, Details and Save together (drag both ends, reach past the moment, split, delete, move, Undo / Redo across the tools, the Save bar, zoom and scrolling, ruler, too short, Discard, the vlog's ends, no video, theme), then what the server saved; no requests outside Pit Crew. Drafts: groups by vlog, Review & post (the review page, reachable again), Shorts being made with Pause / Resume / Stop (Drafts and the making page), stopped with Try again, Vlogs = posted only, View your channel; no page errors | ~3 + 2 min |
 | A/B | `python -m tests.ab.compare [encoder captions looks slots whisper]` | our options side by side: speed, size, quality (SSIM), thumbnail text contrast, JOB_SLOTS 1 vs 2, speech settings where the model exists | ~2 min |
 | Stress | `python -m tests.stress.stress [--users 25 --seconds 60 --vlogs 1]` | a copy of Pit Crew under many people at once: p50/p95 per request, errors, every vlog finished, memory, threads | 1-4 min |
 | Live check | `python -m tests.stress.stress live --url https://<domain> --email <test account>` | gentle and read-only on the real site; stops itself on errors or slow answers | ≤ 5 min |
@@ -547,8 +591,6 @@ Manual checks that work well:
 - **Look at the output:** grab frames with `ffmpeg -ss 1.2 -i jobs/<id>/short_1.mp4 -frames:v 1 f.jpg`
   and check that the captions, yellow word highlight, hook banner and face crop are all present.
 
-Still worth automated tests: retention (`sweep_job()` with fake times), the vlog queue, `ai_json()` retries with a fake
-client, the API routes through `app.app.test_client()`.
 
 ## Working together (two people)
 
@@ -568,6 +610,50 @@ client, the API routes through `app.app.test_client()`.
 - Work on different features = different files (see "Where things live"). If you both need a shared file, keep the
   change small and say so in the PR.
 
+## Latest changes (for Nesh, October 2026)
+
+What Saumya's branch added since PR #19 (`nesh` merged into `main`). Merge `main` into `nesh` once this is merged
+(see "Working together"). Details are in the feature table and the gotchas; this is the short version.
+
+**Behaviour that changed (people will notice)**
+- **Vlogs page = only vlogs posted on YouTube with Pit Crew** (`isPostedVlog`). Videos sent only to make Shorts &
+  Reels aren't vlogs there any more: their Shorts, their progress while they're made, and their stops are on
+  **Drafts › Shorts & Reels**, grouped by vlog. Each group has **Review & post**, which opens that vlog's review page
+  (`#<vlog id>`), so the review page can always be reached again (before, leaving it lost it).
+- The sidebar marks **Drafts** on the making and review pages (it used to mark Shorts & Reels, which looked empty).
+  Stop now goes back to Drafts, not Vlogs.
+- **Pause / Resume** while Shorts are made (making page, Drafts, the progress card). New job status `"paused"`;
+  new job fields `plan` (moments chosen), `made` (Shorts edited), `pausing`. Anything that checks a job's status
+  should think about `"paused"` (`web/pause.py` explains the rules; retention treats it like a stopped vlog).
+- **Sidebar:** "View your channel" (YouTube) / "View your profile" (Instagram) under each connected account.
+- **Editor (Drafts › Edit):** AI Edit (cut pauses, filler words, a shorter version, edit by the transcript), the
+  **Twick timeline** with Trim (drag a part's ends, split, delete, reach past the original moment), **Undo / Redo**
+  in the top bar for every tool, **Save / Discard** at the bottom of the tool panel, timeline zoom buttons and
+  scrolling. The AI's "Suggest cuts" was tried and removed (not reliable).
+- A Short's moment can now grow when Trim reaches past it (`start` / `end` change, `pieces` can be anywhere in the
+  vlog; gotcha 30).
+- Bug fixes: a vlog upload records the channel it went to; storage emails go only to confirmed addresses.
+
+**New things in the repo**
+- `editor-app/`: the only React code (Twick's timeline). Built into `static/editor-app/` (committed, so the server
+  needs no Node). After changing it: `cd editor-app && npm ci --ignore-scripts && npm run build`, commit both.
+  Read gotcha 31 before touching it.
+- New files: `pipeline/pieces.py`, `pipeline/ai_edit.py`, `web/ai_edit.py`, `web/pause.py`, `static/js/ai-edit.js`,
+  `static/css/ai-edit.css`, `tests/test_ai_edit.py`, `tests/test_pause.py`, `tests/browser/` (two Playwright checks).
+- Shared files touched: `app.py` (imports `ai_edit`, `pause`), `static/index.html` (new CSS / JS, and new icons in the
+  font list: gotcha 32), `static/js/core.js` (`NAV_FOR`, `shortLen`), `tests/fakes.py` (AI kinds, `SLOW.render`).
+- Tests: `python -m unittest discover -s tests -t .` (238), the system tests (15), and
+  `python -m tests.browser.check_editor` / `check_drafts` (need `pip install playwright` and
+  `python -m playwright install chromium`).
+
+**Still open**
+- **Twick's licence:** fine for use inside Pit Crew, but it asks for a commercial licence on "substantial revenue
+  from the Software's functionality" without defining it. Email contact@kifferai.com before launch.
+- UI ideas waiting for a yes (not built): open on Drafts when there are no posted vlogs; fix the phone top bar (below);
+  "← Drafts" and the vlog's name on the review page; vlog thumbnails on Drafts' group heads; hide or shorten the
+  "coming" Captions / Audio / Overlays rows under the timeline.
+- Next editor features: Auto Captions, Smart Reframe, Effects & Enhancements ("Next: the advanced editor").
+
 ## Ideas / known limits
 
 - Transcription speed: before batching, `WHISPER_MODEL=small` on CPU took about 9 min for a 40-min vlog on an
@@ -575,3 +661,8 @@ client, the API routes through `app.app.test_client()`.
 - Low-resolution sources (e.g. 640×360 YouTube downloads) give soft Shorts; use original exports.
 - New YouTube API projects can only upload as **private** until Google's audit is passed (see README).
 - Custom thumbnails for Shorts only work on channels YouTube has enabled them for.
+- On a phone (about 390 px wide) with Help shown, the sidebar's top bar is about 13 px too wide. Known (Oct 2026),
+  not fixed yet.
+- A vlog prepared for YouTube that had Shorts made before it was uploaded can't be uploaded from Pit Crew any more
+  (its page opens its Shorts' review page instead), so it shows on neither Vlogs nor Drafts' Vlogs tab; its Shorts are
+  on Drafts as usual.

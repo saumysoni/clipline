@@ -11,6 +11,8 @@ function paintPill(){
   $("igText").textContent = ig.signed_in ? "@"+(ig.username||"") : "Connect Instagram";
   const more=(ig.accounts||[]).length-1; $("igMore").textContent = ig.signed_in && more>0 ? "+"+more : "";
   $("igPill").classList.toggle("has", !!ig.signed_in);
+  $("igView").hidden=!(ig.signed_in&&ig.username);  // "View your profile": the account on Instagram
+  if(ig.username) $("igView").href="https://www.instagram.com/"+encodeURIComponent(ig.username)+"/";
   $("igPill").title = !ig.configured ? "Instagram posting isn't available right now"
     : !ig.signed_in ? "Connect Instagram to post Reels" : !ig.can_post ? "Personal account: switch to professional to post" : "Posting Reels to @"+ig.username;
 }

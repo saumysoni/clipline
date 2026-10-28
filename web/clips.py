@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from flask import g, jsonify, request
 
 import instagram as ig
+import pipeline
 import youtube as yt
 
 from web.instagram_posting import DUE, _WAKE, _mutate
@@ -73,7 +74,7 @@ def clip_list(user_id):
                             key=datetime.fromisoformat, default=None)  # times may carry different time zones
             out.append({"job": job["id"], "vlog": vlog, "posted_at": posted_at, "vlog_created": created_at(job), "idx": s["idx"],
                         "title": s.get("title", ""), "thumb": s.get("thumb", ""), "video": s.get("video", ""),
-                        "length": round((s.get("end") or 0) - (s.get("start") or 0)), "status": status,
+                        "length": round(pipeline.short_length(s)), "status": status,
                         "youtube": y, "instagram": i, "remaking": bool(s.get("retrying")),
                         "expires": draft_expires(job, s), "file_deleted": bool(s.get("file_deleted_at")),
                         "video_deleted": bool(job.get("video_deleted_at"))})

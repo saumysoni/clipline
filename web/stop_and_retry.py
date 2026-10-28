@@ -71,7 +71,7 @@ def stop_vlog(job_id):
     with LOCK:
         job = load_job(job_id)
         kept = bool(job.get("vdraft"))
-    if take_waiting(job_id):  # hadn't started: nothing is running, so clean up now
+    if take_waiting(job_id) or job.get("status") == "paused":  # nothing is running, so clean up now
         finish_stop(job_id)
         return jsonify(ok=True, kept=kept)
     with LOCK:  # being made: its thread stops at its next progress report
@@ -94,6 +94,6 @@ def vlog_again(job_id):
             return jsonify(error="Pit Crew no longer has this vlog's video (it's deleted a while after it stopped, "
                                  "to keep storage free). Upload it again."), 400
         prep = job.get("kind") == "vlog" and not job.get("count")
-        job.update(error_detail="", shorts=[], moments_found=[], little_speech=False, recoveries=0)
+        job.update(error_detail="", shorts=[], moments_found=[], little_speech=False, recoveries=0, plan=None, made=None)
         enqueue_locked(job)  # web/job_queue.py runs it again from what's saved on the job
     return jsonify(ok=True, prep=prep)

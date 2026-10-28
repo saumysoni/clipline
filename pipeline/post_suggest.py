@@ -9,7 +9,8 @@ import re
 
 from pipeline.ai import ai_json
 from pipeline.hooks import HOOK_RULE, _numbers
-from pipeline.text import said_between, without_emoji
+from pipeline.pieces import said as said_kept
+from pipeline.text import without_emoji
 from pipeline.vlog_context import vlog_context_block
 
 TITLE_MAX = 95  # the title field's limit (YouTube allows 100)
@@ -55,7 +56,7 @@ def suggest_post_text(kind, short, transcript=None, context=None):
     then the ideas come from the title, hook and why. Raises RuntimeError in plain words."""
     if kind not in PROMPTS:
         raise RuntimeError("Pit Crew can only write titles and captions.")
-    said = said_between(transcript, short["start"], short["end"]) if transcript else ""
+    said = said_kept(transcript, short) if transcript else ""  # (cut words left out: pipeline/pieces.py)
     known = said or " ".join(str(short.get(k) or "") for k in ("title", "hook", "why"))
     hook = short.get("hook", "") if short.get("hook_mode", "text") != "none" else ""
     raw = ai_json(PROMPTS[kind].format(

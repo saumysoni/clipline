@@ -32,6 +32,14 @@ class Retention(unittest.TestCase):
         self.assertFalse(list((JOBS_DIR / self.jid).glob("source.*")))
         self.assertTrue((JOBS_DIR / self.jid / self.st["shorts"][0]["video"]).exists())  # the Shorts stay
 
+    def test_no_warning_email_to_an_unconfirmed_address(self):
+        from accounts import db
+        with db.connect() as con:
+            con.execute("UPDATE users SET email_verified = 0 WHERE id = ?", (self.u["id"],))
+        self.assertIn("video warning", R.sweep_job(self.jid, R.video_expires(self.job) - 3600))
+        time.sleep(0.2)
+        self.assertFalse([m for m in F.OUTBOX if m[0] == self.u["email"]])
+
     def test_an_edit_restarts_the_clock(self):
         from web.store import update_short
         before = R.video_expires(self.job)

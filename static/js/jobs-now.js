@@ -1,6 +1,7 @@
-// Progress card under + Create, on every page: the vlog being sent, vlogs being made, and "Shorts ready" when
-// one finishes (with a short pop-up). Asks /api/vlogs every 3 seconds while something is being made.
-let jnTimer=null, jnUpload=null, jnWorking=[], jnLast={}, jnDone={};
+// Progress card under + Create, on every page: the vlog being sent, vlogs being made (or paused), and "Shorts ready"
+// when one finishes (with a short pop-up). Asks /api/vlogs every 3 seconds while something is being made, and keeps
+// the Vlogs page and Drafts' Shorts being made up to date meanwhile.
+let jnTimer=null, jnUpload=null, jnWorking=[], jnPaused=[], jnLast={}, jnDone={};
 // The browser is still sending the video (pct), or null when it's done.
 function jobsUpload(pct){ jnUpload=pct; paintJobsNow(); }
 async function refreshJobsNow(){
@@ -8,14 +9,20 @@ async function refreshJobsNow(){
   let items;
   try{ const r=await fetch("/api/vlogs"); if(!r.ok) throw 0; items=(await r.json()).items||[]; }
   catch(e){ jnTimer=setTimeout(refreshJobsNow,10000); return; }
+  let finished=false;
   for(const v of items){
     const was=jnLast[v.id], now=jnState(v);
-    if((was==="working"||was==="uploading") && now!==was && !jnHere(v.id)){ v.was=was; jnDone[v.id]=v; jobsToast(v); }
+    if((was==="working"||was==="uploading") && now!==was){
+      finished=true;
+      if(now!=="paused" && !jnHere(v.id)){ v.was=was; jnDone[v.id]=v; jobsToast(v); }  // a pause isn't news
+    }
     jnLast[v.id]=now;
   }
   jnWorking=items.filter(v=>["working","uploading"].includes(jnState(v)));
+  jnPaused=items.filter(v=>v.status==="paused");
   paintJobsNow();
   if(!$("s7").hidden){ vlData=items; paintVlogs(); }  // keep the Vlogs page up to date too
+  if(!$("s11").hidden && typeof dfFollow==="function") dfFollow(items, finished);  // and Drafts' Shorts being made
   if(jnWorking.length || jnUpload!=null) jnTimer=setTimeout(refreshJobsNow,3000);
 }
 // A vlog's state for this card: working (being made or prepared), uploading (a vlog being sent to YouTube), or its status.
@@ -42,13 +49,15 @@ function paintJobsNow(){
     rows.push('<button type="button" class="jn" data-id="'+esc(v.id)+'"><span class="spin" aria-hidden="true"></span><span class="jn-t"><b>'+esc(v.title)+'</b>'+
       '<small>'+esc(up?"Uploading to YouTube":v.msg||"Working")+'</small></span><em>'+pct+'%</em><i class="jn-bar"><i style="width:'+pct+'%"></i></i></button>');
   }
+  for(const v of jnPaused) rows.push('<button type="button" class="jn paused" data-id="'+esc(v.id)+'"><span class="ms" aria-hidden="true">pause_circle</span>'+
+    '<span class="jn-t"><b>'+esc(v.title)+'</b><small>Paused · '+vlPct(v)+'% done</small></span></button>');
   for(const v of Object.values(jnDone)){
     const [ok,text]=jnDoneText(v);
     rows.push('<button type="button" class="jn '+(ok?"ok":"bad")+'" data-id="'+esc(v.id)+'"><span class="ms" aria-hidden="true">'+(ok?"check_circle":"error")+'</span>'+
       '<span class="jn-t"><b>'+esc(v.title)+'</b><small>'+esc(text)+'</small></span></button>');
   }
   $("jobsNow").innerHTML=rows.join("");
-  const all=[...jnWorking,...Object.values(jnDone)];
+  const all=[...jnWorking,...jnPaused,...Object.values(jnDone)];
   $("jobsNow").querySelectorAll("button.jn").forEach(b=>b.onclick=()=>{ const v=all.find(x=>x.id===b.dataset.id); v?jnOpen(v):startPolling(b.dataset.id); });
 }
 function jobsToast(v){

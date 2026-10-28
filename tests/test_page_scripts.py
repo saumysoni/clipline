@@ -33,6 +33,19 @@ class PageFiles(unittest.TestCase):
                 bad.append(f"{js.name}: {why} {where.split(js.name)[-1]}")
         self.assertEqual(bad, [])
 
+    def test_every_icon_is_in_the_icon_font(self):
+        """The icon font is asked for only the icons listed in index.html (icon_names=..., in A-Z order, or Google
+        Fonts refuses it): an icon missing there shows as its name."""
+        html = (STATIC / "index.html").read_text(encoding="utf-8")
+        listed = re.search(r"icon_names=([a-z0-9_,]+)", html).group(1).split(",")
+        self.assertEqual(listed, sorted(listed))
+        used = set()
+        for f in [*(STATIC / "js").glob("*.js"), *(STATIC / "sections").glob("*.html"), STATIC / "index.html"]:
+            text = f.read_text(encoding="utf-8")
+            used |= set(re.findall(r'class=\\?"ms[^"\\]*\\?"[^>]*>([a-z][a-z0-9_]*)<', text))
+            used |= set(re.findall(r'icon:\s*"([a-z][a-z0-9_]*)"', text))
+        self.assertEqual(sorted(used - set(listed)), [], "icons used on the page but not asked for in index.html")
+
     def test_ids_the_scripts_need_are_on_the_page(self):
         """Every $("id") a script uses exists in index.html or a section (or is made by a script)."""
         markup = (STATIC / "index.html").read_text(encoding="utf-8") + "".join(

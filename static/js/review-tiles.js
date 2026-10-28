@@ -4,7 +4,7 @@
 let openIdx=null;
 function tileCapHTML(s){
   return '<div class="tile-cap"><div class="tile-title">'+esc(s.title)+'</div>'+
-    '<div class="tile-meta">'+Math.round(s.end-s.start)+'s'+(s.manual?' · your pick':'')+'</div></div>'+
+    '<div class="tile-meta">'+Math.round(shortLen(s))+'s'+(s.manual?' · your pick':'')+'</div></div>'+
     '<button type="button" class="tile-x" aria-label="Close"><span class="ms" aria-hidden="true">close</span></button>';
 }
 function openTile(el){

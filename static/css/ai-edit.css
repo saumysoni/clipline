@@ -1,0 +1,56 @@
+/* AI Edit in the editor (js/ai-edit.js): length line, quick actions, Make it shorter, the transcript
+   (words and pauses to click); and Trim, the timeline's panel. Colours from tokens.css only. */
+#edAIWrap[hidden]{display:none}
+#edAI{display:flex;flex-direction:column;gap:12px}
+#edAI .ed-note,#edAI .ed-fin-wait{margin:0}
+.ae-sum{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:10px 12px;border-radius:12px;background:var(--raised);font-size:.86rem}
+.ae-sum b{font:600 .9rem/1 var(--mono)}
+.ae-sum .ms{font-size:16px;color:var(--faint)}
+.ae-d{color:var(--muted);font-size:.8rem}
+.ae-bad{color:var(--bad);font-weight:600;font-size:.8rem}
+.ae-empty{margin:0;font-size:.84rem;color:var(--muted)}
+/* quick actions */
+.ae-acts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ae-act{display:flex;align-items:flex-start;gap:9px;padding:10px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font:inherit;text-align:left;cursor:pointer;min-width:0}
+.ae-act>.ms{flex:none;font-size:20px;color:var(--primary-text)}
+.ae-act>span:last-child{display:flex;flex-direction:column;gap:2px;min-width:0}
+.ae-act b{font-size:.84rem}
+.ae-act small{font-size:.72rem;color:var(--muted);line-height:1.3}
+.ae-act:hover:not(:disabled){border-color:var(--line-2);background:var(--raised)}
+.ae-act:focus-visible{outline:2px solid var(--primary);outline-offset:1px}
+.ae-act:disabled{cursor:default;opacity:.55}
+.ae-act:disabled>.ms{color:var(--faint)}
+.ae-short{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:.84rem;font-weight:600}
+.ae-short>span:first-child{display:flex;align-items:center;gap:6px;margin-right:auto}
+.ae-short>span .ms{font-size:18px;color:var(--primary-text)}
+.ae-short small{font-weight:400;color:var(--muted)}
+.ae-note{padding:9px 12px;border-radius:12px;background:var(--cap-soft);font-size:.82rem;line-height:1.4}
+.ae-note[hidden]{display:none}
+/* transcript */
+.ae-tr-head{display:flex;align-items:center;justify-content:space-between;margin-top:4px;font-size:.9rem}
+.ae-help{margin:-6px 0 0;font-size:.76rem;color:var(--muted);line-height:1.4}
+.ae-tr{max-height:340px;overflow-y:auto;padding:10px;border-radius:12px;border:1px solid var(--line);background:var(--field);line-height:2;font-size:.9rem}
+.ae-w,.ae-p{padding:1px 3px;margin:0 -1px;border:0;border-radius:5px;background:none;color:var(--ink);font:inherit;cursor:pointer}
+.ae-w:hover:not(:disabled),.ae-p:hover:not(:disabled){background:var(--raised)}
+.ae-w:focus-visible,.ae-p:focus-visible{outline:2px solid var(--primary);outline-offset:0}
+.ae-w:disabled,.ae-p:disabled{cursor:default}
+.ae-w.fill{text-decoration:underline dotted var(--warn);text-underline-offset:4px}
+.ae-w.now{background:var(--cap-soft);box-shadow:inset 0 -2px 0 var(--cap-line)}
+.ae-p{padding:0 6px;border:1px dashed var(--line-2);font:600 .7rem/1.6 var(--mono);color:var(--muted);vertical-align:1px}
+.ae-w.cut{color:var(--faint);text-decoration:line-through 2px var(--primary-text);background:var(--primary-soft)}
+.ae-p.cut{border-style:solid;border-color:var(--primary-text);color:var(--primary-text);background:var(--primary-soft);text-decoration:line-through}
+/* Trim (js/editor.js edTrimPaint): the length, nudging either end, split and delete */
+#edTrimWrap[hidden]{display:none}
+#edTrim{display:flex;flex-direction:column;gap:12px;margin-top:12px}
+#edTrim .ed-note{margin:0}
+.tr-sum{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;padding:10px 12px;border-radius:12px;background:var(--raised);font-size:.86rem}
+.tr-sum b{font:600 .9rem/1 var(--mono)}
+.tr-sum small{flex-basis:100%;font-size:.74rem;color:var(--muted)}
+.tr-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.tr-row>span{display:flex;flex-direction:column;gap:2px;flex:1 1 100%;font-size:.84rem}
+.tr-row small{font-size:.72rem;color:var(--muted)}
+.tr-row .ghost.sm{flex:1;min-width:0;font-family:var(--mono)}
+.tr-acts{display:flex;flex-wrap:wrap;gap:8px}
+.tr-acts .ghost{flex:1 1 140px;min-width:0;justify-content:center}
+#edTrim .ae-help{margin:0}
+@media (max-width:1023px){ .ae-acts{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))} }

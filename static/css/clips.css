@@ -108,3 +108,25 @@ dialog#clRm::backdrop{background:rgba(8,10,18,.62)}
 .cl-rm-steps{margin:4px 0 8px;padding-left:20px;display:grid;gap:10px;line-height:1.5}
 .cl-rm-steps .ghost{margin-left:6px;gap:6px;vertical-align:middle;color:var(--ink);text-decoration:none}
 .cl-rm-steps .ms{font-size:17px}
+/* Drafts: the clips grouped under their vlog (js/clips.js clGroupsHTML): a head across the grid with the vlog, how many
+   drafts and Review & post; a vlog whose Shorts are being made, paused or stopped shows its progress under the head */
+.clg{grid-column:1/-1;display:flex;flex-direction:column;gap:10px;margin-top:10px}
+.clg:first-child{margin-top:0}
+.clg-head{display:flex;align-items:center;gap:12px;padding-bottom:8px;border-bottom:1px solid var(--line);min-width:0}
+.clg-t{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.clg-t b{font-size:1rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.clg-t small{font-size:.8rem;color:var(--muted)}
+.clg-head .ghost{flex:none;gap:6px}
+.clg-run{position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:10px 12px;padding:12px 14px 16px;border-radius:14px;border:1px solid var(--line);background:var(--glass)}
+.clg-run>.ms{font-size:22px;color:var(--muted)}
+.clg-run.bad>.ms{color:var(--bad)}
+.clg-run.bad{padding-bottom:12px}
+.clg-run .spin{width:18px;height:18px}
+.clg-run-t{display:flex;flex-direction:column;gap:2px;flex:1 1 220px;min-width:0}
+.clg-run-t b{font-size:.9rem}
+.clg-run-t small{font-size:.8rem;color:var(--muted)}
+.clg-acts{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.clg-acts .ghost{gap:6px}
+.clg-bar{position:absolute;left:14px;right:14px;bottom:7px;height:3px;border-radius:3px;background:var(--line)}
+.clg-bar>i{display:block;height:100%;border-radius:3px;background:var(--primary);transition:width .6s}
+.clg-run.paused .clg-bar>i{background:var(--muted)}

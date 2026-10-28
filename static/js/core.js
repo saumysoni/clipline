@@ -8,11 +8,14 @@ const studioLink = id => "https://accounts.google.com/ServiceLogin?service=youtu
   encodeURIComponent("https://studio.youtube.com/video/"+id+"/edit");
 const esc = t => String(t).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 let count = 5, jobId = null, poll = null, job = null;
+// A Short's length: its kept pieces added up (AI Edit, pipeline/pieces.py), else end - start.
+const shortLen = s => s.pieces && s.pieces.length ? s.pieces.reduce((n,[a,b])=>n+b-a,0) : s.end-s.start;
 
 // Screens: 1 Make Shorts from a new video, 2 Making, 3 Review/Post, 4 Posted, 5 Scheduled, 6 Analytics, 7 Vlogs, 8 Settings,
 // 9 Shorts & Reels, 10 Upload a vlog to YouTube, 11 Drafts, 12 the editor (a draft Short).
-// The sidebar marks where the creator is (a vlog's own screens count as Vlogs).
-const NAV_FOR = {1:"createBtn", 2:"vlogsNav", 3:"clipsNav", 4:"clipsNav", 5:"postedNav", 6:"analyticsNav", 7:"vlogsNav", 8:"settingsNav", 9:"clipsNav", 10:"vlogsNav", 11:"draftsNav", 12:"draftsNav"};
+// The sidebar marks where the creator is: Shorts being made and their review page count as Drafts (that is where they
+// wait until they go out), a vlog upload as Vlogs.
+const NAV_FOR = {1:"createBtn", 2:"draftsNav", 3:"draftsNav", 4:"clipsNav", 5:"postedNav", 6:"analyticsNav", 7:"vlogsNav", 8:"settingsNav", 9:"clipsNav", 10:"vlogsNav", 11:"draftsNav", 12:"draftsNav"};
 function show(n){
   [1,2,3,4,5,6,7,8,9,10,11,12].forEach(i=>$("s"+i).hidden = i!==n);
   if(typeof qrClose==="function") qrClose();  // Drafts' Quick review panel belongs to that page

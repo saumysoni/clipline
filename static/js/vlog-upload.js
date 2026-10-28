@@ -71,7 +71,7 @@ async function vuTick(){
   const j=await r.json(); vuJob=j;
   if(j.kind!=="vlog" || j.count){ vuStop(); startPolling(id); return; }  // its Shorts are being made (or done)
   $("vuStopRow").hidden=j.status!=="working";
-  if(j.status==="working"){ vuView("work"); vuTasks(j); $("vuErr2").textContent=""; $("vuStopBtn").onclick=()=>stopVlog(id, false, $("vuErr2")); return; }
+  if(j.status==="working"){ vuView("work"); vuTasks(j); $("vuErr2").textContent=""; $("vuStopBtn").onclick=()=>stopVlog(id, false, $("vuErr2"), ()=>{ vuStop(); openDrafts("vlogs"); }); return; }
   if(j.status==="error"){
     vuStop(); vuView("work"); vuTasks(j);
     $("vuErr2").innerHTML=esc("Stopped: "+(j.error||"Something went wrong."))+' <button type="button" class="ghost sm" id="vuTry">Try again</button>'+

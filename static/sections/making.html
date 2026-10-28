@@ -18,7 +18,12 @@
         <div class="times"><span>0:00</span><span id="totalTime"></span></div>
       </div>
       <div class="card"><ul class="tasks" id="tasks"></ul></div>
-      <p id="stopRow" hidden><button type="button" class="ghost" id="stopBtn"><span class="ms" aria-hidden="true">stop_circle</span>Stop</button></p>
+      <!-- Pause (after the current step) / Resume and Stop (js/progress.js, js/vlog-again.js) -->
+      <p id="stopRow" class="mk-acts" hidden>
+        <button type="button" class="ghost" id="pauseBtn"><span class="ms" aria-hidden="true">pause</span><span>Pause</span></button>
+        <button type="button" class="ghost" id="stopBtn"><span class="ms" aria-hidden="true">stop_circle</span>Stop</button>
+        <small class="mk-note" id="pauseNote"></small>
+      </p>
       <div class="err" id="err2" role="alert"></div>
     </div>
   </section>

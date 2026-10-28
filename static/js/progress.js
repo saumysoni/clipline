@@ -23,6 +23,7 @@ async function tick(){
     if(!job.shorts.some(s=>s.retrying)) clearInterval(poll);
     return;
   }
+  if(job.status==="paused") clearInterval(poll);  // nothing changes until Resume (which polls again)
   renderProgress();
 }
 // Stage lights: one lamp per finished stage, the current one blinking.
@@ -30,8 +31,9 @@ function paintLights(){
   const n=job.stages.length, done=Math.min(job.stage||0,n), lamps=$("lights").querySelectorAll(".lamp");
   lamps.forEach((l,i)=>{ l.classList.toggle("on", i<done); l.classList.toggle("blink", i===done && job.status==="working"); });
   $("lights").classList.toggle("go", job.status==="ready");
-  $("lightsTitle").textContent = job.status==="error" ? "Stopped" : job.status==="ready" ? "All stages complete" : job.queued ? (job.msg||"Waiting for a free spot") : (job.stages[done]||"Finishing");
-  $("lightsSub").textContent = job.status==="ready" ? "Your Shorts are ready." : "Stage "+Math.min(done+1,n)+" of "+n+(job.pct!=null&&job.status==="working"?" · "+Math.round(job.pct)+"%":"");
+  $("lightsTitle").textContent = job.status==="error" ? "Stopped" : job.status==="paused" ? "Paused" : job.status==="ready" ? "All stages complete" : job.queued ? (job.msg||"Waiting for a free spot") : (job.stages[done]||"Finishing");
+  $("lightsSub").textContent = job.status==="ready" ? "Your Shorts are ready." : job.status==="paused" ? "Stage "+Math.min(done+1,n)+" of "+n+" · what's done is kept. Resume when you're ready."
+    : "Stage "+Math.min(done+1,n)+" of "+n+(job.pct!=null&&job.status==="working"?" · "+Math.round(job.pct)+"%":"");
 }
 function renderProgress(){
   paintLights();
@@ -45,7 +47,16 @@ function renderProgress(){
     $("track").innerHTML=(job.moments_found||[]).map((m,i)=>'<div class="seg" style="left:'+(m.start/job.duration*100)+'%;width:'+Math.max(1.2,(m.end-m.start)/job.duration*100)+'%"><i>'+(i+1)+'</i></div>').join("");
   }
   $("err2").textContent = job.status==="error" ? "Stopped: "+job.error : "";
-  $("stopRow").hidden = job.status!=="working";
+  // Pause / Resume: only while Shorts are being made (not while a vlog upload is prepared)
+  const paused=job.status==="paused", canPause=!(job.kind==="vlog" && !job.count);
+  $("stopRow").hidden = !["working","paused"].includes(job.status);
+  $("pauseBtn").hidden = !canPause;
+  $("pauseBtn").querySelector(".ms").textContent = paused ? "play_arrow" : "pause";
+  $("pauseBtn").lastChild.textContent = paused ? "Resume" : job.pausing ? "Pausing..." : "Pause";
+  $("pauseBtn").disabled = !paused && !!job.pausing;
+  $("pauseNote").textContent = job.pausing && !paused ? "It pauses when this step is done." : paused ? "Paused. Its place in line goes to your next vlog." : "";
+  const id=job.id;
+  $("pauseBtn").onclick=()=> paused ? resumeVlog(id, $("err2"), ()=>startPolling(id)) : pauseVlog(id, $("err2"), tick);
   $("stopBtn").onclick=()=>stopVlog(job.id, !!job.vdraft, $("err2"));
   if(job.status==="error"){ clearInterval(poll);
     $("err2").insertAdjacentHTML("beforeend",' <button type="button" class="ghost" style="margin-left:8px" id="againBtn">Try again</button>'+

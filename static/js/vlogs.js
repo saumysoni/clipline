@@ -1,13 +1,17 @@
-// Vlogs page (home): every vlog uploaded (to make Shorts, or to YouTube with js/vlog-upload.js), newest first, as a grid of
-// cards (web/vlogs.py): a landscape picture, title and details, its Shorts, and ⋮ for Analytics, YouTube and Delete. Tick vlogs (or Select all) to delete several
-// videos at once; their Shorts stay.
+// Vlogs page (home): the vlogs posted on YouTube with Pit Crew (js/vlog-upload.js), or going up now, newest first, as a
+// grid of cards (web/vlogs.py): a landscape picture, title and details, its Shorts, and ⋮ for Analytics, YouTube and
+// Delete. Tick vlogs (or Select all) to delete several videos at once; their Shorts stay. Videos sent only to make
+// Shorts & Reels aren't vlogs here: their Shorts (and their progress while they're made) are on Drafts.
 let vlData=null, vlPicked=new Set();
 // Vlogs waiting to go up live on their own pages: Drafts (prepared, not uploaded; js/drafts.js) and Scheduled (uploaded,
-// goes public later; js/on-youtube.js). This page shows the rest.
+// goes public later; js/on-youtube.js). This page shows the posted ones (isPostedVlog).
 // Draft: a vlog upload (not a Shorts-only video) that's ready, not on YouTube yet, and whose video is kept (so it can be).
 const isDraftVlog=v=>v.kind==="vlog" && v.prep && v.status==="ready" && !v.video_deleted && !(v.vpost && v.vpost.state==="done");
 // Scheduled: uploaded (or being sent) with a time to go public that hasn't come yet (the "Vlog goes public" badge).
 const isScheduledVlog=v=>{ const p=v.vpost||{}; return v.kind==="vlog" && p.privacy==="schedule" && ["done","uploading"].includes(p.state) && !!p.when && new Date(p.when)>new Date(); };
+// Posted: a vlog Pit Crew put on YouTube (or is putting there now) that isn't waiting to go public. Its video may be
+// deleted here meanwhile (it's on YouTube).
+const isPostedVlog=v=>v.kind==="vlog" && !!v.vpost && ["done","uploading"].includes(v.vpost.state) && !isScheduledVlog(v);
 async function openVlogs(){ clearInterval(poll); location.hash="vlogs"; show(7); vlSelecting(false); await loadVlogs(); }
 async function loadVlogs(){
   try{ const r=await fetch("/api/vlogs"); if(!r.ok) throw 0; vlData=(await r.json()).items||[]; }
@@ -120,20 +124,19 @@ function vlShown(){
   const q=$("vlFind").value.trim().toLowerCase();
   return vlBase().filter(v=>!q || v.title.toLowerCase().includes(q));
 }
-function vlBase(){ return vlData.filter(v=>!v.video_deleted && !isDraftVlog(v) && !isScheduledVlog(v)); }
+function vlBase(){ return vlData.filter(isPostedVlog); }
 function paintVlogs(){
   const g=$("vlGrid");
   vlData.forEach(v=>{ if(!vlDeletable(v)) vlPicked.delete(v.id); });
   for(const id of [...vlPicked]) if(!vlData.some(v=>v.id===id)) vlPicked.delete(id);
-  $("vlBar").hidden=!vlData.length;
-  if(!vlData.length){
+  $("vlBar").hidden=!vlBase().length;
+  if(!vlData.some(v=>v.kind==="vlog")){  // never prepared a vlog here (videos sent only for Shorts don't count)
     g.innerHTML='<div class="card vl-empty"><span class="ms" aria-hidden="true">video_library</span><b>No vlogs yet</b>'+
       '<span>Upload a vlog to YouTube with a ready title, description, chapters and thumbnail, then turn it into Shorts and Reels.</span><button type="button" class="primary" id="vlFirst"><span class="ms" aria-hidden="true">add</span>Upload your first vlog</button></div>';
     $("vlFirst").onclick=()=>openVlogUpload(); vlBar(); return;
   }
   if(!vlBase().length){  // every vlog is still a draft or scheduled
-    $("vlBar").hidden=true;
-    g.innerHTML='<div class="card vl-empty"><span class="ms" aria-hidden="true">video_library</span><b>Nothing here yet</b>'+
+    g.innerHTML='<div class="card vl-empty"><span class="ms" aria-hidden="true">video_library</span><b>Nothing posted yet</b>'+
       '<span>Vlogs you\'re still preparing are under Drafts, and ones set to go public later are under Scheduled.</span></div>';
     vlBar(); return;
   }

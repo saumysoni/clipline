@@ -1,5 +1,8 @@
 """
 Make my Shorts: receives the upload and runs the whole pipeline for a new job in the background.
+
+A run can be paused after a step (web/pause.py): what's done is kept on the job (the transcript file, "plan" = the
+moments chosen, "made" = the Shorts edited, "shorts" = the ones with their thumbnail), and a resumed run skips it.
 """
 import json
 import os
@@ -20,6 +23,7 @@ from web import notices
 from web.errors import plain_error
 from web.preview import start_preview
 from web.server import app
+from web.pause import PAUSING, Paused, pause_point, paused_now
 from web.stop_and_retry import Stopped, finish_stop, settle, stop_point
 from web.allowance import charge, upload_problem
 from web.job_queue import enqueue_locked
@@ -35,6 +39,14 @@ def make_shorts(job_id, src, link, count, style, vlog=None, note="", must=()):
         stop_point(job_id)
         update(job_id, **kw)
 
+    def safe(**kw):  # between steps: Stop, then Pause (web/pause.py), take effect here
+        stop_point(job_id)
+        pause_point(job_id)
+        if kw:
+            update(job_id, **kw)
+
+    with LOCK:  # what an earlier, paused run of this vlog already did
+        done = json.loads(json.dumps({k: JOBS[job_id].get(k) for k in ("plan", "made", "shorts")}, default=str))
     try:
         step(stage=0, pct=0, msg="Getting your vlog")
         if link:
@@ -48,6 +60,7 @@ def make_shorts(job_id, src, link, count, style, vlog=None, note="", must=()):
         step(duration=meta["duration"], width=meta["width"], height=meta["height"])
         charge(job_id, meta["duration"])  # this creator's monthly minutes (web/allowance.py), once per vlog
 
+        safe()
         step(stage=1, pct=0, msg="Transcribing")
         job_tr = job_dir / "transcript.json"
         saved = find_saved_transcript(src)
@@ -59,6 +72,7 @@ def make_shorts(job_id, src, link, count, style, vlog=None, note="", must=()):
         # Under ~60 words a minute, there's little speech to pick moments from (the page says so).
         step(little_speech=len(tr["words"]) < 60 * tr["duration"] / 60)
 
+        safe()
         step(stage=2, pct=0, msg="Finding the best moments")
         # The copy for "Choose on the video" starts now (the AI's turn is mostly waiting), so it's ready by Review.
         # Not needed when every browser can play the original as it is (the picker plays that instead).
@@ -75,15 +89,18 @@ def make_shorts(job_id, src, link, count, style, vlog=None, note="", must=()):
             except Exception as e:  # noqa: BLE001  (never fail a job over optional context)
                 print(f"Couldn't read the vlog's YouTube info: {e}")
         say = lambda p, m: step(pct=p, msg=m)  # noqa: E731
-        mine = []
-        for k, (a, b) in enumerate(must, 1):
-            say(5, f"Your moment {k} of {len(must)}")
-            try:
-                mine.append(pipeline.manual_moment(tr, a, b, note, say, context=vlog))
-            except RuntimeError as e:
-                raise RuntimeError(f"Must-have moment {k}: {e}") from e
-        moments = mine + pipeline.pick_moments(tr, count - len(mine), say, context=vlog, note=note, taken=mine)
-        step(moments_found=[{"start": m["start"], "end": m["end"]} for m in moments])
+        if done.get("plan"):  # chosen before a pause
+            moments = done["plan"]
+        else:
+            mine = []
+            for k, (a, b) in enumerate(must, 1):
+                say(5, f"Your moment {k} of {len(must)}")
+                try:
+                    mine.append(pipeline.manual_moment(tr, a, b, note, say, context=vlog))
+                except RuntimeError as e:
+                    raise RuntimeError(f"Must-have moment {k}: {e}") from e
+            moments = mine + pipeline.pick_moments(tr, count - len(mine), say, context=vlog, note=note, taken=mine)
+        step(moments_found=[{"start": m["start"], "end": m["end"]} for m in moments], plan=moments)
 
         pipeline.prepare_job_fonts(job_dir)
         # Each Short's thumbnail starts as soon as that Short is edited, and a few are designed side by
@@ -91,31 +108,52 @@ def make_shorts(job_id, src, link, count, style, vlog=None, note="", must=()):
         # editing is. The page still shows editing first, then thumbnails.
         workers = max(1, int(os.getenv("THUMB_WORKERS", "3")))
         rendered, thumbs = [], []
+        made = {d["i"]: d for d in done.get("made") or [] if (job_dir / d["video"]).exists()}  # edited before a pause
+        ready = {s["idx"]: s for s in done.get("shorts") or []
+                 if s.get("thumb") and (job_dir / s["thumb"]).exists() and s["idx"] in made}
         with ThreadPoolExecutor(workers) as pool:
             try:
                 for i, m in enumerate(moments, 1):
+                    safe()
                     step(stage=3, pct=(i - 1) / len(moments) * 100, msg=f"Editing Short {i} of {len(moments)}")
-                    video, cx = pipeline.render_short(src, meta, m, tr["words"], i, style, job_dir)
+                    if i in made:
+                        video, cx = made[i]["video"], made[i]["cx"]
+                    else:
+                        video, cx = pipeline.render_short(src, meta, m, tr["words"], i, style, job_dir)
+                        made[i] = {"i": i, "video": video, "cx": cx}
+                        step(made=list(made.values()))
                     rendered.append((video, cx))
-                    thumbs.append(pool.submit(pipeline.make_thumbnail, src, meta, m, cx, i, job_dir, tr["words"], vlog))
+                    thumbs.append(None if i in ready else
+                                  pool.submit(pipeline.make_thumbnail, src, meta, m, cx, i, job_dir, tr["words"], vlog))
                 shorts = []
                 for i, (m, (video, cx), thumb) in enumerate(zip(moments, rendered, thumbs), 1):
+                    safe()
                     step(stage=4, pct=(i - 1) / len(moments) * 100, msg=f"Thumbnail {i} of {len(moments)}")
-                    name = thumb.result()  # first: making the thumbnail also notes its look and folder on m
-                    shorts.append({**m, "idx": i, "video": video, "thumb": name, "keep": True, "cx": cx})
+                    if thumb is None:  # made before a pause
+                        shorts.append(ready[i])
+                    else:
+                        name = thumb.result()  # first: making the thumbnail also notes its look and folder on m
+                        shorts.append({**m, "idx": i, "video": video, "thumb": name, "keep": True, "cx": cx})
                     step(shorts=shorts)
             except BaseException:  # stopped or failed: don't start the thumbnails still waiting
                 pool.shutdown(wait=False, cancel_futures=True)
                 raise
-        done = time.time()  # the vlog's video and these drafts are kept from here (web/retention.py)
-        if not settle(job_id, stage=5, pct=100, msg="Done", status="ready", last_edit_at=done,
-                      shorts=[{**s, "edited_at": done} for s in shorts]):
+        at = time.time()  # the vlog's video and these drafts are kept from here (web/retention.py)
+        with LOCK:
+            PAUSING.discard(job_id)  # Pause pressed after the last safe point: it's done anyway
+        if not settle(job_id, stage=5, pct=100, msg="Done", status="ready", last_edit_at=at, pausing=False,
+                      plan=None, made=None, shorts=[{**s, "edited_at": at} for s in shorts]):
             finish_stop(job_id)
             return
         notices.shorts_ready(job_id)
         if not pipeline.plays_everywhere(src, meta):
             start_preview(job_id)  # in case it failed earlier: tries once more (nothing if it's ready or under way)
+    except Paused:
+        if not paused_now(job_id, settle):  # Stop was pressed as well: Stop wins
+            finish_stop(job_id)
     except Exception as e:
+        with LOCK:
+            PAUSING.discard(job_id)
         if not isinstance(e, Stopped):
             traceback.print_exc()
         with LOCK:
