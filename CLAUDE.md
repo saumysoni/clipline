@@ -610,6 +610,50 @@ Manual checks that work well:
 - Work on different features = different files (see "Where things live"). If you both need a shared file, keep the
   change small and say so in the PR.
 
+## Latest changes (for Nesh, October 2026)
+
+What Saumya's branch added since PR #19 (`nesh` merged into `main`). Merge `main` into `nesh` once this is merged
+(see "Working together"). Details are in the feature table and the gotchas; this is the short version.
+
+**Behaviour that changed (people will notice)**
+- **Vlogs page = only vlogs posted on YouTube with Pit Crew** (`isPostedVlog`). Videos sent only to make Shorts &
+  Reels aren't vlogs there any more: their Shorts, their progress while they're made, and their stops are on
+  **Drafts › Shorts & Reels**, grouped by vlog. Each group has **Review & post**, which opens that vlog's review page
+  (`#<vlog id>`), so the review page can always be reached again (before, leaving it lost it).
+- The sidebar marks **Drafts** on the making and review pages (it used to mark Shorts & Reels, which looked empty).
+  Stop now goes back to Drafts, not Vlogs.
+- **Pause / Resume** while Shorts are made (making page, Drafts, the progress card). New job status `"paused"`;
+  new job fields `plan` (moments chosen), `made` (Shorts edited), `pausing`. Anything that checks a job's status
+  should think about `"paused"` (`web/pause.py` explains the rules; retention treats it like a stopped vlog).
+- **Sidebar:** "View your channel" (YouTube) / "View your profile" (Instagram) under each connected account.
+- **Editor (Drafts › Edit):** AI Edit (cut pauses, filler words, a shorter version, edit by the transcript), the
+  **Twick timeline** with Trim (drag a part's ends, split, delete, reach past the original moment), **Undo / Redo**
+  in the top bar for every tool, **Save / Discard** at the bottom of the tool panel, timeline zoom buttons and
+  scrolling. The AI's "Suggest cuts" was tried and removed (not reliable).
+- A Short's moment can now grow when Trim reaches past it (`start` / `end` change, `pieces` can be anywhere in the
+  vlog; gotcha 30).
+- Bug fixes: a vlog upload records the channel it went to; storage emails go only to confirmed addresses.
+
+**New things in the repo**
+- `editor-app/`: the only React code (Twick's timeline). Built into `static/editor-app/` (committed, so the server
+  needs no Node). After changing it: `cd editor-app && npm ci --ignore-scripts && npm run build`, commit both.
+  Read gotcha 31 before touching it.
+- New files: `pipeline/pieces.py`, `pipeline/ai_edit.py`, `web/ai_edit.py`, `web/pause.py`, `static/js/ai-edit.js`,
+  `static/css/ai-edit.css`, `tests/test_ai_edit.py`, `tests/test_pause.py`, `tests/browser/` (two Playwright checks).
+- Shared files touched: `app.py` (imports `ai_edit`, `pause`), `static/index.html` (new CSS / JS, and new icons in the
+  font list: gotcha 32), `static/js/core.js` (`NAV_FOR`, `shortLen`), `tests/fakes.py` (AI kinds, `SLOW.render`).
+- Tests: `python -m unittest discover -s tests -t .` (238), the system tests (15), and
+  `python -m tests.browser.check_editor` / `check_drafts` (need `pip install playwright` and
+  `python -m playwright install chromium`).
+
+**Still open**
+- **Twick's licence:** fine for use inside Pit Crew, but it asks for a commercial licence on "substantial revenue
+  from the Software's functionality" without defining it. Email contact@kifferai.com before launch.
+- UI ideas waiting for a yes (not built): open on Drafts when there are no posted vlogs; fix the phone top bar (below);
+  "← Drafts" and the vlog's name on the review page; vlog thumbnails on Drafts' group heads; hide or shorten the
+  "coming" Captions / Audio / Overlays rows under the timeline.
+- Next editor features: Auto Captions, Smart Reframe, Effects & Enhancements ("Next: the advanced editor").
+
 ## Ideas / known limits
 
 - Transcription speed: before batching, `WHISPER_MODEL=small` on CPU took about 9 min for a 40-min vlog on an
