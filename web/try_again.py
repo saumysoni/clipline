@@ -42,6 +42,8 @@ def remake_short(job_id, idx, note, times=None):
             else:
                 m = pipeline.repick_moment(tr, taken, rejected, note, say, context=job.get("vlog"), current=me)
 
+            if me.get("captions"):  # the creator's caption look stays; word changes were for the old words
+                m["captions"] = pipeline.caption_style_only(me["captions"])
             num = next_file_number(job)
             meta = pipeline.probe(src)
             pipeline.prepare_job_fonts(job_dir)

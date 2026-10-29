@@ -30,6 +30,7 @@ from web import (  # noqa: E402,F401
     accounts,
     add_short,
     ai_edit,
+    captions,
     delete_account,
     health,
     legal,

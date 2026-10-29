@@ -7,6 +7,11 @@ from pathlib import Path
 
 from pipeline.constants import FONTS_DIR
 
+# The fonts a creator can choose for captions (pipeline/captions.py FONTS) are copied into a job's fonts folder when
+# chosen: they're never that job's default caption font.
+_HERE = Path(__file__).parent
+CHOSEN = {f.name for d in (_HERE / "caption_fonts", _HERE / "thumbnails" / "fonts") if d.exists() for f in d.iterdir()}
+
 
 def find_font_file():
     """A bold TTF/OTF for thumbnails. Put your own in ./fonts to control the look."""
@@ -56,7 +61,7 @@ def caption_font_name(job_fonts=None):
     if not job_fonts or not Path(job_fonts).exists():
         return wanted
     names = [n for n in (font_names(p) for p in sorted(Path(job_fonts).iterdir())
-                         if p.suffix.lower() in (".ttf", ".otf")) if n]
+                         if p.suffix.lower() in (".ttf", ".otf") and p.name not in CHOSEN) if n]
     if not names or any(wanted.lower() in (fam.lower(), full.lower()) for fam, full in names):
         return wanted
     return names[0][1]

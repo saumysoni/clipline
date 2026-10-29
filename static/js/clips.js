@@ -1,8 +1,8 @@
 // Shorts & Reels page: the clips that went out, or are going out now (web/clips.py), filtered by status, platform and
 // vlog. Drafts and scheduled clips have their own pages (js/drafts.js, js/on-youtube.js). The clip browser (#clBrowse:
 // bar + grid, Select, the dock, the schedule dialog) is shared: Drafts' Shorts & Reels tab shows it in "drafts" mode.
-// Each card: play, and ⋮ (js/card-menu.js) for Edit (the vlog's editor panel for that Short), Analytics, Download. Tick clips to
-// schedule several at once on YouTube and/or Instagram. On Drafts a card opens Quick review (js/quick-review.js) and its
+// Each card: play, and ⋮ (js/card-menu.js) for Edit (the vlog's editor panel for that Short), Analytics, Download. Select shows
+// a tick box on every card (on both pages) to schedule several at once on YouTube and/or Instagram, or delete drafts. On Drafts a card opens Quick review (js/quick-review.js) and its
 // Edit button the editor (js/editor.js); there the cards are grouped under their vlog, each group with Review & post
 // (the vlog's review page), and a vlog whose Shorts are being made, are paused or stopped shows its progress instead
 // (js/drafts.js dfMaking: Pause / Resume, Stop, Try again).
@@ -53,6 +53,12 @@ function clPill(kind,p,icon){
 }
 // A clip can be ticked while it's missing from at least one platform (and isn't being remade).
 const clPickable=c=>!c.remaking && (!c.youtube || !c.instagram || c.youtube.state==="failed" || c.instagram.state==="failed");
+// The card's tick box (shown after Select). One that can't be scheduled any more is greyed out and says why.
+function clPickHTML(c,on){
+  const can=clPickable(c), why=c.remaking?"Being remade: wait for it to finish":"Already on YouTube and Instagram";
+  return '<label class="cl-pick'+(can?'':' off')+'" title="'+esc(can?"Tick to schedule or delete":why)+'"><input type="checkbox"'+(on?" checked":"")+(can?'':' disabled')+
+    ' aria-label="Select '+esc(c.title)+'"></label>';
+}
 const clShortDate=iso=>{ const d=new Date(iso); return d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:d.getFullYear()===new Date().getFullYear()?undefined:"numeric"}); };
 // A card like YouTube Studio's: the thumbnail (plays the clip), title, where it is and when, its status, and ⋮
 // for the rest (Edit, Analytics, Download, Delete).
@@ -76,7 +82,7 @@ function clCard(c){
     '<div class="cl-thumb"><button type="button" class="cl-play" aria-label="'+(qr?"Quick review of ":"Play ")+esc(c.title)+'">'+
       // the whole vertical thumbnail in a wide box, over a blurred copy of itself (so its headline text is never cut)
       (c.thumb?'<span class="cl-blur" style="background-image:url(\'/media/'+esc(c.job)+'/'+esc(c.thumb)+'\')"></span><img src="/media/'+esc(c.job)+'/'+esc(c.thumb)+'" alt="" loading="lazy">':'')+'<span class="ms cl-pi" aria-hidden="true">'+(qr?"visibility":"play_arrow")+'</span></button>'+
-      (clPickable(c)?'<label class="cl-pick" title="Tick to schedule"><input type="checkbox"'+(on?" checked":"")+' aria-label="Select '+esc(c.title)+'"></label>':'')+
+      clPickHTML(c,on)+
       '<span class="cl-len">'+fmt(c.length)+'</span>'+
       (c.remaking?'<div class="cl-busy"><span class="spin" aria-hidden="true"></span>Being remade</div>':'')+'</div>'+
     '<div class="cl-body"><b class="cl-t" title="'+esc(c.title)+(c.vlog?' (from '+esc(c.vlog)+')':'')+'">'+esc(c.title)+'</b>'+
@@ -159,13 +165,16 @@ function paintClips(){
     : clMode==="drafts" ? ["No Shorts or Reels drafts", clData.length?"Every clip Pit Crew made is posted or scheduled. Make Shorts from a vlog to get new ones.":"Upload a vlog and Pit Crew turns it into Shorts and Reels."]
     : ["Nothing posted yet", clData.length?"Your clips are under Drafts and Scheduled. They show up here once they go out.":"Upload a vlog and Pit Crew turns it into Shorts and Reels."];
   const making=clMode==="drafts" ? dfMaking().filter(v=>!clVlog||v.id===clVlog) : [];
-  $("clGrid").innerHTML = list.length||making.length ? (clMode==="drafts" ? clGroupsHTML(list,making) : list.map(clCard).join(""))
-    : '<div class="card cl-empty"><span class="ms" aria-hidden="true">movie</span><b>'+emptyB+'</b><span>'+emptyT+'</span></div>';
+  setHTML($("clGrid"), list.length||making.length ? (clMode==="drafts" ? clGroupsHTML(list,making) : list.map(clCard).join(""))
+    : '<div class="card cl-empty"><span class="ms" aria-hidden="true">movie</span><b>'+emptyB+'</b><span>'+emptyT+'</span></div>');
   if(clMode==="drafts") clWireGroups(making);
   $("clGrid").querySelectorAll(".clip").forEach(el=>{
     const c=clData.find(x=>clKey(x)===el.dataset.k);
-    el.querySelector(".cl-play").onclick=()=>clMode==="drafts"?qrOpen(c):clPlay(c);
     const pick=el.querySelector(".cl-pick input");
+    // While selecting, the picture ticks the card instead of playing it
+    el.querySelector(".cl-play").onclick=()=>{
+      if($("clBrowse").classList.contains("selecting")){ if(!pick.disabled){ pick.checked=!pick.checked; pick.onchange(); } return; }
+      clMode==="drafts"?qrOpen(c):clPlay(c); };
     if(pick) pick.onchange=()=>{ pick.checked?clPicked.add(el.dataset.k):clPicked.delete(el.dataset.k); el.classList.toggle("on",pick.checked); clDock(); };
     const to=el.querySelector(".cl-to"); if(to) to.onclick=()=>clPostOne(c,to.dataset.to);
     const ed=el.querySelector(".cl-ed"); if(ed) ed.onclick=()=>openEditor(c.job,c.idx);

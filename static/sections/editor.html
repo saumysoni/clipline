@@ -1,5 +1,5 @@
   <!-- Editor (#edit/<vlog>/<short>): a draft Short's advanced editing, opened from Drafts (Edit) and Quick review
-       (Edit draft). Details, AI Edit, Trim and the timeline work; the other tools are laid out, marked Soon (js/editor.js) -->
+       (Edit draft). Details, AI Edit, Captions, Trim and the timeline work; the other tools are laid out, marked Soon (js/editor.js) -->
   <section id="s12" hidden>
     <div class="work wide">
       <!-- One bar: Back, the save state, Undo / Redo (every tool's changes not saved yet), ⋮, Export, Finish (save, then
@@ -23,10 +23,16 @@
       <p class="ed-small" id="edSmall"><span class="ms" aria-hidden="true">desktop_windows</span><span>The editor needs a bigger screen. Open Pit Crew on a computer or tablet, or use Quick review on Drafts to change the hook, title and hashtags.</span></p>
       <div class="ed-grid" id="edGrid">
         <nav class="ed-rail" id="edRail" aria-label="Editing tools"></nav>
+        <!-- the tools' edge: drag to make them narrower or wider; far enough left puts them above the player (js/editor.js) -->
+        <div class="ed-grip" id="edRailGrip" role="separator" aria-orientation="vertical" tabindex="0"
+             aria-label="Tools width. Drag left to put the tools above the player; arrow keys move it, Enter switches"
+             title="Drag to resize. Far left: tools above the player"></div>
         <div class="ed-stage">
           <div class="ed-media">
             <span class="ed-blur" id="edBlur" aria-hidden="true"></span>
             <video id="edVideo" controls playsinline preload="metadata"></video>
+            <!-- the last frame, held while a remade video loads (js/editor.js edSwapVideo) -->
+            <canvas id="edFreeze" class="ed-freeze" hidden aria-hidden="true"></canvas>
             <img id="edThumb" class="qr-thumb" alt="Thumbnail" hidden>
             <div class="ed-view" id="edViewSw" role="group" aria-label="Preview">
               <button type="button" data-v="v" aria-pressed="true"><span class="ms" aria-hidden="true">play_circle</span>Short</button>
@@ -49,7 +55,9 @@
             <div class="ed-tracks" id="edTracks">
               <div class="ed-lab ed-lab-vid"><span class="ms" aria-hidden="true">movie</span>Video</div>
               <div class="ed-twick" id="edTwick"><p class="ed-tl-msg">Loading the timeline...</p></div>
-              <div class="ed-lab"><span class="ms" aria-hidden="true">closed_caption</span>Captions</div><div class="ed-track ed-soon">Caption editing is coming</div>
+              <div class="ed-lab"><span class="ms" aria-hidden="true">closed_caption</span>Captions</div>
+              <!-- each caption line, under where it's said (js/editor.js edCapTrack): a click picks it in Captions -->
+              <div class="ed-track ed-cap-track" id="edCapTrack" role="group" aria-label="Caption lines"></div>
               <div class="ed-lab"><span class="ms" aria-hidden="true">graphic_eq</span>Audio</div><div class="ed-track ed-soon">Audio tools are coming</div>
               <div class="ed-lab"><span class="ms" aria-hidden="true">layers</span>Overlays</div><div class="ed-track ed-soon">Text and overlays are coming</div>
             </div>
@@ -69,6 +77,12 @@
             <div class="ed-p-head"><span class="ms" aria-hidden="true">auto_awesome</span><h2>AI Edit</h2></div>
             <p class="ed-p-about">Cut pauses, filler words and slow parts, or let AI keep the best part. Nothing changes until you save.</p>
             <div id="edAI"></div>
+          </div>
+          <!-- Captions (js/captions.js): kept on the page like AI Edit, so changes stay while other tools show -->
+          <div id="edCapWrap" hidden>
+            <div class="ed-p-head"><span class="ms" aria-hidden="true">closed_caption</span><h2>Captions</h2></div>
+            <p class="ed-p-about">How the words on screen look and read. The player shows the Short as saved; the preview shows your changes. Nothing changes until you save.</p>
+            <div id="edCap"></div>
           </div>
           <!-- Trim (js/editor.js): the timeline's tools; the change is AI Edit's pieces, saved by the same Save -->
           <div id="edTrimWrap" hidden>

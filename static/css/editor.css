@@ -46,7 +46,17 @@ dialog#edFin::backdrop{background:rgba(8,10,18,.62)}
 #edFinStay{margin-right:auto;color:var(--muted)}
 .ed-note{margin-bottom:14px;padding:12px 14px;border-radius:12px;background:var(--cap-soft);color:var(--ink);font-size:.9rem;font-weight:600}
 .ed-note[hidden],.ed-grid[hidden],.ed-small[hidden]{display:none}
-.ed-grid{display:grid;grid-template-columns:220px minmax(0,1fr) 320px;gap:16px;align-items:start}
+.ed-grid{--rail:220px;position:relative;display:grid;grid-template-columns:var(--rail) minmax(0,1fr) 320px;gap:16px;align-items:start}
+/* the tools' edge (js/editor.js edRailApply): drag to resize; far left = the tools above the player (.rail-top) */
+.ed-grip{position:absolute;top:0;bottom:0;left:calc(var(--rail) + 2px);width:12px;z-index:3;display:flex;justify-content:center;cursor:col-resize;touch-action:none}
+.ed-grip::before{content:"";align-self:center;width:4px;height:44px;border-radius:4px;background:var(--line-2);transition:height .15s,background .15s}
+.ed-grip:hover::before,.ed-grip.drag::before,.ed-grip:focus-visible::before{height:80px;background:var(--primary)}
+.ed-grip:focus-visible{outline:none}
+.ed-grid.rail-top{grid-template-columns:minmax(0,1fr) 320px}
+.ed-grid.rail-top .ed-grip{left:-14px}
+.ed-rail.slim small{display:none}
+.ed-rail-dock{display:none!important}
+.ed-grid.rail-top .ed-rail-dock{display:flex!important;margin-left:auto;color:var(--muted)}
 .ed-rail,.ed-panel,.ed-tl{border-radius:16px;border:1px solid var(--line);background:var(--glass)}
 /* tool rail */
 .ed-rail{display:flex;flex-direction:column;gap:2px;padding:8px}
@@ -66,6 +76,10 @@ dialog#edFin::backdrop{background:rgba(8,10,18,.62)}
 .ed-media{position:relative;aspect-ratio:16/9;max-height:58vh;border-radius:16px;overflow:hidden;background:#0b0b10}
 .ed-blur{position:absolute;inset:-30px;background-size:cover;background-position:center;filter:blur(22px) brightness(.45)}
 .ed-media video{position:relative;display:block;width:100%;height:100%;object-fit:contain}
+.ed-freeze{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;pointer-events:none;transition:opacity .2s}
+.ed-freeze[hidden]{display:none}
+.ed-freeze.go{opacity:0}
+@media (prefers-reduced-motion:reduce){ .ed-freeze{transition:none} }
 /* timeline */
 .ed-tl{padding:10px 14px 14px}
 .ed-tl-bar{display:flex;align-items:center;gap:6px;margin-bottom:8px}
@@ -105,8 +119,15 @@ dialog#edFin::backdrop{background:rgba(8,10,18,.62)}
 .ed-sug-head b{font-size:.92rem}
 .ed-sug p{margin:6px 0 0;font-size:.8rem;color:var(--muted);line-height:1.4}
 .ed-small{display:none}
-/* laptops: the tools in a row above the player, the panel beside it */
+/* the tools in a row above the player: laptops, or chosen by dragging the tools' edge left */
+.ed-grid.rail-top .ed-rail{grid-column:1/-1;flex-direction:row;flex-wrap:wrap;gap:4px}
+.ed-grid.rail-top .ed-rail hr{display:none}
+.ed-grid.rail-top .ed-rail button{width:auto;padding:6px 10px 6px 6px;gap:8px}
+.ed-grid.rail-top .ed-rail button>.ms{width:30px;height:30px;font-size:18px}
+.ed-grid.rail-top .ed-rail small{display:none}
+.ed-grid.rail-top .ed-rail button[aria-pressed=true]::before{display:none}
 @media (max-width:1360px){
+  .ed-grip,.ed-grid.rail-top .ed-rail-dock{display:none!important}
   .ed-grid{grid-template-columns:minmax(0,1fr) 300px}
   .ed-rail{grid-column:1/-1;flex-direction:row;flex-wrap:wrap;gap:4px}
   .ed-rail hr{display:none}
@@ -140,6 +161,9 @@ dialog#edFin::backdrop{background:rgba(8,10,18,.62)}
   .ed-media{flex:1;aspect-ratio:auto;max-height:none;min-height:240px}
   .ed-media video{position:absolute;inset:0}
   .ed-tl{flex:none}
+}
+@media (min-width:1361px) and (min-height:640px){
+  #s12 .ed-grid.rail-top{grid-template-rows:auto minmax(0,1fr)}
 }
 @media (min-width:1024px) and (max-width:1360px) and (min-height:640px){
   #s12 .ed-grid{grid-template-rows:auto minmax(0,1fr)}

@@ -10,6 +10,6 @@
 .ptabs button:focus-visible{outline:2px solid var(--primary);outline-offset:1px}
 .ptab-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 14px}
 .ptab-bar .hint{margin:0;color:var(--muted);font-size:.88rem}
-/* Rows and cards borrowed from the Vlogs and Shorts & Reels pages: no tick boxes here */
-#s11 .vr-pick,#s11 .cl-pick,#s5 .vr-pick{display:none!important}
+/* Rows borrowed from the Vlogs page: no tick boxes here (Drafts' clip cards keep theirs: Select) */
+#s11 .vr-pick,#s5 .vr-pick{display:none!important}
 @media (max-width:560px){ .ptabs{display:flex;width:100%} .ptabs button{flex:1;min-width:0;justify-content:center;padding:8px 6px;gap:5px;font-size:.84rem;text-align:center} #clPlatTabs .ms{display:none} }

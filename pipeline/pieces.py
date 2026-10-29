@@ -67,13 +67,13 @@ def to_short(pieces, t):
 
 def timeline(moment, words):
     """The Short's words on its own clock: [{"w", "s", "e"}] with times from 0, keeping only words in a kept piece (a
-    word counts where its middle is). For the captions (pipeline/render.py)."""
+    word counts where its middle is). Other keys of a word are kept ("i": pipeline/render.py). For the captions."""
     pieces, out, at = kept(moment), [], 0.0
     for a, b in pieces:
         for w in words:
             mid = (w["s"] + w["e"]) / 2
             if a <= mid <= b:
-                out.append({"w": w["w"], "s": round(at + max(w["s"], a) - a, 3), "e": round(at + min(w["e"], b) - a, 3)})
+                out.append({**w, "s": round(at + max(w["s"], a) - a, 3), "e": round(at + min(w["e"], b) - a, 3)})
         at += b - a
     return out
 

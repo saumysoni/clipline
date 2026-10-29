@@ -84,8 +84,7 @@ class FakeAI:
         for key, kind in (("Return ONLY a JSON array of exactly", "moments"), ("The creator chose this moment", "manual"),
                           ("Decide what they want", "again"), ("You write on-screen hooks", "hooks"),
                           ("thumbnail for a YouTube Short", "thumb"), ("full YouTube vlog (landscape", "vthumb"),
-                          ("helping a YouTube vlogger upload a full vlog", "meta"), ("analytics coach", "coach"),
-                          ("You are shortening a YouTube Short", "shorten")):
+                          ("helping a YouTube vlogger upload a full vlog", "meta"), ("analytics coach", "coach")):
             if key in text:
                 return kind
         if '{"items"' in text or "\"items\"" in text:
@@ -141,22 +140,6 @@ class FakeAI:
                              {"t": 90, "title": "The view"}],
                 "tags": ["travel vlog", "hills", "road trip", "street food", "market", "india", "vlog", "day trip"],
                 "hashtags": ["travel", "vlog", "india"], "thumb_line1": "WE GOT", "thumb_line2": "LOST"}
-
-    @staticmethod
-    def _sentences(text):
-        """(number, seconds) of each numbered sentence in an AI Edit prompt."""
-        return [(int(k), float(d)) for k, d in re.findall(r"^\[(\d+)\] \([\d:]+, ([\d.]+)s\)", text, flags=re.M)]
-
-    def _shorten(self, text):
-        """Skips the first sentence (so a test can tell the AI chose), then keeps sentences up to the target."""
-        target = float(re.search(r"to about (\d+) seconds", text).group(1))
-        keep, total = [], 0.0
-        for k, d in self._sentences(text)[1:]:
-            if total >= target * 0.9:
-                break
-            keep.append(k)
-            total += d
-        return {"keep": keep, "why": "Cut the slow start."}
 
     def _items(self, text):
         return {"items": ["The view was worth it", "Lost in the best way", "One road, one market, one view"]}
@@ -662,12 +645,14 @@ RENDERED = []  # what each fast_render was asked to make (AI Edit tests)
 
 def fast_render(video_path, meta, moment, words, idx, style, job_dir, cx="find"):
     from pipeline.captions import build_ass
-    from pipeline.pieces import kept, timeline
+    from pipeline.pieces import kept
+    from pipeline.render import short_words
     job_dir = Path(job_dir)
-    RENDERED.append({"idx": idx, "pieces": kept(moment), "hook": moment.get("hook", ""), "hook_mode": moment.get("hook_mode")})
+    RENDERED.append({"idx": idx, "pieces": kept(moment), "hook": moment.get("hook", ""), "hook_mode": moment.get("hook_mode"),
+                     "captions": moment.get("captions")})
     time.sleep(SLOW.render)  # SLOW.render > 0: editing takes a while (Pause tests)
-    build_ass(timeline(moment, words), 0.0, sum(b - a for a, b in kept(moment)), moment.get("hook", ""), style,
-              job_dir / f"captions_{idx}.ass")
+    build_ass(short_words(moment, words), 0.0, sum(b - a for a, b in kept(moment)), moment.get("hook", ""), style,
+              job_dir / f"captions_{idx}.ass", moment.get("captions"))
     (job_dir / f"short_{idx}.mp4").write_bytes(b"\x00\x00\x00\x18ftypmp42" + os.urandom(64))
     return f"short_{idx}.mp4", None if cx == "find" else cx
 
