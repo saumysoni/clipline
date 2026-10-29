@@ -10,9 +10,11 @@
 //     (the Short isn't there any more), onLook() (a look was picked: show the thumbnail),
 //     extra (the editor's AI Edit, js/ai-edit.js: {dirty(), count(), step() -> [url, body] | {error}, sent(), reset()}:
 //     its change is saved with the rest, as the first remake),
-//     caps (the editor's Captions, js/captions.js: {dirty(), count(), canEdit(), step(remake) -> [url, body], sent(remake),
-//     reset()}: a remake of its own, unless a cut or a new hook remakes the Short anyway, then saved just before that)}
+//     caps, frame (the editor's Captions, js/captions.js, and Reframe, js/reframe.js: settings of the video, each
+//     {name, dirty(), count(), canEdit(), step(remake) -> [url, body], sent(remake), reset()}: saved, then one remake
+//     makes them all, unless a cut or a new hook remakes the Short anyway, then saved just before that)}
 function shortDetails(o){
+  const sets=()=>[o.caps,o.frame].filter(Boolean);
   let c=null, s=null, pend={}, queue=[], gen=0, tinfo={}, st=null;  // st: the Short's vlog as last loaded
   const changed=()=>o.onChange&&o.onChange();
   const post=async(url,body)=>{
@@ -41,7 +43,7 @@ function shortDetails(o){
   }
   // The fields: what's saved, with the changes waiting in pend shown on top (after load(), pend is empty).
   function draw(){
-    const cl=c, j=st, gone=!!j.video_deleted_at, box=o.box, held=pend.text||{};
+    const cl=c, j=st, gone=!!j.video_deleted_at && !(s&&s.clip), box=o.box, held=pend.text||{};
     const sv={...s, hashtags:held.hashtags||s.hashtags};  // hashtags waiting to be saved show as chips
     box.innerHTML='<div class="qr-sec">'+hookHTML(sv,o.pre)+'</div>'+
       (s.thumb?'<div class="qr-sec sd-thumb">'+lookHTML(s,cl.job)+
@@ -116,18 +118,19 @@ function shortDetails(o){
     if(p.ttext && !p.tagain && !p.ttext.line2){ o.err.textContent="Type the headline for the thumbnail."; return; }
     const ex=o.extra&&o.extra.dirty()?o.extra.step():null;
     if(ex&&ex.error){ o.err.textContent=ex.error; return; }
-    const cap=o.caps&&o.caps.dirty()?o.caps:null;
-    if(cap&&!cap.canEdit()){ o.err.textContent="The captions can't be changed now. Wait for the Short to finish, or discard the caption changes."; return; }
+    const dirt=sets().filter(x=>x.dirty()), stuck=dirt.find(x=>!x.canEdit());
+    if(stuck){ o.err.textContent="The "+stuck.name+" can't be changed now. Wait for the Short to finish, or discard the "+stuck.name+" changes."; return; }
     o.err.textContent="";
     if("title" in p){ if(!await post(base+"/title",{title:p.title})) return changed(); delete p.title; }
     if(p.text){ if(!await post(base+"/post-text",p.text)) return changed(); delete p.text; }
     const steps=ex?[ex]:[];  // the cut first: a new hook is then burned into the cut Short
     if(p.hook) steps.push(["/api/hook/"+cl.job+"/"+cl.idx,p.hook]);
-    // Captions: a cut or a new hook remakes the Short anyway, so they're saved just before it and that remake makes them
-    // (if it's then refused, they get a remake of their own, so the video never lags behind them); else their own remake.
-    let capFirst=false;
-    if(cap && steps.length){ if(!await post(...cap.step(false))) return changed(); cap.sent(false); }
-    else if(cap){ steps.push(cap.step(true)); capFirst=true; }
+    // Captions and framing: a cut or a new hook remakes the Short anyway, so they're saved just before it and that remake
+    // makes them (if it's then refused, they get a remake of their own, so the video never lags behind them); else all but
+    // the last are saved and the last one's remake makes them all.
+    const cap=dirt[dirt.length-1]||null; let capFirst=false;
+    for(const x of (steps.length?dirt:dirt.slice(0,-1))){ if(!await post(...x.step(false))) return changed(); x.sent(false); }
+    if(cap && !steps.length){ steps.push(cap.step(true)); capFirst=true; }
     if(p.tagain) steps.push(["/api/thumb-again/"+cl.job+"/"+cl.idx,{}]);
     else if(p.ttext) steps.push(["/api/thumb-text/"+cl.job+"/"+cl.idx,p.ttext]);
     if(p.look) steps.push(["/api/look/"+cl.job+"/"+cl.idx,{look:p.look}]);
@@ -159,8 +162,8 @@ function shortDetails(o){
     open(clip){ c=clip; queue=[]; return load(); },
     clear(){ c=s=null; pend={}; queue=[]; gen++; changed(); },
     follow(clip){ c=clip; },  // the clip list was loaded again
-    dirty:()=>Object.keys(pend).length>0 || !!(o.extra&&o.extra.dirty()) || !!(o.caps&&o.caps.dirty()),
-    count:()=>Object.keys(pend).length+(o.extra?o.extra.count():0)+(o.caps?o.caps.count():0),
+    dirty:()=>Object.keys(pend).length>0 || !!(o.extra&&o.extra.dirty()) || sets().some(x=>x.dirty()),
+    count:()=>Object.keys(pend).length+(o.extra?o.extra.count():0)+sets().reduce((n,x)=>n+x.count(),0),
     has:k=>k in pend,
     // The editor's Undo / Redo: the changes waiting, and putting a copy of them back (the fields are drawn again).
     snap:()=>JSON.parse(JSON.stringify(pend)),
@@ -170,7 +173,7 @@ function shortDetails(o){
       if(o.onTitle) o.onTitle("title" in pend ? pend.title : s.title);
       changed();
     },
-    cancel:()=>{ if(o.extra) o.extra.reset(); if(o.caps) o.caps.reset(); return c&&load(true); }, save, setTitle, remadeDone,
+    cancel:()=>{ if(o.extra) o.extra.reset(); sets().forEach(x=>x.reset()); return c&&load(true); }, save, setTitle, remadeDone,
   };
   return api;
 }

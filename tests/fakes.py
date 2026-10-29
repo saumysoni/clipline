@@ -643,18 +643,25 @@ def _jpeg(path, size=(1080, 1920), color=(200, 40, 60)):
 RENDERED = []  # what each fast_render was asked to make (AI Edit tests)
 
 
-def fast_render(video_path, meta, moment, words, idx, style, job_dir, cx="find"):
+def fast_render(video_path, meta, moment, words, idx, style, job_dir, cx="find", offset=0.0):
     from pipeline.captions import build_ass
     from pipeline.pieces import kept
     from pipeline.render import short_words
     job_dir = Path(job_dir)
     RENDERED.append({"idx": idx, "pieces": kept(moment), "hook": moment.get("hook", ""), "hook_mode": moment.get("hook_mode"),
-                     "captions": moment.get("captions")})
+                     "captions": moment.get("captions"), "reframe": moment.get("reframe"),
+                     "src": Path(video_path).name, "offset": offset, "cx": cx})
     time.sleep(SLOW.render)  # SLOW.render > 0: editing takes a while (Pause tests)
     build_ass(short_words(moment, words), 0.0, sum(b - a for a, b in kept(moment)), moment.get("hook", ""), style,
               job_dir / f"captions_{idx}.ass", moment.get("captions"))
     (job_dir / f"short_{idx}.mp4").write_bytes(b"\x00\x00\x00\x18ftypmp42" + os.urandom(64))
     return f"short_{idx}.mp4", None if cx == "find" else cx
+
+
+def fast_clean_clip(video_path, meta, a, b, out_path):
+    import shutil
+    shutil.copyfile(video_path, out_path)  # a real (small) video, so it can be read like a clip
+    return {"from": round(a, 3), "to": round(b, 3), "scale": 1.0}
 
 
 THUMB_AVOIDED = []  # the last thumbnail's plan each Try again asked to avoid
@@ -676,6 +683,7 @@ def fast():
     import pipeline
     pipeline.transcribe = fake_transcribe
     pipeline.render_short = fast_render
+    pipeline.make_clean_clip = fast_clean_clip
     pipeline.make_thumbnail = fast_thumbnail
     pipeline.make_vlog_thumbnail = fast_vlog_thumbnail
     pipeline.retext_thumbnail = lambda v, m, mo, cx, num, d: (fast_thumbnail(v, m, mo, cx, num, d), None)

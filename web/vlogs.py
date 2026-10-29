@@ -15,6 +15,7 @@ from flask import abort, g, jsonify, request
 
 import pipeline
 from pipeline.transcript_cache import remember_transcript
+from web.clean_clips import make_clips
 from settings import JOBS_DIR
 
 from web.errors import plain_error
@@ -210,6 +211,7 @@ def remove_video(job_id):
         PREVIEW_PCT.pop(job_id, None)
     if src:
         remember_transcript(src, job_dir / "transcript.json")
+        make_clips(job_id)  # the drafts' clean clips first: their editing carries on without the vlog
     for f in (src, job_dir / "preview.mp4", job_dir / "preview.part.mp4"):
         if f:
             f.unlink(missing_ok=True)

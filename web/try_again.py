@@ -44,6 +44,8 @@ def remake_short(job_id, idx, note, times=None):
 
             if me.get("captions"):  # the creator's caption look stays; word changes were for the old words
                 m["captions"] = pipeline.caption_style_only(me["captions"])
+            if me.get("reframe"):  # the layout stays; moves were on the old moment's times
+                m["reframe"] = pipeline.reframe_style_only(me["reframe"])
             num = next_file_number(job)
             meta = pipeline.probe(src)
             pipeline.prepare_job_fonts(job_dir)

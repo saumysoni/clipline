@@ -10,6 +10,7 @@ from flask import abort, jsonify, request
 import pipeline
 from settings import JOBS_DIR
 
+from web import clean_clips
 from web.server import app
 from web.store import JOBS, LOCK, RETRY_LOCKS, editable_job, load_job, next_file_number, update, update_short
 
@@ -25,7 +26,7 @@ def rerender_hook(job_id, idx, hook, mode, style, thumb=True):
             with LOCK:
                 job = json.loads(json.dumps(JOBS[job_id]))
             me = next(s for s in job["shorts"] if s["idx"] == idx)
-            src = next(job_dir.glob("source.*"), None)
+            src = clean_clips.source(job_id, job, me)  # the vlog, else this Short's clean clip
             tr_path = job_dir / "transcript.json"
             if not src or not tr_path.exists():
                 raise RuntimeError("This vlog's video was deleted, so the hook can't be changed (it's part of the "
@@ -33,15 +34,17 @@ def rerender_hook(job_id, idx, hook, mode, style, thumb=True):
             tr = json.loads(tr_path.read_text(encoding="utf-8"))
             moment = {**me, "hook": hook, "hook_mode": mode}
             pipeline.prepare_job_fonts(job_dir)
-            meta, num = pipeline.probe(src), next_file_number(job)
-            video, cx = pipeline.render_short(src, meta, moment, tr["words"], num, job.get("style", "bold"),
-                                              job_dir, cx=me.get("cx", "find"))
+            num = next_file_number(job)
+            video, cx = clean_clips.render(src, moment, tr["words"], num, job.get("style", "bold"), job_dir, me)
+            meta = pipeline.probe(src["path"])
             extra = {}
             if thumb and mode == "text":
                 update_short(job_id, idx, retry_msg="Updating the thumbnail")
                 l1, l2 = pipeline.hook_to_lines(hook)
-                name, work = pipeline.retext_thumbnail(src, meta, {**moment, "thumb_line1": l1, "thumb_line2": l2},
-                                                       cx, num, job_dir)
+                off = src["offset"]  # the simple style grabs a frame of the moment: on the clip's own clock
+                name, work = pipeline.retext_thumbnail(src["path"], meta, {**moment, "thumb_line1": l1, "thumb_line2": l2,
+                                                                           "start": moment["start"] - off, "end": moment["end"] - off},
+                                                       clean_clips.scaled_cx({"cx": cx}, src), num, job_dir)
                 extra = {"thumb": name, "thumb_line1": l1, "thumb_line2": l2, **({"thumb_work": work} if work else {})}
         hooks = dict(me.get("hooks") or {})
         if mode == "text" and style == "custom":

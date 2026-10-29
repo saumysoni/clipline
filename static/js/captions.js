@@ -300,7 +300,7 @@ function captionEdit(o){
     // The tool is showing (previews are only asked for then), and the cuts changed (the words follow them).
     shown(on){ shown=on; if(on) preview(); },
     words(){ if(info){ paintLines(); preview(); } },
-    dirty, count:()=>dirty()?1:0, canEdit:can,
+    name:"captions", dirty, count:()=>dirty()?1:0, canEdit:can,
     summary:()=>{
       if(!info) return "";
       if(!cur.on) return "Off";

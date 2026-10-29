@@ -80,7 +80,11 @@ with sync_playwright() as p:
     ev = pg.evaluate
     P = lambda: ev("edAE.pieces()")
     SV = lambda: ev("edAE.saved()")
-    parts = lambda: pg.locator("#edTwick .twick-track-element")
+    def parts():
+        """Twick's parts. Under Trim the strip takes the Video row (7d): the sections on Twick's own trimming show it."""
+        if ev("edTrimOn"):
+            ev("edTrimShow(false)"); pg.wait_for_timeout(300)
+        return pg.locator("#edTwick .twick-track-element")
     state = lambda: pg.inner_text("#edState")
     summ = lambda: pg.inner_text(".tr-sum").replace("\n", " ")
     server = lambda j, i: ev(f"fetch('/api/ai-edit/{j}/{i}').then(r=>r.json())")
@@ -90,9 +94,15 @@ with sync_playwright() as p:
         pg.wait_for_function("edAE.info() && window.PitTimeline && document.querySelectorAll('#edTwick .twick-track-element').length>0", timeout=20000)
         pg.wait_for_timeout(500)
 
-    def tool(t):
+    def tool(t, strip=False):
+        """strip: Trim as a creator sees it (its strip in the Video row, 7d); else Twick's timeline shows under Trim's
+        panel too, for the sections on Twick's own trimming (still there under every other tool)."""
         pg.click(f'#edRail button[data-t="{t}"]')
         pg.wait_for_timeout(300)
+        if t == "trim" and not strip:
+            ev("edTrimShow(false)"); pg.wait_for_timeout(300)
+        if strip and not ev("edTrimOn"):
+            ev("edTrimShow(true)"); pg.wait_for_timeout(300)
 
     def select(k):
         bb = parts().nth(k).bounding_box()
@@ -139,7 +149,7 @@ with sync_playwright() as p:
     check(P() == [[s0, e0]], f"pieces are the moment {P()}")
     check(parts().count() == 1, "one part on the timeline")
     check(state() == "Saved", "state Saved")
-    check("0:31" in summ() and "0:47 to 1:18" in summ(), "Trim summary: " + summ())
+    check("0:31" in summ() and "0:00.0 to 0:30.8" in summ(), "Trim summary, on the Short's clock: " + summ())
     tw = pg.locator("#edTwick").bounding_box(); bb = parts().first.bounding_box()
     check(bb["x"] + bb["width"] <= tw["x"] + tw["width"] + 1 and bb["width"] > tw["width"] * 0.8, "the part fills the timeline at zoom 1")
 
@@ -158,12 +168,10 @@ with sync_playwright() as p:
     check(parts().first.bounding_box()["x"] - pg.locator("#edTwick .twick-track").first.bounding_box()["x"] < 4, "the part starts at 0 again (no gap)")
 
     # ---------------------------------------------------------------- 3. nudge: reach past the moment
-    print("3. Start / End buttons, reaching past the moment")
-    pg.click('[data-end="0"][data-d="-5"]'); pg.wait_for_timeout(300)
-    pg.click('[data-end="0"][data-d="-5"]'); pg.wait_for_timeout(300)
+    print("3. Reaching past the moment")
+    ev(f"edAE.setPieces([[{s1 - 10}, {e1}]])"); pg.wait_for_timeout(300)
     check(near(P()[0][0], s1 - 10, 0.01), f"start 10 s earlier: {P()[0][0]}")
-    check("past the original moment" in summ(), "summary says past the moment")
-    pg.click('[data-end="1"][data-d="5"]'); pg.wait_for_timeout(300)
+    ev(f"edAE.setPieces([[{s1 - 10}, {e1 + 5}]])"); pg.wait_for_timeout(300)
     check(near(P()[0][1], e1 + 5, 0.01), f"end 5 s later: {P()[0][1]}")
     check(near(ev("aeLen(edAE.pieces())"), (e1 + 5) - (s1 - 10), 0.01), "length adds up")
     tl_len = sum(parts().nth(k).bounding_box()["width"] for k in range(parts().count())) / px_per_sec()
@@ -176,10 +184,9 @@ with sync_playwright() as p:
     at = ev("edTl.time()")
     exp_at = (s0 + 5) - before[0][0]
     check(near(at, exp_at, 0.3), f"the playhead follows the player ({at:.2f} vs {exp_at:.2f})")
-    pg.click("#edSplit"); pg.wait_for_timeout(600)
+    ev("edTl.split()"); pg.wait_for_timeout(600)
     check(parts().count() == 2, "split: two parts on the timeline")
     check(P() == before, "split alone doesn't change the Short")
-    check(not pg.locator("#edDel").is_disabled(), "Delete part is on (second half chosen)")
     pg.keyboard.press("Delete"); pg.wait_for_timeout(700)
     cut_at = round(before[0][0] + at, 1)
     check(len(P()) == 1 and near(P()[0][1], cut_at, 0.15) and P()[0][0] == before[0][0], f"Delete key took the second half: {P()}")
@@ -187,11 +194,11 @@ with sync_playwright() as p:
     # split in the middle, delete the middle → two pieces with a gap
     whole = P()
     mid = (whole[0][1] - whole[0][0])
-    ev(f"edTl.setTime({mid*0.3})"); pg.click("#edSplit"); pg.wait_for_timeout(500)
-    ev(f"edTl.setTime({mid*0.6})"); pg.click("#edSplit"); pg.wait_for_timeout(500)
+    ev(f"edTl.setTime({mid*0.3})"); ev("edTl.split()"); pg.wait_for_timeout(500)
+    ev(f"edTl.setTime({mid*0.6})"); ev("edTl.split()"); pg.wait_for_timeout(500)
     check(parts().count() == 3, "two splits: three parts")
     select(1)
-    pg.click("#edDel"); pg.wait_for_timeout(600)
+    ev("edTl.remove()"); pg.wait_for_timeout(600)
     p2 = P()
     check(len(p2) == 2 and near(p2[0][1], whole[0][0] + mid * 0.3, 0.1) and near(p2[1][0], whole[0][0] + mid * 0.6, 0.1),
           f"the middle part is gone: {p2}")
@@ -265,14 +272,6 @@ with sync_playwright() as p:
     s_before = P()[0][0]
     drag_handle(0, "start", -30)
     check(P()[0][0] < s_before - 0.3, f"the first part reaches back into the vlog: {s_before} -> {P()[0][0]}")
-    # Start / End act on the chosen part, with fine steps
-    tool("trim"); select(1)
-    e_before = P()[1][1]
-    check("Part 2 end" in pg.inner_text("#edTrim"), "the panel says which part it moves")
-    pg.click('[data-end="1"][data-d="0.1"]'); pg.wait_for_timeout(300)
-    check(abs(P()[1][1] - (e_before + 0.1)) < 0.002, f"+0.1 moves that part's end ({e_before} -> {P()[1][1]})")
-    pg.click('[data-end="0"][data-d="-0.1"]'); pg.wait_for_timeout(300)
-    check(P()[0][0] >= P()[0][0] and P()[1][0] < b1[1][0] + 0.01 and P()[1][0] >= P()[0][1], "−0.1 on its start stops at the part before")
     n_undo = 0
     while P() != p2 and n_undo < 20:
         pg.click("#edUndo"); n_undo += 1; pg.wait_for_timeout(200)
@@ -314,6 +313,114 @@ with sync_playwright() as p:
     while P() != p2 and n_undo < 20:
         pg.click("#edUndo"); n_undo += 1; pg.wait_for_timeout(200)
     check(P() == p2, f"Undo takes all of it back ({n_undo} steps)")
+
+    # ---------------------------------------------------------------- 7d. trimming on the video row
+    print("7d. Trimming on the video row: a yellow box made with two clicks, shaped, then cut out")
+    tool("trim", strip=True)
+    film = lambda: pg.locator("#edTrimStrip .ts-film").bounding_box()
+    win0, f0, o0 = ev("edTS.win()"), film(), ev("edOrigin()")
+    X = lambda t: f0["x"] + (t - win0["a"]) / (win0["b"] - win0["a"]) * f0["width"]
+    Y = f0["y"] + f0["height"] / 2
+    px = 2 * (win0["b"] - win0["a"]) / f0["width"]  # 2 px in seconds (WebKit's pointer lands on whole pixels)
+
+    def click(t, alt=True):
+        if alt:
+            pg.keyboard.down("Alt")
+        pg.mouse.click(X(t), Y)
+        if alt:
+            pg.keyboard.up("Alt")
+        pg.wait_for_timeout(250)
+    check(pg.locator("#edTrimStrip .ts.trim").is_visible() and not pg.locator("#edTwick").is_visible(), "the video row, ready to trim")
+    zero = ev("[...document.querySelectorAll('#edTrimStrip .ts-ticks span')].find(s=>s.textContent==='0:00')?.getBoundingClientRect().left")
+    check(zero is not None and abs(zero + 12 - X(o0)) < 16, "its times are the Short's: 0:00 where the saved Short starts")
+    ln = ev("aeLen(edAE.saved())")
+    check(win0["b"] - win0["a"] >= ln + 50 or win0["a"] == 0, f"zoomed out: the Short and at least 30 s either side ({win0})")
+    check(pg.locator("#edTrimStrip .ts-dim").count() >= 3, "before, between and after the parts: dimmed")
+    pg.wait_for_function("""(()=>{const c=document.querySelector('#edTrimStrip .ts-pics'); if(!c||!c.width) return false;
+        const d=c.getContext('2d').getImageData(c.width/2|0,c.height/2|0,1,1).data; return d[0]+d[1]+d[2]>60;})()""", timeout=20000)
+    check(True, "the vlog's pictures are drawn")
+    pg.mouse.move(X(o0 + 3), Y); pg.wait_for_timeout(700)
+    lab = pg.inner_text("#edTrimView").split()[0]
+    check(pg.locator("#edTrimView").is_visible() and near(int(lab.split(":")[0]) * 60 + float(lab.split(":")[1]), 3, px + 0.05),
+          f"pointing at the row shows that moment big ({lab})")
+    a2 = p2[1][0]
+    click(a2 + 1)
+    check(near(ev("edTS.first()"), a2 + 1, px) and "Now click where the part to cut out ends" in pg.inner_text("#edTrim"), "first click: the start")
+    click(a2 + 3)
+    sel = ev("edTS.sel()")
+    check(sel and near(sel["a"], a2 + 1, px) and near(sel["b"], a2 + 3, px) and ev("edTS.win()") == win0,
+          f"second click: the end; yellow, the scale unchanged ({sel})")
+    check(not pg.locator("#trCut").is_disabled() and pg.locator("#trKeep").count() == 0 and P() == p2,
+          "Cut it out (no Keep it); nothing changed yet")
+    # made once: more clicks don't start another; its ends stretch and narrow it, dragging inside moves it
+    sel0 = ev("edTS.sel()")
+    click(a2 + 8); click(a2 + 10)
+    check(ev("edTS.sel()") == sel0 and ev("edTS.first()") is None, "clicks elsewhere don't make another box")
+    sb = sel0["b"]
+    pg.mouse.move(X(sb), Y); pg.mouse.down(); pg.mouse.move(X(sb) + 25, Y, steps=6); pg.mouse.up(); pg.wait_for_timeout(300)
+    check(ev("edTS.sel()")["b"] > sb + 0.5 and near(ev("edTS.sel()")["a"], sel0["a"], 0.01), f"its end stretches it ({sb} -> {ev('edTS.sel()')['b']})")
+    sa = ev("edTS.sel()")["a"]
+    pg.mouse.move(X(sa), Y); pg.mouse.down(); pg.mouse.move(X(sa) + 12, Y, steps=6); pg.mouse.up(); pg.wait_for_timeout(300)
+    check(ev("edTS.sel()")["a"] > sa + 0.3, f"its start narrows it ({sa} -> {ev('edTS.sel()')['a']})")
+    s1 = ev("edTS.sel()"); mid = (s1["a"] + s1["b"]) / 2
+    pg.keyboard.down("Alt"); pg.mouse.move(X(mid), Y); pg.mouse.down(); pg.mouse.move(X(mid) - 20, Y, steps=6); pg.mouse.up(); pg.keyboard.up("Alt")
+    pg.wait_for_timeout(300)
+    s2 = ev("edTS.sel()")
+    check(s2["a"] < s1["a"] - 0.5 and near(s2["b"] - s2["a"], s1["b"] - s1["a"], 0.01), f"dragging inside moves it, the same length ({s1} -> {s2})")
+    ev(f"edTS.setSel({{a:{a2 + 1}, b:{a2 + 3}}})")
+    pg.keyboard.press("Delete"); pg.wait_for_timeout(600)
+    p3 = P()
+    check(len(p3) == 3 and near(p3[1][1], a2 + 1, 0.01) and near(p3[2][0], a2 + 3, 0.01) and ev("edTS.sel()") is None,
+          f"Delete cuts it out: {p3}")
+    check(ev("edTV.playing()") and pg.locator("#edTrimView").is_visible() and "Without" in pg.inner_text("#edTrimView"),
+          "then the Short plays without it, big")
+    pg.click("#trPlay"); pg.wait_for_timeout(200)
+    if ev("edTV.playing()"):
+        pg.click("#trPlay"); pg.wait_for_timeout(200)
+    cut = ev("[...document.querySelectorAll('#edTrimStrip .ts-cut')].map(d=>{const r=d.getBoundingClientRect();return [r.left,r.right]})")
+    check(any(abs(c[0] - X(a2 + 1)) < 4 and abs(c[1] - X(a2 + 3)) < 4 for c in cut) and ev("getComputedStyle(document.querySelector('#edTrimStrip .ts-cut')).backdropFilter||getComputedStyle(document.querySelector('#edTrimStrip .ts-cut')).webkitBackdropFilter").startswith("blur"),
+          f"the cut part looks cut: blurred and striped, apart from the vlog around it ({len(cut)} cut)")
+    # the Short's own end, dragged out into the vlog after it: that part is added
+    e_was = P()[-1][1]
+    pg.mouse.move(X(e_was), Y); pg.mouse.down()
+    for i in range(1, 11):
+        pg.mouse.move(X(e_was) + 6 * i, Y); pg.wait_for_timeout(15)
+    tip_ = pg.inner_text("#edTrimStrip .ts-tip")
+    pg.mouse.up(); pg.wait_for_timeout(400)
+    check(P()[-1][1] > e_was + 2 and "Ends" in tip_, f"the Short's end drags out into the vlog ({e_was} -> {P()[-1][1]}; {tip_})")
+    pg.click("#edUndo"); pg.wait_for_timeout(300)
+    check(near(P()[-1][1], e_was, 0.01), "Undo takes it back")
+    check(state() != "Saved", "a change waiting to be saved")
+    click(a2 + 6); pg.keyboard.press("Escape"); pg.wait_for_timeout(200)
+    check(ev("edTS.first()") is None, "Esc clears a start")
+    # a part already left out (dimmed): nothing to cut
+    e_last = P()[-1][1]
+    click(e_last + 2); click(e_last + 6)
+    check(pg.locator("#trCut").is_disabled() and "already left out" in pg.inner_text("#edTrim"), "a dimmed part: nothing to cut")
+    pg.click("#trClear"); pg.wait_for_timeout(200)
+    pg.click("#trPlay"); pg.wait_for_timeout(1200)
+    check(ev("edTV.playing()"), "Play the Short as it'll be")
+    pg.click("#trPlay"); pg.wait_for_timeout(200)
+    pg.click("#trMore"); pg.wait_for_timeout(300)
+    w2 = ev("edTS.win()")
+    check(w2["a"] < win0["a"] or w2["b"] > win0["b"], f"Show more of the vlog ({win0} -> {w2})")
+    n_undo = 0
+    while P() != p2 and n_undo < 20:
+        pg.click("#edUndo"); n_undo += 1; pg.wait_for_timeout(200)
+    check(P() == p2, f"Undo takes all of it back ({n_undo} steps)")
+    tool("details")
+    check(pg.locator("#edTrimStrip .ts").is_visible() and pg.locator("#edTrimStrip .ts.trim").count() == 0 and not pg.locator("#edTrimView").is_visible(),
+          "other tools: the whole clip, nothing yellow, no big preview")
+    fb = film(); pg.mouse.click(fb["x"] + fb["width"] / 2, fb["y"] + 20); pg.wait_for_timeout(300)
+    check(ev("edTS.first()") is None, "a click there just moves the player")
+    pg.mouse.click(X(win0["b"] - 3), Y); pg.wait_for_timeout(700)
+    check(pg.locator("#edTrimView").is_visible() and "not in the Short" in pg.inner_text("#edTrimView"),
+          "a click on the vlog around the Short shows that moment big")
+    ev("(v=>{v.muted=true; return v.play()})(document.getElementById('edVideo'))"); pg.wait_for_timeout(500)
+    check(not pg.locator("#edTrimView").is_visible(), "playing the Short puts the player back")
+    ev("document.getElementById('edVideo').pause()")
+    tw = pg.locator("#edTwick"); lb = parts().nth(parts().count() - 1).bounding_box(); tw = tw.bounding_box()
+    check(lb["x"] + lb["width"] <= tw["x"] + tw["width"] + 1 and packed(), "Twick's view under it is still laid out and fitted")
 
     # ---------------------------------------------------------------- 8. AI Edit and the timeline are one list
     print("8. AI Edit <-> timeline")
@@ -386,7 +493,6 @@ with sync_playwright() as p:
     check(all(near(a, c, 0.01) and near(b, d, 0.01) for (a, b), (c, d) in zip(srv["pieces"], want)) and len(srv["pieces"]) == len(want),
           f"server pieces {srv['pieces']}")
     check(P() == SV() and parts().count() == len(want), "the timeline shows the saved Short")
-    check("past the original moment" not in summ(), "the new reach is the moment now")
     dur = ev("document.getElementById('edVideo').duration")
     check(near(dur, sum(b - a for a, b in want), 0.3), f"the new video is {dur:.2f}s long")
     check(srv["words"][0]["s"] < s0, "the transcript covers the wider moment")
@@ -395,7 +501,7 @@ with sync_playwright() as p:
     print("11. Too short; Discard")
     drag_handle(0, "end", -int(parts().first.bounding_box()["width"] - 10))
     if len(P()) > 1:
-        select(1); pg.click("#edDel"); pg.wait_for_timeout(500)
+        select(1); ev("edTl.remove()"); pg.wait_for_timeout(500)
     short_len = ev("aeLen(edAE.pieces())")
     check(short_len < 5, f"trimmed under 5 s ({short_len:.2f})")
     check("At least" in summ(), "summary warns")
@@ -409,11 +515,12 @@ with sync_playwright() as p:
     print("12. The vlog's ends")
     open_short(A, 1)
     tool("trim")
-    pg.click('[data-end="0"][data-d="-5"]'); pg.wait_for_timeout(300)
-    check(P()[0][0] == 0, f"start stops at 0:00 ({P()[0][0]})")
-    check(pg.locator('[data-end="0"][data-d="-1"]').is_disabled(), "earlier is off at 0:00")
-    pg.click("#edCancel"); pg.wait_for_timeout(400)
-    check(state() == "Saved", "discarded")
+    tool("trim", strip=True)
+    check(ev("edTS.win()")["a"] == 0, f"near the vlog's start: the row starts at the vlog's 0:00 ({ev('edTS.win()')})")
+    ev("edTS.setSel({a:-5, b:2})")
+    check(ev("edTS.sel()")["a"] == 0, "a stretch can't start before the vlog")
+    pg.click("#trClear"); pg.wait_for_timeout(300)
+    check(ev("edTS.sel()") is None and state() == "Saved", "Clear: nothing chosen, nothing changed")
 
     # ---------------------------------------------------------------- 12b. Save bar, one Undo for every tool
     print("12b. The Save bar and Undo / Redo across the tools")
@@ -573,8 +680,8 @@ with sync_playwright() as p:
     pg.wait_for_timeout(300)
     pg.wait_for_timeout(1200)  # the timeline lining up the player after the pause mustn't undo it
     check(abs(ev("edCapX") - x1) > 100 and ev("edCapHand"), f"the wheel scrolls it by hand ({x1:.0f} -> {ev('edCapX'):.0f} px of {room:.0f}, by hand: {ev('edCapHand')})")
-    ruler = pg.locator("#edTwick .twick-seek-track").first.bounding_box()
-    pg.mouse.click(ruler["x"] + ruler["width"] * 0.3, ruler["y"] + ruler["height"] / 2); pg.wait_for_timeout(900)
+    kb = pg.locator("#edTrimStrip .ts-keep").first.bounding_box()  # a click in a kept part on the Video row
+    pg.mouse.click(kb["x"] + kb["width"] * 0.4, kb["y"] + kb["height"] / 2); pg.wait_for_timeout(900)
     check(not ev("edCapHand") and follows(), "a seek on the timeline follows the player again")
     ev("document.getElementById('edVideo').currentTime=0"); pg.wait_for_timeout(600)
     vid0 = vid
@@ -645,6 +752,118 @@ with sync_playwright() as p:
     ev("localStorage.removeItem('pc-ed-rail')"); ev("edRailW=220; edRailTop=false; edRailApply()"); pg.wait_for_timeout(400)
     tool("trim")
 
+    # ---------------------------------------------------------------- 12d. Reframe
+    print("12d. Reframe")
+    RJ, RI = ev("[edC.job, edC.idx]")
+    rsrv = lambda: ev(f"fetch('/api/reframe/{RJ}/{RI}').then(r=>r.json())")
+    rf = lambda: (ev("edRf.snap()") or {}).get("r")
+    box = lambda: pg.locator("#edRfStage .rf-box").first.bounding_box()
+    ev("(v=>{v.muted=true; return v.play()})(document.getElementById('edVideo'))"); pg.wait_for_timeout(500)
+    tool("reframe")
+    pg.wait_for_function("document.querySelector('#edRfStage .rf-box')", timeout=20000)
+    check(pg.locator("#edRfStage").is_visible() and ev("document.getElementById('edVideo').paused"),
+          "Reframe takes the player's place (the player pauses)")
+    pg.wait_for_function("""(()=>{const c=document.querySelector('#edRfStage .rf-res'); if(!c||!c.width) return false;
+        const d=c.getContext('2d').getImageData(c.width/2|0,c.height/2|0,1,1).data; return d[0]+d[1]+d[2]>60;})()""", timeout=20000)
+    check(rf() is None and state() == "Saved", "the Short as it'll look, drawn live; nothing changed yet")
+    face, zm = rsrv()["face"], rsrv()["zoom_max"]  # the test vlog is small: the zoom stops sooner (web/reframe.py _zoom_max)
+    b0 = box(); x, y = b0["x"] + b0["width"] / 2, b0["y"] + b0["height"] / 2
+    pg.mouse.move(x, y); pg.mouse.down()
+    for i in range(1, 13):
+        pg.mouse.move(x - 100 * i / 12, y); pg.wait_for_timeout(15)
+    live = box()["x"]
+    pg.mouse.up(); pg.wait_for_timeout(400)
+    r1 = rf()
+    check(live < b0["x"] - 40 and r1 and r1["moves"][0]["x"] < face - 0.03 and state() == "1 change not saved",
+          f"dragging the frame moves it (x {face} -> {r1 and r1['moves'][0]['x']})")
+    ev("(i=>{i.value=9;i.dispatchEvent(new Event('input'));i.dispatchEvent(new Event('change'))})(document.getElementById('rfZoom'))"); pg.wait_for_timeout(400)
+    check(rf()["moves"][0]["z"] == zm and near(box()["width"], b0["width"] / zm, 3), f"zoom: as far as this vlog allows ({zm}×), a smaller frame")
+    pg.click("#edUndo"); pg.wait_for_timeout(300)
+    check(rf()["moves"][0]["z"] == 1, "Undo takes the zoom back")
+    pg.click("#edRedo"); pg.wait_for_timeout(300)
+    check(rf()["moves"][0]["z"] == zm, "Redo puts it back")
+    pg.click("#rfFollow")
+    pg.wait_for_function("document.querySelector('#edRf .rf-note').textContent.length>0", timeout=30000)
+    check("No face" in pg.inner_text("#edRf .rf-note") and rf()["moves"][0]["z"] == zm, "Follow the speaker: no face in this test video, says so, changes nothing")
+    # moves over time: the frame somewhere else later in the Short
+    pg.click("#rfOver"); pg.wait_for_timeout(300)
+    ev("document.getElementById('edVideo').currentTime=6"); pg.wait_for_timeout(800)
+    b1 = box(); x, y = b1["x"] + b1["width"] / 2, b1["y"] + b1["height"] / 2
+    pg.mouse.move(x, y); pg.mouse.down(); pg.mouse.move(x + 160, y, steps=10); pg.mouse.up(); pg.wait_for_timeout(400)
+    r2 = rf()
+    check(len(r2["moves"]) == 2 and r2["moves"][1]["x"] > r2["moves"][0]["x"] and pg.locator("#edRf .rf-move").count() == 2,
+          f"moves over time: a second move later on ({[(m['t'], m['x']) for m in r2['moves']]})")
+    pg.click('[data-moves="cut"]'); pg.wait_for_timeout(200)
+    check(rf()["cut"] is True, "moves can cut instead of gliding")
+    pg.click("#rfExact")
+    pg.wait_for_function("!document.querySelector('#edRfStage .rf-exact').hidden", timeout=30000)
+    check(True, "Check with captions shows the server's frame")
+    vid0 = ev(f"(clData.find(c=>c.job==={RJ!r}&&c.idx==={RI})||{{}}).video")
+    pg.click("#edSave")
+    wait_saved()
+    pg.wait_for_function(f"(clData.find(c=>c.job==={RJ!r}&&c.idx==={RI})||{{}}).video!=={vid0!r} && !edRf.dirty()", timeout=120000)
+    sv = rsrv()["reframe"]
+    check(sv and len(sv["moves"]) == 2 and sv["cut"] is True and sv["moves"][0]["z"] == zm, f"saved: the moves, the cut, the zoom ({sv})")
+    check(ev("!edRf.dirty() && document.getElementById('edUndo').disabled"), "saved, nothing to undo")
+    # captions and framing changed together: both saved, one remake
+    seen_js = f"window.SEEN=new Set(); window.SEENT=setInterval(()=>{{const c=clData.find(c=>c.job==={RJ!r}&&c.idx==={RI}); if(c) SEEN.add(c.video);}},100)"
+    ev(seen_js)
+    pg.click('[data-layout="fit"]'); pg.wait_for_timeout(300)
+    tool("captions"); pg.click('.cp-pre[data-p="clean"]'); pg.wait_for_timeout(300); tool("reframe")
+    check(state() == "2 changes not saved", "captions and framing: " + state())
+    vid1 = ev(f"(clData.find(c=>c.job==={RJ!r}&&c.idx==={RI})||{{}}).video")
+    pg.click("#edSave"); wait_saved()
+    pg.wait_for_function(f"(clData.find(c=>c.job==={RJ!r}&&c.idx==={RI})||{{}}).video!=={vid1!r} && !edRf.dirty() && !edCap.dirty()", timeout=120000)
+    pg.wait_for_timeout(4000)
+    seen = ev("(clearInterval(SEENT), [...SEEN])")
+    cs = ev(f"fetch('/api/captions/{RJ}/{RI}').then(r=>r.json())")["captions"]
+    check(rsrv()["reframe"]["layout"] == "fit" and cs["preset"] == "clean" and len(seen) == 2,
+          f"both saved, one remake ({len(seen) - 1} new videos)")
+    # framing and a cut word: the cut's remake makes the framing too
+    pg.click('[data-layout="fill"]'); pg.wait_for_timeout(300)
+    tool("ai"); n_p = len(P()); pg.locator("#aeTr .ae-w:not(.cut)").nth(3).click(); pg.wait_for_timeout(400); tool("reframe")
+    vid2 = ev(f"(clData.find(c=>c.job==={RJ!r}&&c.idx==={RI})||{{}}).video")
+    pg.click("#edSave"); wait_saved()
+    pg.wait_for_function(f"(clData.find(c=>c.job==={RJ!r}&&c.idx==={RI})||{{}}).video!=={vid2!r} && !edRf.dirty()", timeout=120000)
+    check(rsrv()["reframe"] is None and len(server(RJ, RI)["pieces"]) == n_p + 1,
+          "framing (back to Pit Crew's) with a cut: both made in the cut's remake")
+    # smart framing: auto layout per shot, a shot flipped, punch-ins, tracking; then saved
+    pg.click("#rfAuto")
+    pg.wait_for_function("document.querySelector('#edRf .rf-note').textContent.length>0", timeout=60000)
+    r3 = rf() or {}
+    check(r3.get("shots") and pg.locator("#edRf .rf-shot").count() == len(r3["shots"]) and "shown whole" in pg.inner_text("#edRf .rf-note"),
+          f"Auto layout per shot: {len(r3.get('shots') or [])} shots listed ({pg.inner_text('#edRf .rf-note')})")
+    first_fit = r3["shots"][0]["fit"]
+    check(ev("document.querySelector('#edRfStage .rf-src').classList.contains('fit')") == first_fit, "the picture shows the shot's layout")
+    pg.click(f'#edRf [data-shot="0"][data-fit="{0 if first_fit else 1}"]'); pg.wait_for_timeout(300)
+    r4 = rf()
+    check(r4 and (r4.get("shots") or [{}])[0].get("fit", False) != first_fit or (first_fit and not r4.get("shots")),
+          "a shot flipped by hand")
+    pg.click('#edRf [data-punch="punchy"]'); pg.wait_for_timeout(300)
+    r5 = rf()
+    check(r5 and r5.get("punch") and r5["punch"]["amount"] == 0.16 and len(r5["punch"]["at"]) >= 2, f"Zoom on emphasis: Punchy, {len((r5 or {}).get('punch', {}).get('at', []))} punch-ins")
+    pg.click("#rfTrack"); pg.wait_for_timeout(200)
+    check(ev("document.querySelector('#edRfStage .rf-src').classList.contains('tracking')"), "Track something: waiting for a click in the picture")
+    sb_ = pg.locator("#edRfStage .rf-src").bounding_box()
+    pg.mouse.click(sb_["x"] + sb_["width"] * 0.3, sb_["y"] + sb_["height"] * 0.4)
+    pg.wait_for_function("!document.querySelector('#edRfStage .rf-src').classList.contains('tracking') && document.querySelector('#rfTrack') && !document.querySelector('#rfTrack').disabled", timeout=60000)
+    tnote = pg.inner_text("#edRf .rf-note")
+    check("Following it for" in tnote or "couldn't follow" in tnote, "tracking answers: " + tnote)
+    vid_s = ev(f"(clData.find(c=>c.job==={RJ!r}&&c.idx==={RI})||{{}}).video")
+    pg.click("#edSave"); wait_saved()
+    pg.wait_for_function(f"(clData.find(c=>c.job==={RJ!r}&&c.idx==={RI})||{{}}).video!=={vid_s!r} && !edRf.dirty()", timeout=120000)
+    srv_r = rsrv()["reframe"] or {}
+    st = ev(f"fetch('/api/status/{RJ}').then(r=>r.json())")
+    me_r = next(x for x in st["shorts"] if x["idx"] == RI)
+    check(not me_r.get("retry_error") and srv_r.get("punch", {}).get("amount") == 0.16, f"saved and remade with them ({me_r.get('retry_error')})")
+    sv = rsrv()["reframe"]
+    pg.click('[data-layout="split"]'); pg.wait_for_timeout(400)
+    check(pg.locator("#edRfStage .rf-box").count() == 2 and rf()["layout"] == "split", "Split: two frames, one per view")
+    pg.click("#edCancel"); pg.wait_for_timeout(800)
+    check(rf() == sv and state() == "Saved", "Discard puts the saved framing back")
+    tool("details")
+    check(not pg.locator("#edRfStage").is_visible() and pg.locator("#edVideo").is_visible(), "other tools: the player is back")
+
     # ---------------------------------------------------------------- 13. no video: read only
     print("13. The vlog's video is gone")
     for f in glob.glob(os.path.join(H["jobs_dir"], BJ, "source.*")):
@@ -657,7 +876,12 @@ with sync_playwright() as p:
     check("video was deleted" in pg.inner_text("#edCap") and pg.locator("#cpOn").is_disabled()
           and pg.locator(".cp-pre").first.is_disabled(), "Captions says why, and can't be changed")
     tool("trim")
-    check(pg.locator('#edTrim [data-d]').first.is_disabled() and pg.locator("#edSplit").is_disabled(), "its buttons are off")
+    tool("trim", strip=True)
+    fb = pg.locator("#edTrimStrip .ts-film").bounding_box()
+    pg.mouse.click(fb["x"] + fb["width"] * 0.4, fb["y"] + 20); pg.mouse.click(fb["x"] + fb["width"] * 0.5, fb["y"] + 20); pg.wait_for_timeout(300)
+    check(ev("edTS.sel()") is None and ev("edTS.first()") is None and pg.locator("#edTrimStrip .ts.ro").count() == 1,
+          "clicks on the video row don't choose anything to cut")
+    tool("trim")
     b4 = P()
     try:
         drag_handle(0, "end", -80)
@@ -666,12 +890,44 @@ with sync_playwright() as p:
     check(P() == b4 and state() == "Saved", "dragging an end doesn't change it")
     check(parts().count() == 1 and abs(parts().first.bounding_box()["width"] - pg.locator('#edTwick .twick-track').first.bounding_box()["width"]) < 60,
           "the part is put back")
+    tool("reframe")
+    pg.wait_for_function("document.querySelector('#edRf .ae-warn, #edRf .ae-help')", timeout=20000)
+    check("video was deleted" in pg.inner_text("#edRf") and pg.locator("#edRf [data-layout]").first.is_disabled(),
+          "Reframe says why, and can't be changed")
+
+    # ---------------------------------------------------------------- 13b. the vlog deleted, the Shorts' clean clips kept
+    print("13b. The vlog's video deleted by the creator: its drafts keep a clean clip")
+    r = ev(f"fetch('/api/vlogs/{A}/delete-video',{{method:'POST'}}).then(r=>r.status)")
+    check(r == 200 and not glob.glob(os.path.join(H["jobs_dir"], A, "source.*")), "the vlog's video is deleted")
+    open_short(A, 1)
+    ai = ev("edAE.info()")
+    check(ai["can_apply"] and ai["clip"] and ai["reach"][1] - ai["reach"][0] < 200, f"the Short can still be edited, from its clip ({ai['reach']})")
+    tool("trim", strip=True)
+    w = ev("edTS.win()")
+    check(w["a"] >= ai["reach"][0] - 0.01 and w["b"] <= ai["reach"][1] + 0.01 and ev("edTlOff") == ai["reach"][0],
+          f"the video row shows the clip, at its place in the vlog ({w})")
+    pg.wait_for_function("""(()=>{const c=document.querySelector('#edTrimStrip .ts-pics'); if(!c||!c.width) return false;
+        const d=c.getContext('2d').getImageData(c.width/2|0,c.height/2|0,1,1).data; return d[0]+d[1]+d[2]>60;})()""", timeout=20000)
+    check(True, "with its pictures")
+    tool("reframe")
+    pg.wait_for_function("document.querySelector('#edRf [data-layout]')", timeout=20000)
+    check(not pg.locator('#edRf [data-layout="fit"]').is_disabled(), "Reframe works")
+    vid_a = ev(f"(clData.find(c=>c.job==={A!r}&&c.idx===1)||{{}}).video")
+    pg.click('#edRf [data-layout="fit"]'); pg.wait_for_timeout(300)
+    pg.click("#edSave"); wait_saved()
+    pg.wait_for_function(f"(clData.find(c=>c.job==={A!r}&&c.idx===1)||{{}}).video!=={vid_a!r} && !edRf.dirty()", timeout=120000)
+    st = ev(f"fetch('/api/status/{A}').then(r=>r.json())")
+    me = next(x for x in st["shorts"] if x["idx"] == 1)
+    check(not me.get("retry_error") and (me.get("reframe") or {}).get("layout") == "fit", f"remade from its clip ({me.get('retry_error')})")
+    tool("details")
 
     # ---------------------------------------------------------------- 14. leaving and coming back
     print("14. Leaving and coming back")
     open_short(A, 2)
+    tool("details")  # (13 ended in Reframe, whose picture covers the player)
     ev("(v=>{v.muted=true; return v.play()})(document.getElementById('edVideo'))"); pg.wait_for_timeout(800)
-    check(not ev("document.getElementById('edVideo').paused"), "the Short plays")
+    check(not ev("document.getElementById('edVideo').paused") and ev("document.getElementById('edVideo').currentTime") < 3,
+          "the Short plays, from its start (not where the last Short was)")
     pg.click("#edBack"); pg.wait_for_timeout(1200)
     check(ev("document.getElementById('edVideo').paused"), "Back to Drafts stops it (it doesn't play on in the background)")
     open_short(A, 2)

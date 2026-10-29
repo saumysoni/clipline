@@ -133,6 +133,8 @@ def _short_files(job_dir, s):
     for key in ("video", "thumb"):
         if s.get(key):
             out.append(job_dir / s[key])
+    if (s.get("clip") or {}).get("file"):  # its clean clip (web/clean_clips.py)
+        out.append(job_dir / s["clip"]["file"])
     num = re.findall(r"_(\d+)\.", s.get("video") or "")
     if num:
         out.append(job_dir / f"captions_{num[0]}.ass")
@@ -214,8 +216,9 @@ def sweep_job(job_id, now=None):
             _email(job.get("owner"), f"Pit Crew: the video of \"{title}\" will be deleted {_date(exp, job.get('tz'))}",
                    f"To keep storage free, Pit Crew deletes a vlog's video {keep_original() / 3600:.0f} hours after "
                    f"it was last edited. The video of \"{title}\" will be deleted on {_date(exp, job.get('tz'))}.\n\n"
-                   "Its Shorts, thumbnails, transcript and posts all stay. After that, making new Shorts from it, or "
-                   "changing a Short's hook or moment, needs the vlog uploaded again.\n\n"
+                   "Its Shorts, thumbnails, transcript and posts all stay, and each draft Short keeps a short piece of "
+                   "the vlog around it, so you can still change its captions, framing, hook and trim. After that, making "
+                   "new Shorts from it, or Try again, needs the vlog uploaded again.\n\n"
                    "Still working on it? Any edit to one of its Shorts keeps the video for another "
                    f"{keep_original() / 3600:.0f} hours.\n")
             update(job_id, warned_video=exp)

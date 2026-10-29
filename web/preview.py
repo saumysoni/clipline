@@ -9,6 +9,7 @@ from flask import abort, jsonify, request
 import pipeline
 from settings import JOBS_DIR
 
+from web import clean_clips
 from web.server import app
 from web.store import LOCK, load_job
 
@@ -68,6 +69,12 @@ def preview(job_id):
         abort(404)
     src = next((JOBS_DIR / job_id).glob("source.*"), None)
     if not src and not (JOBS_DIR / job_id / "preview.mp4").exists():
+        # the editor (js/editor.js) asks for one Short: its clean clip once the vlog is gone (web/clean_clips.py);
+        # "offset" = the vlog second it starts at
+        me = next((s for s in job.get("shorts") or [] if s.get("idx") == data.get("idx")), None)
+        c = clean_clips.source(job_id, job, me) if me else None
+        if c and c["clip"]:
+            return jsonify(status="clip", url=f"/media/{job_id}/{c['path'].name}", offset=c["offset"], reach=list(c["reach"]))
         return jsonify(status="error", error=VIDEO_GONE)
     if not (JOBS_DIR / job_id / "preview.mp4").exists() and src and not data.get("source_failed"):
         return jsonify(status="source", url=f"/media/{job_id}/{src.name}")

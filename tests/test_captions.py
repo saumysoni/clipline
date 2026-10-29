@@ -258,7 +258,7 @@ class Routes(unittest.TestCase):
         import pipeline
         seen = {}
 
-        def frame(src, meta, moment, words, at, style, job_dir, caps=None):
+        def frame(src, meta, moment, words, at, style, job_dir, caps=None, offset=0.0):
             seen.update(moment=moment, at=at, caps=caps)
             return b"\xff\xd8jpeg"
         real, pipeline.caption_frame = pipeline.caption_frame, frame

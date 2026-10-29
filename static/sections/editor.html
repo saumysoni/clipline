@@ -33,6 +33,10 @@
             <video id="edVideo" controls playsinline preload="metadata"></video>
             <!-- the last frame, held while a remade video loads (js/editor.js edSwapVideo) -->
             <canvas id="edFreeze" class="ed-freeze" hidden aria-hidden="true"></canvas>
+            <!-- while Reframe is chosen: the vlog's picture with the frame on it, and the Short as it'll look (js/reframe.js) -->
+            <div class="rf-host" id="edRfStage" hidden></div>
+            <!-- while trimming: the moment under the pointer on the Video row, big, and the preview playing (js/trim-strip.js trimView) -->
+            <div class="tv-host" id="edTrimView" hidden></div>
             <img id="edThumb" class="qr-thumb" alt="Thumbnail" hidden>
             <div class="ed-view" id="edViewSw" role="group" aria-label="Preview">
               <button type="button" data-v="v" aria-pressed="true"><span class="ms" aria-hidden="true">play_circle</span>Short</button>
@@ -55,6 +59,8 @@
             <div class="ed-tracks" id="edTracks">
               <div class="ed-lab ed-lab-vid"><span class="ms" aria-hidden="true">movie</span>Video</div>
               <div class="ed-twick" id="edTwick"><p class="ed-tl-msg">Loading the timeline...</p></div>
+              <!-- while Trim is chosen: the vlog around the Short, its parts in brackets, the rest dimmed (js/trim-strip.js) -->
+              <div class="ed-trim-strip" id="edTrimStrip" hidden></div>
               <div class="ed-lab"><span class="ms" aria-hidden="true">closed_caption</span>Captions</div>
               <!-- each caption line, under where it's said (js/editor.js edCapTrack): a click picks it in Captions -->
               <div class="ed-track ed-cap-track" id="edCapTrack" role="group" aria-label="Caption lines"></div>
@@ -85,9 +91,14 @@
             <div id="edCap"></div>
           </div>
           <!-- Trim (js/editor.js): the timeline's tools; the change is AI Edit's pieces, saved by the same Save -->
+          <div id="edRfWrap" hidden>
+            <div class="ed-p-head"><span class="ms" aria-hidden="true">crop</span><h2>Reframe</h2></div>
+            <p class="ed-p-about">What of the vlog's wide picture the vertical Short shows. It needs the vlog's video, while it's kept.</p>
+            <div id="edRf"></div>
+          </div>
           <div id="edTrimWrap" hidden>
             <div class="ed-p-head"><span class="ms" aria-hidden="true">content_cut</span><h2>Trim</h2></div>
-            <p class="ed-p-about">Where the Short starts and ends, and what it skips. It can reach past the original moment while the vlog's video is kept.</p>
+            <p class="ed-p-about">Mark the part you want to cut out on the video row: click where it starts, then where it ends. Shape the yellow box, then cut it out.</p>
             <div id="edTrim"></div>
           </div>
           <div id="edPanel" aria-live="polite"></div>

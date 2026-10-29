@@ -182,7 +182,8 @@ const clock = (t) => { const m = Math.floor(t / 60), s = t - m * 60; return m + 
 function mount(el, opts) {
   // The page's handle. The timeline fills in `impl` once it's drawn; until then the calls do nothing.
   const impl = {}, api = {}, nav = { times: 1, pps: 0, fitPps: 0, set: null };
-  for (const [name, none] of [["setPieces"], ["time", 0], ["selected", -1], ["count", 0], ["split", false], ["remove", false]])
+  for (const [name, none] of [["setPieces"], ["time", 0], ["selected", -1], ["count", 0], ["split", false], ["remove", false],
+    ["pieces", []], ["select"], ["deselect"]])  // pieces / select / deselect: for Trim's strip (js/trim-strip.js)
     api[name] = (...args) => (impl[name] ? impl[name](...args) : none);
   el.classList.add("pc-tl");  // Twick's styles only apply inside (vite.config.js)
   const box = () => el.querySelector(".twick-timeline-scroll-container");

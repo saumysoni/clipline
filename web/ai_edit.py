@@ -24,6 +24,7 @@ import pipeline
 from pipeline.manual_moment import MANUAL_MAX, MANUAL_MIN
 from settings import JOBS_DIR
 
+from web import clean_clips
 from web.server import app
 from web.store import JOBS, LOCK, RETRY_LOCKS, editable_job, load_job, next_file_number, update, update_short
 
@@ -55,8 +56,8 @@ def _duration(job, tr):
     return round(float(job.get("duration") or tr.get("duration") or 0), 3)
 
 
-def _has_video(job_id):
-    return next((JOBS_DIR / job_id).glob("source.*"), None) is not None
+def _source(job_id, job, me):
+    return clean_clips.source(job_id, job, me)
 
 
 @app.get("/api/ai-edit/<job_id>/<int:idx>")
@@ -72,10 +73,13 @@ def ai_edit_info(job_id, idx):
     words = [{"w": w["w"], "s": w["s"], "e": w["e"], "i": pos[id(w)],
               "kept": any(a <= (w["s"] + w["e"]) / 2 <= b for a, b in pieces),
               "filler": any(a <= w["s"] and w["e"] <= b for a, b in fill)} for w in pipeline.words_in(tr["words"], me)]
-    why_not = ("" if _has_video(job_id) and not job.get("video_deleted_at") else NO_VIDEO)
+    src = _source(job_id, job, me)
+    why_not = "" if src else NO_VIDEO
+    reach = list(src["reach"]) if src else [0, _duration(job, tr)]
+    reach[1] = min(reach[1], _duration(job, tr) or reach[1])
     near = [{"w": w["w"], "s": w["s"], "e": w["e"]} for w in
             pipeline.words_in(tr["words"], {"start": float(me["start"]) - NEAR, "end": float(me["end"]) + NEAR})]
-    return jsonify(start=me["start"], end=me["end"], duration=_duration(job, tr), pieces=[list(p) for p in pieces], length=pipeline.short_length(me),
+    return jsonify(start=me["start"], end=me["end"], duration=_duration(job, tr), reach=reach, clip=bool(src and src["clip"]), pieces=[list(p) for p in pieces], length=pipeline.short_length(me),
                    near=near,
                    words=words, pauses={k: [list(p) for p in pipeline.find_pauses(tr["words"], me, k)] for k in ("long", "tight")},
                    fillers=[list(f) for f in pipeline.find_fillers(tr["words"], me)],
@@ -95,7 +99,7 @@ def _remake(job_id, idx, keep, start, end):
             with LOCK:
                 job = json.loads(json.dumps(JOBS[job_id], default=str))
             me = next(s for s in job["shorts"] if s["idx"] == idx)
-            src = next(job_dir.glob("source.*"), None)
+            src = _source(job_id, job, me)
             tr = _transcript(job_id)
             if not src or not tr:
                 raise RuntimeError(NO_VIDEO)
@@ -103,9 +107,7 @@ def _remake(job_id, idx, keep, start, end):
             fix, note = pipeline.honest_hooks(moment, pipeline.pieces_said(tr, moment))
             moment.update(fix)
             pipeline.prepare_job_fonts(job_dir)
-            meta, num = pipeline.probe(src), next_file_number(job)
-            video, cx = pipeline.render_short(src, meta, moment, tr["words"], num, job.get("style", "bold"), job_dir,
-                                              cx=me.get("cx", "find"))
+            video, cx = clean_clips.render(src, moment, tr["words"], next_file_number(job), job.get("style", "bold"), job_dir, me)
         update_short(job_id, idx, video=video, cx=cx, start=start, end=end, pieces=keep, retrying=False, retry_msg=None,
                      edit_note=note, **fix)
     except Exception as e:  # noqa: BLE001
@@ -126,13 +128,15 @@ def ai_edit_apply(job_id, idx):
             abort(404)
         if me.get("retrying"):
             return jsonify(error="This Short is still being made. Wait a moment."), 400
-    if not _has_video(job_id) or job.get("video_deleted_at") or not (JOBS_DIR / job_id / "transcript.json").exists():
+    src = _source(job_id, job, me)
+    if not src or not (JOBS_DIR / job_id / "transcript.json").exists():
         return jsonify(error=NO_VIDEO), 400
     s, e = float(me["start"]), float(me["end"])
     raw = data.get("pieces")
     try:
         dur = _duration(job, _transcript(job_id) or {}) or e
-        pieces = pipeline.normalize_pieces(raw, 0, dur) if raw else [(s, e)]  # anywhere in the vlog (Trim)
+        # anywhere in the vlog (Trim), or in the Short's clean clip once the vlog's video is gone
+        pieces = pipeline.normalize_pieces(raw, max(0, src["reach"][0]), min(dur, src["reach"][1])) if raw else [(s, e)]
     except (TypeError, ValueError, AttributeError):
         return jsonify(error="Those cuts couldn't be read. Reload the page and try again."), 400
     total = sum(b - a for a, b in pieces)

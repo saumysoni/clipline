@@ -81,10 +81,10 @@ function paintState(el,s){
   el.classList.toggle("on",reviewPicked.has(job.id+":"+s.idx));
   el.querySelector(".bmsg").textContent = s.retrying ? (s.retry_msg||"Making this Short") : "";
   if(s.pending) return;
-  const gone=!!job.video_deleted_at;  // the vlog's video is deleted: nothing can be re-cut (titles and looks still work)
+  const gone=!!job.video_deleted_at && !s.clip;  // the vlog's video is deleted (and no clean clip): nothing can be re-cut (titles and looks still work)
   el.querySelector(".retry").disabled = !!s.retrying;  // a deleted video is explained on click instead
   el.querySelectorAll(".hk-change,.hk-apply,.hk-rewrite").forEach(b=>b.disabled=!!s.retrying || gone);
-  if(gone) el.querySelector(".retry").title="Needs the vlog's video, which was deleted";
+  if(job.video_deleted_at) el.querySelector(".retry").title="Needs the vlog's video, which was deleted";  // Try again needs another moment
   const rerr=el.querySelector(".rerr");
   if(s.retry_error) rerr.textContent="Try again stopped: "+s.retry_error;
   else if(!gone || rerr.textContent.startsWith("Try again stopped")) rerr.textContent="";

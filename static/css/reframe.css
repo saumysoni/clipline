@@ -1,0 +1,66 @@
+/* Reframe (js/reframe.js): over the player, the vlog's picture with the frame on it and the Short as it'll look */
+.rf-host{position:absolute;inset:0;z-index:4;background:var(--bg-2);border-radius:inherit}
+.rf-host[hidden]{display:none}
+.ed-view.rf-off{display:none}
+.rf-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:16px;padding:14px}
+.rf-src{position:relative;flex:0 0 auto;border-radius:10px;overflow:hidden;background:#111;touch-action:none;user-select:none;-webkit-user-select:none}
+.rf-pic{position:absolute;inset:0;width:100%;height:100%;display:block}
+.rf-boxes{position:absolute;inset:0}
+/* the frame: what the Short shows; around it dimmed */
+.rf-box{position:absolute;box-sizing:border-box;border:2px solid var(--cap);border-radius:4px;cursor:grab;
+  box-shadow:0 0 0 9999px rgba(0,0,0,.58)}
+.rf-box+.rf-box{box-shadow:none}
+.rf-boxes:has(.rf-box+.rf-box) .rf-box{box-shadow:none;background:rgba(255,214,10,.06)}
+.rf-box:not(.on){border-color:rgba(255,214,10,.55);border-style:dashed}
+.rf-box.ro{cursor:default;border-color:var(--line-2)}
+.rf-src.dragging .rf-box{cursor:grabbing}
+.rf-box span{position:absolute;left:6px;top:6px;padding:2px 7px;border-radius:6px;background:var(--cap);color:var(--cap-ink);font:600 .7rem/1.3 var(--mono)}
+.rf-box::before,.rf-box::after{content:"";position:absolute;left:33.33%;right:33.33%;top:0;bottom:0;border-left:1px solid rgba(255,255,255,.18);border-right:1px solid rgba(255,255,255,.18);pointer-events:none}
+.rf-box::after{left:0;right:0;top:33.33%;bottom:33.33%;border:0;border-top:1px solid rgba(255,255,255,.18);border-bottom:1px solid rgba(255,255,255,.18)}
+.rf-src.fit::after{content:"";position:absolute;inset:0;border:2px solid var(--cap);border-radius:10px;pointer-events:none}
+/* the Short as it'll look */
+.rf-out{position:relative;flex:0 0 auto;border-radius:10px;overflow:hidden;background:#111;box-shadow:0 0 0 1px var(--line-2)}
+.rf-res,.rf-exact{position:absolute;inset:0;width:100%;height:100%;display:block;object-fit:cover}
+.rf-exact[hidden]{display:none}
+/* the panel */
+.rf-seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px;margin:0 0 12px}
+.rf-seg button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:9px 10px;border-radius:10px;border:1px solid var(--line-2);
+  background:var(--panel);color:var(--ink);text-align:left;cursor:pointer;min-width:0}
+.rf-seg button .ms{font-size:19px;color:var(--muted)}
+.rf-seg button b{font-size:.82rem}
+.rf-seg button small{font-size:.7rem;color:var(--faint);line-height:1.25}
+.rf-seg button[aria-pressed="true"]{border-color:var(--cap);background:var(--cap-soft)}
+.rf-seg button[aria-pressed="true"] .ms{color:var(--cap)}
+.rf-seg button:disabled{opacity:.55;cursor:default}
+.rf-follow{width:100%;justify-content:center;margin:0 0 12px}
+.rf-zoom{display:flex;align-items:center;gap:10px;margin:0 0 12px;font-size:.8rem;color:var(--muted)}
+.rf-zoom input{flex:1;accent-color:var(--cap)}
+.rf-zoom output{min-width:38px;text-align:right;font:600 .78rem/1 var(--mono);color:var(--ink)}
+.rf-check{display:flex;gap:10px;align-items:flex-start;margin:0 0 12px;cursor:pointer}
+.rf-check input{margin-top:3px;accent-color:var(--cap)}
+.rf-check b{display:block;font-size:.84rem}
+.rf-check small{display:block;font-size:.74rem;color:var(--faint)}
+.rf-moves{display:flex;flex-direction:column;gap:4px;margin:0 0 12px;max-height:180px;overflow:auto}
+.rf-move{display:flex;align-items:center;gap:8px;padding:3px 4px 3px 8px;border-radius:8px;border:1px solid var(--line);font-size:.78rem;color:var(--muted)}
+.rf-move.on{border-color:var(--cap)}
+.rf-move span{flex:1}
+.rf-move .iconbtn{width:26px;height:26px}
+.rf-move .iconbtn .ms{font-size:16px}
+.rf-go{border:0;background:none;color:var(--ink);font:600 .78rem/1 var(--mono);cursor:pointer;padding:4px 0}
+.rf-go i{font-style:normal;color:var(--faint)}
+.rf-acts{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 10px}
+.rf-reset{margin:0 0 10px}
+.rf-note{min-height:1em;margin:0 0 8px;font-size:.78rem;color:var(--muted)}
+/* smart framing (Fill) */
+.rf-smart{display:flex;flex-direction:column;gap:6px;margin:0 0 12px}
+.rf-smart button{width:100%;justify-content:flex-start}
+.rf-smart button.on{border-color:var(--cap);background:var(--cap-soft)}
+.rf-src.tracking,.rf-src.tracking .rf-box{cursor:crosshair}
+.rf-shots{display:flex;flex-direction:column;gap:4px;margin:0 0 12px;max-height:200px;overflow:auto}
+.rf-shots-h{display:flex;align-items:center;justify-content:space-between;font-size:.8rem}
+.rf-shot{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:3px 4px 3px 8px;border-radius:8px;border:1px solid var(--line)}
+.rf-shot.on{border-color:var(--cap)}
+.rf-seg.mini{margin:0;gap:4px}
+.rf-seg.mini button{padding:4px 10px;flex-direction:row;font-size:.76rem;border-radius:8px}
+.rf-lab{margin:0 0 6px;font-size:.8rem;font-weight:600}
+.rf-lab small{display:block;font-weight:400;color:var(--faint);font-size:.72rem}

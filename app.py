@@ -53,6 +53,7 @@ from web import (  # noqa: E402,F401
     pages,
     password_reset,
     pause,
+    reframe,
     retention,
     stop_and_retry,
     verify_email,

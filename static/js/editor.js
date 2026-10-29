@@ -16,10 +16,7 @@ const ED_TOOLS=[
   {id:"details", icon:"edit_note", name:"Details", sub:"Title, hook, thumbnail, hashtags"},
   {id:"ai", icon:"auto_awesome", name:"AI Edit", sub:"Pauses, fillers, transcript", built:true},  // js/ai-edit.js
   {id:"captions", icon:"closed_caption", name:"Captions", sub:"Words, style, timing", built:true},  // js/captions.js
-  {id:"reframe", icon:"crop", name:"Reframe", sub:"Keep the subject in frame", about:"Choose what stays in the 9:16 frame.", acts:[
-    ["person","Follow the speaker","A crop that tracks the face"],
-    ["crop","Adjust the crop","Move it by hand, over time"],
-    ["groups","Split view","Two people in one frame"]]},
+  {id:"reframe", icon:"crop", name:"Reframe", sub:"Keep the subject in frame", built:true},
   {id:"trim", icon:"content_cut", name:"Trim", sub:"Ends, split, reach further", built:true},  // the timeline
   {sep:true},
   {id:"text", icon:"title", name:"Text & Overlays", sub:"Titles, keywords, stickers", about:"Text and stickers at a moment you choose.", acts:[
@@ -46,7 +43,10 @@ const edAE=aiEdit({box:$("edAI"), video:$("edVideo"), onChange:()=>{ edPaintSave
 // Captions are saved by the same Save too: as their own remake, or just before a cut or a new hook remakes the Short.
 const edCap=captionEdit({box:$("edCap"), video:$("edVideo"), ae:edAE, onChange:()=>{ edPaintSave(); edRecord(); edCapTrackSoon(); },
   onLoad:()=>{ edHistReset(); edCapTrackSoon(); }});
-const edD=shortDetails({box:$("edDBox"), err:$("edDErr"), pre:"ed", onChange:()=>{ edPaintSave(); edRecord(); }, extra:edAE, caps:edCap,
+// Reframe too (the same way as the captions: one remake makes both).
+const edRf=reframeEdit({box:$("edRf"), stage:$("edRfStage"), ae:edAE, caps:edCap, src:()=>edTlSrc, off:()=>edTlOff, at:()=>edSrcNow(),
+  seek:t=>edSeekSrc(t), onChange:()=>{ edPaintSave(); edRecord(); }, onLoad:()=>edHistReset()});
+const edD=shortDetails({box:$("edDBox"), err:$("edDErr"), pre:"ed", onChange:()=>{ edPaintSave(); edRecord(); }, extra:edAE, caps:edCap, frame:edRf,
   onLoad:()=>edHistReset(),
   onTitle:v=>{ const n=$("edMeta").querySelector(".ed-name"); if(n) n.textContent=v; }, onLook:()=>edView("t"),
   onRemaking:()=>{ $("edVideo").pause(); edBusy=true; edWatch(); edPaintSave(); edFinPaint(); }});  // edSync() follows it
@@ -59,7 +59,7 @@ async function openEditor(jid,idx){
   edPaint();
 }
 // Leaving the editor (another screen): unsaved details are dropped. Buttons here ask first (edLeave).
-function edClose(){ $("edVideo").pause(); edOpened=null; edBusy=false; edD.clear(); edAE.clear(); edCap.clear(); edTlDrop(); clearTimeout(edTimer); document.body.classList.remove("ed-on"); if($("edFin").open) $("edFin").close(); }
+function edClose(){ $("edVideo").pause(); edOpened=null; edBusy=false; edD.clear(); edAE.clear(); edCap.clear(); edRf.clear(); edTlDrop(); clearTimeout(edTimer); document.body.classList.remove("ed-on"); if($("edFin").open) $("edFin").close(); }
 function edLeave(){
   if(!edD.dirty()) return true;
   if(!confirm("Discard your changes to this Short?\n\nThey haven't been saved.")) return false;
@@ -105,13 +105,15 @@ function edPaint(){
   $("edGrid").hidden=false; $("edSmall").hidden=false;
   $("edGone").hidden=draft && !c.remaking;
   $("edGone").textContent = !draft ? "This Short isn't a draft any more (it's scheduled or posted), so it can't be edited here." : c.remaking ? "It's being remade. The new version shows here when it's done." : "";
-  if(draft && edOpened!==edKey){ edOpened=edKey; edD.open(c); edAE.open(c); edCap.open(c); } else { edD.follow(c); edAE.follow(c); edCap.follow(c); }
+  if(draft && edOpened!==edKey){ edOpened=edKey; edD.open(c); edAE.open(c); edCap.open(c); edRf.open(c); } else { edD.follow(c); edAE.follow(c); edCap.follow(c); edRf.follow(c); }
   const name=edD.has("title") && $("edMeta").querySelector(".ed-name") ? $("edMeta").querySelector(".ed-name").textContent : c.title;
   setHTML($("edMeta"),'<b class="ed-name">'+esc(name)+'</b><span class="ed-sub"><span class="ed-from">From '+esc(c.vlog)+'</span>'+
     '<span class="ed-len">'+fmt(c.length)+'</span></span>');
   const pic=c.thumb?"/media/"+c.job+"/"+c.thumb:"", v=$("edVideo"), src=c.file_deleted?"":"/media/"+c.job+"/"+c.video;
   $("edBlur").style.backgroundImage=pic?"url('"+pic+"')":"none";
-  if(v.dataset.src!==src){ const was=v.dataset.src; v.dataset.src=src; if(src && was) edSwapVideo(src); else if(src) v.src=src; else v.removeAttribute("src"); }
+  if(v.dataset.src!==src){  // the same Short remade: swapped under its last frame, at the same place; another Short: from its start
+    const same=v.dataset.src && v.dataset.key===edKey; v.dataset.src=src; v.dataset.key=edKey;
+    if(src && same) edSwapVideo(src); else if(src) v.src=src; else v.removeAttribute("src"); }
   if(v.getAttribute("poster")!==pic) v.setAttribute("poster",pic);  // a new thumbnail with the same video
   if(pic){ if($("edThumb").getAttribute("src")!==pic) $("edThumb").src=pic; } else $("edThumb").removeAttribute("src");
   $("edViewSw").hidden=!pic;
@@ -172,7 +174,8 @@ function edRailApply(){
 // marked Soon (not buttons yet).
 function edPanel(){
   const t=ED_TOOLS.find(x=>x.id===edTool), det=t.id==="details";
-  $("edDetails").hidden=!det; $("edAIWrap").hidden=t.id!=="ai"; $("edTrimWrap").hidden=t.id!=="trim"; $("edCapWrap").hidden=t.id!=="captions";
+  $("edDetails").hidden=!det; $("edAIWrap").hidden=t.id!=="ai"; $("edTrimWrap").hidden=t.id!=="trim"; $("edCapWrap").hidden=t.id!=="captions"; $("edRfWrap").hidden=t.id!=="reframe"; edRfShow(t.id==="reframe"); edTrimShow(true);
+  if(t.id!=="trim") edTrimLeave(); edTS.paint(); edTrimPaint();
   edCap.shown(t.id==="captions"); $("edPanel").hidden=det||!!t.built;
   if(det||t.built) return;
   $("edPanel").innerHTML='<div class="ed-p-head"><span class="ms" aria-hidden="true">'+t.icon+'</span><h2>'+esc(t.name)+'</h2><span class="cl-soon">Soon</span></div>'+
@@ -185,16 +188,17 @@ function edPanel(){
 function edTimeNow(){
   const v=$("edVideo"), len=v.duration||(edC&&edC.length)||0, at=Math.min(v.currentTime||0,len);
   $("edTime").textContent=fmt(at)+" / "+fmt(len);
-  edTlFollow();
+  edTlFollow(); edRf.at(edSrcNow());
 }
 ["timeupdate","seeked","loadedmetadata"].forEach(e=>$("edVideo").addEventListener(e,edTimeNow));
+$("edVideo").addEventListener("play",()=>{ if(edTool!=="trim") edTV.hide(); });  // the Short plays: the big moment goes
 $("edVideo").addEventListener("timeupdate",()=>{ if($("edVideo").paused) edCapFollow(); });
 
 // ---- The timeline (editor-app/main.jsx): the pieces the Short will keep (edAE.pieces()), laid end to end, on the
 // clock of the Short they'll make. The player still plays the Short as saved (edAE.saved()): times go across through
 // the vlog's seconds, and a part the saved video doesn't have yet (reached past the moment, or brought back) can't be
 // played until it's saved.
-let edTl=null, edTlLast="", edTlSel=-1, edTwickP=null, edTlFor="";  // edTlFor: the Short (and whether it can be cut) it shows
+let edTl=null, edTlLast="", edTlSel=-1, edTwickP=null, edTlFor="", edTlSrc="", edTlOff=0;  // edTlOff: the vlog second edTlSrc starts at (a clean clip)  // edTlFor: the Short (and whether it can be cut) it shows
 function edTwick(){  // Twick's timeline: one script and stylesheet (about 1 MB), loaded once, when first needed
   if(window.PitTimeline) return Promise.resolve(true);
   if(!edTwickP) edTwickP=new Promise(res=>{
@@ -208,7 +212,7 @@ function edTwick(){  // Twick's timeline: one script and stylesheet (about 1 MB)
 function edTlDrop(){
   if(edTl){ try{ edTl.destroy(); }catch(e){} }
   edCapTrackSoon();
-  edTl=null; edTlLast=""; edTlSel=-1; edTlFor=""; $("edTlNote").hidden=true;
+  edTl=null; edTlLast=""; edTlSel=-1; edTlFor=""; edTlSrc=""; edTlOff=0; $("edTlNote").hidden=true; edTS.reset();
   $("edTwick").innerHTML='<p class="ed-tl-msg">'+(edC&&!isDraftClip(edC)?"Only drafts can be cut.":"Loading the timeline...")+'</p>';
   edTrimPaint();
 }
@@ -222,13 +226,13 @@ async function edTlMount(){
   const ok=await edTwick();
   if(key!==edKey || !edAE.info()) return;
   if(!ok){ $("edTwick").innerHTML='<p class="ed-tl-msg">The timeline couldn\'t load. Check your internet connection, then reload the page.</p>'; return; }
-  let src="";  // the vlog's video (as "Choose on the video" plays it), for the parts' pictures
+  let src="", off=0;  // the vlog's video (as "Choose on the video" plays it), else the Short's clean clip, for the pictures
   if(edAE.info().can_apply){
-    try{ const r=await fetch("/api/preview/"+c.job,{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"}), j=await r.json();
-      if(j.status==="source"||j.status==="ready") src=j.url||""; }catch(e){}
+    try{ const r=await fetch("/api/preview/"+c.job,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({idx:c.idx})}), j=await r.json();
+      if(j.status==="source"||j.status==="ready"||j.status==="clip"){ src=j.url||""; off=j.offset||0; } }catch(e){}
   }
   if(key!==edKey || !edAE.info()) return;
-  edTlDrop();
+  edTlDrop(); edTlSrc=src; edTlOff=off;
   edTlLast=JSON.stringify(edAE.pieces());
   edTlFor=what;
   edTl=PitTimeline.mount($("edTwick"),{key:c.job+"-"+c.idx+"-"+Date.now(), src, duration:edAE.info().duration, pieces:edAE.pieces(),
@@ -238,6 +242,7 @@ async function edTlMount(){
     canEdit:()=>edAE.canEdit(), snaps:side=>edTrimSnaps(side), onScrub:t=>edTlScrub(t)});
   edZoomPaint(1,8);
   edTimeNow(); edTrimPaint();
+  if(edRfOn) edRf.shown(true);  // the vlog's video is known now: its picture
   edCapTrackSoon();
 }
 // Lay the timeline out again from AI Edit's pieces (after any change: closes gaps, keeps the selected part).
@@ -261,16 +266,67 @@ function edTlScrub(t){
   edScrubRaf=requestAnimationFrame(()=>{ edScrubRaf=0; const saved=edAE.saved(), at=saved?aeToFile(saved,edScrubT):null, v=$("edVideo");
     if(at!=null){ v.pause(); v.currentTime=at; } });
 }
+// The Video row (js/trim-strip.js): the vlog around the Short on one scale, whatever is trimmed, the parts it keeps bright
+// and the rest dimmed; times on the Short's clock (0:00 = where the saved Short starts). Under Trim, two clicks choose a
+// stretch to cut out or keep (edTrimPaint), and the player's place shows the moment under the pointer big (edTV).
+// Twick's timeline stays mounted, hidden, under it.
+const edOrigin=()=>{ const s=edAE.saved(), i=edAE.info(); return s&&s.length?s[0][0]:i?i.start:0; };
+const edTS=trimStrip({box:$("edTrimStrip"), pieces:()=>edAE.pieces(), info:()=>edAE.info(), origin:edOrigin,
+  trim:()=>edTool==="trim", canEdit:()=>edAE.canEdit(), snaps:side=>edTrimSnaps(side), src:()=>edTlSrc, off:()=>edTlOff,
+  now:()=>edTV.playing()?edTV.time():edSrcNow(), saved:()=>edAE.saved(),
+  commit:p=>{ if(!edAE.canEdit() || !edAE.setPieces(p)) edTS.paint(); },
+  // a click (other tools): the player goes there; a moment its video hasn't got (the vlog around it, a part cut or added
+  // and not saved yet) shows big instead
+  seek:t=>{ edSeekSrc(t); const s=edAE.saved(), f=s?aeToFile(s,t):null;
+    if(f==null && edTlSrc) edTV.show(t, tsClock(t-edOrigin(),true)+(aeIn(edAE.pieces(),t)?" · save to play it in the Short":" · not in the Short"));
+    else if(!edTV.playing()) edTV.hide(); },
+  hover:t=>edTrimHover(t), onSel:()=>{ edTrimHover(null); edTrimPaint(); }});
+const edTV=trimView({host:$("edTrimView"), src:()=>edTlSrc, off:()=>edTlOff, crop:t=>edRf.cropAt(t), size:()=>edRf.size(),
+  onTime:t=>{ edTS.follow(); if(t==null) edTrimPaint(); }});
+// The moment under the pointer (vlog seconds), big; off the row: the selection's start or end, else the player again.
+function edTrimHover(t){
+  if(edTool!=="trim" || edTV.playing()) return;
+  const sel=edTS.sel(), f=edTS.first(), at=t!=null?t:f!=null?f:sel?sel.a:null;
+  if(at==null){ edTV.hide(); return; }
+  edTV.show(at, tsClock(at-edOrigin(),true)+(aeIn(edAE.pieces(),at)?"":" · left out"));
+}
+function edTrimLeave(){ edTV.stop(); edTV.hide(); if(edTS.sel()||edTS.first()!=null) edTS.setSel(null); }
+// Reframe takes the player's place while it's chosen (only when the tool changes); the player pauses.
+let edRfOn=false;
+function edRfShow(on){
+  if(on===edRfOn) return; edRfOn=on;
+  $("edRfStage").hidden=!on; $("edViewSw").classList.toggle("rf-off", on);
+  if(on){ $("edVideo").pause(); edView("v"); }
+  edRf.shown(on);
+}
+// The playhead in the vlog's seconds (where the saved video is), and moving it to a vlog time (where it can).
+function edSrcNow(){ const saved=edAE.saved(); return saved ? aeToSrc(saved,$("edVideo").currentTime||0) : null; }
+function edSeekSrc(t){
+  const saved=edAE.saved(), f=saved?aeToFile(saved,t):null, at=aeToFile(edAE.pieces(),t), v=$("edVideo");
+  if(f!=null){ v.pause(); v.currentTime=f; }
+  $("edTlNote").hidden=f!=null;  // a part the saved video doesn't have: "Save to play the new parts"
+  if(edTl && at!=null) edTl.setTime(at);
+  edRf.at(t);
+}
+let edTrimOn=false;
+function edTrimShow(on){  // on from the start (Twick's own view stays mounted under it); only acts on a change
+  if(on===edTrimOn) return; edTrimOn=on;
+  $("edTwick").hidden=on; $("edTrimStrip").hidden=!on; $("edZoomIn").parentNode.hidden=on;
+  edTS.show(on);
+  if(!on && edTl) edTl.fit();  // back from being hidden: fit the Short to the box again
+}
 // The player moved: the timeline's playhead follows (where the part is still kept).
 function edTlFollow(){
   const saved=edAE.saved(); if(!edTl || !saved) return;
   const src=aeToSrc(saved,$("edVideo").currentTime||0), at=aeToFile(edAE.pieces(),src);
   if(at!=null){ edTl.setTime(at); $("edTlNote").hidden=true; }
+  edTS.follow();
 }
 // A click on the timeline's ruler: the player goes there, if the saved video has that part.
 function edTlSeek(t){
   if(t==null || !edAE.saved()) return;
   const src=aeToSrc(edAE.pieces(),t), at=aeToFile(edAE.saved(),src), v=$("edVideo");
+  edRf.at(src);  // Reframe shows any moment of the Short as it will be, saved or not
   $("edTlNote").hidden=at!=null;
   if(at!=null && Math.abs((v.currentTime||0)-at)>0.05) v.currentTime=at;
 }
@@ -284,59 +340,71 @@ $("edZoomIn").onclick=()=>edTl&&edTl.zoomIn();
 $("edZoomOut").onclick=()=>edTl&&edTl.zoomOut();
 $("edZoomFit").onclick=()=>edTl&&edTl.fit();
 
-// ---- Trim: the timeline's tools, in the panel.
-// Start / End move one end of a part: the chosen one (else the Short's start: the first part, its end: the last), d
-// seconds (later is +), into the vlog if there's room, up to the next part's own stretch (as dragging does).
-function edPart(end){
-  const n=edAE.pieces().length;
-  return edTl && edTlSel>=0 && edTlSel<n && edTl.count()===n ? edTlSel : end ? n-1 : 0;
+// ---- Trim, in the panel: the Short's length, then the part to cut out (the yellow box on the Video row: two clicks, then
+// shaped there), with its start and end to fine-tune and Cut it out, after which the Short plays without it (trimView:
+// the vlog's video, with sound).
+function edTrimResult(){  // the pieces once the yellow box is cut out (or null)
+  const sel=edTS.sel(), info=edAE.info(); if(!sel||!info) return null;
+  return aeMinus(edAE.pieces(),[[sel.a,sel.b]],0,info.duration||1e9);
 }
-function edNudged(end,d){  // the new time of that end, or null if it can't move that way
-  const p=edAE.pieces(), info=edAE.info(); if(!p.length||!info) return null;
-  const k=edPart(end), [a,b]=p[k], prev=p[k-1], next=p[k+1];
-  const least=0.5;  // as dragging (editor-app MIN_PART): over the 0.3 s under which a part is dropped
-  const v=end ? Math.min(next?next[0]:info.duration||b, Math.max(a+least, b+d)) : Math.max(prev?prev[1]:0, Math.min(b-least, a+d));
-  return Math.abs(v-(end?b:a))<0.005 ? null : +v.toFixed(3);
-}
-const edMove=(end,d)=>{
-  const v=edNudged(end,d); if(v==null) return;
-  const p=edAE.pieces().map(x=>[...x]); p[edPart(end)][end?1:0]=v;
-  edAE.setPieces(p);
-};
 function edTrimPaint(){
+  edTS.paint();  // the Video row too: every change of the pieces comes through here (a cut, Undo, AI Edit, a save)
   const box=$("edTrim"); if(!box) return;
   const info=edAE.info(), p=edAE.pieces();
-  if(!info || !p.length){ box.innerHTML='<p class="qr-wait">'+(edC&&!isDraftClip(edC)?"Only drafts can be cut.":"Getting the parts of this Short...")+'</p>'; return; }
-  const can=edAE.canEdit()&&!!edTl, len=aeLen(p), first=p[0][0], last=p[p.length-1][1];
-  const nudge=(end,d,label)=>'<button type="button" class="ghost sm" data-end="'+(end?1:0)+'" data-d="'+d+'"'+
-    (can && edNudged(end,d)!=null?'':' disabled')+'>'+label+'</button>';
-  const steps=end=>[-5,-1,-0.1,0.1,1,5].map(d=>nudge(end,d,(d<0?"−":"+")+Math.abs(d)+(Math.abs(d)>=1?" s":""))).join("");
-  const part=p.length>1 && edPart(true)===edPart(false) ? "Part "+(edPart(true)+1)+" " : "";
-  if(edTl && edTl.setEditable) edTl.setEditable(edAE.canEdit());
-  box.innerHTML=
-    (info.can_apply?'':'<div class="ed-note ae-warn">'+esc(info.why_not)+'</div>')+
+  if(!info || !p.length){ setHTML(box,'<p class="qr-wait">'+(edC&&!isDraftClip(edC)?"Only drafts can be cut.":"Getting the parts of this Short...")+'</p>'); return; }
+  const can=edAE.canEdit(), len=aeLen(p), sel=edTS.sel(), first=edTS.first(), o0=edOrigin(), T=t=>tsClock(t-o0,true);
+  const ed=can?'':' disabled', playing=edTV.playing();
+  let h=(info.can_apply?'':'<div class="ed-note ae-warn">'+esc(info.why_not)+'</div>')+
     '<div class="tr-sum" role="status"><b>'+fmt(len)+'</b> long'+(p.length>1?', '+p.length+' parts':'')+
-      '<small>From '+fmt(first)+' to '+fmt(last)+' of the vlog'+(first<info.start-0.05||last>info.end+0.05?' (past the original moment)':'')+'</small>'+
-      (len<info.min?'<span class="ae-bad">At least '+info.min+' s</span>':'')+(len>info.max?'<span class="ae-bad">At most '+fmt(info.max)+'</span>':'')+'</div>'+
-    '<div class="tr-row"><span><b>'+(part?part+"start":"Start")+'</b><small>Earlier reaches back into the vlog</small></span><span class="tr-steps">'+steps(false)+'</span></div>'+
-    '<div class="tr-row"><span><b>'+(part?part+"end":"End")+'</b><small>Later carries on into the vlog</small></span><span class="tr-steps">'+steps(true)+'</span></div>'+
-    '<div class="tr-acts">'+
-      '<button type="button" class="ghost" id="edSplit"'+(can?'':' disabled')+'><span class="ms" aria-hidden="true">content_cut</span>Split at the playhead</button>'+
-      '<button type="button" class="ghost" id="edDel"'+(can&&edTlSel>=0&&edTl.count()>1?'':' disabled')+'><span class="ms" aria-hidden="true">delete</span>Delete part</button>'+
+      '<small>'+(p.length>1?'From '+T(p[0][0])+' to '+T(p[p.length-1][1])+' of the clip, with gaps':'From '+T(p[0][0])+' to '+T(p[0][1])+' of the clip')+'</small>'+
+      (len<info.min?'<span class="ae-bad">At least '+info.min+' s</span>':'')+(len>info.max?'<span class="ae-bad">At most '+fmt(info.max)+'</span>':'')+'</div>';
+  if(first!=null) h+='<div class="tr-step" role="status"><b>Start at '+T(first)+'</b><small>Now click where the part to cut out ends.</small></div>';
+  else if(!sel) h+='<div class="tr-step"><b>Click on the video row where the part you want to cut out starts, then where it ends.</b>'+
+    '<small>It turns yellow. Drag its ends to stretch or narrow it, or drag it to move it. Then cut it out.</small></div>';
+  if(sel){
+    const cuts=len-aeLen(edTrimResult())>0.25;  // some of it is in the Short (a dimmed part is left out already)
+    const nudge=(side,d)=>'<button type="button" class="ghost sm" data-se="'+side+'" data-d="'+d+'"'+ed+'>'+(d<0?"−":"+")+Math.abs(d)+(Math.abs(d)>=1?" s":"")+'</button>';
+    const steps=side=>[-1,-0.1,0.1,1].map(d=>nudge(side,d)).join("");
+    h+='<div class="tr-sel"><div class="tr-sel-h"><b>'+T(sel.a)+' → '+T(sel.b)+'</b><span>'+(sel.b-sel.a).toFixed(1)+' s</span></div>'+
+      '<div class="tr-row"><span><b>Start</b></span><span class="tr-steps">'+steps("a")+'</span></div>'+
+      '<div class="tr-row"><span><b>End</b></span><span class="tr-steps">'+steps("b")+'</span></div>'+
+      (cuts?'':'<small class="tr-why">That part is already left out of the Short (it\'s dimmed).</small>')+
+      '<div class="tr-acts">'+
+        '<button type="button" class="primary" id="trCut"'+(can&&cuts?'':' disabled')+'><span class="ms" aria-hidden="true">content_cut</span>Cut it out</button>'+
+        '<button type="button" class="ghost" id="trClear">Clear</button>'+
+      '</div></div>';
+  }
+  h+='<div class="tr-acts">'+
+      '<button type="button" class="ghost" id="trPlay"'+(edTlSrc?'':' disabled')+'><span class="ms" aria-hidden="true">'+(playing?"stop_circle":"play_circle")+'</span>'+(playing?"Stop":"Play the Short as it'll be")+'</button>'+
+      '<button type="button" class="ghost" id="trMore"'+(edTS.canWiden()?'':' disabled')+'><span class="ms" aria-hidden="true">zoom_out</span>Show more of the vlog</button>'+
     '</div>'+
     '<div class="err" id="edTrimErr" role="alert"></div>'+
-    '<p class="ae-help">Drag either end of any part on the timeline to shorten or stretch it: it snaps to the gaps between words '+
-      '(hold Alt / Option to drag freely; Esc cancels). Click a part to choose it: Start / End then move its ends, Delete removes it. '+
-      'Nothing changes until you save.</p>';
-  box.querySelectorAll("[data-d]").forEach(b=>b.onclick=()=>edMove(b.dataset.end==="1",+b.dataset.d));
-  $("edSplit").onclick=()=>{ if(!edTl.split()) $("edTrimErr").textContent="Move the playhead into a part (not right at its edge) to split it there."; };
-  $("edDel").onclick=()=>edTl.remove();
+    '<p class="ae-help">Point at the video row to see that moment big. The Short keeps what\'s bright; dimmed is left out. '+
+      'Delete cuts the yellow part out, Esc clears it, Alt / Option stops it snapping to the gaps between words. Undo puts a cut back; nothing changes until you save.</p>';
+  if(!setHTML(box,h)) return;
+  const err=m=>{ $("edTrimErr").textContent=m; };
+  box.querySelectorAll("[data-se]").forEach(b=>b.onclick=()=>{
+    const s=edTS.sel(), d=+b.dataset.d; if(!s) return;
+    if(b.dataset.se==="a") s.a=Math.min(s.b-0.3,s.a+d); else s.b=Math.max(s.a+0.3,s.b+d);
+    edTS.setSel(s); edTrimHover(b.dataset.se==="a"?edTS.sel().a:edTS.sel().b);
+  });
+  // Cut it out: out of the Short (Undo puts it back), then the Short plays without it, from a few seconds before
+  if($("trCut")) $("trCut").onclick=()=>{
+    const s=edTS.sel(), r=edTrimResult();
+    if(!r||!r.length){ err("That would cut out all of the Short. Keep a part of it."); return; }
+    edTS.setSel(null); if(!edAE.setPieces(r)){ err("That can't be changed now."); return; }
+    if(edTlSrc){ edTV.play(r, s.a-3, s.b+3, "Without "+T(s.a)+" to "+T(s.b)); edTrimPaint(); }
+  };
+  if($("trClear")) $("trClear").onclick=()=>edTS.setSel(null);
+  $("trPlay").onclick=()=>{ if(edTV.playing()){ edTV.stop(); return; } edTV.play(p, p[0][0], null, "The Short as it'll be"); edTrimPaint(); };
+  $("trMore").onclick=()=>{ edTS.widen(); edTrimPaint(); };
 }
-document.addEventListener("keydown",e=>{  // Delete / Backspace: the chosen part, while the editor shows
-  if($("s12").hidden || !edTl || edTlSel<0 || !edAE.canEdit() || !["Delete","Backspace"].includes(e.key)) return;
+document.addEventListener("keydown",e=>{  // Delete / Backspace: cut out the yellow part (else the part chosen on Twick's timeline)
+  if($("s12").hidden || !edAE.canEdit() || !["Delete","Backspace"].includes(e.key)) return;
   const a=document.activeElement, tag=a&&a.tagName;
   if(tag==="INPUT"||tag==="TEXTAREA"||tag==="SELECT"||(a&&a.isContentEditable)) return;
-  e.preventDefault(); edTl.remove();
+  if(edTool==="trim" && edTS.sel()){ e.preventDefault(); if($("trCut")) $("trCut").click(); return; }
+  if(edTl && edTlSel>=0){ e.preventDefault(); edTl.remove(); }
 });
 // The timeline's Captions row: every caption line as a chip with room for its words (and when it's said), in a strip
 // that moves along as the Short plays, keeping the line being said in the middle and lit (not to the timeline's scale:
@@ -384,7 +452,7 @@ $("edVideo").addEventListener("play",()=>{ edCapHand=false; edCapPlay(); });
 // A seek the creator makes (the player's controls, the timeline, a caption chip: pressed in the last 3 s) takes it back
 // to the player; the page's own seeks (the timeline lining up the player) don't undo a scroll by hand.
 const edCapTouch=()=>{ edCapUser=performance.now(); };
-["pointerdown","keydown"].forEach(e=>{ $("edVideo").addEventListener(e,edCapTouch); $("edTwick").addEventListener(e,edCapTouch,true); $("edCapTrack").addEventListener(e,edCapTouch,true); });
+["pointerdown","keydown"].forEach(e=>{ $("edVideo").addEventListener(e,edCapTouch); $("edTwick").addEventListener(e,edCapTouch,true); $("edCapTrack").addEventListener(e,edCapTouch,true); $("edTrimStrip").addEventListener(e,edCapTouch,true); });
 $("edVideo").addEventListener("seeked",()=>{ if(performance.now()-edCapUser<3000) edCapHand=false; edCapFollow(); });
 $("edCapTrack").addEventListener("wheel",e=>{
   const strip=$("edCapTrack").querySelector(".ed-cap-strip"); if(!strip) return;
@@ -411,11 +479,11 @@ function edHook(){
 // waiting to be saved (edD.snap()), the pieces the Short keeps (edAE.pieces()) and the captions (edCap.snap()); typing in
 // one field counts as one step until a pause. Saving, Discard and opening a Short start it afresh.
 let edHist=[], edFut=[], edNow=null, edLast={key:"", at:0}, edRestoring=false;
-const edSnap=()=>({d:edD.snap(), p:JSON.stringify(edAE.pieces()), c:edCap.snap()});
+const edSnap=()=>({d:edD.snap(), p:JSON.stringify(edAE.pieces()), c:edCap.snap(), r:edRf.snap()});
 const edSame=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 // What changed between two steps, when it's typing (the same field again soon after is the same step), else "".
 function edTyping(a,b){
-  if(a.p!==b.p || !edSame(a.c,b.c)) return "";
+  if(a.p!==b.p || !edSame(a.c,b.c) || !edSame(a.r,b.r)) return "";
   const keys=[...new Set(Object.keys(a.d).concat(Object.keys(b.d)))].filter(k=>!edSame(a.d[k],b.d[k]));
   if(keys.length!==1) return "";
   const k=keys[0];
@@ -438,7 +506,7 @@ function edGo(from,to){
   if(!from.length || edSaving || (edC&&edC.remaking) || edBusy) return;
   to.push(edNow); edNow=from.pop(); edLast={key:"",at:0};
   edRestoring=true;
-  try{ edD.restore(edNow.d); edAE.restore(JSON.parse(edNow.p)); edCap.restore(edNow.c); } finally{ edRestoring=false; }
+  try{ edD.restore(edNow.d); edAE.restore(JSON.parse(edNow.p)); edCap.restore(edNow.c); edRf.restore(edNow.r); } finally{ edRestoring=false; }
   edPaintSave(); edTlLay(); edTrimPaint(); edUndoPaint();
 }
 function edUndoPaint(){
