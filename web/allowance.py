@@ -57,15 +57,15 @@ def problem(user_id, seconds=0.0):
     """Why this creator can't make a vlog of this length now (a plain sentence), or None. seconds=0: only "is this
     month's allowance used up"."""
     if longest() and seconds > longest() * 60:
-        return (f"This vlog is {_length(seconds)} long. Pit Crew takes vlogs up to {_length(longest() * 60)}: "
+        return (f"This video is {_length(seconds)} long. Pit Crew takes videos up to {_length(longest() * 60)}: "
                 "trim it, or split it into parts and upload each one.")
     if monthly():
         left = monthly() * 60 - db.used_seconds(user_id, _month())
         if left <= 0:
-            return (f"You've made this month's {_length(monthly() * 60)} of vlogs. Your allowance starts again on "
+            return (f"You've made this month's {_length(monthly() * 60)} of videos. Your allowance starts again on "
                     f"{_next_month()}.")
         if seconds > left:
-            return (f"This vlog is {_length(seconds)} long, and you have {_length(left)} of vlogs left this month. "
+            return (f"This video is {_length(seconds)} long, and you have {_length(left)} of videos left this month. "
                     f"Trim it, or upload it after your allowance starts again on {_next_month()}.")
     return None
 
@@ -101,7 +101,7 @@ def upload_problem(upload_id, user_id):
     except Exception as e:  # noqa: BLE001
         print("A sent file couldn't be read as a video:", repr(e)[:300])
         discard_upload(upload_id)
-        return "That file isn't a video Pit Crew can read. Choose your vlog's video file.", True
+        return "That file isn't a video Pit Crew can read. Choose your video file.", True
     why = problem(user_id, seconds)
     return (why, False) if why else None
 

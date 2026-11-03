@@ -22,7 +22,6 @@ from web.server import app
 from settings import JOBS_DIR
 from web.store import JOBS, LOCK, load_job, update, update_short
 from web.vlogs import created_at, user_jobs
-from web.youtube_sync import sync_deleted
 
 UPLOADING = ("starting", "connecting", "uploading")
 IG_BUSY = ("waiting", "posting", "done", "check")
@@ -42,6 +41,9 @@ def _yt_state(job, s, now):
             return {"state": "uploading", "msg": job.get("upload_msg", "")}
         if job.get("upload_status") == "error":
             return {"state": "failed", "error": job.get("upload_msg", "")}
+    gone = next((r for r in job.get("yt_removed") or [] if r["idx"] == s["idx"]), None)
+    if gone:  # gone from YouTube after it went out (web/removed.py)
+        return {"state": "removed", "removed_at": gone.get("removed_at")}
     return None
 
 
@@ -49,7 +51,7 @@ def _ig_state(job, s):
     p = next((p for p in job.get("ig_posts") or [] if p["idx"] == s["idx"]), None)
     if not p:
         return None
-    state = {"waiting": "scheduled", "posting": "posting", "done": "posted"}.get(p["status"], "failed")
+    state = {"waiting": "scheduled", "posting": "posting", "done": "posted", "removed": "removed"}.get(p["status"], "failed")
     return {"state": state, "when": p.get("posted_at") if p["status"] == "done" else p.get("when"),
             "permalink": p.get("permalink", ""), "username": p.get("username", ""),
             "error": p.get("error", ""), "status": p["status"]}
@@ -61,14 +63,15 @@ def clip_list(user_id):
     for job in user_jobs(user_id):
         if job.get("status") != "ready":
             continue
-        vlog = (job.get("vlog") or {}).get("title") or job.get("name") or "Your vlog"
+        vlog = (job.get("vlog") or {}).get("title") or job.get("name") or "Your video"
         for s in job.get("shorts", []):
             if s.get("pending"):
                 continue
             y, i = _yt_state(job, s, now), _ig_state(job, s)
-            states = [x["state"] for x in (y, i) if x]
+            all_states = [x["state"] for x in (y, i) if x]
+            states = [x for x in all_states if x != "removed"]
             status = ("failed" if "failed" in states else "posted" if "posted" in states
-                      else "scheduled" if states else "draft")
+                      else "scheduled" if states else "removed" if all_states else "draft")
             # when it went out (newest platform), for "Recently posted first"; scheduled/drafts have none
             posted_at = max([x["when"] for x in (y, i) if x and x["state"] == "posted" and x.get("when")],
                             key=datetime.fromisoformat, default=None)  # times may carry different time zones
@@ -76,7 +79,7 @@ def clip_list(user_id):
                         "title": s.get("title", ""), "thumb": s.get("thumb", ""), "video": s.get("video", ""),
                         "length": round(pipeline.short_length(s)), "status": status,
                         "youtube": y, "instagram": i, "remaking": bool(s.get("retrying")),
-                        "expires": draft_expires(job, s), "file_deleted": bool(s.get("file_deleted_at")),
+                        "expires": None if status == "removed" else draft_expires(job, s), "file_deleted": bool(s.get("file_deleted_at")),
                         "video_deleted": bool(job.get("video_deleted_at"))})
     out.sort(key=lambda c: (-c["vlog_created"], c["idx"]))
     return out
@@ -84,9 +87,7 @@ def clip_list(user_id):
 
 @app.get("/api/clips")
 def clips():
-    uid = g.user["id"]
-    removed = sync_deleted(uid)  # Shorts deleted in YouTube Studio become drafts again
-    return jsonify(items=clip_list(uid), removed_on_youtube=removed)
+    return jsonify(items=clip_list(g.user["id"]))
 
 
 @app.post("/api/clips/schedule")

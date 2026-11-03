@@ -9,8 +9,12 @@
 //     onRemaking() (a remake started), onGone()
 //     (the Short isn't there any more), onLook() (a look was picked: show the thumbnail),
 //     extra (the editor's AI Edit, js/ai-edit.js: {dirty(), count(), step() -> [url, body] | {error}, sent(), reset()}:
-//     its change is saved with the rest, as the first remake)}
+//     its change is saved with the rest, as the first remake),
+//     caps, frame (the editor's Captions, js/captions.js, and Reframe, js/reframe.js: settings of the video, each
+//     {name, dirty(), count(), canEdit(), step(remake) -> [url, body], sent(remake), reset()}: saved, then one remake
+//     makes them all, unless a cut or a new hook remakes the Short anyway, then saved just before that)}
 function shortDetails(o){
+  const sets=()=>[o.caps,o.frame].filter(Boolean);
   let c=null, s=null, pend={}, queue=[], gen=0, tinfo={}, st=null;  // st: the Short's vlog as last loaded
   const changed=()=>o.onChange&&o.onChange();
   const post=async(url,body)=>{
@@ -20,9 +24,10 @@ function shortDetails(o){
     return true;
   };
   // Draws the fields from what's saved (also Cancel).
-  async function load(){
+  // quiet: drawn already (after a save or a remake): what's shown stays until the new data is in (no "Getting...")
+  async function load(quiet){
     const my=++gen, cl=c; pend={}; changed(); o.err.textContent="";
-    o.box.innerHTML='<p class="qr-wait">Getting the hook and text...</p>';
+    if(!quiet || !s) o.box.innerHTML='<p class="qr-wait">Getting the hook and text...</p>';
     let j; try{
       const [r,ti]=await Promise.all([fetch("/api/status/"+cl.job), fetch("/api/thumb/"+cl.job+"/"+cl.idx)]);
       if(!r.ok) throw 0; j=await r.json(); tinfo=ti.ok?await ti.json():{};
@@ -38,7 +43,7 @@ function shortDetails(o){
   }
   // The fields: what's saved, with the changes waiting in pend shown on top (after load(), pend is empty).
   function draw(){
-    const cl=c, j=st, gone=!!j.video_deleted_at, box=o.box, held=pend.text||{};
+    const cl=c, j=st, gone=!!j.video_deleted_at && !(s&&s.clip), box=o.box, held=pend.text||{};
     const sv={...s, hashtags:held.hashtags||s.hashtags};  // hashtags waiting to be saved show as chips
     box.innerHTML='<div class="qr-sec">'+hookHTML(sv,o.pre)+'</div>'+
       (s.thumb?'<div class="qr-sec sd-thumb">'+lookHTML(s,cl.job)+
@@ -59,7 +64,7 @@ function shortDetails(o){
     }});
     if(pend.hook) showHook(pend.hook);
     // the vlog's video is deleted: the hook can't be put back into the video (titles and looks still work)
-    box.querySelectorAll(".hk-change,.hk-apply,.hk-rewrite").forEach(b=>{ b.disabled=gone||!!cl.remaking; if(gone) b.title="Needs the vlog's video, which was deleted"; });
+    box.querySelectorAll(".hk-change,.hk-apply,.hk-rewrite").forEach(b=>{ b.disabled=gone||!!cl.remaking; if(gone) b.title="Needs the video's file, which was deleted"; });
     // hashtags and caption: held, saved together
     wirePostText(box,sv,cl.job,body=>{ pend.text={...(pend.text||{}),...body}; changed(); }, "caption" in held ? {caption:held.caption} : null);
     // thumbnail: look, text and Try again are chosen here and made on Save
@@ -80,14 +85,14 @@ function shortDetails(o){
         hint(); changed();
       };
       l1.addEventListener("input",typed); l2.addEventListener("input",typed);
-      if(!tinfo.can_text){ l1.disabled=l2.disabled=true; l2.title="The vlog's video was deleted, so this thumbnail can't be redrawn"; }
+      if(!tinfo.can_text){ l1.disabled=l2.disabled=true; l2.title="The video's file was deleted, so this thumbnail can't be redrawn"; }
       // Try again: on or off; while it's on, the text is the AI's (the fields wait)
       again.onclick=()=>{
         const on=!pend.tagain; if(on) pend.tagain=true; else delete pend.tagain;
         again.setAttribute("aria-pressed",on); again.lastChild.textContent=on?"New thumbnail on save":"Try again";
         l1.disabled=l2.disabled=on||!tinfo.can_text; hint(); if(o.onLook&&on) o.onLook(); changed();
       };
-      if(!tinfo.can_again){ again.disabled=true; again.title="Needs the vlog's video, which was deleted"; }
+      if(!tinfo.can_again){ again.disabled=true; again.title="Needs the video's file, which was deleted"; }
       if(pend.ttext){ l1.value=pend.ttext.line1; l2.value=pend.ttext.line2; }
       if(pend.tagain){ again.setAttribute("aria-pressed",true); again.lastChild.textContent="New thumbnail on save"; l1.disabled=l2.disabled=true; }
     }
@@ -113,40 +118,52 @@ function shortDetails(o){
     if(p.ttext && !p.tagain && !p.ttext.line2){ o.err.textContent="Type the headline for the thumbnail."; return; }
     const ex=o.extra&&o.extra.dirty()?o.extra.step():null;
     if(ex&&ex.error){ o.err.textContent=ex.error; return; }
+    const dirt=sets().filter(x=>x.dirty()), stuck=dirt.find(x=>!x.canEdit());
+    if(stuck){ o.err.textContent="The "+stuck.name+" can't be changed now. Wait for the Short to finish, or discard the "+stuck.name+" changes."; return; }
     o.err.textContent="";
     if("title" in p){ if(!await post(base+"/title",{title:p.title})) return changed(); delete p.title; }
     if(p.text){ if(!await post(base+"/post-text",p.text)) return changed(); delete p.text; }
     const steps=ex?[ex]:[];  // the cut first: a new hook is then burned into the cut Short
     if(p.hook) steps.push(["/api/hook/"+cl.job+"/"+cl.idx,p.hook]);
+    // Captions and framing: a cut or a new hook remakes the Short anyway, so they're saved just before it and that remake
+    // makes them (if it's then refused, they get a remake of their own, so the video never lags behind them); else all but
+    // the last are saved and the last one's remake makes them all.
+    const cap=dirt[dirt.length-1]||null; let capFirst=false;
+    for(const x of (steps.length?dirt:dirt.slice(0,-1))){ if(!await post(...x.step(false))) return changed(); x.sent(false); }
+    if(cap && !steps.length){ steps.push(cap.step(true)); capFirst=true; }
     if(p.tagain) steps.push(["/api/thumb-again/"+cl.job+"/"+cl.idx,{}]);
     else if(p.ttext) steps.push(["/api/thumb-text/"+cl.job+"/"+cl.idx,p.ttext]);
     if(p.look) steps.push(["/api/look/"+cl.job+"/"+cl.idx,{look:p.look}]);
     const remade=steps.length>0;
     if(remade){
-      if(!await post(...steps[0])) return changed();
+      if(!await post(...steps[0])){
+        if(cap && !capFirst){ const msg=o.err.textContent; if(await post(...cap.step(true))){ cap.sent(true); if(o.onRemaking) o.onRemaking(); loadClips(); } o.err.textContent=msg; }
+        return changed();
+      }
       if(ex) o.extra.sent();
+      if(capFirst) cap.sent(true);
       ["hook","tagain","ttext","look"].forEach(k=>delete p[k]);
       queue=steps.slice(1);  // one remake at a time: the rest go after (remadeDone)
     }
     changed();
     if(remade){ o.box.querySelectorAll("button,input,textarea").forEach(b=>b.disabled=true); if(o.onRemaking) o.onRemaking(); }
-    else load();
+    else load(true);
     clToast("Changes saved", remade?"The Short is being remade with them.":"");
     loadClips();
   }
   // A remake finished: the next saved change, else the fields again.
   async function remadeDone(){
-    if(!queue.length){ load(); return; }
+    if(!queue.length){ load(true); return; }
     const next=queue.shift();
     if(await post(...next)){ if(o.onRemaking) o.onRemaking(); loadClips(); }
-    else{ const msg=o.err.textContent; queue=[]; await load(); o.err.textContent="Some of your changes were saved, but not all: "+msg+" Make the rest again and save."; }
+    else{ const msg=o.err.textContent; queue=[]; await load(true); o.err.textContent="Some of your changes were saved, but not all: "+msg+" Make the rest again and save."; }
   }
   const api={
     open(clip){ c=clip; queue=[]; return load(); },
     clear(){ c=s=null; pend={}; queue=[]; gen++; changed(); },
     follow(clip){ c=clip; },  // the clip list was loaded again
-    dirty:()=>Object.keys(pend).length>0 || !!(o.extra&&o.extra.dirty()),
-    count:()=>Object.keys(pend).length+(o.extra?o.extra.count():0),
+    dirty:()=>Object.keys(pend).length>0 || !!(o.extra&&o.extra.dirty()) || sets().some(x=>x.dirty()),
+    count:()=>Object.keys(pend).length+(o.extra?o.extra.count():0)+sets().reduce((n,x)=>n+x.count(),0),
     has:k=>k in pend,
     // The editor's Undo / Redo: the changes waiting, and putting a copy of them back (the fields are drawn again).
     snap:()=>JSON.parse(JSON.stringify(pend)),
@@ -156,7 +173,7 @@ function shortDetails(o){
       if(o.onTitle) o.onTitle("title" in pend ? pend.title : s.title);
       changed();
     },
-    cancel:()=>{ if(o.extra) o.extra.reset(); return c&&load(); }, save, setTitle, remadeDone,
+    cancel:()=>{ if(o.extra) o.extra.reset(); sets().forEach(x=>x.reset()); return c&&load(true); }, save, setTitle, remadeDone,
   };
   return api;
 }

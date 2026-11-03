@@ -30,7 +30,7 @@ def add_short(job_id):
         if problem:
             return problem
         if len(job["shorts"]) >= 20:
-            return jsonify(error="That's the most Shorts one vlog can have here (20)."), 400
+            return jsonify(error="That's the most Shorts one video can have here (20)."), 400
         idx = max([s["idx"] for s in job["shorts"]] + [0]) + 1
         job["shorts"].append({"idx": idx, "pending": True, "retrying": True, "retry_msg": "Waiting for the other Short to finish",
                               "start": 0, "end": 0, "title": "", "why": "", "video": "", "thumb": "", "keep": True})

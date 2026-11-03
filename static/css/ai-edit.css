@@ -1,4 +1,4 @@
-/* AI Edit in the editor (js/ai-edit.js): length line, quick actions, Make it shorter, the transcript
+/* AI Edit in the editor (js/ai-edit.js): length line, quick actions, the transcript
    (words and pauses to click); and Trim, the timeline's panel. Colours from tokens.css only. */
 #edAIWrap[hidden]{display:none}
 #edAI{display:flex;flex-direction:column;gap:12px}
@@ -20,10 +20,6 @@
 .ae-act:focus-visible{outline:2px solid var(--primary);outline-offset:1px}
 .ae-act:disabled{cursor:default;opacity:.55}
 .ae-act:disabled>.ms{color:var(--faint)}
-.ae-short{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:.84rem;font-weight:600}
-.ae-short>span:first-child{display:flex;align-items:center;gap:6px;margin-right:auto}
-.ae-short>span .ms{font-size:18px;color:var(--primary-text)}
-.ae-short small{font-weight:400;color:var(--muted)}
 .ae-note{padding:9px 12px;border-radius:12px;background:var(--cap-soft);font-size:.82rem;line-height:1.4}
 .ae-note[hidden]{display:none}
 /* transcript */
@@ -50,6 +46,8 @@
 .tr-row>span{display:flex;flex-direction:column;gap:2px;flex:1 1 100%;font-size:.84rem}
 .tr-row small{font-size:.72rem;color:var(--muted)}
 .tr-row .ghost.sm{flex:1;min-width:0;font-family:var(--mono)}
+.tr-row>.tr-steps{flex-direction:row;gap:4px}
+.tr-steps .ghost.sm{justify-content:center;padding-left:2px;padding-right:2px;font-size:.74rem}
 .tr-acts{display:flex;flex-wrap:wrap;gap:8px}
 .tr-acts .ghost{flex:1 1 140px;min-width:0;justify-content:center}
 #edTrim .ae-help{margin:0}

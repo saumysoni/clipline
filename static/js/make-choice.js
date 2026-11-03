@@ -19,23 +19,23 @@ function mkLeft(t){
 async function openMake(id){
   mkVlog=null; $("mkErr").textContent=""; $("mkNote").value="";
   if(!$("mkDialog").open) $("mkDialog").showModal();
-  mkStep("pick"); $("mkList").innerHTML='<p class="hint">Loading your vlogs…</p>';
+  mkStep("pick"); $("mkList").innerHTML='<p class="hint">Loading your videos…</p>';
   try{ const r=await fetch("/api/vlogs"); if(!r.ok) throw 0; mkItems=((await r.json()).items||[]).filter(mkUsable); }
-  catch(e){ mkItems=[]; $("mkList").innerHTML='<p class="err">Couldn\'t load your vlogs. Check your internet connection, then reload the page.</p>'; return; }
+  catch(e){ mkItems=[]; $("mkList").innerHTML='<p class="err">Couldn\'t load your videos. Check your internet connection, then reload the page.</p>'; return; }
   if(id){ const v=mkItems.find(x=>x.id===id); if(v){ mkPick(v); return; } }
   mkPaintList();
 }
 function mkStep(s){ $("mkPick").hidden=s!=="pick"; $("mkOpts").hidden=s!=="opts"; }
 function mkPaintList(){
   if(!mkItems.length){
-    $("mkList").innerHTML='<div class="mk-empty"><span class="ms" aria-hidden="true">video_library</span><span>No vlog to use right now. A vlog you upload here can be used for '+VU_KEEP_H+' hours; after that, upload the video again below.</span></div>';
+    $("mkList").innerHTML='<div class="mk-empty"><span class="ms" aria-hidden="true">video_library</span><span>No video to use right now. A video you upload here can be used for '+VU_KEEP_H+' hours; after that, upload the video again below.</span></div>';
     return;
   }
   $("mkList").innerHTML='<p class="mk-l">Uploaded here</p>'+mkItems.map(v=>{
-    const p=v.vpost||{}, up=p.state==="uploading";
+    const p=v.vpost||{}, up=["uploading","paused"].includes(p.state);
     const pic=v.vthumb?'<img src="/media/'+esc(v.id)+'/'+esc(v.vthumb)+'" alt="" loading="lazy">':v.yt_thumb?'<img src="'+esc(v.yt_thumb)+'" alt="" loading="lazy" referrerpolicy="no-referrer">':'<span class="ms" aria-hidden="true">movie</span>';
-    const state=up?"Uploading to YouTube "+Math.round(p.pct||0)+"%":p.state==="done"?"On YouTube":"Not on YouTube yet";
-    return '<button type="button" class="mk-vlog" data-id="'+esc(v.id)+'"'+(up?' disabled title="Wait until it has finished uploading"':'')+'><span class="mk-pic">'+pic+'</span>'+
+    const state=p.state==="paused"?"Upload paused at "+Math.round(p.pct||0)+"%":up?"Uploading to YouTube "+Math.round(p.pct||0)+"%":p.state==="done"?"On YouTube":"Not on YouTube yet";
+    return '<button type="button" class="mk-video" data-id="'+esc(v.id)+'"'+(up?' disabled title="Wait until it has finished uploading"':'')+'><span class="mk-pic">'+pic+'</span>'+
       '<span class="mk-t"><b>'+esc(v.title)+'</b><small>'+esc([v.duration?fmt(v.duration):"",state].filter(Boolean).join(" · "))+'</small></span>'+
       (v.video_expires?'<span class="mk-left"><span class="ms" aria-hidden="true">schedule</span>'+mkLeft(v.video_expires)+'</span>':'')+'</button>';
   }).join("");
@@ -44,7 +44,7 @@ function mkPaintList(){
 function mkPick(v){
   mkVlog=v; mkStep("opts");
   $("mkChosen").innerHTML='<span class="ms" aria-hidden="true">movie</span><span><b>'+esc(v.title)+'</b><small>'+
-    (v.vpost&&v.vpost.state==="done"?"Each Short links back to this vlog on YouTube.":"Not on YouTube yet, so the Shorts won't link to it.")+'</small></span>';
+    (v.vpost&&v.vpost.state==="done"?"Each Short links back to this video on YouTube.":"Not on YouTube yet, so the Shorts won't link to it.")+'</small></span>';
   $("mkGo").focus();
 }
 $("mkBack").onclick=()=>{ mkStep("pick"); mkPaintList(); };
@@ -59,5 +59,5 @@ $("mkGo").onclick=async()=>{
   catch(e){ r={ok:false}; j={error:"Couldn't reach Pit Crew. Check your internet connection, then try again."}; }
   $("mkGo").disabled=false;
   if(!r.ok){ $("mkErr").textContent=j.error||"Couldn't start making the Shorts."; return; }
-  $("mkDialog").close(); vuStop(); startPolling(id);
+  $("mkDialog").close(); vuStop(); openDrafts("shorts",id);
 };

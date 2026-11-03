@@ -1,16 +1,18 @@
 // Shorts & Reels page: the clips that went out, or are going out now (web/clips.py), filtered by status, platform and
 // vlog. Drafts and scheduled clips have their own pages (js/drafts.js, js/on-youtube.js). The clip browser (#clBrowse:
 // bar + grid, Select, the dock, the schedule dialog) is shared: Drafts' Shorts & Reels tab shows it in "drafts" mode.
-// Each card: play, and ⋮ (js/card-menu.js) for Edit (the vlog's editor panel for that Short), Analytics, Download. Tick clips to
-// schedule several at once on YouTube and/or Instagram. On Drafts a card opens Quick review (js/quick-review.js) and its
+// Each card: play, and ⋮ (js/card-menu.js) for Edit (the vlog's editor panel for that Short), Analytics, Download. Select shows
+// a tick box on every card (on both pages) to schedule several at once on YouTube and/or Instagram, or delete drafts. On Drafts a card opens Quick review (js/quick-review.js) and its
 // Edit button the editor (js/editor.js); there the cards are grouped under their vlog, each group with Review & post
 // (the vlog's review page), and a vlog whose Shorts are being made, are paused or stopped shows its progress instead
 // (js/drafts.js dfMaking: Pause / Resume, Stop, Try again).
-let clData=[], clPlat="", clVlog="", clPicked=new Set(), clTimer=null, clMode="out", clOnPaint=null, clViews={}, clViewsAt=0;
+let clOutside=[], clData=[], clPlat="", clVlog="", clPicked=new Set(), clTimer=null, clMode="out", clOnPaint=null, clViews={}, clViewsAt=0;
 const clKey=c=>c.job+":"+c.idx;
 // Where a clip belongs. Drafts: on neither platform (a draft, or its only posting failed). Scheduled: only planned.
 // Shorts & Reels: everything else (on a platform, or on its way).
 const CL_ON=["posted","scheduled","uploading","posting"];
+// Gone from YouTube or Instagram after it went out (web/removed.py): stays on Shorts & Reels as a grey card, not as posted.
+const isGoneClip=c=>c.status==="removed";
 const isDraftClip=c=>c.status==="draft" || (c.status==="failed" && ![c.youtube,c.instagram].some(p=>p && CL_ON.includes(p.state)));
 const isScheduledClip=c=>c.status==="scheduled" && [c.youtube,c.instagram].every(p=>!p || p.state==="scheduled");
 const isOutClip=c=>!isDraftClip(c) && !isScheduledClip(c);
@@ -31,11 +33,10 @@ async function clOpen(mode, box, vlog){
 }
 async function loadClips(){
   clearTimeout(clTimer);
-  try{ const r=await fetch("/api/clips"); if(!r.ok) throw 0; const j=await r.json(); clData=j.items||[];
-    if(j.removed_on_youtube) clToast(j.removed_on_youtube===1?"1 Short was deleted on YouTube":j.removed_on_youtube+" Shorts were deleted on YouTube",
-      "So "+(j.removed_on_youtube===1?"it's a draft":"they're drafts")+" again: schedule or delete "+(j.removed_on_youtube===1?"it":"them")+" here."); }
+  try{ const r=await fetch("/api/clips"); if(!r.ok) throw 0; const j=await r.json(); clData=j.items||[]; }
   catch(e){ $("clErr").textContent="Couldn't load your clips. Check your internet connection, then reload the page."; return; }
   $("clErr").textContent="";
+  if(clMode==="out"){ try{ const r=await fetch("/api/channel-videos"); if(r.ok) clOutside=((await r.json()).items||[]).filter(x=>x.short); }catch(e){} }
   const live=new Set(clData.map(clKey)); clPicked.forEach(k=>{ if(!live.has(k)) clPicked.delete(k); });
   paintClips(); clLoadViews();
   // Keep an eye on clips that are uploading, posting or being remade.
@@ -44,7 +45,7 @@ async function loadClips(){
 }
 // One status pill: what the clip is doing on a platform (that platform's icon in front when the two differ).
 function clPill(kind,p,icon){
-  const [cls,txt] = p.waiting ? ["p-plan","Waiting"] : p.state==="scheduled" ? ["p-plan","Scheduled"] : p.state==="posted" ? ["p-done","Published"]
+  const [cls,txt] = p.state==="removed" ? ["p-gone","Removed"] : p.waiting ? ["p-plan","Waiting"] : p.state==="scheduled" ? ["p-plan","Scheduled"] : p.state==="posted" ? ["p-done","Published"]
     : p.state==="uploading" ? ["p-going","Uploading"] : p.state==="posting" ? ["p-going","Posting"] : ["p-bad","Didn't go out"];
   const name=kind==="youtube"?"YouTube":"Instagram";
   const tip = p.waiting ? "Goes up after midnight Pacific (YouTube's daily limit)" : p.state==="uploading" ? p.msg||"" : p.state==="failed" ? p.error||"" : p.when ? whenText(p.when) : "";
@@ -52,11 +53,47 @@ function clPill(kind,p,icon){
     (icon?'<span class="ms '+(kind==="youtube"?"yt":"ig")+'" aria-hidden="true">'+(kind==="youtube"?"smart_display":"photo_camera")+'</span>':'')+txt+'</span>';
 }
 // A clip can be ticked while it's missing from at least one platform (and isn't being remade).
-const clPickable=c=>!c.remaking && (!c.youtube || !c.instagram || c.youtube.state==="failed" || c.instagram.state==="failed");
+const clPickable=c=>!c.remaking && !isGoneClip(c) && (!c.youtube || !c.instagram || c.youtube.state==="failed" || c.instagram.state==="failed");
+// The card's tick box (shown after Select). One that can't be scheduled any more is greyed out and says why.
+function clPickHTML(c,on){
+  const can=clPickable(c), why=c.remaking?"Being remade: wait for it to finish":isGoneClip(c)?"Removed or deleted: use Back to Drafts first":"Already on YouTube and Instagram";
+  return '<label class="cl-pick'+(can?'':' off')+'" title="'+esc(can?"Tick to schedule or delete":why)+'"><input type="checkbox"'+(on?" checked":"")+(can?'':' disabled')+
+    ' aria-label="Select '+esc(c.title)+'"></label>';
+}
 const clShortDate=iso=>{ const d=new Date(iso); return d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:d.getFullYear()===new Date().getFullYear()?undefined:"numeric"}); };
 // A card like YouTube Studio's: the thumbnail (plays the clip), title, where it is and when, its status, and ⋮
 // for the rest (Edit, Analytics, Download, Delete).
+// A clip that's gone from every platform it was on: greyed out, says so, Back to Drafts or Remove.
+const clGoneWhere=c=>[c.youtube&&c.youtube.state==="removed"&&"YouTube",c.instagram&&c.instagram.state==="removed"&&"Instagram"].filter(Boolean).join(" and ");
+function clGoneCard(c){
+  const k=clKey(c), pic=c.thumb?"/media/"+esc(c.job)+"/"+esc(c.thumb):"";
+  return '<article class="clip cl-gone" data-k="'+esc(k)+'"><div class="cl-thumb">'+(pic?'<span class="cl-gone-pic" style="background-image:url(\''+pic+'\')"></span>':'')+
+    '<span class="cl-gone-msg"><span class="ms" aria-hidden="true">block</span>Removed or deleted from '+esc(clGoneWhere(c))+'</span></div>'+
+    '<div class="cl-body"><b class="cl-t" title="'+esc(c.title)+'">'+esc(c.title)+'</b><div class="cl-meta"><span>'+esc(c.vlog?"From "+c.vlog:"")+'</span></div></div>'+
+    '<div class="cl-foot cl-gone-acts"><button type="button" class="ghost sm cl-back"'+(c.file_deleted?' disabled title="Pit Crew no longer keeps this clip\'s video"':'')+'><span class="ms" aria-hidden="true">undo</span>Back to Drafts</button>'+
+    '<button type="button" class="linkbtn cl-clear">Remove</button></div></article>';
+}
+async function clGoneAct(c,action){
+  if(action==="clear" && !confirm('Remove "'+c.title+'"?\n\nIts video and thumbnail are deleted from Pit Crew. This can\'t be undone.')) return;
+  let r,j; try{ r=await fetch("/api/clips/"+c.job+"/"+c.idx+"/removed",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action})}); j=await r.json(); }
+  catch(e){ r={ok:false}; j={error:"Couldn't reach Pit Crew. Check your internet connection, then try again."}; }
+  if(!r.ok){ $("clErr").textContent=j.error||"That didn't work. Try again."; return; }
+  clToast(action==="draft"?"Back in Drafts":"Removed", action==="draft"?"Edit it and post it again from Drafts.":"");
+  loadClips();
+}
+// A Short on the channel that Pit Crew didn't post (web/channel_videos.py): a card with its YouTube link and why Pit Crew can't edit it.
+function clOutsideCard(x){
+  if(x.gone) return '<article class="clip cl-gone cl-x" data-x="'+esc(x.id)+'"><div class="cl-thumb"><span class="cl-gone-msg"><span class="ms" aria-hidden="true">block</span>Removed or deleted from YouTube</span></div>'+
+    '<div class="cl-body"><b class="cl-t" title="'+esc(x.title)+'">'+esc(x.title)+'</b><div class="cl-meta"><span>Made outside Pit Crew</span></div></div>'+
+    '<div class="cl-foot cl-gone-acts"><button type="button" class="linkbtn cl-x-clear">Remove</button></div></article>';
+  return '<article class="clip cl-x" data-x="'+esc(x.id)+'"><div class="cl-thumb"><a class="cl-play" href="'+esc(x.url)+'" target="_blank" rel="noopener" aria-label="Watch '+esc(x.title)+' on YouTube">'+
+      '<img src="'+esc(x.thumb)+'" alt="" loading="lazy" referrerpolicy="no-referrer"><span class="ms cl-pi" aria-hidden="true">open_in_new</span></a><span class="cl-len">'+fmt(x.seconds)+'</span></div>'+
+    '<div class="cl-body"><b class="cl-t" title="'+esc(x.title)+'">'+esc(x.title)+'</b><div class="cl-meta"><span class="ms yt" aria-hidden="true">smart_display</span><span>YouTube Shorts'+(x.published?' · '+esc(clShortDate(x.published)):'')+'</span></div>'+
+      '<div class="cl-x-note">Made outside Pit Crew, so its file isn\'t here to edit or analyse.</div></div>'+
+    '<div class="cl-foot"><a class="ghost sm" href="'+esc(x.url)+'" target="_blank" rel="noopener"><span class="ms" aria-hidden="true">open_in_new</span>Watch on YouTube</a></div></article>';
+}
 function clCard(c){
+  if(isGoneClip(c)) return clGoneCard(c);
   const k=clKey(c), on=clPicked.has(k);
   // On one platform but not the other (and the file is still here): post it there too, straight from the card.
   const out=p=>p && ["posted","scheduled"].includes(p.state), free=!c.remaking && !c.file_deleted;
@@ -76,7 +113,7 @@ function clCard(c){
     '<div class="cl-thumb"><button type="button" class="cl-play" aria-label="'+(qr?"Quick review of ":"Play ")+esc(c.title)+'">'+
       // the whole vertical thumbnail in a wide box, over a blurred copy of itself (so its headline text is never cut)
       (c.thumb?'<span class="cl-blur" style="background-image:url(\'/media/'+esc(c.job)+'/'+esc(c.thumb)+'\')"></span><img src="/media/'+esc(c.job)+'/'+esc(c.thumb)+'" alt="" loading="lazy">':'')+'<span class="ms cl-pi" aria-hidden="true">'+(qr?"visibility":"play_arrow")+'</span></button>'+
-      (clPickable(c)?'<label class="cl-pick" title="Tick to schedule"><input type="checkbox"'+(on?" checked":"")+' aria-label="Select '+esc(c.title)+'"></label>':'')+
+      clPickHTML(c,on)+
       '<span class="cl-len">'+fmt(c.length)+'</span>'+
       (c.remaking?'<div class="cl-busy"><span class="spin" aria-hidden="true"></span>Being remade</div>':'')+'</div>'+
     '<div class="cl-body"><b class="cl-t" title="'+esc(c.title)+(c.vlog?' (from '+esc(c.vlog)+')':'')+'">'+esc(c.title)+'</b>'+
@@ -115,16 +152,17 @@ function clDownloadItem(c){
     : c.instagram&&c.instagram.permalink ? {label:"Open on Instagram", icon:"open_in_new", href:c.instagram.permalink, title:"Pit Crew no longer keeps this file"}
     : {label:"Download", icon:"download", disabled:"Pit Crew no longer keeps this file"};
 }
-// What the ⋮ menu offers for a clip. On Drafts: Quick review, Edit = the editor, and the vlog's own editor (Try again).
+// What the ⋮ menu offers for a clip. On Drafts: Quick review, Edit = the editor, and the video's own editor (Try again).
 function clMenuItems(c){
   const postedYt=c.youtube&&c.youtube.state==="posted"&&c.youtube.video_id, posted=c.status==="posted";
+  const gone=[c.youtube,c.instagram].some(p=>p&&p.state==="removed");  // gone from one platform, still on the other
   const canAn = postedYt || (c.instagram&&c.instagram.state==="posted");
   const busy = posted?"It's posted: change it in YouTube Studio or on Instagram":c.remaking?"It's being remade":"";
   const drafts = clMode==="drafts" ? [
     {label:"Quick review", icon:"visibility", run:()=>qrOpen(c)},
     {label:"Play", icon:"play_arrow", run:()=>clPlay(c), disabled:c.file_deleted?"Pit Crew no longer keeps this file":""},
     {label:"Edit", icon:"edit", run:()=>openEditor(c.job,c.idx), disabled:busy},
-    {label:"Review & post", icon:"fact_check", run:()=>openJob(c.job,c.idx), disabled:busy, title:"This vlog's review page: Post this, Try again, Add a Short"},
+    {label:"Review & post", icon:"fact_check", run:()=>openJob(c.job,c.idx), disabled:busy, title:"This video's review page: Post this, Try again, Add a Short"},
   ] : [
     {label:"Play", icon:"play_arrow", run:()=>clPlay(c), disabled:c.file_deleted?"Pit Crew no longer keeps this file":""},
     {label:"Edit", icon:"edit", run:()=>openJob(c.job,c.idx), disabled:busy},
@@ -134,38 +172,49 @@ function clMenuItems(c){
   return drafts.concat(clMode==="drafts" ? [] : [  // a draft has no numbers yet
     {label:"Analytics", icon:"bar_chart", disabled:canAn?"":"Post it to see its numbers",
      run:()=>{ if(postedYt) openShortAnalytics(c.youtube.video_id,c.youtube.channel); else openAnalytics(c.job,"instagram"); }},
-  ]).concat([clDownloadItem(c)]).concat(out).concat(c.status==="draft"&&!c.remaking ? [{label:"Delete draft", icon:"delete", danger:true, run:()=>clDelete([c])}] : []);
+  ]).concat([clDownloadItem(c)]).concat(out).concat(gone?[{label:"Clear the Removed note", icon:"close", run:()=>clGoneAct(c,"clear")}]:[]).concat(c.status==="draft"&&!c.remaking ? [{label:"Delete draft", icon:"delete", danger:true, run:()=>clDelete([c])}] : []);
 }
 function clFiltered(){
   const plat=clMode==="drafts" ? "" : clPlat;
   return clData.filter(c=>clInMode(c) && (!clVlog||c.job===clVlog) && (!plat||clOnPlat(c,plat)));
 }
 function paintClips(){
-  // vlog choices (the ones with clips on this page), newest first
+  // video choices (the ones with clips on this page), newest first
   const pool=clData.filter(clInMode);
   const vlogs=[...new Map(pool.concat(clData.filter(c=>c.job===clVlog)).map(c=>[c.job,c])).values()];
-  $("clVlog").innerHTML='<option value="">All vlogs</option>'+vlogs.map(c=>'<option value="'+esc(c.job)+'">'+esc(c.vlog)+' · '+esc(vlDate(c.vlog_created))+(c.video_deleted?' (video deleted)':'')+'</option>').join("");
+  // on Drafts, a video whose Shorts are being made can be chosen before it has any clips
+  if(clMode==="drafts") dfMaking().forEach(v=>{ if(!vlogs.some(c=>c.job===v.id)) vlogs.unshift({job:v.id, vlog:v.title, vlog_created:v.created, video_deleted:v.video_deleted}); });
+  $("clVlog").innerHTML='<option value="">All videos</option>'+vlogs.map(c=>'<option value="'+esc(c.job)+'">'+esc(c.vlog)+' · '+esc(vlDate(c.vlog_created))+(c.video_deleted?' (video deleted)':'')+'</option>').join("");
   $("clVlog").value=clVlog;
   const one=vlogs.find(c=>c.job===clVlog);
   if(clMode==="out"){
     clPlatTabs();
     $("clTitle").textContent = one ? one.vlog : "Shorts & Reels";
-    $("clLede").textContent = one ? "The Shorts and Reels from this vlog that went out. Its drafts and scheduled ones are under Drafts and Scheduled."
+    $("clLede").textContent = one ? "The Shorts and Reels from this video that went out. Its drafts and scheduled ones are under Drafts and Scheduled."
                                   : "Clips that went out on YouTube or Instagram. Drafts and scheduled ones are under Drafts and Scheduled.";
     $("clAdd").hidden = !one || one.video_deleted;
   }
   const base=clFiltered(), list=clSorted(base);
-  const [emptyB,emptyT] = pool.length ? ["Nothing here","Try another filter."]
-    : clMode==="drafts" ? ["No Shorts or Reels drafts", clData.length?"Every clip Pit Crew made is posted or scheduled. Make Shorts from a vlog to get new ones.":"Upload a vlog and Pit Crew turns it into Shorts and Reels."]
-    : ["Nothing posted yet", clData.length?"Your clips are under Drafts and Scheduled. They show up here once they go out.":"Upload a vlog and Pit Crew turns it into Shorts and Reels."];
+  // Shorts from outside Pit Crew: only when no video of Pit Crew's is chosen, and never under the Instagram tab
+  const outside=clMode==="out" && !clVlog && clPlat!=="instagram" ? clOutside : [];
+  const [emptyB,emptyT] = pool.length||outside.length ? ["Nothing here","Try another filter."]
+    : clMode==="drafts" ? ["No Shorts or Reels drafts", clData.length?"Every clip Pit Crew made is posted or scheduled. Make Shorts from a video to get new ones.":"Upload a video and Pit Crew turns it into Shorts and Reels."]
+    : ["Nothing posted yet", clData.length?"Your clips are under Drafts and Scheduled. They show up here once they go out.":"Upload a video and Pit Crew turns it into Shorts and Reels."];
   const making=clMode==="drafts" ? dfMaking().filter(v=>!clVlog||v.id===clVlog) : [];
-  $("clGrid").innerHTML = list.length||making.length ? (clMode==="drafts" ? clGroupsHTML(list,making) : list.map(clCard).join(""))
-    : '<div class="card cl-empty"><span class="ms" aria-hidden="true">movie</span><b>'+emptyB+'</b><span>'+emptyT+'</span></div>';
+  setHTML($("clGrid"), list.length||making.length||outside.length ? (clMode==="drafts" ? clGroupsHTML(list,making) : list.map(clCard).join("")+outside.map(clOutsideCard).join(""))
+    : '<div class="card cl-empty"><span class="ms" aria-hidden="true">movie</span><b>'+emptyB+'</b><span>'+emptyT+'</span></div>');
   if(clMode==="drafts") clWireGroups(making);
-  $("clGrid").querySelectorAll(".clip").forEach(el=>{
+  $("clGrid").querySelectorAll(".cl-x-clear").forEach(b=>b.onclick=async()=>{
+    const id=b.closest(".clip").dataset.x; try{ await fetch("/api/channel-videos/"+id+"/remove",{method:"POST"}); }catch(e){}
+    clOutside=clOutside.filter(x=>x.id!==id); paintClips(); });
+  $("clGrid").querySelectorAll(".clip[data-k]").forEach(el=>{
     const c=clData.find(x=>clKey(x)===el.dataset.k);
-    el.querySelector(".cl-play").onclick=()=>clMode==="drafts"?qrOpen(c):clPlay(c);
+    if(isGoneClip(c)){ el.querySelector(".cl-back").onclick=()=>clGoneAct(c,"draft"); el.querySelector(".cl-clear").onclick=()=>clGoneAct(c,"clear"); return; }
     const pick=el.querySelector(".cl-pick input");
+    // While selecting, the picture ticks the card instead of playing it
+    el.querySelector(".cl-play").onclick=()=>{
+      if($("clBrowse").classList.contains("selecting")){ if(!pick.disabled){ pick.checked=!pick.checked; pick.onchange(); } return; }
+      clMode==="drafts"?qrOpen(c):clPlay(c); };
     if(pick) pick.onchange=()=>{ pick.checked?clPicked.add(el.dataset.k):clPicked.delete(el.dataset.k); el.classList.toggle("on",pick.checked); clDock(); };
     const to=el.querySelector(".cl-to"); if(to) to.onclick=()=>clPostOne(c,to.dataset.to);
     const ed=el.querySelector(".cl-ed"); if(ed) ed.onclick=()=>openEditor(c.job,c.idx);
@@ -181,14 +230,24 @@ function clGroupsHTML(list,making){
   const groups=new Map();
   for(const v of making) groups.set(v.id,{id:v.id, at:v.created, title:v.title, v, clips:[]});
   for(const c of list){
-    if(!groups.has(c.job)) groups.set(c.job,{id:c.job, at:c.vlog_created, title:c.vlog||"Your vlog", clips:[]});
+    if(!groups.has(c.job)) groups.set(c.job,{id:c.job, at:c.vlog_created, title:c.vlog||"Your video", clips:[]});
     groups.get(c.job).clips.push(c);
   }
-  return [...groups.values()].sort((a,b)=>(b.at||0)-(a.at||0)).map(g=>clGroupHead(g)+g.clips.map(clCard).join("")).join("");
+  return [...groups.values()].sort((a,b)=>(b.at||0)-(a.at||0)).map(g=>clGroupHead(g)+g.clips.map(clCard).join("")+clLoadingCards(g.v)).join("");
+}
+// A loading card for each Short still being made: while the whole vlog is made (it asked for count), or one being added.
+// The shimmer runs on #clGrid (css/clips.css), so redrawing the cards doesn't restart it.
+function clLoadingCards(v){
+  if(!v) return "";
+  const n=v.status==="working"||v.status==="paused" ? v.count||1 : v.status==="ready" ? v.pending_shorts||0 : 0, paused=v.status==="paused";
+  const say=paused?"Paused":v.status==="ready"?"Being made":v.queued?"Waiting for a free spot":v.msg||"Working";
+  return Array.from({length:n},(_,i)=>'<article class="clip cl-sk'+(paused?" still":"")+'" aria-label="'+esc(paused?"Paused":"This Short is being made")+'">'+
+    '<div class="cl-thumb"><span class="cl-sk-pic"></span><span class="cl-sk-reel" aria-hidden="true"><i></i><i></i><i></i></span></div>'+
+    '<div class="cl-body"><b class="cl-t">'+(n>1?"Short "+(i+1):"New Short")+'</b><div class="cl-meta"><span>'+esc(say)+'</span></div></div></article>').join("");
 }
 function clGroupHead(g){
   const v=g.v, n=g.clips.length, k=esc(g.id);
-  const sub=[n?n+" draft"+(n===1?"":"s"):"", v&&v.duration?fmt(v.duration)+" vlog":""].filter(Boolean).join(" · ");
+  const sub=[n?n+" draft"+(n===1?"":"s"):"", v&&v.duration?fmt(v.duration)+" video":""].filter(Boolean).join(" · ");
   let body="";
   if(v && (v.status==="working" || v.status==="paused")){
     const paused=v.status==="paused", pct=vlPct(v);
@@ -255,7 +314,8 @@ $("clPlayer").addEventListener("close",()=>{ $("clVideo").pause(); $("clVideo").
 $("clPlatTabs").querySelectorAll("button").forEach(b=>b.onclick=()=>{ clPlat=b.dataset.p; paintClips(); });
 function clPlatTabs(){
   const pool=clData.filter(c=>isOutClip(c) && (!clVlog||c.job===clVlog));
-  $("clNAll").textContent=pool.length; $("clNYt").textContent=pool.filter(c=>clOnPlat(c,"youtube")).length; $("clNIg").textContent=pool.filter(c=>clOnPlat(c,"instagram")).length;
+  const out=clVlog?0:clOutside.length;
+  $("clNAll").textContent=pool.length+out; $("clNYt").textContent=pool.filter(c=>clOnPlat(c,"youtube")).length+out; $("clNIg").textContent=pool.filter(c=>clOnPlat(c,"instagram")).length;
   $("clPlatTabs").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.p===clPlat));
 }
 $("clSort").onchange=()=>{ try{ localStorage.setItem("pc-clip-sort",$("clSort").value); }catch(e){} paintClips(); };
@@ -266,7 +326,7 @@ function clSorted(list){
   const t=c=>c.posted_at?Date.parse(c.posted_at):0;
   return [...list].sort((a,b)=>t(b)-t(a));  // stable: unposted keep their vlog order at the end
 }
-$("clVlog").onchange=()=>{ clVlog=$("clVlog").value; if(clMode==="out") location.hash="clips"+(clVlog?"/"+clVlog:""); paintClips(); };
+$("clVlog").onchange=()=>{ clVlog=$("clVlog").value; location.hash=clMode==="out"?"clips"+(clVlog?"/"+clVlog:""):dfHash(); paintClips(); };
 $("clNew").onclick=()=>openMake();  // from a vlog uploaded here, or a new video file (js/make-choice.js)
 $("clUpload").onclick=()=>openCreate();  // a new video file: the setup page (screen 1)
 $("clAdd").onclick=()=>openJob(clVlog,"add");

@@ -150,7 +150,7 @@ class WaitInsteadOfFail(Base):
         fill(18)  # the day is used up (all but the reserve)
         c.post(f"/api/vlog/{jid}/upload", json={"privacy": "public"})
         post = F.wait(lambda: F.job_json(jid)["vpost"]["state"] == "waiting" and F.job_json(jid)["vpost"], what="waiting")
-        self.assertIn("The vlog will go up", post["note"])
+        self.assertIn("The video will go up", post["note"])
         self.assertEqual(c.post(f"/api/vlog/{jid}/upload", json={}).status_code, 400)
         with db.connect() as con:
             con.execute("DELETE FROM youtube_uploads")

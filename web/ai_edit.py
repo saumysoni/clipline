@@ -3,9 +3,9 @@ AI Edit in the editor (js/ai-edit.js): which parts of a draft Short's moment it 
 pipeline/pieces.py).
 
   GET  /api/ai-edit/<job>/<idx>            the Short's words (each with whether it's kept), what's kept, the pauses and
-                                           filler words found, and whether changes can be made now
-  POST /api/ai-edit/<job>/<idx>/suggest    {"kind": "shorten", "target": 30|45|60, "note"} -> {"pieces", "why"}: the
-                                           AI's shorter version, nothing saved
+                                           filler words found, whether changes can be made now, and "near": the words
+                                           NEAR seconds either side of the moment too (Trim's close-up: what a part can
+                                           be stretched into, and snapping there)
   POST /api/ai-edit/<job>/<idx>/apply      {"pieces": [[a, b], ...] | null (the whole moment again)}: saves it and remakes
                                            the Short in the background (like a new hook: "retrying" until it's done)
 
@@ -24,10 +24,12 @@ import pipeline
 from pipeline.manual_moment import MANUAL_MAX, MANUAL_MIN
 from settings import JOBS_DIR
 
+from web import clean_clips
 from web.server import app
 from web.store import JOBS, LOCK, RETRY_LOCKS, editable_job, load_job, next_file_number, update, update_short
 
-NO_VIDEO = ("This vlog's video was deleted, so Pit Crew can't cut this Short again. You can still change its title, "
+NEAR = 30  # seconds of the vlog either side of the moment whose words Trim and the Captions row can use (js/trim-strip.js TS_MARGIN)
+NO_VIDEO = ("This video's file was deleted, so Pit Crew can't cut this Short again. You can still change its title, "
             "hashtags and thumbnail text.")
 
 
@@ -54,8 +56,8 @@ def _duration(job, tr):
     return round(float(job.get("duration") or tr.get("duration") or 0), 3)
 
 
-def _has_video(job_id):
-    return next((JOBS_DIR / job_id).glob("source.*"), None) is not None
+def _source(job_id, job, me):
+    return clean_clips.source(job_id, job, me)
 
 
 @app.get("/api/ai-edit/<job_id>/<int:idx>")
@@ -67,36 +69,22 @@ def ai_edit_info(job_id, idx):
         return jsonify(error="This Short's transcript is gone, so it can't be edited by its words."), 400
     pieces = pipeline.kept_pieces(me)
     fill = {(a, b) for a, b, _ in pipeline.find_fillers(tr["words"], me)}
-    words = [{"w": w["w"], "s": w["s"], "e": w["e"],
+    pos = {id(w): k for k, w in enumerate(tr["words"])}  # "i": the word's place in transcript.json (js/captions.js)
+    words = [{"w": w["w"], "s": w["s"], "e": w["e"], "i": pos[id(w)],
               "kept": any(a <= (w["s"] + w["e"]) / 2 <= b for a, b in pieces),
               "filler": any(a <= w["s"] and w["e"] <= b for a, b in fill)} for w in pipeline.words_in(tr["words"], me)]
-    why_not = ("" if _has_video(job_id) and not job.get("video_deleted_at") else NO_VIDEO)
-    return jsonify(start=me["start"], end=me["end"], duration=_duration(job, tr), pieces=[list(p) for p in pieces], length=pipeline.short_length(me),
+    src = _source(job_id, job, me)
+    why_not = "" if src else NO_VIDEO
+    reach = list(src["reach"]) if src else [0, _duration(job, tr)]
+    reach[1] = min(reach[1], _duration(job, tr) or reach[1])
+    near = [{"w": w["w"], "s": w["s"], "e": w["e"], "i": pos[id(w)]} for w in
+            pipeline.words_in(tr["words"], {"start": float(me["start"]) - NEAR, "end": float(me["end"]) + NEAR})]
+    return jsonify(start=me["start"], end=me["end"], duration=_duration(job, tr), reach=reach, clip=bool(src and src["clip"]), pieces=[list(p) for p in pieces], length=pipeline.short_length(me),
+                   near=near,
                    words=words, pauses={k: [list(p) for p in pipeline.find_pauses(tr["words"], me, k)] for k in ("long", "tight")},
                    fillers=[list(f) for f in pipeline.find_fillers(tr["words"], me)],
                    min=MANUAL_MIN, max=MANUAL_MAX, remaking=bool(me.get("retrying")), can_apply=not why_not, why_not=why_not,
                    note=me.get("edit_note") or "")
-
-
-@app.post("/api/ai-edit/<job_id>/<int:idx>/suggest")
-def ai_edit_suggest(job_id, idx):
-    data = request.get_json(silent=True) or {}
-    with LOCK:
-        _, me = _short(job_id, idx)
-    tr = _transcript(job_id)
-    if not tr:
-        return jsonify(error="This Short's transcript is gone, so Pit Crew can't read it."), 400
-    try:
-        if data.get("kind") == "shorten":
-            try:
-                target = float(data.get("target") or 30)
-            except (TypeError, ValueError):
-                return jsonify(error="Choose how long the Short should be."), 400
-            out = pipeline.shorten_short(tr, me, target, note=str(data.get("note") or "")[:300])
-            return jsonify(pieces=[list(p) for p in out["keep"]], why=out["why"], ai=out["ai"])
-    except RuntimeError as e:
-        return jsonify(error=str(e)), 400
-    return jsonify(error="Pit Crew doesn't know that kind of suggestion."), 400
 
 
 def _remake(job_id, idx, keep, start, end):
@@ -111,7 +99,7 @@ def _remake(job_id, idx, keep, start, end):
             with LOCK:
                 job = json.loads(json.dumps(JOBS[job_id], default=str))
             me = next(s for s in job["shorts"] if s["idx"] == idx)
-            src = next(job_dir.glob("source.*"), None)
+            src = _source(job_id, job, me)
             tr = _transcript(job_id)
             if not src or not tr:
                 raise RuntimeError(NO_VIDEO)
@@ -119,9 +107,7 @@ def _remake(job_id, idx, keep, start, end):
             fix, note = pipeline.honest_hooks(moment, pipeline.pieces_said(tr, moment))
             moment.update(fix)
             pipeline.prepare_job_fonts(job_dir)
-            meta, num = pipeline.probe(src), next_file_number(job)
-            video, cx = pipeline.render_short(src, meta, moment, tr["words"], num, job.get("style", "bold"), job_dir,
-                                              cx=me.get("cx", "find"))
+            video, cx = clean_clips.render(src, moment, tr["words"], next_file_number(job), job.get("style", "bold"), job_dir, me)
         update_short(job_id, idx, video=video, cx=cx, start=start, end=end, pieces=keep, retrying=False, retry_msg=None,
                      edit_note=note, **fix)
     except Exception as e:  # noqa: BLE001
@@ -142,13 +128,15 @@ def ai_edit_apply(job_id, idx):
             abort(404)
         if me.get("retrying"):
             return jsonify(error="This Short is still being made. Wait a moment."), 400
-    if not _has_video(job_id) or job.get("video_deleted_at") or not (JOBS_DIR / job_id / "transcript.json").exists():
+    src = _source(job_id, job, me)
+    if not src or not (JOBS_DIR / job_id / "transcript.json").exists():
         return jsonify(error=NO_VIDEO), 400
     s, e = float(me["start"]), float(me["end"])
     raw = data.get("pieces")
     try:
         dur = _duration(job, _transcript(job_id) or {}) or e
-        pieces = pipeline.normalize_pieces(raw, 0, dur) if raw else [(s, e)]  # anywhere in the vlog (Trim)
+        # anywhere in the vlog (Trim), or in the Short's clean clip once the vlog's video is gone
+        pieces = pipeline.normalize_pieces(raw, max(0, src["reach"][0]), min(dur, src["reach"][1])) if raw else [(s, e)]
     except (TypeError, ValueError, AttributeError):
         return jsonify(error="Those cuts couldn't be read. Reload the page and try again."), 400
     total = sum(b - a for a, b in pieces)

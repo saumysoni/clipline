@@ -337,7 +337,7 @@ def instagram_posts():
                 continue
             job = json.loads(json.dumps(job, default=str))
         shorts = {s["idx"]: s for s in job.get("shorts", [])}
-        vlog = (job.get("vlog") or {}).get("title") or job.get("name") or "Your vlog"
+        vlog = (job.get("vlog") or {}).get("title") or job.get("name") or "Your video"
         for p in job.get("ig_posts") or []:
             s = shorts.get(p["idx"], {})
             out.append({**p, "job": job["id"], "vlog": vlog, "thumb": s.get("thumb", ""),

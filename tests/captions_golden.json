@@ -1,0 +1,82 @@
+{
+ "words": [
+  {
+   "w": "so",
+   "s": 0.0,
+   "e": 0.3
+  },
+  {
+   "w": "we",
+   "s": 0.4,
+   "e": 0.7
+  },
+  {
+   "w": "finally",
+   "s": 0.8,
+   "e": 1.1
+  },
+  {
+   "w": "made",
+   "s": 1.2,
+   "e": 1.5
+  },
+  {
+   "w": "it",
+   "s": 1.6,
+   "e": 1.9
+  },
+  {
+   "w": "to",
+   "s": 3.0,
+   "e": 3.3
+  },
+  {
+   "w": "the",
+   "s": 2.4,
+   "e": 2.7
+  },
+  {
+   "w": "{top}",
+   "s": 2.8,
+   "e": 3.1
+  },
+  {
+   "w": "of",
+   "s": 3.2,
+   "e": 3.5
+  },
+  {
+   "w": "the",
+   "s": 3.6,
+   "e": 3.9
+  },
+  {
+   "w": "mountain",
+   "s": 4.0,
+   "e": 4.3
+  },
+  {
+   "w": "and",
+   "s": 4.4,
+   "e": 4.7
+  },
+  {
+   "w": "honestly",
+   "s": 4.8,
+   "e": 5.1
+  },
+  {
+   "w": "wow",
+   "s": 5.2,
+   "e": 5.5
+  }
+ ],
+ "out": {
+  "bold|": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\nWrapStyle: 0\nScaledBorderAndShadow: yes\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Cap,Montserrat ExtraBold,92,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,7,2,2,80,80,560,1\nStyle: Hook,Montserrat ExtraBold,66,&H00111111,&H00111111,&H00FFFFFF,&H00FFFFFF,-1,0,0,0,100,100,0,0,3,18,0,8,90,90,200,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:00.40,Cap,,0,0,0,,{\\c&H000AD6FF&}SO{\\c&H00FFFFFF&} WE FINALLY\nDialogue: 0,0:00:00.40,0:00:00.80,Cap,,0,0,0,,SO {\\c&H000AD6FF&}WE{\\c&H00FFFFFF&} FINALLY\nDialogue: 0,0:00:00.80,0:00:01.20,Cap,,0,0,0,,SO WE {\\c&H000AD6FF&}FINALLY{\\c&H00FFFFFF&}\nDialogue: 0,0:00:01.20,0:00:01.60,Cap,,0,0,0,,{\\c&H000AD6FF&}MADE{\\c&H00FFFFFF&} IT TO\nDialogue: 0,0:00:01.60,0:00:03.00,Cap,,0,0,0,,MADE {\\c&H000AD6FF&}IT{\\c&H00FFFFFF&} TO\nDialogue: 0,0:00:03.00,0:00:03.08,Cap,,0,0,0,,MADE IT {\\c&H000AD6FF&}TO{\\c&H00FFFFFF&}\nDialogue: 0,0:00:02.40,0:00:02.80,Cap,,0,0,0,,{\\c&H000AD6FF&}THE{\\c&H00FFFFFF&} (TOP) OF\nDialogue: 0,0:00:02.80,0:00:03.20,Cap,,0,0,0,,THE {\\c&H000AD6FF&}(TOP){\\c&H00FFFFFF&} OF\nDialogue: 0,0:00:03.20,0:00:03.60,Cap,,0,0,0,,THE (TOP) {\\c&H000AD6FF&}OF{\\c&H00FFFFFF&}\nDialogue: 0,0:00:03.60,0:00:04.00,Cap,,0,0,0,,{\\c&H000AD6FF&}THE{\\c&H00FFFFFF&} MOUNTAIN AND\nDialogue: 0,0:00:04.00,0:00:04.40,Cap,,0,0,0,,THE {\\c&H000AD6FF&}MOUNTAIN{\\c&H00FFFFFF&} AND\nDialogue: 0,0:00:04.40,0:00:04.80,Cap,,0,0,0,,THE MOUNTAIN {\\c&H000AD6FF&}AND{\\c&H00FFFFFF&}\nDialogue: 0,0:00:04.80,0:00:05.20,Cap,,0,0,0,,{\\c&H000AD6FF&}HONESTLY{\\c&H00FFFFFF&} WOW\nDialogue: 0,0:00:05.20,0:00:05.50,Cap,,0,0,0,,HONESTLY {\\c&H000AD6FF&}WOW{\\c&H00FFFFFF&}\n",
+  "bold|I almost didn't make it": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\nWrapStyle: 0\nScaledBorderAndShadow: yes\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Cap,Montserrat ExtraBold,92,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,7,2,2,80,80,560,1\nStyle: Hook,Montserrat ExtraBold,66,&H00111111,&H00111111,&H00FFFFFF,&H00FFFFFF,-1,0,0,0,100,100,0,0,3,18,0,8,90,90,200,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:00.40,Cap,,0,0,0,,{\\c&H000AD6FF&}SO{\\c&H00FFFFFF&} WE FINALLY\nDialogue: 0,0:00:00.40,0:00:00.80,Cap,,0,0,0,,SO {\\c&H000AD6FF&}WE{\\c&H00FFFFFF&} FINALLY\nDialogue: 0,0:00:00.80,0:00:01.20,Cap,,0,0,0,,SO WE {\\c&H000AD6FF&}FINALLY{\\c&H00FFFFFF&}\nDialogue: 0,0:00:01.20,0:00:01.60,Cap,,0,0,0,,{\\c&H000AD6FF&}MADE{\\c&H00FFFFFF&} IT TO\nDialogue: 0,0:00:01.60,0:00:03.00,Cap,,0,0,0,,MADE {\\c&H000AD6FF&}IT{\\c&H00FFFFFF&} TO\nDialogue: 0,0:00:03.00,0:00:03.08,Cap,,0,0,0,,MADE IT {\\c&H000AD6FF&}TO{\\c&H00FFFFFF&}\nDialogue: 0,0:00:02.40,0:00:02.80,Cap,,0,0,0,,{\\c&H000AD6FF&}THE{\\c&H00FFFFFF&} (TOP) OF\nDialogue: 0,0:00:02.80,0:00:03.20,Cap,,0,0,0,,THE {\\c&H000AD6FF&}(TOP){\\c&H00FFFFFF&} OF\nDialogue: 0,0:00:03.20,0:00:03.60,Cap,,0,0,0,,THE (TOP) {\\c&H000AD6FF&}OF{\\c&H00FFFFFF&}\nDialogue: 0,0:00:03.60,0:00:04.00,Cap,,0,0,0,,{\\c&H000AD6FF&}THE{\\c&H00FFFFFF&} MOUNTAIN AND\nDialogue: 0,0:00:04.00,0:00:04.40,Cap,,0,0,0,,THE {\\c&H000AD6FF&}MOUNTAIN{\\c&H00FFFFFF&} AND\nDialogue: 0,0:00:04.40,0:00:04.80,Cap,,0,0,0,,THE MOUNTAIN {\\c&H000AD6FF&}AND{\\c&H00FFFFFF&}\nDialogue: 0,0:00:04.80,0:00:05.20,Cap,,0,0,0,,{\\c&H000AD6FF&}HONESTLY{\\c&H00FFFFFF&} WOW\nDialogue: 0,0:00:05.20,0:00:05.50,Cap,,0,0,0,,HONESTLY {\\c&H000AD6FF&}WOW{\\c&H00FFFFFF&}\nDialogue: 1,0:00:00.00,0:00:02.80,Hook,,0,0,0,,I almost didn't make it\n",
+  "clean|": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\nWrapStyle: 0\nScaledBorderAndShadow: yes\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Cap,Montserrat ExtraBold,70,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,2,4,2,80,80,560,1\nStyle: Hook,Montserrat ExtraBold,66,&H00111111,&H00111111,&H00FFFFFF,&H00FFFFFF,-1,0,0,0,100,100,0,0,3,18,0,8,90,90,200,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:00.40,Cap,,0,0,0,,{\\c&H000AD6FF&}so{\\c&H00FFFFFF&} we finally\nDialogue: 0,0:00:00.40,0:00:00.80,Cap,,0,0,0,,so {\\c&H000AD6FF&}we{\\c&H00FFFFFF&} finally\nDialogue: 0,0:00:00.80,0:00:01.20,Cap,,0,0,0,,so we {\\c&H000AD6FF&}finally{\\c&H00FFFFFF&}\nDialogue: 0,0:00:01.20,0:00:01.60,Cap,,0,0,0,,{\\c&H000AD6FF&}made{\\c&H00FFFFFF&} it to\nDialogue: 0,0:00:01.60,0:00:03.00,Cap,,0,0,0,,made {\\c&H000AD6FF&}it{\\c&H00FFFFFF&} to\nDialogue: 0,0:00:03.00,0:00:03.08,Cap,,0,0,0,,made it {\\c&H000AD6FF&}to{\\c&H00FFFFFF&}\nDialogue: 0,0:00:02.40,0:00:02.80,Cap,,0,0,0,,{\\c&H000AD6FF&}the{\\c&H00FFFFFF&} (top) of\nDialogue: 0,0:00:02.80,0:00:03.20,Cap,,0,0,0,,the {\\c&H000AD6FF&}(top){\\c&H00FFFFFF&} of\nDialogue: 0,0:00:03.20,0:00:03.60,Cap,,0,0,0,,the (top) {\\c&H000AD6FF&}of{\\c&H00FFFFFF&}\nDialogue: 0,0:00:03.60,0:00:04.00,Cap,,0,0,0,,{\\c&H000AD6FF&}the{\\c&H00FFFFFF&} mountain and\nDialogue: 0,0:00:04.00,0:00:04.40,Cap,,0,0,0,,the {\\c&H000AD6FF&}mountain{\\c&H00FFFFFF&} and\nDialogue: 0,0:00:04.40,0:00:04.80,Cap,,0,0,0,,the mountain {\\c&H000AD6FF&}and{\\c&H00FFFFFF&}\nDialogue: 0,0:00:04.80,0:00:05.20,Cap,,0,0,0,,{\\c&H000AD6FF&}honestly{\\c&H00FFFFFF&} wow\nDialogue: 0,0:00:05.20,0:00:05.50,Cap,,0,0,0,,honestly {\\c&H000AD6FF&}wow{\\c&H00FFFFFF&}\n",
+  "clean|I almost didn't make it": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\nWrapStyle: 0\nScaledBorderAndShadow: yes\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Cap,Montserrat ExtraBold,70,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,2,4,2,80,80,560,1\nStyle: Hook,Montserrat ExtraBold,66,&H00111111,&H00111111,&H00FFFFFF,&H00FFFFFF,-1,0,0,0,100,100,0,0,3,18,0,8,90,90,200,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:00.40,Cap,,0,0,0,,{\\c&H000AD6FF&}so{\\c&H00FFFFFF&} we finally\nDialogue: 0,0:00:00.40,0:00:00.80,Cap,,0,0,0,,so {\\c&H000AD6FF&}we{\\c&H00FFFFFF&} finally\nDialogue: 0,0:00:00.80,0:00:01.20,Cap,,0,0,0,,so we {\\c&H000AD6FF&}finally{\\c&H00FFFFFF&}\nDialogue: 0,0:00:01.20,0:00:01.60,Cap,,0,0,0,,{\\c&H000AD6FF&}made{\\c&H00FFFFFF&} it to\nDialogue: 0,0:00:01.60,0:00:03.00,Cap,,0,0,0,,made {\\c&H000AD6FF&}it{\\c&H00FFFFFF&} to\nDialogue: 0,0:00:03.00,0:00:03.08,Cap,,0,0,0,,made it {\\c&H000AD6FF&}to{\\c&H00FFFFFF&}\nDialogue: 0,0:00:02.40,0:00:02.80,Cap,,0,0,0,,{\\c&H000AD6FF&}the{\\c&H00FFFFFF&} (top) of\nDialogue: 0,0:00:02.80,0:00:03.20,Cap,,0,0,0,,the {\\c&H000AD6FF&}(top){\\c&H00FFFFFF&} of\nDialogue: 0,0:00:03.20,0:00:03.60,Cap,,0,0,0,,the (top) {\\c&H000AD6FF&}of{\\c&H00FFFFFF&}\nDialogue: 0,0:00:03.60,0:00:04.00,Cap,,0,0,0,,{\\c&H000AD6FF&}the{\\c&H00FFFFFF&} mountain and\nDialogue: 0,0:00:04.00,0:00:04.40,Cap,,0,0,0,,the {\\c&H000AD6FF&}mountain{\\c&H00FFFFFF&} and\nDialogue: 0,0:00:04.40,0:00:04.80,Cap,,0,0,0,,the mountain {\\c&H000AD6FF&}and{\\c&H00FFFFFF&}\nDialogue: 0,0:00:04.80,0:00:05.20,Cap,,0,0,0,,{\\c&H000AD6FF&}honestly{\\c&H00FFFFFF&} wow\nDialogue: 0,0:00:05.20,0:00:05.50,Cap,,0,0,0,,honestly {\\c&H000AD6FF&}wow{\\c&H00FFFFFF&}\nDialogue: 1,0:00:00.00,0:00:02.80,Hook,,0,0,0,,I almost didn't make it\n",
+  "boxed|": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\nWrapStyle: 0\nScaledBorderAndShadow: yes\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Cap,Montserrat ExtraBold,74,&H00FFFFFF,&H00FFFFFF,&H40000000,&H80000000,-1,0,0,0,100,100,0,0,3,14,0,2,80,80,560,1\nStyle: Hook,Montserrat ExtraBold,66,&H00111111,&H00111111,&H00FFFFFF,&H00FFFFFF,-1,0,0,0,100,100,0,0,3,18,0,8,90,90,200,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:00.40,Cap,,0,0,0,,{\\c&H000AD6FF&}so{\\c&H00FFFFFF&} we finally\nDialogue: 0,0:00:00.40,0:00:00.80,Cap,,0,0,0,,so {\\c&H000AD6FF&}we{\\c&H00FFFFFF&} finally\nDialogue: 0,0:00:00.80,0:00:01.20,Cap,,0,0,0,,so we {\\c&H000AD6FF&}finally{\\c&H00FFFFFF&}\nDialogue: 0,0:00:01.20,0:00:01.60,Cap,,0,0,0,,{\\c&H000AD6FF&}made{\\c&H00FFFFFF&} it to\nDialogue: 0,0:00:01.60,0:00:03.00,Cap,,0,0,0,,made {\\c&H000AD6FF&}it{\\c&H00FFFFFF&} to\nDialogue: 0,0:00:03.00,0:00:03.08,Cap,,0,0,0,,made it {\\c&H000AD6FF&}to{\\c&H00FFFFFF&}\nDialogue: 0,0:00:02.40,0:00:02.80,Cap,,0,0,0,,{\\c&H000AD6FF&}the{\\c&H00FFFFFF&} (top) of\nDialogue: 0,0:00:02.80,0:00:03.20,Cap,,0,0,0,,the {\\c&H000AD6FF&}(top){\\c&H00FFFFFF&} of\nDialogue: 0,0:00:03.20,0:00:03.60,Cap,,0,0,0,,the (top) {\\c&H000AD6FF&}of{\\c&H00FFFFFF&}\nDialogue: 0,0:00:03.60,0:00:04.00,Cap,,0,0,0,,{\\c&H000AD6FF&}the{\\c&H00FFFFFF&} mountain and\nDialogue: 0,0:00:04.00,0:00:04.40,Cap,,0,0,0,,the {\\c&H000AD6FF&}mountain{\\c&H00FFFFFF&} and\nDialogue: 0,0:00:04.40,0:00:04.80,Cap,,0,0,0,,the mountain {\\c&H000AD6FF&}and{\\c&H00FFFFFF&}\nDialogue: 0,0:00:04.80,0:00:05.20,Cap,,0,0,0,,{\\c&H000AD6FF&}honestly{\\c&H00FFFFFF&} wow\nDialogue: 0,0:00:05.20,0:00:05.50,Cap,,0,0,0,,honestly {\\c&H000AD6FF&}wow{\\c&H00FFFFFF&}\n",
+  "boxed|I almost didn't make it": "[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\nWrapStyle: 0\nScaledBorderAndShadow: yes\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Cap,Montserrat ExtraBold,74,&H00FFFFFF,&H00FFFFFF,&H40000000,&H80000000,-1,0,0,0,100,100,0,0,3,14,0,2,80,80,560,1\nStyle: Hook,Montserrat ExtraBold,66,&H00111111,&H00111111,&H00FFFFFF,&H00FFFFFF,-1,0,0,0,100,100,0,0,3,18,0,8,90,90,200,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:00.00,0:00:00.40,Cap,,0,0,0,,{\\c&H000AD6FF&}so{\\c&H00FFFFFF&} we finally\nDialogue: 0,0:00:00.40,0:00:00.80,Cap,,0,0,0,,so {\\c&H000AD6FF&}we{\\c&H00FFFFFF&} finally\nDialogue: 0,0:00:00.80,0:00:01.20,Cap,,0,0,0,,so we {\\c&H000AD6FF&}finally{\\c&H00FFFFFF&}\nDialogue: 0,0:00:01.20,0:00:01.60,Cap,,0,0,0,,{\\c&H000AD6FF&}made{\\c&H00FFFFFF&} it to\nDialogue: 0,0:00:01.60,0:00:03.00,Cap,,0,0,0,,made {\\c&H000AD6FF&}it{\\c&H00FFFFFF&} to\nDialogue: 0,0:00:03.00,0:00:03.08,Cap,,0,0,0,,made it {\\c&H000AD6FF&}to{\\c&H00FFFFFF&}\nDialogue: 0,0:00:02.40,0:00:02.80,Cap,,0,0,0,,{\\c&H000AD6FF&}the{\\c&H00FFFFFF&} (top) of\nDialogue: 0,0:00:02.80,0:00:03.20,Cap,,0,0,0,,the {\\c&H000AD6FF&}(top){\\c&H00FFFFFF&} of\nDialogue: 0,0:00:03.20,0:00:03.60,Cap,,0,0,0,,the (top) {\\c&H000AD6FF&}of{\\c&H00FFFFFF&}\nDialogue: 0,0:00:03.60,0:00:04.00,Cap,,0,0,0,,{\\c&H000AD6FF&}the{\\c&H00FFFFFF&} mountain and\nDialogue: 0,0:00:04.00,0:00:04.40,Cap,,0,0,0,,the {\\c&H000AD6FF&}mountain{\\c&H00FFFFFF&} and\nDialogue: 0,0:00:04.40,0:00:04.80,Cap,,0,0,0,,the mountain {\\c&H000AD6FF&}and{\\c&H00FFFFFF&}\nDialogue: 0,0:00:04.80,0:00:05.20,Cap,,0,0,0,,{\\c&H000AD6FF&}honestly{\\c&H00FFFFFF&} wow\nDialogue: 0,0:00:05.20,0:00:05.50,Cap,,0,0,0,,honestly {\\c&H000AD6FF&}wow{\\c&H00FFFFFF&}\nDialogue: 1,0:00:00.00,0:00:02.80,Hook,,0,0,0,,I almost didn't make it\n"
+ }
+}

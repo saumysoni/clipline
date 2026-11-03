@@ -15,7 +15,6 @@ from settings import JOBS_DIR
 from web.posting import POSTING, do_upload, youtube_title
 from web.server import app
 from web.store import JOBS, LOCK, load_job, update, update_short
-from web.youtube_sync import sync_deleted
 
 
 def posted_shorts(user_id):
@@ -29,7 +28,7 @@ def posted_shorts(user_id):
     for j in sorted(jobs, key=lambda j: (JOBS_DIR / j["id"] / "job.json").stat().st_mtime
                     if (JOBS_DIR / j["id"] / "job.json").exists() else 0, reverse=True):
         shorts = {s["idx"]: s for s in j.get("shorts", [])}
-        vlog = (j.get("vlog") or {}).get("title") or j.get("name") or "Your vlog"
+        vlog = (j.get("vlog") or {}).get("title") or j.get("name") or "Your video"
         for u in j["uploads"]:
             s = shorts.get(u["idx"], {})
             out.append({**u, "job": j["id"], "vlog": vlog, "thumb": u.get("thumb") or s.get("thumb", ""),
@@ -40,7 +39,6 @@ def posted_shorts(user_id):
 @app.get("/api/posted")
 def posted():
     uid = g.user["id"]
-    sync_deleted(uid)  # Shorts deleted in YouTube Studio are forgotten (drafts again)
     items, live, note = posted_shorts(uid), False, None
     acct = yt.account(uid)
     me = (acct.get("channel") or {}).get("id")

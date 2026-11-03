@@ -1,5 +1,5 @@
 """AI Edit (pipeline/pieces.py, pipeline/ai_edit.py, web/ai_edit.py): a Short that keeps several pieces of its moment,
-pauses and filler words found from the word timings, the AI's shorter version, and applying them."""
+pauses and filler words found from the word timings, and applying them."""
 from tests import fakes as F
 
 import unittest
@@ -59,6 +59,17 @@ class Finders(unittest.TestCase):
         self.assertEqual(AE.honest_hooks(m, "and I lost 2000 dollars there"), ({}, ""))
 
 
+class NearWords(unittest.TestCase):
+    def test_words_around_the_short_carry_their_place_for_captions(self):
+        F.install(); F.reset()
+        c = F.client(F.new_user())
+        jid, _ = F.make_shorts(c, seconds=150, count=1)
+        info = c.get(f"/api/ai-edit/{jid}/1").json
+        self.assertTrue(info["near"])
+        self.assertTrue(all(isinstance(w["i"], int) for w in info["near"]))
+        self.assertGreater(len(info["near"]), len(info["words"]))  # past the Short's own words
+
+
 class Routes(unittest.TestCase):
     def setUp(self):
         F.install()
@@ -79,6 +90,10 @@ class Routes(unittest.TestCase):
         self.assertEqual(j["pieces"], [[self.s["start"], self.s["end"]]])
         self.assertTrue(all(w["kept"] for w in j["words"]))
         self.assertAlmostEqual(j["words"][0]["s"], self.s["start"] + 0.15, delta=0.5)
+        near = j["near"]  # the words around the moment too (Trim's close-up)
+        self.assertLessEqual(near[0]["s"], max(self.s["start"] - 20, 1.0))  # (or the vlog's first word)
+        self.assertGreater(near[-1]["e"], self.s["end"] + 20)
+        self.assertTrue(all(self.s["start"] - 31 <= w["s"] and w["e"] <= self.s["end"] + 31 for w in near))
         self.assertEqual(self.c.get(f"/api/ai-edit/{self.jid}/99").status_code, 404)
         other = F.client(F.new_user())
         self.assertEqual(other.get(self.base).status_code, 404)  # only its owner
@@ -134,30 +149,13 @@ class Routes(unittest.TestCase):
         for f in (JOBS_DIR / self.jid).glob("source.*"):
             f.unlink()
         r = self.c.post(self.base + "/apply", json={"pieces": [[s, s + 20]]})
-        self.assertIn("video was deleted", r.json["error"])
+        self.assertIn("file was deleted", r.json["error"])
         self.assertFalse(self.c.get(self.base).json["can_apply"])
 
-    def test_shorten_with_the_ai(self):
-        r = self.c.post(self.base + "/suggest", json={"kind": "shorten", "target": 15})
-        self.assertEqual(r.status_code, 200, r.json)
-        keep = r.json["pieces"]
-        total = sum(b - a for a, b in keep)
-        self.assertTrue(r.json["ai"])
-        self.assertTrue(12 <= total <= 19, total)
-        self.assertGreater(keep[0][0], self.s["start"] + 1)  # the fake AI skips the first sentence
-        self.assertIn("shorten", F.AI.kinds())
-        self.assertIsNone(F.job_json(self.jid)["shorts"][0].get("pieces"))  # a suggestion saves nothing
-
-    def test_shorten_without_the_ai(self):
-        F.AI.fail(503, "overloaded", times=50)
-        j = self.c.post(self.base + "/suggest", json={"kind": "shorten", "target": 15}).json
-        self.assertFalse(j["ai"])
-        self.assertAlmostEqual(j["pieces"][0][0], self.s["start"], delta=0.5)  # from the start, up to what fits
-        self.assertLessEqual(sum(b - a for a, b in j["pieces"]), 15 * 1.25)
-
-    def test_suggested_cuts_are_gone(self):
-        r = self.c.post(self.base + "/suggest", json={"kind": "cuts"})
-        self.assertEqual(r.status_code, 400)  # removed (not reliable): only "shorten" is left
+    def test_ai_suggestions_are_gone(self):
+        for kind in ("cuts", "shorten"):  # removed: the creator didn't choose the cuts, and they weren't reliable
+            r = self.c.post(self.base + "/suggest", json={"kind": kind, "target": 30})
+            self.assertIn(r.status_code, (404, 405))
 
     def test_new_hooks_read_only_what_is_kept(self):
         s = self.s["start"]

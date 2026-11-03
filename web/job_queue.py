@@ -76,7 +76,7 @@ def _paint_locked():
         job = JOBS.get(jid)
         if not job:
             continue
-        msg = "Starts after your other vlog" if _mine_running(job.get("owner")) >= PER_CREATOR else WAITING_MSG
+        msg = "Starts after your other video" if _mine_running(job.get("owner")) >= PER_CREATOR else WAITING_MSG
         if job.get("msg") != msg:
             job["msg"] = msg
             _save(job)
@@ -109,7 +109,7 @@ def run_job(job_id):
     src = next((JOBS_DIR / job_id).glob("source.*"), None)
     link = None if src else job.get("link")
     if not src and not link:
-        settle(job_id, status="error", error="Pit Crew no longer has this vlog's video. Upload it again.",
+        settle(job_id, status="error", error="Pit Crew no longer has this video's file. Upload it again.",
                last_edit_at=time.time())
         return
     if job.get("kind") == "vlog" and not job.get("count"):

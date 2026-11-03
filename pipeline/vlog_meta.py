@@ -109,6 +109,6 @@ def write_vlog_meta(tr, context=None, progress=lambda pct, msg: None):
     chapters = clean_chapters(raw.get("chapters"), tr.get("duration") or 0)
     hashtags = [str(h).strip().lstrip("#") for h in (raw.get("hashtags") or []) if str(h).strip()][:3]
     text = str(raw.get("description") or "").strip()[:1500]
-    return {"titles": titles or ["My new vlog"], "text": text, "chapters": chapters, "hashtags": hashtags,
+    return {"titles": titles or ["My new video"], "text": text, "chapters": chapters, "hashtags": hashtags,
             "description": compose_description(text, chapters, hashtags), "tags": clean_tags(raw.get("tags")),
             "thumb_line1": str(raw.get("thumb_line1") or "")[:30], "thumb_line2": str(raw.get("thumb_line2") or "")[:30]}

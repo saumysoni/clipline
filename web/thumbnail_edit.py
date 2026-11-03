@@ -92,7 +92,7 @@ def thumb_text(job_id, idx):
         if problem:
             return problem
         if not pipeline.thumb_plan(me, JOBS_DIR / job_id) and not any((JOBS_DIR / job_id).glob("source.*")):
-            return jsonify(error="This thumbnail can't be redrawn: the vlog's video was deleted. Upload the vlog again to change it."), 400
+            return jsonify(error="This thumbnail can't be redrawn: the video's file was deleted. Upload the video again to change it."), 400
 
     def work(job, me, job_dir):
         src, meta = _source(job_dir)
@@ -111,7 +111,7 @@ def thumb_again(job_id, idx):
         if problem:
             return problem
         if not any((JOBS_DIR / job_id).glob("source.*")) or not (JOBS_DIR / job_id / "transcript.json").exists():
-            return jsonify(error="This vlog's video was deleted, so Pit Crew can't pick a new frame. You can still "
+            return jsonify(error="This video's file was deleted, so Pit Crew can't pick a new frame. You can still "
                                  "change the thumbnail's text and look."), 400
 
     def work(job, me, job_dir):

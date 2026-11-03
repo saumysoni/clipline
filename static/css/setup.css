@@ -24,15 +24,14 @@
 .times-row .x{margin-left:auto;border:0;background:none;cursor:pointer;color:var(--faint);display:grid;place-items:center;padding:4px;border-radius:8px}
 .times-row .x:hover{color:var(--bad);background:var(--bad-soft)}
 .addrow{width:100%;border-style:dashed}
-.count-row{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
-.ctrl{display:flex;align-items:center;border:1px solid var(--line-2);border-radius:12px;overflow:hidden;background:var(--raised)}
-.ctrl button{width:46px;height:52px;border:0;background:transparent;cursor:pointer;display:grid;place-items:center;color:var(--ink)}
-.ctrl button:hover:not(:disabled){background:var(--primary-soft)}
-.ctrl button:disabled{opacity:.3;cursor:default}
-.num{width:60px;text-align:center;font:700 2rem/1 var(--mono);color:var(--cap-line)}
-.frames{display:flex;gap:6px;flex-wrap:wrap}
-.frames span{width:26px;height:44px;border-radius:7px;background:var(--primary-soft);border:1px solid var(--line-2);display:grid;place-items:end center;padding-bottom:4px;font:700 9px var(--mono);color:var(--primary-text)}
-.frames span.mine{background:var(--cap-soft);border-color:var(--cap-line);color:var(--ink)}
+.count-pick{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:6px}
+.count-pick button{height:48px;border:1px solid var(--line-2);border-radius:10px;background:var(--raised);color:var(--ink);font:700 1rem var(--mono);cursor:pointer;transition:background .12s,border-color .12s,transform .12s}
+.count-pick button:hover{border-color:var(--primary);background:var(--primary-soft)}
+.count-pick button[aria-checked="true"]{background:var(--primary);border-color:var(--primary);color:var(--primary-ink);transform:translateY(-1px)}
+.count-pick button.least{opacity:.4}
+@media (max-width:520px){.count-pick{grid-template-columns:repeat(5,minmax(0,1fr))}}
+#countHint:empty{display:none}
+#countHint{margin:10px 0 0}
 .styles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .styles label{position:relative}
 .styles input{position:absolute;opacity:0}

@@ -23,3 +23,28 @@
 .twick-track{background:var(--raised);border-radius:8px}
 .twick-track-element{border-radius:8px}
 .twick-track-element-selected{outline:2px solid var(--ink);outline-offset:-1px}
+/* Trimming (main.jsx mount): a grip on both ends of every part (they drag it), the outline and label while dragging */
+.twick-track-element::before,.twick-track-element::after{content:"";position:absolute;top:0;bottom:0;width:12px;z-index:6;cursor:ew-resize}
+.twick-track-element::before{left:0;border-radius:8px 0 0 8px}
+.twick-track-element::after{right:0;border-radius:0 8px 8px 0}
+.twick-track-element:hover::before{background:linear-gradient(90deg,rgba(255,255,255,.95) 0 4px,rgba(0,0,0,.25) 4px 5px,transparent 5px)}
+.twick-track-element:hover::after{background:linear-gradient(270deg,rgba(255,255,255,.95) 0 4px,rgba(0,0,0,.25) 4px 5px,transparent 5px)}
+.pc-ro .twick-track-element::before,.pc-ro .twick-track-element::after{display:none}
+.pc-trim-lane{position:absolute;z-index:20;pointer-events:none;border-radius:8px;background:var(--raised);box-shadow:0 0 0 1px var(--line-2)}
+.pc-trim-parts i{position:absolute;top:3px;bottom:3px;border-radius:6px;background:var(--line-2)}
+.pc-trim-parts i.on{background:var(--primary);box-shadow:0 0 0 2px var(--primary)}
+.pc-trim-parts i.on.start{border-left:4px solid #fff}
+.pc-trim-parts i.on.end{border-right:4px solid #fff}
+.pc-trim-lane.snapped .pc-trim-parts i.on.start{border-left-color:var(--ink)}
+.pc-trim-lane.snapped .pc-trim-parts i.on.end{border-right-color:var(--ink)}
+/* the lane's own seconds, along its foot, and where the Short ended before the drag (the old ruler is dimmed) */
+.pc-trim-ticks i{position:absolute;bottom:0;width:1px;height:10px;background:rgba(255,255,255,.85);box-shadow:0 0 1px rgba(0,0,0,.6)}
+.pc-trim-ticks i[data-t]::after{content:attr(data-t);position:absolute;bottom:2px;left:4px;font:600 10px/1 var(--mono,ui-monospace,monospace);color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.8);white-space:nowrap}
+.pc-trim-was{position:absolute;top:-4px;bottom:-4px;width:0;padding-top:6px;border-left:2px dashed var(--ink);pointer-events:none;
+  font:600 10px/1 var(--mono,ui-monospace,monospace);color:var(--ink);text-indent:4px;white-space:nowrap}
+.pc-trim-was[hidden]{display:none}
+.pc-trimming .twick-seek-track,.pc-trimming .twick-seek-track-container-no-scrollbar{opacity:.2}
+.pc-trim-lane[hidden],.pc-trim-tip[hidden]{display:none}
+.pc-trimming .twick-track-element{opacity:.2}
+.pc-trim-tip{position:absolute;z-index:21;pointer-events:none;white-space:nowrap;padding:4px 8px;border-radius:7px;background:var(--ink);color:var(--panel);font:600 11px/1.2 var(--mono,ui-monospace,monospace);box-shadow:0 4px 12px rgba(0,0,0,.3)}
+.pc-trimming,.pc-trimming *{cursor:ew-resize!important;user-select:none}

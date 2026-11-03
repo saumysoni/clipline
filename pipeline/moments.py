@@ -147,7 +147,7 @@ def clean_moments(raw, transcript, n):
             "hashtags": [re.sub(r"[^\w]", "", h) for h in m.get("hashtags", [])][:5],
         })
     if not picked:
-        raise RuntimeError("Couldn't find usable moments. Try a different vlog or fewer Shorts.")
+        raise RuntimeError("Couldn't find usable moments. Try a different video or fewer Shorts.")
     return picked
 
 

@@ -15,6 +15,7 @@ from flask import abort, g, jsonify, request
 
 import pipeline
 from pipeline.transcript_cache import remember_transcript
+from web.clean_clips import make_clips
 from settings import JOBS_DIR
 
 from web.errors import plain_error
@@ -45,7 +46,8 @@ def summary(job):
     shorts = [s for s in job.get("shorts", []) if not s.get("pending")]
     uploads = {u["idx"]: u for u in job.get("uploads") or []}
     reels = {p["idx"]: p for p in job.get("ig_posts") or []}
-    posted = scheduled = drafts = 0
+    posted = scheduled = drafts = removed = 0
+    gone = {r["idx"] for r in job.get("yt_removed") or []} | {p["idx"] for p in job.get("ig_posts") or [] if p.get("status") == "removed"}
     for s in shorts:
         times = []
         if s["idx"] in uploads:
@@ -54,7 +56,9 @@ def summary(job):
         p = reels.get(s["idx"])
         if p and p["status"] in ("waiting", "posting", "done", "check"):
             times.append(None if p["status"] == "done" or not p.get("when") else datetime.fromisoformat(p["when"]))
-        if not times:
+        if not times and s["idx"] in gone:
+            removed += 1  # a grey card on Shorts & Reels (web/removed.py), neither a draft nor posted
+        elif not times:
             drafts += 1
         elif any(t is None or t <= now for t in times):
             posted += 1
@@ -64,15 +68,16 @@ def summary(job):
     vid = re.search(r"(?:v=|youtu\.be/|/shorts/|/live/)([\w-]{11})", (job.get("vlog") or {}).get("youtube_url") or "")
     vlog = job.get("vlog") or {}
     vdraft, vpost = job.get("vdraft") or {}, job.get("vpost") or {}
-    return {"id": job["id"], "title": vlog.get("title") or vdraft.get("title") or job.get("name") or "Your vlog",
+    return {"id": job["id"], "title": vlog.get("title") or vdraft.get("title") or job.get("name") or "Your video",
             "kind": job.get("kind", "shorts"), "vthumb": vdraft.get("thumb", ""),  # kind "vlog": web/vlog_upload.py
             "prep": job.get("kind") == "vlog" and not job.get("count"),  # a vlog upload, before any Shorts were asked for
-            "vpost": {k: vpost.get(k) for k in ("state", "pct", "when", "privacy", "video_id")} if vpost else None,
+            "vpost": {k: vpost.get(k) for k in ("state", "pct", "when", "privacy", "video_id", "pausing")} if vpost else None,
             "duration": job.get("duration"), "created": created_at(job), "status": job.get("status"),
             "stage": job.get("stage", 0), "stages": len(job.get("stages") or []), "pct": job.get("pct"),
-            "msg": job.get("msg", ""), "error": _error(job), "pausing": bool(job.get("pausing")), "cover": cover, "poster": _poster(job),
+            "msg": job.get("msg", ""), "queued": bool(job.get("queued")), "error": _error(job), "pausing": bool(job.get("pausing")), "cover": cover, "poster": _poster(job),
             "yt_thumb": f"https://i.ytimg.com/vi/{vid.group(1)}/mqdefault.jpg" if vid else "",
-            "shorts": len(shorts), "posted": posted, "scheduled": scheduled, "drafts": drafts,
+            "count": job.get("count") or 0, "pending_shorts": len(job.get("shorts", [])) - len(shorts),
+            "shorts": len(shorts), "posted": posted, "scheduled": scheduled, "drafts": drafts, "removed": removed,
             "remaking": any(s.get("retrying") for s in job.get("shorts", [])),
             "removable": _empty_stop(job),
             "youtube_url": vlog.get("youtube_url", ""), "video_deleted": bool(job.get("video_deleted_at")),
@@ -129,8 +134,6 @@ def user_jobs(user_id):
 
 @app.get("/api/vlogs")
 def vlogs():
-    from web.youtube_sync import sync_soon  # (it imports this file)
-    sync_soon(g.user["id"])  # a vlog YouTube removed shows as removed (web/youtube_sync.py)
     items = sorted((summary(j) for j in user_jobs(g.user["id"])), key=lambda v: v["created"], reverse=True)
     return jsonify(items=items)
 
@@ -145,13 +148,15 @@ def _empty_stop(job):
 def _cant_delete(job):
     """Why this vlog's video can't be deleted right now, or None."""
     if job.get("status") == "working":
-        return "Pit Crew is still making Shorts from this vlog. Wait until they're ready."
+        return "Pit Crew is still making Shorts from this video. Wait until they're ready."
     if job.get("status") == "paused":
-        return "Making Shorts from this vlog is paused. Resume it, or stop it, first."
+        return "Making Shorts from this video is paused. Resume it, or stop it, first."
     if any(s.get("retrying") for s in job.get("shorts", [])):
-        return "A Short from this vlog is being remade. Wait until it's ready."
+        return "A Short from this video is being remade. Wait until it's ready."
     if job.get("upload_status") in ("starting", "connecting", "uploading"):
         return "Wait until posting has finished."
+    if (job.get("vpost") or {}).get("state") == "paused":
+        return "Its upload to YouTube is paused. Resume it or cancel it first."
     return None
 
 
@@ -210,6 +215,7 @@ def remove_video(job_id):
         PREVIEW_PCT.pop(job_id, None)
     if src:
         remember_transcript(src, job_dir / "transcript.json")
+        make_clips(job_id)  # the drafts' clean clips first: their editing carries on without the vlog
     for f in (src, job_dir / "preview.mp4", job_dir / "preview.part.mp4"):
         if f:
             f.unlink(missing_ok=True)

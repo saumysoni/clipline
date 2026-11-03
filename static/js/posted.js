@@ -24,7 +24,7 @@ function renderDone(){
 // "Copy vlog title": for the Related video search in Studio (there's no way to set it from an app).
 function relatedLink(){
   const t=job && job.vlog && job.vlog.title;
-  return t ? '<button type="button" class="linkbtn cprel" data-t="'+esc(t)+'"><span class="ms" aria-hidden="true">content_copy</span>Copy vlog title</button>' : "";
+  return t ? '<button type="button" class="linkbtn cprel" data-t="'+esc(t)+'"><span class="ms" aria-hidden="true">content_copy</span>Copy video title</button>' : "";
 }
 document.addEventListener("click",async e=>{
   const b=e.target.closest(".cprel"); if(!b) return;

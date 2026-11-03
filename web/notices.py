@@ -36,7 +36,7 @@ def _job(job_id):
 
 
 def _title(job):
-    return (job.get("vlog") or {}).get("title") or (job.get("vdraft") or {}).get("title") or job.get("name") or "your vlog"
+    return (job.get("vlog") or {}).get("title") or (job.get("vdraft") or {}).get("title") or job.get("name") or "your video"
 
 
 def _send(user_id, subject, text, job_id=None):

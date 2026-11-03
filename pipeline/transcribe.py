@@ -137,7 +137,7 @@ def transcribe(video_path, out_json, progress=lambda pct, msg: None):
         progress(0, "Working out the language")
         language = detect_language(model, audio)
 
-    progress(0, "Listening to the vlog")
+    progress(0, "Listening to the video")
     batch = int(os.getenv("WHISPER_BATCH_SIZE", "8") or 0)
     words, engine = None, None
     if batch > 0:

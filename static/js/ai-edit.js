@@ -1,8 +1,7 @@
 // AI Edit, the editor's first tool (web/ai_edit.py, pipeline/ai_edit.py): which parts of the moment the Short keeps.
 // The Short's words are shown as a transcript: click a word (or a pause) to cut it, Shift-click to cut a stretch.
-// Quick actions do the same in one go: remove pauses, tighten the pacing, remove filler words, make it shorter (the AI
-// keeps the best 30 / 45 / 60 seconds), improve the hook (Details' Rewrite). (The AI's suggested cuts were removed: not
-// reliable enough.)
+// Quick actions do the same in one go: remove pauses, tighten the pacing, remove filler words, improve the hook
+// (Details' Rewrite). (The AI's suggested cuts and "Make it shorter" were removed: the creator didn't choose the cuts.)
 // Nothing is saved until the editor's Save: the change goes in as the first remake of shortDetails() (js/short-details.js,
 // o.extra), so it and the other changes are made one after another. While changes wait, the player skips the parts
 // that will be cut (where the current video has them). Undo / Redo step through them.
@@ -90,12 +89,15 @@ function aiEdit(o){
   }
   const pending=()=>cur;
   const dirty=()=>!!info && !same(cur, info.pieces);
-  async function load(){
-    const my=++gen, cl=c; info=null; cur=[]; toks=[]; gaps=[]; hist=[]; fut=[]; note=""; last=null;
-    o.box.innerHTML='<p class="qr-wait">Getting the words of this Short...</p>'; changed();
+  // quiet (after a remake): the words and parts shown stay until the new ones are in (no "Getting...", no blink)
+  async function load(quiet){
+    const my=++gen, cl=c, keep=quiet&&info;
+    if(!keep){ info=null; cur=[]; toks=[]; gaps=[]; hist=[]; fut=[]; note=""; last=null;
+      o.box.innerHTML='<p class="qr-wait">Getting the words of this Short...</p>'; changed(); }
     let j; try{ const r=await fetch("/api/ai-edit/"+cl.job+"/"+cl.idx); j=await r.json(); if(!r.ok) throw new Error(j.error||""); }
-    catch(e){ if(my===gen) o.box.innerHTML='<p class="qr-wait">'+esc(e.message||"Couldn't load the words. Check your internet connection, then try again.")+'</p>'; return; }
+    catch(e){ if(my===gen && !keep) o.box.innerHTML='<p class="qr-wait">'+esc(e.message||"Couldn't load the words. Check your internet connection, then try again.")+'</p>'; return; }
     if(my!==gen) return;
+    hist=[]; fut=[]; note=""; last=null;
     info=j; cur=info.pieces.map(p=>[...p]); video=cl.video; note=j.note||""; build(); paint(); changed();
     o.onLoad&&o.onLoad(info);
   }
@@ -103,8 +105,6 @@ function aiEdit(o){
   function paint(){
     const can=info.can_apply && !busy && !(c&&c.remaking);
     const nPause=k=>toks.filter(t=>t.k==="p" && t.len>=AE_PAUSE[k]).length, nFill=toks.filter(t=>t.k==="w"&&t.filler).length;
-    const len=aeLen(info.pieces);
-    const short=[30,45,60].filter(n=>n<len-1);
     o.box.innerHTML=
       (info.can_apply?'':'<div class="ed-note ae-warn">'+esc(info.why_not)+'</div>')+
       (c&&c.remaking||busy?'<div class="ed-fin-wait"><span class="spin" aria-hidden="true"></span><span>Remaking the Short with your edits...</span></div>':'')+
@@ -116,8 +116,6 @@ function aiEdit(o){
         aeBtn("fill","content_cut","Remove filler words",nFill?nFill+" um / uh":"None found",can&&nFill)+
         aeBtn("hook","bolt","Improve hook","Three new hooks to choose from",!(c&&c.remaking))+
       '</div>'+
-      '<div class="ae-short"><span><span class="ms" aria-hidden="true">trending_up</span>Make it shorter</span>'+
-        (short.length?short.map(n=>'<button type="button" class="ghost sm" data-short="'+n+'"'+(can?'':' disabled')+'>'+n+' s</button>').join(""):'<small>It\'s already under 30 seconds</small>')+'</div>'+
       '<div class="err" id="aeErr" role="alert"></div>'+
       '<div class="ae-note" id="aeNote"'+(note?'':' hidden')+'>'+esc(note)+'</div>'+
       (info.words.length?'<div class="ae-tr-head"><b>Transcript</b>'+
@@ -125,7 +123,6 @@ function aiEdit(o){
         '<p class="ae-help">Click a word or a pause to cut it; click again to keep it. Shift-click to cut a whole stretch.</p>'+
         '<div class="ae-tr" id="aeTr" aria-label="Transcript of this Short"></div>':'');
     o.box.querySelectorAll(".ae-act").forEach(b=>b.onclick=()=>act(b.dataset.a));
-    o.box.querySelectorAll("[data-short]").forEach(b=>b.onclick=()=>shorten(+b.dataset.short,b));
     const all=$("aeAll"); if(all) all.onclick=()=>set(cur.concat([[S(),E()]]));
     paintTokens(); paintSum();
   }
@@ -160,19 +157,6 @@ function aiEdit(o){
     if(a==="hook"){ o.onHook&&o.onHook(); return; }
     mark(toks.filter(t=>a==="fill" ? t.k==="w"&&t.filler : t.k==="p"&&t.len>=AE_PAUSE[a]).map(t=>t.i), true);
   }
-  async function ask(body,btn,label){
-    $("aeErr").textContent=""; btn.disabled=true; const was=btn.innerHTML; btn.textContent=label;
-    let r,j={}; try{ r=await fetch("/api/ai-edit/"+c.job+"/"+c.idx+"/suggest",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}); j=await r.json().catch(()=>({})); }
-    catch(e){ r={ok:false}; j={error:"Couldn't reach Pit Crew. Check your internet connection, then try again."}; }
-    btn.disabled=false; btn.innerHTML=was;
-    if(!r.ok){ $("aeErr").textContent=j.error||"Couldn't get ideas from the AI. Please try again."; return null; }
-    return j;
-  }
-  async function shorten(n,btn){
-    const my=gen, j=await ask({kind:"shorten",target:n},btn,"Choosing..."); if(!j||my!==gen) return;
-    set(j.pieces); note=(j.ai?"AI: ":"")+(j.why||("Kept about "+n+" seconds."));
-    $("aeNote").textContent=note; $("aeNote").hidden=false;
-  }
   // ---- the player: the video is the Short as saved (info.pieces); pending cuts are skipped in it
   o.video.addEventListener("timeupdate",()=>{
     if(!info || o.video.hidden) return;
@@ -196,7 +180,7 @@ function aiEdit(o){
     follow(clip){
       const was=c; c=clip;
       if(!info) return;
-      if(clip.video!==video && !clip.remaking){ busy=false; if(!dirty()) load(); else video=clip.video; return; }
+      if(clip.video!==video && !clip.remaking){ busy=false; if(!dirty()) load(true); else video=clip.video; return; }
       if(!!(was&&was.remaking)!==!!clip.remaking) paint();
     },
     dirty, count:()=>dirty()?1:0,
