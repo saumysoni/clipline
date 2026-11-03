@@ -6,6 +6,23 @@
 
 Guidance for Claude (and humans) working on this repo. Read this before changing code.
 
+## Top priorities (November 2026)
+
+These come first, ahead of anything else listed in this file.
+
+**Saumya**
+- Making the Analytics page easy to navigate
+- Instagram pipeline (posting and getting analytics)
+- Adding meaning to the Undo and Redo buttons
+
+**Nesh**
+- Implement the other advanced editing features, and test and improve the existing ones
+- Fetching info (transcript, title, description) directly through a YouTube URL, without using the YouTube API
+- Deploy the application in production
+
+**Both**
+- Improve the app's latency
+
 ## What Pit Crew is
 
 A local web app that turns one long vlog into finished vertical YouTube Shorts:
