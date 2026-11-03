@@ -45,6 +45,7 @@
           </div>
           <div class="ed-tl" id="edTl">
             <div class="ed-tl-bar">
+              <button type="button" class="iconbtn" id="edPlayBtn" aria-label="Play from here" title="Play from here (Space)"><span class="ms" aria-hidden="true">play_arrow</span></button>
               <span class="ed-time" id="edTime">0:00 / 0:00</span>
               <span class="ed-tl-note" id="edTlNote" hidden>Save to play the new parts</span>
               <!-- Zoom: out / in, Fit = the whole Short; on the timeline, Ctrl or ⌘ + scroll (or a pinch) zooms too,
@@ -69,6 +70,10 @@
             </div>
           </div>
         </div>
+        <!-- the panel's edge: drag to make it narrower or wider (js/editor.js edPanelApply) -->
+        <div class="ed-grip ed-grip-r" id="edPanelGrip" role="separator" aria-orientation="vertical" tabindex="0"
+             aria-label="Panel width. Drag, or use the arrow keys; Enter goes back to the usual width"
+             title="Drag to resize. Double-click: the usual width"></div>
         <aside class="ed-panel">
           <!-- Details: the Short's hook, thumbnail, hashtags, title, caption (js/short-details.js); kept while other tools show -->
           <div id="edDetails">
@@ -87,18 +92,18 @@
           <!-- Captions (js/captions.js): kept on the page like AI Edit, so changes stay while other tools show -->
           <div id="edCapWrap" hidden>
             <div class="ed-p-head"><span class="ms" aria-hidden="true">closed_caption</span><h2>Captions</h2></div>
-            <p class="ed-p-about">How the words on screen look and read. The player shows the Short as saved; the preview shows your changes. Nothing changes until you save.</p>
+            <p class="ed-p-about">How the words on screen look and read. Double-click a line on the timeline to change its words right there. The player shows the Short as saved; the preview shows your changes. Nothing changes until you save.</p>
             <div id="edCap"></div>
           </div>
           <!-- Trim (js/editor.js): the timeline's tools; the change is AI Edit's pieces, saved by the same Save -->
           <div id="edRfWrap" hidden>
             <div class="ed-p-head"><span class="ms" aria-hidden="true">crop</span><h2>Reframe</h2></div>
-            <p class="ed-p-about">What of the vlog's wide picture the vertical Short shows. It needs the vlog's video, while it's kept.</p>
+            <p class="ed-p-about">What of the video's wide picture the vertical Short shows. It needs the video's file, while it's kept.</p>
             <div id="edRf"></div>
           </div>
           <div id="edTrimWrap" hidden>
             <div class="ed-p-head"><span class="ms" aria-hidden="true">content_cut</span><h2>Trim</h2></div>
-            <p class="ed-p-about">Mark the part you want to cut out on the video row: click where it starts, then where it ends. Shape the yellow box, then cut it out.</p>
+            <p class="ed-p-about">Drag the handle, or click the video row, to move through the video. Drag across a part to mark it yellow, then cut it out. Pull the white ends to make the Short longer or shorter.</p>
             <div id="edTrim"></div>
           </div>
           <div id="edPanel" aria-live="polite"></div>

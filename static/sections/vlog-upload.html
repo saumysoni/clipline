@@ -3,18 +3,18 @@
     <div class="work wide">
       <div class="page-head">
         <div>
-          <div class="eyebrow">New vlog</div>
-          <h1 id="vuH">Upload a vlog to YouTube</h1>
+          <div class="eyebrow">New video</div>
+          <h1 id="vuH">Upload a video to YouTube</h1>
           <p class="lede" id="vuLede">Pit Crew writes title ideas, a description with chapters, tags and a thumbnail. You check them, then upload.</p>
         </div>
-        <button class="ghost" id="vuBack" type="button"><span class="ms" aria-hidden="true">arrow_back</span>Vlogs</button>
+        <button class="ghost" id="vuBack" type="button"><span class="ms" aria-hidden="true">arrow_back</span>Videos</button>
       </div>
 
       <div class="card vu-pick" id="vuPick">
         <label class="drop" id="vuDrop" tabindex="0">
           <input type="file" id="vuFile" accept="video/*">
           <span class="drop-ic"><span class="ms" id="vuDropIc" aria-hidden="true">cloud_upload</span></span>
-          <span id="vuDropText">Drop your vlog here</span>
+          <span id="vuDropText">Drop your video here</span>
           <span id="vuDropSub">or click to choose the video file</span>
         </label>
         <p class="hint vlog-limits"></p>
@@ -22,15 +22,18 @@
         <label class="lab" for="vuLink">Google Drive link</label>
         <div class="with-ic"><span class="ms" aria-hidden="true">add_to_drive</span><input type="text" id="vuLink" placeholder="https://drive.google.com/file/d/..."></div>
         <label class="lab vu-gap" for="vuNote">Anything Pit Crew should know? <small class="opt">optional</small></label>
-        <textarea id="vuNote" maxlength="1000" placeholder="Where you went, names to spell right, what the vlog is about..."></textarea>
+        <textarea id="vuNote" maxlength="1000" placeholder="Where you went, names to spell right, what the video is about..."></textarea>
         <div class="bar" id="vuSendBar" hidden><i></i></div>
+        <button type="button" class="ghost sm up-pause" hidden></button>
+        <p class="hint up-paused" hidden>Paused. Keep this tab open and press Resume, or come back and choose the same file within 24 hours: it carries on from here.</p>
         <button class="primary big vu-gap" id="vuGo" type="button"><span class="ms" aria-hidden="true">auto_awesome</span>Prepare my upload</button>
         <div class="err" id="vuErr1" role="alert"></div>
       </div>
 
       <div class="card" id="vuWork" hidden>
         <ul class="tasks" id="vuTasks"></ul>
-        <p id="vuStopRow" hidden><button type="button" class="ghost" id="vuStopBtn"><span class="ms" aria-hidden="true">stop_circle</span>Stop</button></p>
+        <p class="vu-paused-note hint" id="vuPauseNote" hidden></p>
+        <p id="vuStopRow" hidden class="vu-run-acts"><button type="button" class="ghost" id="vuPauseBtn"><span class="ms" aria-hidden="true">pause</span>Pause</button><button type="button" class="ghost" id="vuStopBtn"><span class="ms" aria-hidden="true">stop_circle</span>Stop</button></p>
         <div class="err" id="vuErr2" role="alert"></div>
       </div>
 
@@ -50,7 +53,7 @@
         <div class="vu-side">
           <div class="card">
             <div class="sec-head"><span class="badge">2</span><b>Thumbnail</b></div>
-            <div class="vu-thumb"><img id="vuThumb" alt="The vlog's thumbnail"></div>
+            <div class="vu-thumb"><img id="vuThumb" alt="The video's thumbnail"></div>
             <div class="vu-thumb-acts">
               <div class="an-seg" id="vuLook" role="group" aria-label="Thumbnail look"><button type="button" data-look="frame">Frame</button><button type="button" data-look="duotone">Duotone</button></div>
               <a class="ghost sm" id="vuThumbDl" download><span class="ms" aria-hidden="true">download</span>Download</a>
@@ -69,6 +72,7 @@
             <div class="custom" id="vuWhen" hidden><input type="datetime-local" id="vuStart" aria-label="Date and time it goes public"></div>
             <button class="primary big vu-gap" id="vuUpload" type="button"><span class="ms" aria-hidden="true">cloud_upload</span>Upload to YouTube</button>
             <div class="bar" id="vuUpBar" hidden><i></i></div>
+            <p class="vu-run-acts" id="vuPostActs" hidden><button type="button" class="ghost sm" id="vuPostPause"><span class="ms" aria-hidden="true">pause</span>Pause</button><button type="button" class="ghost sm" id="vuPostCancel" hidden><span class="ms" aria-hidden="true">close</span>Cancel upload</button></p>
             <p class="hint" id="vuUpMsg"></p>
             <div class="err" id="vuErr3" role="alert"></div>
             <p class="fine" id="vuKeep"></p>
@@ -79,7 +83,7 @@
       <div class="card vu-done" id="vuDone" hidden>
         <span class="ms vu-done-ic" aria-hidden="true">check_circle</span>
         <div class="vu-done-t">
-          <h2 id="vuDoneH">Your vlog is on YouTube</h2>
+          <h2 id="vuDoneH">Your video is on YouTube</h2>
           <p class="lede" id="vuDoneSub"></p>
           <div class="vu-links" id="vuLinks"></div>
           <p class="hint" id="vuDoneNote"></p>
@@ -87,7 +91,7 @@
       </div>
       <div class="card vu-next" id="vuNext" hidden>
         <span class="ms" aria-hidden="true">movie</span>
-        <div><b>Make Shorts &amp; Reels from this vlog?</b><span>It takes only a couple of minutes to schedule or post the Shorts &amp; Reels for this vlog. Would you like to do that now?</span></div>
+        <div><b>Make Shorts &amp; Reels from this video?</b><span>It takes only a couple of minutes to schedule or post the Shorts &amp; Reels for this video. Would you like to do that now?</span></div>
         <div class="vu-next-acts"><button type="button" class="ghost" id="vuLater">Later</button><button type="button" class="primary" id="vuMakeNow"><span class="ms" aria-hidden="true">auto_awesome</span>Make them now</button></div>
       </div>
     </div>

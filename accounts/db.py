@@ -76,6 +76,25 @@ CREATE TABLE IF NOT EXISTS youtube_uploads (
     fair_n INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (day, user_id)
 );
+CREATE TABLE IF NOT EXISTS channel_videos (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    video_id TEXT NOT NULL,
+    channel TEXT NOT NULL,
+    title TEXT NOT NULL,
+    published TEXT NOT NULL,
+    seconds INTEGER NOT NULL,
+    privacy TEXT NOT NULL,
+    is_short INTEGER NOT NULL,
+    seen_at REAL NOT NULL,
+    gone_at REAL,
+    PRIMARY KEY (user_id, video_id)
+);
+CREATE TABLE IF NOT EXISTS channel_checks (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    channel TEXT NOT NULL,
+    checked_at REAL NOT NULL,
+    PRIMARY KEY (user_id, channel)
+);
 CREATE TABLE IF NOT EXISTS gone_channels (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     channel TEXT NOT NULL,
@@ -442,6 +461,67 @@ def gone_since(user_id, channel, now):
 def clear_gone(user_id, channel):
     with connect() as con:
         con.execute("DELETE FROM gone_channels WHERE user_id = ? AND channel = ?", (user_id, channel))
+
+
+# Videos on a creator's channels that Pit Crew didn't post (web/channel_videos.py), read once a day.
+
+def channel_video_ids(user_id, channel):
+    """The ones still on YouTube as far as Pit Crew knows."""
+    with connect() as con:
+        return [r[0] for r in con.execute("SELECT video_id FROM channel_videos WHERE user_id = ? AND channel = ? AND gone_at IS NULL",
+                                          (user_id, channel))]
+
+
+def save_channel_videos(user_id, channel, rows, now):
+    with connect() as con:
+        con.executemany(
+            "INSERT INTO channel_videos (user_id, video_id, channel, title, published, seconds, privacy, is_short, seen_at, gone_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL) ON CONFLICT (user_id, video_id) DO UPDATE SET title = excluded.title, "
+            "published = excluded.published, seconds = excluded.seconds, privacy = excluded.privacy, is_short = excluded.is_short, "
+            "seen_at = excluded.seen_at, gone_at = NULL, channel = excluded.channel",
+            [(user_id, r["id"], channel, r["title"], r["published"], r["seconds"], r["privacy"], int(r["short"]), now) for r in rows])
+
+
+def channel_video_rows(user_id):
+    with connect() as con:
+        return [dict(r) for r in con.execute("SELECT * FROM channel_videos WHERE user_id = ? ORDER BY published DESC", (user_id,))]
+
+
+def channel_video_gone(user_id, video_id, now):
+    with connect() as con:
+        con.execute("UPDATE channel_videos SET gone_at = ? WHERE user_id = ? AND video_id = ? AND gone_at IS NULL", (now, user_id, video_id))
+
+
+def channel_video_remove(user_id, video_id):
+    with connect() as con:
+        con.execute("DELETE FROM channel_videos WHERE user_id = ? AND video_id = ?", (user_id, video_id))
+
+
+def channel_video_clear_gone(user_id, video_id):
+    with connect() as con:
+        con.execute("DELETE FROM channel_videos WHERE user_id = ? AND video_id = ? AND gone_at IS NOT NULL", (user_id, video_id))
+
+
+def forget_old_channel_videos(user_id, gone_before):
+    with connect() as con:
+        con.execute("DELETE FROM channel_videos WHERE user_id = ? AND gone_at IS NOT NULL AND gone_at < ?", (user_id, gone_before))
+
+
+def forget_channel_videos(user_id, channel):
+    with connect() as con:
+        con.execute("DELETE FROM channel_videos WHERE user_id = ? AND channel = ?", (user_id, channel))
+        con.execute("DELETE FROM channel_checks WHERE user_id = ? AND channel = ?", (user_id, channel))
+
+
+def channel_checked(user_id, channel):
+    with connect() as con:
+        row = con.execute("SELECT checked_at FROM channel_checks WHERE user_id = ? AND channel = ?", (user_id, channel)).fetchone()
+        return row[0] if row else None
+
+
+def set_channel_checked(user_id, channel, now):
+    with connect() as con:
+        con.execute("INSERT OR REPLACE INTO channel_checks (user_id, channel, checked_at) VALUES (?, ?, ?)", (user_id, channel, now))
 
 
 # YouTube uploads per Pacific day and creator (web/youtube_quota.py). fair_n: those made after the open part of the day.

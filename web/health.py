@@ -30,5 +30,5 @@ def healthz():
     except OSError:
         problems.append("jobs folder")
     if not any(t.name.startswith("job-queue") for t in threading.enumerate()):
-        problems.append("vlog queue")
+        problems.append("video queue")
     return (jsonify(ok=False, problems=problems), 503) if problems else jsonify(ok=True)

@@ -6,4 +6,8 @@ $("vlNew").onclick=()=>openVlogUpload();
 $("vlogsNav").onclick=()=>openVlogs();
 $("clipsNav").onclick=()=>openClips();
 $("draftsNav").onclick=()=>openDrafts();
+// Back buttons on the pages under Drafts. Leaving the making page doesn't stop anything: it carries on, and shows on Drafts.
+$("setupBack").onclick=()=>openDrafts("shorts");
+$("makingBack").onclick=()=>openDrafts("shorts");
+$("reviewBack").onclick=()=>openDrafts("shorts");
 $("settingsNav").onclick=()=>openSettings();

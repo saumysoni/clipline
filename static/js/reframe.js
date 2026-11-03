@@ -71,7 +71,7 @@ function reframeEdit(o){
       '><output>'+(Math.round(z*10)/10)+'×</output></label>';
     let h='';
     if(!info.can_apply) h+='<div class="ed-note ae-warn">'+esc(info.why_not)+'</div>';
-    if(info.vertical){ o.box.innerHTML='<p class="ae-help">This vlog is already vertical, so it fills the Short as it is. There\'s nothing to reframe.</p>'; stage(); return; }
+    if(info.vertical){ o.box.innerHTML='<p class="ae-help">This video is already vertical, so it fills the Short as it is. There\'s nothing to reframe.</p>'; stage(); return; }
     h+=seg("Layout",[["fill","Fill","crop_portrait","Crop to what matters"],["fit","Fit","fit_screen","All of the picture"],["split","Split","view_agenda","Two views stacked"]],e.layout);
     if(e.layout==="fill"){
       const busyAs=k=>smart===k;
@@ -92,7 +92,7 @@ function reframeEdit(o){
       const lvl=e.punch?(e.punch.amount>=RF_PUNCH.punchy-0.001?"punchy":"subtle"):"off";
       h+='<div class="rf-lab">Zoom on emphasis <small>in at a sentence or a word that Pops, out at the next</small></div>'+
         seg("Punch",[["off","Off"],["subtle","Subtle"],["punchy","Punchy"]],lvl);
-      h+=zoom(r2(here.z),"rfZoom")+(info.zoom_max<2.4?'<p class="ae-help">This vlog is low resolution, so the zoom stops at '+info.zoom_max+'× (any further would look soft).</p>':'');
+      h+=zoom(r2(here.z),"rfZoom")+(info.zoom_max<2.4?'<p class="ae-help">This video is low resolution, so the zoom stops at '+info.zoom_max+'× (any further would look soft).</p>':'');
       h+='<label class="rf-check"><input type="checkbox" id="rfOver"'+(overTime?' checked':'')+(ed?'':' disabled')+'><span><b>Moves over time</b>'+
         '<small>Drag the frame at a moment (move the playhead on the timeline): it moves there then.</small></span></label>';
       if(overTime){
@@ -222,7 +222,7 @@ function reframeEdit(o){
     }catch(e){ note=e.message||"Couldn't draw that frame. Try again."; }
     if(b) b.disabled=false; paint();
   }
-  // ---- the stage: the vlog's picture with the frame(s) on it, and the Short as it'll look
+  // ---- the stage: the video's picture with the frame(s) on it, and the Short as it'll look
   function video(){
     const src=o.src(); if(!src) return null;
     if(src!==vidSrc){ vidSrc=src; vid=document.createElement("video"); vid.muted=true; vid.preload="auto"; vid.playsInline=true; vid.src=src;

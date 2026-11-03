@@ -17,11 +17,11 @@ const ED_TOOLS=[
   {id:"ai", icon:"auto_awesome", name:"AI Edit", sub:"Pauses, fillers, transcript", built:true},  // js/ai-edit.js
   {id:"captions", icon:"closed_caption", name:"Captions", sub:"Words, style, timing", built:true},  // js/captions.js
   {id:"reframe", icon:"crop", name:"Reframe", sub:"Keep the subject in frame", built:true},
-  {id:"trim", icon:"content_cut", name:"Trim", sub:"Ends, split, reach further", built:true},  // the timeline
+  {id:"trim", icon:"content_cut", name:"Trim", sub:"Cut a part, change the ends", built:true},  // the timeline
   {sep:true},
   {id:"text", icon:"title", name:"Text & Overlays", sub:"Titles, keywords, stickers", about:"Text and stickers at a moment you choose.", acts:[
     ["title","Text","Titles and keywords on screen"],
-    ["touch_app","Call to action","Follow, watch the full vlog..."],
+    ["touch_app","Call to action","Follow, watch the full video..."],
     ["emoji_events","Stickers","Shapes and stickers"]]},
   {id:"audio", icon:"graphic_eq", name:"Audio", sub:"Voice, volume, music", about:"Make the voice clear and the sound even.", acts:[
     ["graphic_eq","Voice clean-up","Remove background noise"],
@@ -34,7 +34,7 @@ const ED_TOOLS=[
   {id:"effects", icon:"auto_fix_high", name:"Effects", sub:"Zooms, colour, B-roll", about:"Small touches that keep people watching.", acts:[
     ["zoom_in","Zoom punch-ins","On cuts and key words"],
     ["contrast","Colour look","One grade for the whole Short"],
-    ["video_library","B-roll from this vlog","Cut away to another moment (while the vlog's video is kept)"]]},
+    ["video_library","B-roll from this video","Cut away to another moment (while the video's file is kept)"]]},
 ];
 let edKey=null, edC=null, edTool="details", edOpened=null, edTimer=null, edBusy=false, edSaving=false;
 // AI Edit's changes are saved by Details' Save (the first remake), so the one Save button covers both.
@@ -100,7 +100,7 @@ async function edSaveNow(){
 function edPaint(){
   const c=clData.find(x=>clKey(x)===edKey); edC=c||null;
   if(!c){ $("edMeta").textContent=""; $("edGrid").hidden=true; $("edSmall").hidden=true; $("edFinish").disabled=$("edExport").disabled=true;
-    $("edGone").hidden=false; $("edGone").textContent="This Short isn't here any more: it was deleted, or its vlog was. Go back to Drafts to see the others."; return; }
+    $("edGone").hidden=false; $("edGone").textContent="This Short isn't here any more: it was deleted, or its video was. Go back to Drafts to see the others."; return; }
   const draft=isDraftClip(c);
   $("edGrid").hidden=false; $("edSmall").hidden=false;
   $("edGone").hidden=draft && !c.remaking;
@@ -125,7 +125,7 @@ function edPaint(){
   const more=$("edMore").firstChild;
   more.onclick=()=>cardMenu(more,[
     {label:"Quick review", icon:"visibility", run:()=>{ if(!edLeave()) return; openDrafts("shorts").then(()=>{ const x=clData.find(y=>clKey(y)===edKey); if(x&&isDraftClip(x)) qrOpen(x); }); }},
-    {label:"Review & post", icon:"fact_check", run:()=>{ if(edLeave()) openJob(c.job,c.idx); }, disabled:c.remaking?"It's being remade":"", title:"This vlog's review page: Post this, Try again, Add a Short"},
+    {label:"Review & post", icon:"fact_check", run:()=>{ if(edLeave()) openJob(c.job,c.idx); }, disabled:c.remaking?"It's being remade":"", title:"This video's review page: Post this, Try again, Add a Short"},
   ].concat(c.status==="draft"&&!c.remaking ? [{label:"Delete draft", icon:"delete", danger:true, run:()=>clDelete([c])}] : []));
   edRail(); edPanel();
 }
@@ -136,6 +136,40 @@ function edRail(){
   $("edRail").querySelectorAll("button[data-t]").forEach(b=>b.onclick=()=>{ edTool=b.dataset.t; edRail(); edPanel(); });
   $("edRailDock").onclick=()=>{ edRailTop=false; edRailApply(); };
 }
+// ---- Layout: the panel's edge (#edPanelGrip). Drag it to make the right-hand panel narrower or wider; the player and timeline
+// take what's left, never under ED_PANEL.stage. Double-click or Enter: back to the usual width. Kept for next time (this browser only).
+const ED_PANEL={min:260, max:640, base:320, stage:380};
+let edPanelW=ED_PANEL.base;
+try{ const v=+localStorage.getItem("pc-ed-panel"); if(v) edPanelW=v; }catch(e){}
+function edPanelMax(){
+  const g=$("edGrid"), rail=getComputedStyle(g).gridTemplateColumns.split(" ").length>2?edRailW+16:0;  // (two columns: the tools are above)
+  return Math.min(ED_PANEL.max, Math.max(ED_PANEL.min, (g.clientWidth||1400)-rail-16-ED_PANEL.stage));
+}
+function edPanelApply(save){
+  const w=Math.round(Math.min(edPanelMax(),Math.max(ED_PANEL.min,edPanelW))), grip=$("edPanelGrip");
+  $("edGrid").style.setProperty("--panel",w+"px");
+  grip.setAttribute("aria-valuenow",w); grip.setAttribute("aria-valuemin",ED_PANEL.min); grip.setAttribute("aria-valuemax",edPanelMax());
+  if(save) try{ localStorage.setItem("pc-ed-panel",edPanelW=w); }catch(e){}
+}
+(()=>{
+  const grip=$("edPanelGrip"); let drag=null;
+  grip.addEventListener("pointerdown",e=>{ if(e.button) return; e.preventDefault(); grip.setPointerCapture(e.pointerId); drag=e.pointerId; grip.classList.add("drag"); });
+  grip.addEventListener("pointermove",e=>{
+    if(drag!==e.pointerId) return;
+    edPanelW=$("edGrid").getBoundingClientRect().right-e.clientX-8; edPanelApply(true);
+  });
+  const end=e=>{ if(drag!==e.pointerId) return; drag=null; grip.classList.remove("drag"); };
+  grip.addEventListener("pointerup",end); grip.addEventListener("pointercancel",end);
+  grip.addEventListener("dblclick",()=>{ edPanelW=ED_PANEL.base; edPanelApply(true); });
+  grip.addEventListener("keydown",e=>{
+    if(e.key==="Enter"||e.key===" ") edPanelW=ED_PANEL.base;
+    else if(e.key==="ArrowLeft") edPanelW+=20;
+    else if(e.key==="ArrowRight") edPanelW-=20;
+    else return;
+    e.preventDefault(); edPanelApply(true);
+  });
+  new ResizeObserver(()=>edPanelApply(false)).observe($("edGrid"));
+})();
 // ---- Layout: the tools' edge (#edRailGrip). Drag it to make the tools narrower or wider (160-340 px); drag it far
 // enough left and they go in a row above the player (as on a laptop), giving the player and timeline the room; drag
 // back from the left edge, or "Tools on the side", to bring them back. Kept for next time (this browser only).
@@ -148,6 +182,7 @@ function edRailApply(){
   $("edRail").classList.toggle("slim",!edRailTop && edRailW<190);
   grip.setAttribute("aria-valuenow",edRailTop?0:edRailW); grip.setAttribute("aria-valuemin",0); grip.setAttribute("aria-valuemax",ED_RAIL.max);
   try{ localStorage.setItem("pc-ed-rail",JSON.stringify({w:edRailW, top:edRailTop})); }catch(e){}
+  edPanelApply(false);
 }  // (the timeline and its Captions row follow the new width by themselves: ResizeObservers)
 (()=>{
   const grip=$("edRailGrip"); let drag=null;
@@ -174,7 +209,7 @@ function edRailApply(){
 // marked Soon (not buttons yet).
 function edPanel(){
   const t=ED_TOOLS.find(x=>x.id===edTool), det=t.id==="details";
-  $("edDetails").hidden=!det; $("edAIWrap").hidden=t.id!=="ai"; $("edTrimWrap").hidden=t.id!=="trim"; $("edCapWrap").hidden=t.id!=="captions"; $("edRfWrap").hidden=t.id!=="reframe"; edRfShow(t.id==="reframe"); edTrimShow(true);
+  $("edDetails").hidden=!det; $("edAIWrap").hidden=t.id!=="ai"; $("edTrimWrap").hidden=t.id!=="trim"; $("edCapWrap").hidden=t.id!=="captions"; $("edRfWrap").hidden=t.id!=="reframe"; edRfShow(t.id==="reframe"); edTrimShow(true); edPlayPaint();
   if(t.id!=="trim") edTrimLeave(); edTS.paint(); edTrimPaint();
   edCap.shown(t.id==="captions"); $("edPanel").hidden=det||!!t.built;
   if(det||t.built) return;
@@ -187,11 +222,35 @@ function edPanel(){
 // The time under the player: the Short as saved.
 function edTimeNow(){
   const v=$("edVideo"), len=v.duration||(edC&&edC.length)||0, at=Math.min(v.currentTime||0,len);
-  $("edTime").textContent=fmt(at)+" / "+fmt(len);
+  const p=edAE.pieces(), head=edTV.playing()||edHeadT!=null ? edHeadNow() : null, on=head!=null&&p.length?aeToFile(p,head):null;
+  $("edTime").textContent = head!=null&&p.length ? (on!=null?fmt(on):"–:––")+" / "+fmt(aeLen(p)) : fmt(at)+" / "+fmt(len);  // (the Short as it will be)
   edTlFollow(); edRf.at(edSrcNow());
 }
 ["timeupdate","seeked","loadedmetadata"].forEach(e=>$("edVideo").addEventListener(e,edTimeNow));
-$("edVideo").addEventListener("play",()=>{ if(edTool!=="trim") edTV.hide(); });  // the Short plays: the big moment goes
+// The player's own Play: its video is the Short as saved. When that isn't what the playhead is on (a part stretched in and not
+// saved, the vlog around the Short, or changes under Trim), the preview plays from the playhead instead, as the play button does.
+// (AI Edit's waiting cuts are played by the saved video, skipping them.)
+function edPlayerWrong(){
+  const s=edAE.saved(), p=edAE.pieces(); if(!edTlSrc || !s || !p.length || edTool==="reframe") return false;
+  if(edHeadT!=null && aeToFile(s,edHeadT)==null) return true;
+  if(JSON.stringify(p)===JSON.stringify(s)) return false;
+  return edTool==="trim" || aeLen(aeMinus(p,s,0,1e9))>0.05;
+}
+$("edVideo").addEventListener("play",()=>{
+  if(edPlayerWrong()){ $("edVideo").pause(); edHeadPlay(); return; }
+  if(edTV.playing()) edTV.stop(); edHeadT=null; edTV.hide(); edPlayPaint();  // the Short plays: the big moment goes
+});
+$("edVideo").addEventListener("pause",()=>edPlayPaint());
+$("edPlayBtn").onclick=()=>edHeadPlay();
+document.addEventListener("keydown",e=>{  // Space: play or pause from the playhead
+  if(e.code!=="Space" || $("s12").hidden || edTool==="reframe") return;
+  if(e.target.closest("input,textarea,select,button,a,video,[contenteditable],[tabindex],dialog")) return;
+  e.preventDefault(); edHeadPlay();
+});
+// The player's own controls moved it: that's the playhead now.
+let edVideoTouch=0;
+["pointerdown","keydown"].forEach(k=>$("edVideo").addEventListener(k,()=>{ edVideoTouch=performance.now(); }));
+$("edVideo").addEventListener("seeked",()=>{ if(performance.now()-edVideoTouch<3000){ edHeadT=null; edHeadShow(); edTS.follow(); } });
 $("edVideo").addEventListener("timeupdate",()=>{ if($("edVideo").paused) edCapFollow(); });
 
 // ---- The timeline (editor-app/main.jsx): the pieces the Short will keep (edAE.pieces()), laid end to end, on the
@@ -212,7 +271,7 @@ function edTwick(){  // Twick's timeline: one script and stylesheet (about 1 MB)
 function edTlDrop(){
   if(edTl){ try{ edTl.destroy(); }catch(e){} }
   edCapTrackSoon();
-  edTl=null; edTlLast=""; edTlSel=-1; edTlFor=""; edTlSrc=""; edTlOff=0; $("edTlNote").hidden=true; edTS.reset();
+  edHeadT=null; edTl=null; edTlLast=""; edTlSel=-1; edTlFor=""; edTlSrc=""; edTlOff=0; $("edTlNote").hidden=true; edTS.reset();
   $("edTwick").innerHTML='<p class="ed-tl-msg">'+(edC&&!isDraftClip(edC)?"Only drafts can be cut.":"Loading the timeline...")+'</p>';
   edTrimPaint();
 }
@@ -266,31 +325,59 @@ function edTlScrub(t){
   edScrubRaf=requestAnimationFrame(()=>{ edScrubRaf=0; const saved=edAE.saved(), at=saved?aeToFile(saved,edScrubT):null, v=$("edVideo");
     if(at!=null){ v.pause(); v.currentTime=at; } });
 }
-// The Video row (js/trim-strip.js): the vlog around the Short on one scale, whatever is trimmed, the parts it keeps bright
-// and the rest dimmed; times on the Short's clock (0:00 = where the saved Short starts). Under Trim, two clicks choose a
-// stretch to cut out or keep (edTrimPaint), and the player's place shows the moment under the pointer big (edTV).
+// The Video row (js/trim-strip.js) on one scale, whatever is trimmed: only the Short, or under Trim the vlog around it too;
+// the parts it keeps bright and the rest dimmed; times on the Short's clock (0:00 = where the saved Short starts). A click moves
+// the player. Under Trim, a drag chooses a stretch to cut out (edTrimPaint) and the player's place shows that moment big (edTV).
 // Twick's timeline stays mounted, hidden, under it.
+// Where the playhead is (vlog seconds): the preview playing, else a place it was moved to (which may be a part the saved video
+// hasn't got: stretched in and not saved yet, or the vlog around the Short), else the saved player. Everything follows this: the
+// Video row, the Captions row and the time.
+let edHeadT=null;
+const edHeadNow=()=>edTV.playing()?edTV.time():edHeadT!=null?edHeadT:edSrcNow();
+function edHeadShow(){  // the big picture only for a place the saved video hasn't got
+  const s=edAE.saved(), t=edHeadT;
+  if(t!=null && edTlSrc && (!s || aeToFile(s,t)==null)) edTV.show(t, tsClock(t-edOrigin(),true)+(aeIn(edAE.pieces(),t)?" · save to see it in the player":" · not in the Short"));
+  else if(!edTV.playing()) edTV.hide();
+}
+function edHeadTo(t){
+  if(edTV.playing()) edTV.stop();
+  $("edVideo").pause(); edHeadT=t; edSeekSrc(t); edHeadShow();
+  edTS.follow(); edCapHand=false; edCapFollow(); edTimeNow();
+}
+// The play button under the player (and Space): from the playhead. The saved video when nothing has changed and it has this
+// moment; otherwise the preview, which plays the Short as it will be, stretched parts and cuts included.
+function edHeadPlay(){
+  const v=$("edVideo");
+  if(edTV.playing()){ edTV.stop(); return; }
+  if(!v.paused){ v.pause(); return; }
+  const src=edHeadNow(), p=edAE.pieces(), s=edAE.saved(), same=JSON.stringify(p)===JSON.stringify(s);
+  if(!edTlSrc || (same && s && aeToFile(s,src)!=null) || !p.length){ edHeadT=null; v.play().catch(()=>{}); return; }
+  // (before the Short's first part, or at its very end: from its start)
+  edTV.play(p, src<=p[0][0]||src>=p[p.length-1][1]-0.05 ? p[0][0] : src, null, "The Short as it'll be"); edTrimPaint(); edPlayPaint();
+}
+function edPlayPaint(){
+  const on=edTV.playing()||!$("edVideo").paused, b=$("edPlayBtn");
+  b.querySelector(".ms").textContent=on?"pause":"play_arrow"; b.setAttribute("aria-label",on?"Pause":"Play from here"); b.title=on?"Pause (Space)":"Play from here (Space)";
+  b.hidden=edTool==="reframe";
+}
 const edOrigin=()=>{ const s=edAE.saved(), i=edAE.info(); return s&&s.length?s[0][0]:i?i.start:0; };
 const edTS=trimStrip({box:$("edTrimStrip"), pieces:()=>edAE.pieces(), info:()=>edAE.info(), origin:edOrigin,
   trim:()=>edTool==="trim", canEdit:()=>edAE.canEdit(), snaps:side=>edTrimSnaps(side), src:()=>edTlSrc, off:()=>edTlOff,
-  now:()=>edTV.playing()?edTV.time():edSrcNow(), saved:()=>edAE.saved(),
+  now:()=>edHeadNow(), saved:()=>edAE.saved(),
   commit:p=>{ if(!edAE.canEdit() || !edAE.setPieces(p)) edTS.paint(); },
-  // a click (other tools): the player goes there; a moment its video hasn't got (the vlog around it, a part cut or added
-  // and not saved yet) shows big instead
-  seek:t=>{ edSeekSrc(t); const s=edAE.saved(), f=s?aeToFile(s,t):null;
-    if(f==null && edTlSrc) edTV.show(t, tsClock(t-edOrigin(),true)+(aeIn(edAE.pieces(),t)?" · save to play it in the Short":" · not in the Short"));
-    else if(!edTV.playing()) edTV.hide(); },
+  // a click, or dragging the handle: the playhead goes there (a moment the saved video hasn't got shows big)
+  seek:t=>edHeadTo(t), press:()=>edTV.unlock(),
   hover:t=>edTrimHover(t), onSel:()=>{ edTrimHover(null); edTrimPaint(); }});
 const edTV=trimView({host:$("edTrimView"), src:()=>edTlSrc, off:()=>edTlOff, crop:t=>edRf.cropAt(t), size:()=>edRf.size(),
-  onTime:t=>{ edTS.follow(); if(t==null) edTrimPaint(); }});
-// The moment under the pointer (vlog seconds), big; off the row: the selection's start or end, else the player again.
+  onTime:t=>{ edTS.follow(); edCapFollow(); edTimeNow();
+    if(t==null){ edHeadT=edTV.time(); const sv=edAE.saved(), f=sv?aeToFile(sv,edHeadT):null; if(f!=null) $("edVideo").currentTime=f; edHeadShow(); edPlayPaint(); edTrimPaint(); } }});
+// The moment being dragged to (vlog seconds), big; when the drag ends (null) the player is back, with its controls.
 function edTrimHover(t){
   if(edTool!=="trim" || edTV.playing()) return;
-  const sel=edTS.sel(), f=edTS.first(), at=t!=null?t:f!=null?f:sel?sel.a:null;
-  if(at==null){ edTV.hide(); return; }
-  edTV.show(at, tsClock(at-edOrigin(),true)+(aeIn(edAE.pieces(),at)?"":" · left out"));
+  if(t==null){ edHeadShow(); return; }
+  edTV.show(t, tsClock(t-edOrigin(),true)+(aeIn(edAE.pieces(),t)?"":" · left out"));
 }
-function edTrimLeave(){ edTV.stop(); edTV.hide(); if(edTS.sel()||edTS.first()!=null) edTS.setSel(null); }
+function edTrimLeave(){ edTV.stop(); edHeadT=null; edTV.hide(); if(edTS.sel()) edTS.setSel(null); }
 // Reframe takes the player's place while it's chosen (only when the tool changes); the player pauses.
 let edRfOn=false;
 function edRfShow(on){
@@ -340,7 +427,7 @@ $("edZoomIn").onclick=()=>edTl&&edTl.zoomIn();
 $("edZoomOut").onclick=()=>edTl&&edTl.zoomOut();
 $("edZoomFit").onclick=()=>edTl&&edTl.fit();
 
-// ---- Trim, in the panel: the Short's length, then the part to cut out (the yellow box on the Video row: two clicks, then
+// ---- Trim, in the panel: the Short's length, then the part to cut out (the yellow box on the Video row: a drag, then
 // shaped there), with its start and end to fine-tune and Cut it out, after which the Short plays without it (trimView:
 // the vlog's video, with sound).
 function edTrimResult(){  // the pieces once the yellow box is cut out (or null)
@@ -352,15 +439,14 @@ function edTrimPaint(){
   const box=$("edTrim"); if(!box) return;
   const info=edAE.info(), p=edAE.pieces();
   if(!info || !p.length){ setHTML(box,'<p class="qr-wait">'+(edC&&!isDraftClip(edC)?"Only drafts can be cut.":"Getting the parts of this Short...")+'</p>'); return; }
-  const can=edAE.canEdit(), len=aeLen(p), sel=edTS.sel(), first=edTS.first(), o0=edOrigin(), T=t=>tsClock(t-o0,true);
+  const can=edAE.canEdit(), len=aeLen(p), sel=edTS.sel(), o0=edOrigin(), T=t=>tsClock(t-o0,true);
   const ed=can?'':' disabled', playing=edTV.playing();
   let h=(info.can_apply?'':'<div class="ed-note ae-warn">'+esc(info.why_not)+'</div>')+
     '<div class="tr-sum" role="status"><b>'+fmt(len)+'</b> long'+(p.length>1?', '+p.length+' parts':'')+
       '<small>'+(p.length>1?'From '+T(p[0][0])+' to '+T(p[p.length-1][1])+' of the clip, with gaps':'From '+T(p[0][0])+' to '+T(p[0][1])+' of the clip')+'</small>'+
       (len<info.min?'<span class="ae-bad">At least '+info.min+' s</span>':'')+(len>info.max?'<span class="ae-bad">At most '+fmt(info.max)+'</span>':'')+'</div>';
-  if(first!=null) h+='<div class="tr-step" role="status"><b>Start at '+T(first)+'</b><small>Now click where the part to cut out ends.</small></div>';
-  else if(!sel) h+='<div class="tr-step"><b>Click on the video row where the part you want to cut out starts, then where it ends.</b>'+
-    '<small>It turns yellow. Drag its ends to stretch or narrow it, or drag it to move it. Then cut it out.</small></div>';
+  if(!sel) h+='<div class="tr-step"><b>Drag the handle to move through the video. Drag across a part to cut it out.</b>'+
+    '<small>The part you drag across turns yellow. Drag its ends to stretch or narrow it, or drag it to move it. Then cut it out.</small></div>';
   if(sel){
     const cuts=len-aeLen(edTrimResult())>0.25;  // some of it is in the Short (a dimmed part is left out already)
     const nudge=(side,d)=>'<button type="button" class="ghost sm" data-se="'+side+'" data-d="'+d+'"'+ed+'>'+(d<0?"−":"+")+Math.abs(d)+(Math.abs(d)>=1?" s":"")+'</button>';
@@ -376,17 +462,16 @@ function edTrimPaint(){
   }
   h+='<div class="tr-acts">'+
       '<button type="button" class="ghost" id="trPlay"'+(edTlSrc?'':' disabled')+'><span class="ms" aria-hidden="true">'+(playing?"stop_circle":"play_circle")+'</span>'+(playing?"Stop":"Play the Short as it'll be")+'</button>'+
-      '<button type="button" class="ghost" id="trMore"'+(edTS.canWiden()?'':' disabled')+'><span class="ms" aria-hidden="true">zoom_out</span>Show more of the vlog</button>'+
     '</div>'+
     '<div class="err" id="edTrimErr" role="alert"></div>'+
-    '<p class="ae-help">Point at the video row to see that moment big. The Short keeps what\'s bright; dimmed is left out. '+
-      'Delete cuts the yellow part out, Esc clears it, Alt / Option stops it snapping to the gaps between words. Undo puts a cut back; nothing changes until you save.</p>';
+    '<p class="ae-help">The Short keeps what\'s bright; dimmed is left out; light green is what you\'ve added and not saved yet. '+
+      'Delete cuts the yellow part out, Esc clears it, Alt / Option stops it snapping to the gaps between words. Undo puts a cut back; nothing changes until you save. Press Play or Space to play from the handle, and double-click a caption line under the video to change its words.</p>';
   if(!setHTML(box,h)) return;
   const err=m=>{ $("edTrimErr").textContent=m; };
   box.querySelectorAll("[data-se]").forEach(b=>b.onclick=()=>{
     const s=edTS.sel(), d=+b.dataset.d; if(!s) return;
     if(b.dataset.se==="a") s.a=Math.min(s.b-0.3,s.a+d); else s.b=Math.max(s.a+0.3,s.b+d);
-    edTS.setSel(s); edTrimHover(b.dataset.se==="a"?edTS.sel().a:edTS.sel().b);
+    edTS.setSel(s);
   });
   // Cut it out: out of the Short (Undo puts it back), then the Short plays without it, from a few seconds before
   if($("trCut")) $("trCut").onclick=()=>{
@@ -397,7 +482,6 @@ function edTrimPaint(){
   };
   if($("trClear")) $("trClear").onclick=()=>edTS.setSel(null);
   $("trPlay").onclick=()=>{ if(edTV.playing()){ edTV.stop(); return; } edTV.play(p, p[0][0], null, "The Short as it'll be"); edTrimPaint(); };
-  $("trMore").onclick=()=>{ edTS.widen(); edTrimPaint(); };
 }
 document.addEventListener("keydown",e=>{  // Delete / Backspace: cut out the yellow part (else the part chosen on Twick's timeline)
   if($("s12").hidden || !edAE.canEdit() || !["Delete","Backspace"].includes(e.key)) return;
@@ -412,7 +496,9 @@ document.addEventListener("keydown",e=>{  // Delete / Backspace: cut out the yel
 // A click picks the line in the Captions tool (Shift, Ctrl or ⌘: more lines) to give it a look of its own. Before the
 // words are in: the captions' look, opening the tool.
 let edCapKey="", edCapLs=[], edCapX=0, edCapHand=false, edCapUser=0, edCapRaf=0;
+let edCapClick=null, edCapEditing=false;  // a line's words are being typed on its chip: nothing redraws or moves the strip until that's done
 function edCapTrack(){
+  if(edCapEditing) return;
   const el=$("edCapTrack"), ls=edCap.track();
   if(!ls.length){
     const s=edCap.summary(); edCapKey=""; edCapLs=[];
@@ -424,19 +510,30 @@ function edCapTrack(){
   if(key!==edCapKey || !el.querySelector(".ed-cap-strip")){  // drawn again only when the lines change
     edCapKey=key; edCapLs=ls;
     el.innerHTML='<div class="ed-cap-strip">'+ls.map(l=>'<button type="button" class="ed-cap-c'+(l.on?' on':'')+(l.own?' own':'')+'" data-k="'+l.key+'"'+
-      ' title="'+esc(l.text)+(l.own?' (a look of its own)':'')+'" aria-pressed="'+l.on+'"><small>'+fmt(l.s)+'</small><span>'+esc(l.text)+'</span></button>').join("")+'</div>';
-    el.querySelectorAll(".ed-cap-c").forEach(b=>b.onclick=e=>{ edCapOpen(); edCap.pick(+b.dataset.k, e.shiftKey||e.metaKey||e.ctrlKey); });
+      ' title="'+esc(l.text)+(l.own?' (a look of its own)':'')+'. Double-click to change the words" aria-pressed="'+l.on+'"><small>'+fmt(l.s)+'</small><span>'+esc(l.text)+'</span></button>').join("")+'</div>';
+    el.querySelectorAll(".ed-cap-c").forEach(b=>b.onclick=e=>{
+      // A second click soon after: type the line clicked first. (That click moved the strip, so the pointer may be on another chip by now.)
+      const k=+b.dataset.k, now=performance.now();
+      if(edCapClick && now-edCapClick.at<450){ const was=edCapClick.k; edCapClick=null; edCapEdit(was); return; }
+      edCapClick={k, at:now};
+      // Under the Captions tool a click picks the line, for a look of its own. Under any other tool it goes to the line and
+      // stays there: double-click edits it right here, with no trip to the Captions tool.
+      const l=edCapLs.find(x=>x.key===k), sv=edAE.saved();
+      if(edTool==="captions"){ edCap.pick(k, e.shiftKey||e.metaKey||e.ctrlKey); if(l && sv && aeToFile(sv,l.src)==null) edHeadTo(l.src); }
+      else if(l) edHeadTo(l.src);
+    });
   }
   edCapFollow();
 }
 // Where the player is, on the clock of the Short the pieces make (the timeline's).
 function edCapNow(){
-  const saved=edAE.saved(); if(!saved) return 0;
-  const src=aeToSrc(saved,$("edVideo").currentTime||0), p=edAE.pieces(), t=aeToFile(p,src);
+  const src=edHeadNow(); if(src==null) return 0;
+  const p=edAE.pieces(), t=aeToFile(p,src);
   return t!=null ? t : aeToFile(p,(p.find(([a])=>a>src)||[src])[0]) ?? aeLen(p);
 }
 // The line being said is lit; the strip moves so the place being said is in the middle (as far as its ends allow).
 function edCapFollow(){
+  if(edCapEditing) return;
   const el=$("edCapTrack"), strip=el.querySelector(".ed-cap-strip"), ls=edCapLs; if(!strip||!ls.length) return;
   const t=edCapNow(); let k=ls.findIndex(l=>t<l.e); if(k<0) k=ls.length-1;
   const chips=strip.children, said=t>=ls[k].s-0.02;
@@ -461,6 +558,37 @@ $("edCapTrack").addEventListener("wheel",e=>{
   edCapX=Math.min(Math.max(0,strip.scrollWidth-$("edCapTrack").clientWidth), Math.max(0,edCapX+d));
   strip.style.transform="translateX("+(-edCapX).toFixed(1)+"px)";
 },{passive:false});
+// Double-click a line on the row to change its words right there: the player pauses and the strip holds still. Enter or
+// clicking away keeps them (edCap.setLineText: Undo and Save as usual), Esc doesn't.
+// (the strip moved after the first click, so the second can land between two chips)
+$("edCapTrack").addEventListener("click",e=>{
+  if(e.target.closest(".ed-cap-c") || !edCapClick || performance.now()-edCapClick.at>=450) return;
+  const k=edCapClick.k; edCapClick=null; edCapEdit(k);
+});
+function edCapEdit(k){
+  if(!edCap.canEdit()) return;
+  edCapKey=""; edCapTrack();  // (the chip, drawn as it is now)
+  const chip=$("edCapTrack").querySelector('.ed-cap-c[data-k="'+k+'"]'), was=edCap.lineText(k), span=chip&&chip.querySelector("span"); if(!span) return;
+  $("edVideo").pause(); edCapEditing=true; chip.classList.add("typing");
+  const inp=document.createElement("input"); inp.className="ed-cap-in"; inp.value=was; inp.maxLength=200; inp.setAttribute("aria-label","Words of this caption line");
+  const size=()=>{ inp.style.width=Math.min(420,Math.max(60,inp.value.length*8.4+20))+"px"; }; size(); inp.oninput=size;
+  span.replaceWith(inp); inp.focus(); inp.select();
+  // keep it in view: the row's strip is moved by hand while this is open
+  const strip=$("edCapTrack").querySelector(".ed-cap-strip"), box=$("edCapTrack");
+  edCapX=Math.min(Math.max(0,strip.scrollWidth-box.clientWidth), Math.max(0,chip.offsetLeft+chip.offsetWidth/2-box.clientWidth/2));
+  strip.style.transform="translateX("+(-edCapX).toFixed(1)+"px)";
+  inp.addEventListener("click",ev=>ev.stopPropagation()); inp.addEventListener("dblclick",ev=>ev.stopPropagation());
+  let done=false;
+  const finish=keep=>{
+    if(done) return; done=true; edCapEditing=false; edCapKey="";
+    const t=inp.value.split(/\s+/).join(" ").trim();
+    if(keep && t!==was) edCap.setLineText(k,t);
+    edCapTrack();
+  };
+  inp.addEventListener("keydown",ev=>{ ev.stopPropagation();
+    if(ev.key==="Enter"){ ev.preventDefault(); finish(true); } else if(ev.key==="Escape"){ ev.preventDefault(); finish(false); } });
+  inp.addEventListener("blur",()=>finish(true));
+}
 let edCapT=0;
 function edCapTrackSoon(){ cancelAnimationFrame(edCapT); edCapT=requestAnimationFrame(()=>setTimeout(edCapTrack,30)); }
 function edCapOpen(){ if(edTool!=="captions"){ edTool="captions"; edRail(); edPanel(); } }

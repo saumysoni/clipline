@@ -39,8 +39,10 @@ function captionEdit(o){
   // ---- the words, in caption lines (pipeline/captions.py lines_of(); a word left out stays here, struck through)
   function words(){
     const ai=o.ae.info(); if(!ai) return [];
-    const keep=o.ae.pieces();
-    return ai.words.filter(w=>w.i!=null && aeIn(keep,(w.s+w.e)/2));
+    // the Short's own words and the ones around it: Trim can stretch the Short into those, and they're captions too
+    const keep=o.ae.pieces(), seen=new Set(), all=[];
+    for(const w of [...ai.words,...(ai.near||[])]) if(w.i!=null && !seen.has(w.i) && aeIn(keep,(w.s+w.e)/2)){ seen.add(w.i); all.push(w); }
+    return all.sort((a,b)=>a.i-b.i);
   }
   const textOf=w=>(cur.edits[w.i]!=null?cur.edits[w.i]:w.w);
   function lines(){
@@ -321,6 +323,18 @@ function captionEdit(o){
       }).filter(x=>x.e>x.s);
     },
     pick,
+    // Typing a line's words on the timeline's Captions row (js/editor.js). Word by word, on the place of each word (gotcha 33):
+    // extra words go on the line's last word, and a line with fewer words leaves the rest out.
+    lineText(k){ const l=lines().find(x=>keyOf(x)===k); return l?l.filter(w=>textOf(w).trim()).map(textOf).join(" "):""; },
+    setLineText(k,text){
+      const l=lines().find(x=>keyOf(x)===k); if(!l||!can()) return false;
+      const shown=l.filter(w=>textOf(w).trim()), said=String(text).split(/\s+/).filter(Boolean), e={...cur.edits};
+      shown.forEach((w,n)=>{
+        const t=n===shown.length-1 ? said.slice(n).join(" ") : said[n]||"";
+        if(t===w.w) delete e[w.i]; else e[w.i]=t.slice(0,60);
+      });
+      set({edits:e}); return true;
+    },
     // The editor's Undo / Redo.
     snap:()=>cur?copy(cur):null,
     restore(x){ if(!info||!x) return; cur=copy(x); paint(); changed(); },

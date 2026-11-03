@@ -195,7 +195,7 @@ class QueueAndStop(unittest.TestCase):
             F.wait(lambda: F.job_json(a1).get("stage") == 1 and F.job_json(b1).get("stage") == 1, what="two running")
             j2 = F.job_json(a2)
             self.assertTrue(j2["queued"])
-            self.assertEqual(j2["msg"], "Starts after your other vlog")
+            self.assertEqual(j2["msg"], "Starts after your other video")
             self.assertLessEqual(len(Q.RUNNING), Q.SLOTS)
         finally:
             F.SLOW.transcribe = 0

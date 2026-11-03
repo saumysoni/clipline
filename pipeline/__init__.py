@@ -24,6 +24,7 @@ from pipeline.preview import make_preview, plays_everywhere  # noqa: F401
 from pipeline.cover import covered_video  # noqa: F401
 from pipeline.poster import make_poster  # noqa: F401
 from pipeline.post_suggest import suggest_post_text  # noqa: F401
+from pipeline.vlog_suggest import FIELDS as VLOG_FIELDS, suggest_vlog_text  # noqa: F401
 from pipeline.vlog_meta import clean_tags as clean_vlog_tags, compose_description, write_vlog_meta  # noqa: F401
 from pipeline.vlog_thumbnail import make_vlog_thumbnail, redraw_vlog_thumbnail  # noqa: F401
 from pipeline.thumbnails.make import make_thumbnail, relook_thumbnail, retext_thumbnail, thumb_plan  # noqa: F401

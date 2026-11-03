@@ -17,7 +17,7 @@ JOBS = {}
 LOCK = threading.Lock()
 
 
-STAGES = ["Getting your vlog", "Transcribing", "Finding the best moments",
+STAGES = ["Getting your video", "Transcribing", "Finding the best moments",
           "Editing Shorts", "Designing thumbnails"]
 
 

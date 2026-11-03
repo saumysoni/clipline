@@ -18,7 +18,7 @@ async function loadPreview(retry){
   if(v.dataset.job===jobId && v.getAttribute("src")){ pkReady(true); if(pkStart!=null) v.currentTime=pkStart; return; }
   pkReady(false);
   v.removeAttribute("src"); v.load(); v.controls=false;  // no play button until there's something to play
-  const wait=pct=>'<span class="spin" aria-hidden="true"></span><span>Getting your vlog ready to play'+(pct?': <b>'+pct+'%</b>':'')+
+  const wait=pct=>'<span class="spin" aria-hidden="true"></span><span>Getting your video ready to play'+(pct?': <b>'+pct+'%</b>':'')+
     '.<br><small>You can type the From and To times on the card instead, or close this and come back.</small></span>';
   $("pkWait").hidden=false; $("pkWait").innerHTML=wait(0);
   let sourceFailed=false;

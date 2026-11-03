@@ -130,3 +130,32 @@ dialog#clRm::backdrop{background:rgba(8,10,18,.62)}
 .clg-bar{position:absolute;left:14px;right:14px;bottom:7px;height:3px;border-radius:3px;background:var(--line)}
 .clg-bar>i{display:block;height:100%;border-radius:3px;background:var(--primary);transition:width .6s}
 .clg-run.paused .clg-bar>i{background:var(--muted)}
+
+/* Loading cards on Drafts for Shorts being made. The shimmer is one value animated on #clGrid and inherited by the cards,
+   so redrawing them (a new progress message) never restarts it: nothing blinks. */
+@property --cl-sk{syntax:"<percentage>";inherits:true;initial-value:120%}
+@keyframes cl-sk{from{--cl-sk:120%}to{--cl-sk:-20%}}
+@keyframes cl-sk-bar{0%,100%{transform:scaleY(.45);opacity:.45}50%{transform:scaleY(1);opacity:1}}
+#clGrid:has(.cl-sk:not(.still)){animation:cl-sk 1.9s linear infinite}
+.cl-sk{pointer-events:none}
+.cl-sk .cl-thumb{position:relative;overflow:hidden}
+.cl-sk-pic{position:absolute;inset:0;background:linear-gradient(105deg,var(--raised) 35%,color-mix(in srgb,var(--primary) 16%,var(--raised)) 50%,var(--raised) 65%);background-size:300% 100%;background-position:var(--cl-sk) 0}
+.cl-sk-reel{position:absolute;left:50%;top:50%;display:flex;gap:5px;height:26px;transform:translate(-50%,-50%) skewX(-12deg)}
+.cl-sk-reel i{width:6px;border-radius:2px;background:var(--primary);transform-origin:bottom;animation:cl-sk-bar 1.1s ease-in-out infinite}
+.cl-sk-reel i:nth-child(2){animation-delay:.14s}.cl-sk-reel i:nth-child(3){animation-delay:.28s}
+.cl-sk .cl-t{color:var(--muted)}
+.cl-sk.still .cl-sk-reel i{animation:none;background:var(--muted);transform:scaleY(.6)}
+@media (prefers-reduced-motion:reduce){#clGrid{animation:none!important}.cl-sk-reel i{animation:none}}
+
+/* Removed or deleted from YouTube / Instagram (web/removed.py): a light grey, blurred card that says so. */
+.cl-gone{background:var(--raised)}
+.cl-gone .cl-thumb{background:#c9ccd3;display:grid;place-items:center}
+.cl-gone-pic{position:absolute;inset:-14px;background-size:cover;background-position:center;filter:grayscale(1) blur(9px) brightness(1.25);opacity:.75}
+.cl-gone-msg{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;margin:8px;padding:8px 12px;border-radius:10px;background:rgba(240,241,244,.86);text-align:center;font-size:.78rem;font-weight:700;color:#23252b}
+.cl-gone-msg .ms{font-size:22px}
+.cl-gone .cl-t{color:var(--muted)}
+.cl-gone-acts{gap:10px;flex-wrap:wrap}
+.cl-pill.p-gone{background:var(--raised);color:var(--muted);border:1px solid var(--line-2)}
+.cl-x-note{margin-top:6px;font-size:.76rem;line-height:1.35;color:var(--muted)}
+.cl-x .cl-play{display:block;width:100%;height:100%}
+.cl-x .cl-thumb img{width:100%;height:100%;object-fit:cover}

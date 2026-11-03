@@ -1,17 +1,17 @@
 """
-Keeping Pit Crew's upload records in step with YouTube: a Short the creator deleted in YouTube Studio (for example a
-scheduled one they cancelled) is forgotten, so it becomes a draft again that can be scheduled again or deleted. A vlog
-Pit Crew uploaded that's gone from YouTube (deleted, or removed by YouTube, e.g. for spam or copyright, sometimes minutes
-after uploading) gets vpost state "removed": the page says so, links to Studio for the reason and offers Upload again.
+Keeping Pit Crew's upload records in step with YouTube, once a day per creator (web/youtube_upkeep.py, the creator's choice:
+pages never ask). A Short that's gone from YouTube no longer counts as posted: it's a grey "Removed or deleted" card on Shorts
+& Reels (job["yt_removed"], web/removed.py). One deleted while still only scheduled never went out, so it's a draft again. A vlog
+Pit Crew uploaded that's gone gets vpost state "removed", the same card on the Videos page.
 
-Checked when Shorts & Reels or Scheduled is opened (and in the background when Vlogs is), at most once a minute per creator (videos.list: 1 quota unit
-per 50 Shorts). Only records that say which channel they went to, on a channel that's still connected, are touched:
-"not found" is then certain. Network trouble or any YouTube error changes nothing.
+videos.list: 1 quota unit per 50 videos. Only records that say which channel they went to, on a channel that's still connected,
+are touched: "not found" is then certain. Network trouble or any YouTube error changes nothing.
 """
 import json
 import threading
 import time
 import traceback
+from datetime import datetime
 
 import youtube as yt
 from settings import JOBS_DIR
@@ -20,7 +20,7 @@ from web.posting import POSTING
 from web.store import JOBS, LOCK, load_job
 from web.vlogs import user_jobs
 
-EVERY = 60  # seconds between checks per creator
+EVERY = 24 * 3600  # seconds between checks per creator
 FRESH = 120  # seconds after uploading before a vlog is checked (YouTube is still taking it in)
 _LAST = {}
 _BUSY = threading.Lock()
@@ -44,10 +44,12 @@ def _vlog_removed(job_id, vid):
         return 1
 
 
-def sync_soon(user_id):
-    """sync_deleted() in the background (pages that shouldn't wait for YouTube); it shows on the next load."""
-    if time.time() - _LAST.get(user_id, 0) >= EVERY and not _BUSY.locked():
-        threading.Thread(target=sync_deleted, args=(user_id,), daemon=True).start()
+def _went_out(u, now):
+    """False for one that was still only scheduled."""
+    try:
+        return not u.get("when") or datetime.fromisoformat(u["when"]).timestamp() <= now
+    except (TypeError, ValueError):
+        return True
 
 
 def _forget(job_id, gone):
@@ -55,10 +57,14 @@ def _forget(job_id, gone):
         job = load_job(job_id)
         if not job or job_id in POSTING:
             return 0
-        before = len(job.get("uploads") or [])
+        now, before = time.time(), len(job.get("uploads") or [])
+        out = [u for u in job.get("uploads") or [] if (u["idx"], u.get("video_id")) in gone]
         job["uploads"] = [u for u in job.get("uploads") or [] if (u["idx"], u.get("video_id")) not in gone]
         if len(job["uploads"]) == before:
             return 0
+        lost = {u["idx"]: u for u in out if _went_out(u, now)}
+        job["yt_removed"] = [r for r in job.get("yt_removed") or [] if r["idx"] not in lost] + \
+            [{"idx": i, "channel": u.get("channel"), "removed_at": now} for i, u in lost.items()]
         JOBS[job_id] = job
         (JOBS_DIR / job_id / "job.json").write_text(json.dumps(job, default=str), encoding="utf-8")
         return before - len(job["uploads"])
@@ -106,5 +112,5 @@ def sync_deleted(user_id, force=False):
             for job_id, pairs in gone.items():
                 forgotten += _forget(job_id, pairs)
         if forgotten:
-            print(f"{forgotten} Short(s) were deleted on YouTube: they're drafts again.")
+            print(f"{forgotten} Short(s) are gone from YouTube.")
         return forgotten

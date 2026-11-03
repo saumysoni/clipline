@@ -20,11 +20,11 @@ const VIDEO_LINK_PROBLEMS={
   drive_page:"That's a link to a Drive page, not to one video. In Drive, right-click the video, choose Share, then Copy link, and paste that link instead.",
   other:"That doesn't look like a Google Drive link. Paste a link that starts with https://drive.google.com, or upload the video file instead."};
 const YT_LINK_PROBLEMS={
-  drive_file:"That's a Google Drive link. This box is for the vlog's YouTube link.",
-  drive_folder:"That's a Google Drive link. This box is for the vlog's YouTube link.",
-  drive_page:"That's a Google Drive link. This box is for the vlog's YouTube link.",
-  youtube_page:"That's a YouTube link, but not to one video (maybe a channel or playlist). Open the vlog on YouTube and copy its link from the Share button.",
-  other:"That doesn't look like a YouTube video link. Open the vlog on YouTube and copy its link from the Share button."};
+  drive_file:"That's a Google Drive link. This box is for the video's YouTube link.",
+  drive_folder:"That's a Google Drive link. This box is for the video's YouTube link.",
+  drive_page:"That's a Google Drive link. This box is for the video's YouTube link.",
+  youtube_page:"That's a YouTube link, but not to one video (maybe a channel or playlist). Open the video on YouTube and copy its link from the Share button.",
+  other:"That doesn't look like a YouTube video link. Open the video on YouTube and copy its link from the Share button."};
 // Shows the problem under a box (with a "move it" button when the link just went in the wrong box).
 function flag(input,hint,msg,move){
   input.classList.toggle("bad",!!msg);
@@ -46,12 +46,11 @@ function checkVideoLink(){
 function checkYtLink(){
   const v=$("ytUrl").value.trim(), kind=linkKind(v);
   return flag($("ytUrl"),$("ytHint"),YT_LINK_PROBLEMS[kind],
-    kind==="drive_file"&&!$("link").value.trim() ? {label:"Use it as the vlog's video instead",
+    kind==="drive_file"&&!$("link").value.trim() ? {label:"Use it as the video's file instead",
       run:()=>{ $("link").value=v; $("ytUrl").value=""; checkYtLink(); checkVideoLink(); }} : null);
 }
 $("link").addEventListener("input",()=>{ checkVideoLink(); paintPlan(); });
 document.querySelectorAll("input[name=style]").forEach(r=>r.addEventListener("change",paintPlan));
-$("sched").addEventListener("change",paintPlan);
 $("ytUrl").addEventListener("input",()=>{ if(!$("ytUrl").value.trim()||$("ytUrl").classList.contains("bad")) checkYtLink(); });
 
 async function fillVlogInfo(){

@@ -29,8 +29,8 @@ def rerender_hook(job_id, idx, hook, mode, style, thumb=True):
             src = clean_clips.source(job_id, job, me)  # the vlog, else this Short's clean clip
             tr_path = job_dir / "transcript.json"
             if not src or not tr_path.exists():
-                raise RuntimeError("This vlog's video was deleted, so the hook can't be changed (it's part of the "
-                                   "video). Upload the vlog again to change it.")
+                raise RuntimeError("This video's file was deleted, so the hook can't be changed (it's part of the "
+                                   "video). Upload the video again to change it.")
             tr = json.loads(tr_path.read_text(encoding="utf-8"))
             moment = {**me, "hook": hook, "hook_mode": mode}
             pipeline.prepare_job_fonts(job_dir)

@@ -84,12 +84,20 @@ class FakeAI:
         for key, kind in (("Return ONLY a JSON array of exactly", "moments"), ("The creator chose this moment", "manual"),
                           ("Decide what they want", "again"), ("You write on-screen hooks", "hooks"),
                           ("thumbnail for a YouTube Short", "thumb"), ("full YouTube vlog (landscape", "vthumb"),
-                          ("helping a YouTube vlogger upload a full vlog", "meta"), ("analytics coach", "coach")):
+                          ("You improve one detail of a creator's full YouTube video", "vdetail"), ("helping a YouTube vlogger upload a full vlog", "meta"), ("analytics coach", "coach")):
             if key in text:
                 return kind
         if '{"items"' in text or "\"items\"" in text:
             return "items"
         raise ValueError("FakeAI doesn't know this prompt: " + text[:200])
+
+    @staticmethod
+    def _vdetail(text):
+        if "THE CURRENT TAGS" in text:
+            return {"items": [["hills", "road trip", "#Market"], ["street food", "india"]]}
+        if "THE CURRENT DESCRIPTION" in text:
+            return {"items": ["We got lost in the hills.\n0:00 not a real chapter", "I lost $2,000 in the hills."]}
+        return {"items": ["We got lost #vlog", "I lost $2,000 in the hills", "A new way up the hills"]}
 
     @staticmethod
     def _segments(text):
@@ -209,8 +217,24 @@ def yt_upload_short(service, path, title, desc, tags, publish_at=None, thumb_pat
     return v, None
 
 
+RESUMED = []  # the resume= of each vlog upload
+UPLOAD_GATE = threading.Event()
+UPLOAD_GATE.set()
+
+
+def _yt_real_paused(uri, at):
+    from youtube.vlog_upload import UploadPaused
+    return UploadPaused(uri, at)
+
+
 def yt_upload_vlog(service, path, title, desc, tags, privacy="public", publish_at=None, thumb_path=None,
-                   progress=lambda p: None):
+                   progress=lambda p: None, should_pause=None, resume=None):
+    RESUMED.append(resume)
+    if UPLOAD_GATE.is_set() is False and not resume:  # a test holds the upload half-way, to press Pause
+        progress(40)
+        UPLOAD_GATE.wait(5)
+    if should_pause and should_pause():
+        raise _yt_real_paused("https://upload.example/session", 1234)
     v = _vid("pcvlog")
     VIDEOS[v] = {"title": title, "channel": service.channel, "publish_at": publish_at, "desc": desc,
                  "published": (publish_at or datetime.now(timezone.utc)).date(), "kind": "videoOnDemand",
@@ -218,6 +242,19 @@ def yt_upload_vlog(service, path, title, desc, tags, privacy="public", publish_a
     UPLOADED.append((service.channel, title, desc, list(tags or []), Path(path).stat().st_size))
     progress(100)
     return v, None
+
+
+def yt_channel_videos(service):
+    """What's on this channel. A test adds its own: VIDEOS[id] = {"title", "channel", "seconds", "tags", "desc", ...}."""
+    from youtube.channel_videos import is_short
+    out = []
+    for i, v in VIDEOS.items():
+        if v.get("channel") != service.channel or v.get("hidden") or v.get("privacy") not in ("public", "unlisted", None):
+            continue
+        sec = v.get("seconds", 600)
+        out.append({"id": i, "title": v["title"], "published": "2026-10-01T10:00:00Z", "seconds": sec,
+                    "privacy": v.get("privacy") or "public", "short": is_short(v["title"], v.get("desc"), v.get("tags"), sec)})
+    return out
 
 
 def yt_video_states(service, ids):
@@ -716,7 +753,7 @@ def install():
     import youtube
     import youtube.analytics as YA
     for name, fn in (("account", yt_account), ("get_service", yt_get_service), ("upload_short", yt_upload_short),
-                     ("upload_vlog", yt_upload_vlog), ("video_states", yt_video_states), ("reschedule", yt_reschedule),
+                     ("upload_vlog", yt_upload_vlog), ("channel_videos", yt_channel_videos), ("video_states", yt_video_states), ("reschedule", yt_reschedule),
                      ("update_title", yt_update_title), ("delete_video", yt_delete_video),
                      ("fetch_video_info", yt_fetch_video_info), ("sign_out", yt_sign_out)):
         setattr(youtube, name, fn)
@@ -753,6 +790,13 @@ def reset():
     RENDERED.clear()
     ANALYTICS_CALLS.clear()
     SLOW.transcribe, SLOW.fail, SLOW.render = 0.0, "", 0.0
+    import sqlite3
+    from accounts import db as _db
+    try:
+        with _db.connect() as con:  # each test starts with the day's YouTube uploads unused (web/youtube_quota.py)
+            con.execute("DELETE FROM youtube_uploads")
+    except sqlite3.OperationalError:  # (the database isn't set up yet: nothing to clear)
+        pass
     from web import accounts as WA
     WA.FAILS.clear()
     WA.SIGNUPS.clear()

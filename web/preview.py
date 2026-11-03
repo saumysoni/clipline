@@ -16,7 +16,7 @@ from web.store import LOCK, load_job
 
 PREVIEWS = {}  # job id -> "building" or an error message, while or after making preview.mp4
 PREVIEW_PCT = {}  # job id -> how far making it has got (0-100)
-VIDEO_GONE = "This vlog's video was deleted, so it can't be played here. Upload the vlog again to choose moments on it."
+VIDEO_GONE = "This video's file was deleted, so it can't be played here. Upload the video again to choose moments on it."
 
 
 def build_preview(job_id):

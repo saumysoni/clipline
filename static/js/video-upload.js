@@ -6,6 +6,15 @@ const UP_SIGNIN="You were signed out. Sign in, then press the button again: the 
 let upSending=0;  // videos this tab is sending: closing the tab asks first (they can carry on later)
 window.addEventListener("beforeunload",e=>{ if(upSending){ e.preventDefault(); e.returnValue=""; } });
 class UpStop extends Error{}
+// Pause: stops after the piece being sent (8 MB). The server keeps what it has for 24 hours (web/video_upload.py).
+let upPaused=false, upWake=null;
+function upSetPaused(on){ upPaused=!!on; if(!on && upWake){ upWake(); upWake=null; } upPaintPause(); jobsUploadPaused(upPaused); }
+function upPaintPause(){
+  document.querySelectorAll(".up-pause").forEach(b=>{ b.hidden=!upSending;
+    b.innerHTML='<span class="ms" aria-hidden="true">'+(upPaused?"play_arrow":"pause")+'</span>'+(upPaused?"Resume sending":"Pause sending"); });
+  document.querySelectorAll(".up-paused").forEach(p=>{ p.hidden=!upSending||!upPaused; });
+}
+document.querySelectorAll(".up-pause").forEach(b=>b.onclick=()=>upSetPaused(!upPaused));
 const upKey=f=>"clipline-upload:"+myEmail+":"+f.name+":"+f.size+":"+f.lastModified;
 function upRemember(f,id){ try{ id?localStorage.setItem(upKey(f),id):localStorage.removeItem(upKey(f)); }catch(e){} }
 function upRecall(f){ try{ return localStorage.getItem(upKey(f)); }catch(e){ return null; } }
@@ -13,7 +22,7 @@ async function upJSON(url,opts){ const r=await fetch(url,opts); let j={}; try{ j
 // Sends the file; onProgress(pct), onNote(text, "" when all is well). Resolves to the upload id for /api/start or
 // /api/vlog/start (which then calls upRemember(file,null)); rejects with a plain sentence.
 async function sendVideo(file,onProgress,onNote){
-  upSending++;
+  upSending++; upPaused=false; upPaintPause();
   try{
     let id=upRecall(file), received=0;
     if(id){ try{ const [r,j]=await upJSON("/api/upload/"+id); if(r.ok) received=j.received; else id=null; }catch(e){ id=null; } }
@@ -27,6 +36,7 @@ async function sendVideo(file,onProgress,onNote){
     onProgress(received/file.size*100);
     let fails=0;
     while(received<file.size){
+      if(upPaused) await new Promise(res=>{ upWake=res; });
       try{
         const [r,j]=await upJSON("/api/upload/"+id+"?offset="+received,{method:"POST",headers:{"Content-Type":"application/octet-stream"},body:file.slice(received,received+UP_PIECE)});
         if(r.ok||r.status===409){ received=j.received; fails=0; onNote(""); onProgress(received/file.size*100); continue; }
@@ -46,5 +56,5 @@ async function sendVideo(file,onProgress,onNote){
     }
     onNote("");
     return id;
-  }finally{ upSending--; }
+  }finally{ upSending--; upPaused=false; upPaintPause(); jobsUploadPaused(false); }
 }

@@ -249,7 +249,7 @@ class Routes(unittest.TestCase):
         for f in (JOBS_DIR / self.jid).glob("source.*"):
             f.unlink()
         r = self.c.post(self.base, json={"captions": {}, "remake": True})
-        self.assertIn("video was deleted", r.json["error"])
+        self.assertIn("file was deleted", r.json["error"])
         self.assertFalse(self.c.get(self.base).json["can_apply"])
         self.assertEqual(self.c.post(self.base + "/preview", json={}).status_code, 400)
 

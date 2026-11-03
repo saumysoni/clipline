@@ -59,6 +59,17 @@ class Finders(unittest.TestCase):
         self.assertEqual(AE.honest_hooks(m, "and I lost 2000 dollars there"), ({}, ""))
 
 
+class NearWords(unittest.TestCase):
+    def test_words_around_the_short_carry_their_place_for_captions(self):
+        F.install(); F.reset()
+        c = F.client(F.new_user())
+        jid, _ = F.make_shorts(c, seconds=150, count=1)
+        info = c.get(f"/api/ai-edit/{jid}/1").json
+        self.assertTrue(info["near"])
+        self.assertTrue(all(isinstance(w["i"], int) for w in info["near"]))
+        self.assertGreater(len(info["near"]), len(info["words"]))  # past the Short's own words
+
+
 class Routes(unittest.TestCase):
     def setUp(self):
         F.install()
@@ -138,7 +149,7 @@ class Routes(unittest.TestCase):
         for f in (JOBS_DIR / self.jid).glob("source.*"):
             f.unlink()
         r = self.c.post(self.base + "/apply", json={"pieces": [[s, s + 20]]})
-        self.assertIn("video was deleted", r.json["error"])
+        self.assertIn("file was deleted", r.json["error"])
         self.assertFalse(self.c.get(self.base).json["can_apply"])
 
     def test_ai_suggestions_are_gone(self):

@@ -19,15 +19,17 @@ function paintPostList(){
   }).join("") : '<li class="post-empty">No Shorts ticked. Go back to review and tick the ones to post.</li>';
 }
 function dock(){
-  const total=document.querySelectorAll(".short[data-idx]:not(.pending)").length, k=document.querySelectorAll(".short .keep input:checked").length;
-  const busy=document.querySelectorAll(".short.redoing").length;
-  $("dockText").textContent = busy ? "Making "+(busy===1?"a Short":busy+" Shorts")+"..." : k ? k+" of "+total+" will be posted" : "Tick at least one Short";
-  $("nextBtn").disabled = !k || busy>0;
+  const total=document.querySelectorAll(".short[data-idx]:not(.pending)").length, k=document.querySelectorAll(".short:not(.redoing) .keep input:checked").length;
+  // One being made doesn't hold up the finished ones: they can go now, it can be posted once it's ready.
+  const busy=document.querySelectorAll(".short.redoing,.short.pending").length;
+  const making=busy?" · "+busy+(busy===1?" Short":" Shorts")+" still being made":"";
+  $("dockText").textContent = (k ? k+" of "+total+" will be posted" : "Tick at least one finished Short")+making;
+  $("nextBtn").disabled = !k;
   const now=$("sched2").value==="now", n=k===1 ? "1 Short" : k+" Shorts";
   $("customWhen").hidden = $("sched2").value!=="custom";
   $("schedBtn").innerHTML = '<span class="ms" aria-hidden="true">smart_display</span>Upload '+(k>1?k+" ":"")+'to YouTube';
   $("schedBtn").title = !yt.signed_in ? "You'll connect YouTube first" : now ? "Posts "+n+" now" : "Schedules "+n;
-  $("schedBtn").disabled = !k || busy>0 || POSTING_NOW();
+  $("schedBtn").disabled = !k || POSTING_NOW();
   if(typeof igDock==="function") igDock();
 }
 function POSTING_NOW(){ return !!job && ["starting","connecting","uploading"].includes(job.upload_status); }
@@ -46,7 +48,7 @@ $("schedBtn").onclick=()=>{
   postShorts();
 };
 async function postShorts(){
-  const shorts=[...document.querySelectorAll(".short[data-idx]:not(.pending)")].map(el=>({idx:+el.dataset.idx,title:el.querySelector("input.title").value,keep:el.querySelector(".keep input").checked}));
+  const shorts=[...document.querySelectorAll(".short[data-idx]:not(.pending)")].map(el=>({idx:+el.dataset.idx,title:el.querySelector("input.title").value,keep:!el.classList.contains("redoing")&&el.querySelector(".keep input").checked}));
   let tz=""; try{ tz=Intl.DateTimeFormat().resolvedOptions().timeZone||""; }catch(e){}
   const mode=$("sched2").value;
   if(mode==="custom" && !$("schStart").value){ $("schStart").classList.add("bad"); $("err3").textContent="Pick the date and time for the first Short."; return; }

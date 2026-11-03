@@ -117,7 +117,7 @@ def upload_new():
     except (TypeError, ValueError):
         size = 0
     if size <= 0:
-        return jsonify(error="That file is empty. Choose your vlog's video file."), 400
+        return jsonify(error="That file is empty. Choose your video file."), 400
     why = problem(g.user["id"])  # this month's allowance used up: say so before gigabytes are sent
     if why:
         return jsonify(error=why), 403

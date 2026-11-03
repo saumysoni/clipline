@@ -27,7 +27,7 @@ from web import clean_clips
 from web.server import app
 from web.store import JOBS, LOCK, RETRY_LOCKS, editable_job, load_job, next_file_number, update, update_short
 
-NO_VIDEO = ("This vlog's video was deleted, so the captions can't be changed (they're part of the video). "
+NO_VIDEO = ("This video's file was deleted, so the captions can't be changed (they're part of the video). "
             "You can still change its title, hashtags and thumbnail text.")
 PREVIEWS = threading.Semaphore(2)  # previews at once (each is one FFmpeg run)
 

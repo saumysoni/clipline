@@ -53,7 +53,7 @@ def reframe_info(job_id, idx):
             meta = pipeline.probe(src["path"])
         except Exception:  # noqa: BLE001
             traceback.print_exc()
-            why_not = "This vlog's video couldn't be read, so the framing can't be changed."
+            why_not = "This video's file couldn't be read, so the framing can't be changed."
     w, h = (meta["width"], meta["height"]) if meta else (1920, 1080)
     cx = clean_clips.scaled_cx(me, src) if src else me.get("cx")  # in the source's pixels
     return jsonify(reframe=pipeline.clean_reframe(me.get("reframe"), _duration(job, _transcript(job_id))),

@@ -315,7 +315,7 @@ with sync_playwright() as p:
     check(P() == p2, f"Undo takes all of it back ({n_undo} steps)")
 
     # ---------------------------------------------------------------- 7d. trimming on the video row
-    print("7d. Trimming on the video row: a yellow box made with two clicks, shaped, then cut out")
+    print("7d. Trimming on the video row: a click moves the player, a drag makes the yellow box, shaped, then cut out")
     tool("trim", strip=True)
     film = lambda: pg.locator("#edTrimStrip .ts-film").bounding_box()
     win0, f0, o0 = ev("edTS.win()"), film(), ev("edOrigin()")
@@ -330,6 +330,10 @@ with sync_playwright() as p:
         if alt:
             pg.keyboard.up("Alt")
         pg.wait_for_timeout(250)
+
+    def sweep(a, b):  # a drag across the row, without snapping
+        pg.keyboard.down("Alt"); pg.mouse.move(X(a), Y); pg.mouse.down(); pg.mouse.move(X(b), Y, steps=8); pg.mouse.up(); pg.keyboard.up("Alt")
+        pg.wait_for_timeout(250)
     check(pg.locator("#edTrimStrip .ts.trim").is_visible() and not pg.locator("#edTwick").is_visible(), "the video row, ready to trim")
     zero = ev("[...document.querySelectorAll('#edTrimStrip .ts-ticks span')].find(s=>s.textContent==='0:00')?.getBoundingClientRect().left")
     check(zero is not None and abs(zero + 12 - X(o0)) < 16, "its times are the Short's: 0:00 where the saved Short starts")
@@ -339,23 +343,28 @@ with sync_playwright() as p:
     pg.wait_for_function("""(()=>{const c=document.querySelector('#edTrimStrip .ts-pics'); if(!c||!c.width) return false;
         const d=c.getContext('2d').getImageData(c.width/2|0,c.height/2|0,1,1).data; return d[0]+d[1]+d[2]>60;})()""", timeout=20000)
     check(True, "the vlog's pictures are drawn")
-    pg.mouse.move(X(o0 + 3), Y); pg.wait_for_timeout(700)
-    lab = pg.inner_text("#edTrimView").split()[0]
-    check(pg.locator("#edTrimView").is_visible() and near(int(lab.split(":")[0]) * 60 + float(lab.split(":")[1]), 3, px + 0.05),
-          f"pointing at the row shows that moment big ({lab})")
+    pg.mouse.move(X(o0 + 3), Y); pg.wait_for_timeout(500)
+    check(not pg.locator("#edTrimView").is_visible() and pg.locator("#edTrimStrip .ts-tip").is_visible(),
+          "pointing at the row shows the time, and leaves the player and its controls in view")
+    before_t = ev("edSrcNow()")
+    click(o0 + 6)
+    check(ev("edTS.sel()") is None and near(ev("edSrcNow()"), o0 + 6, px + 0.3) and ev("edSrcNow()") != before_t, "under Trim a click moves the player, and marks nothing")
+    click(o0 + 9)
+    check(ev("edTS.sel()") is None and near(ev("edSrcNow()"), o0 + 9, px + 0.3), "another click just moves it again: there's no cut mode")
+    mb, vb = pg.locator(".ed-media").bounding_box(), pg.locator("#edVideo").bounding_box()
+    check(vb["y"] + vb["height"] <= mb["y"] + mb["height"] + 1 and not pg.locator("#edTrimView").is_visible(), "the player's whole picture and bar are in view")
     a2 = p2[1][0]
-    click(a2 + 1)
-    check(near(ev("edTS.first()"), a2 + 1, px) and "Now click where the part to cut out ends" in pg.inner_text("#edTrim"), "first click: the start")
-    click(a2 + 3)
+    sweep(a2 + 1, a2 + 3)
     sel = ev("edTS.sel()")
     check(sel and near(sel["a"], a2 + 1, px) and near(sel["b"], a2 + 3, px) and ev("edTS.win()") == win0,
-          f"second click: the end; yellow, the scale unchanged ({sel})")
+          f"a drag across the row: yellow, the scale unchanged ({sel})")
+    check(not pg.locator("#edTrimView").is_visible(), "when the drag ends the player is back, not covered by a preview")
     check(not pg.locator("#trCut").is_disabled() and pg.locator("#trKeep").count() == 0 and P() == p2,
           "Cut it out (no Keep it); nothing changed yet")
-    # made once: more clicks don't start another; its ends stretch and narrow it, dragging inside moves it
+    # clicks keep moving the player with a box there; its ends stretch and narrow it, dragging inside moves it
     sel0 = ev("edTS.sel()")
-    click(a2 + 8); click(a2 + 10)
-    check(ev("edTS.sel()") == sel0 and ev("edTS.first()") is None, "clicks elsewhere don't make another box")
+    click(a2 + 8)
+    check(ev("edTS.sel()") == sel0 and near(ev("edSrcNow()"), a2 + 8, px + 0.3), "with a box there a click still moves the player, and the box stays")
     sb = sel0["b"]
     pg.mouse.move(X(sb), Y); pg.mouse.down(); pg.mouse.move(X(sb) + 25, Y, steps=6); pg.mouse.up(); pg.wait_for_timeout(300)
     check(ev("edTS.sel()")["b"] > sb + 0.5 and near(ev("edTS.sel()")["a"], sel0["a"], 0.01), f"its end stretches it ({sb} -> {ev('edTS.sel()')['b']})")
@@ -391,34 +400,32 @@ with sync_playwright() as p:
     pg.click("#edUndo"); pg.wait_for_timeout(300)
     check(near(P()[-1][1], e_was, 0.01), "Undo takes it back")
     check(state() != "Saved", "a change waiting to be saved")
-    click(a2 + 6); pg.keyboard.press("Escape"); pg.wait_for_timeout(200)
-    check(ev("edTS.first()") is None, "Esc clears a start")
+    sweep(a2 + 6, a2 + 7); pg.keyboard.press("Escape"); pg.wait_for_timeout(200)
+    check(ev("edTS.sel()") is None, "Esc clears the box")
     # a part already left out (dimmed): nothing to cut
     e_last = P()[-1][1]
-    click(e_last + 2); click(e_last + 6)
+    sweep(e_last + 4, e_last + 8)  # (clear of the grip on the end)
     check(pg.locator("#trCut").is_disabled() and "already left out" in pg.inner_text("#edTrim"), "a dimmed part: nothing to cut")
     pg.click("#trClear"); pg.wait_for_timeout(200)
     pg.click("#trPlay"); pg.wait_for_timeout(1200)
     check(ev("edTV.playing()"), "Play the Short as it'll be")
     pg.click("#trPlay"); pg.wait_for_timeout(200)
-    pg.click("#trMore"); pg.wait_for_timeout(300)
-    w2 = ev("edTS.win()")
-    check(w2["a"] < win0["a"] or w2["b"] > win0["b"], f"Show more of the vlog ({win0} -> {w2})")
+    check(pg.locator("#trMore").count() == 0, "no Show more: 30 s either side is what there is")
     n_undo = 0
     while P() != p2 and n_undo < 20:
         pg.click("#edUndo"); n_undo += 1; pg.wait_for_timeout(200)
     check(P() == p2, f"Undo takes all of it back ({n_undo} steps)")
     tool("details")
     check(pg.locator("#edTrimStrip .ts").is_visible() and pg.locator("#edTrimStrip .ts.trim").count() == 0 and not pg.locator("#edTrimView").is_visible(),
-          "other tools: the whole clip, nothing yellow, no big preview")
+          "other tools: nothing yellow, no big preview")
+    wd, ps = ev("edTS.win()"), P()
+    check(near(wd["a"], min(ps[0][0], ev("edAE.saved()")[0][0]), 0.01) and near(wd["b"], max(ps[-1][1], ev("edAE.saved()")[-1][1]), 0.01),
+          f"other tools: the row shows only the Short ({wd})")
     fb = film(); pg.mouse.click(fb["x"] + fb["width"] / 2, fb["y"] + 20); pg.wait_for_timeout(300)
-    check(ev("edTS.first()") is None, "a click there just moves the player")
-    pg.mouse.click(X(win0["b"] - 3), Y); pg.wait_for_timeout(700)
-    check(pg.locator("#edTrimView").is_visible() and "not in the Short" in pg.inner_text("#edTrimView"),
-          "a click on the vlog around the Short shows that moment big")
-    ev("(v=>{v.muted=true; return v.play()})(document.getElementById('edVideo'))"); pg.wait_for_timeout(500)
-    check(not pg.locator("#edTrimView").is_visible(), "playing the Short puts the player back")
-    ev("document.getElementById('edVideo').pause()")
+    check(ev("edTS.sel()") is None, "a click there just moves the player")
+    tool("trim", strip=True)
+    check(ev("edTS.win()") == win0, "back under Trim: the vlog around the Short again, the same as before")
+    tool("details")
     tw = pg.locator("#edTwick"); lb = parts().nth(parts().count() - 1).bounding_box(); tw = tw.bounding_box()
     check(lb["x"] + lb["width"] <= tw["x"] + tw["width"] + 1 and packed(), "Twick's view under it is still laid out and fitted")
 
@@ -865,21 +872,146 @@ with sync_playwright() as p:
     check(not pg.locator("#edRfStage").is_visible() and pg.locator("#edVideo").is_visible(), "other tools: the player is back")
 
     # ---------------------------------------------------------------- 13. no video: read only
+    print("12e. Typing a caption line on the timeline; the panel's width")
+    open_short(A, 1)
+    tool("captions"); pg.wait_for_timeout(500)
+
+    def dbl_chip(k):  # at the chip's place, as a person does: the first click moves the strip under the pointer
+        b = ev(f"(r=>({{x:r.left+r.width/2,y:r.top+r.height/2}}))(document.querySelector('#edCapTrack .ed-cap-c[data-k=\"{k}\"]').getBoundingClientRect())")
+        pg.mouse.click(b["x"], b["y"]); pg.wait_for_timeout(120); pg.mouse.click(b["x"], b["y"])
+        pg.wait_for_selector("#edCapTrack .ed-cap-in", timeout=5000)
+    in_view = "(n=>{const cs=[...document.querySelectorAll('#edCapTrack .ed-cap-c')].filter(c=>{const r=c.getBoundingClientRect(),b=document.getElementById('edCapTrack').getBoundingClientRect();return r.left>=b.left&&r.right<=b.right});return +cs[cs.length-1].dataset.k})()"
+    key = ev(in_view)
+    was_text = ev(f"edCap.lineText({key})")
+    ev("(v=>{v.muted=true; return v.play()})(document.getElementById('edVideo'))"); pg.wait_for_timeout(300)
+    dbl_chip(key)
+    inp = pg.locator("#edCapTrack .ed-cap-in")
+    check(ev("document.getElementById('edVideo').paused") and inp.input_value() == was_text, f"a double-click: the words to type, the player paused ({was_text})")
+    before_x = ev("document.querySelector('#edCapTrack .ed-cap-strip').style.transform")
+    ev("document.getElementById('edVideo').currentTime=20"); pg.wait_for_timeout(400)
+    check(ev("document.querySelector('#edCapTrack .ed-cap-strip').style.transform") == before_x and inp.count() == 1, "the strip holds still while typing")
+    inp.fill("New words here for this line"); pg.keyboard.press("Enter"); pg.wait_for_timeout(400)
+    check(ev(f"edCap.lineText({key})").lower() == "new words here for this line" and state() != "Saved" and pg.locator("#edCapTrack .ed-cap-in").count() == 0,
+          "Enter keeps them, waiting to be saved")
+    check("new words here" in pg.inner_text("#edCapTrack").lower(), "the chip shows them")
+    pg.click("#edUndo"); pg.wait_for_timeout(400)
+    check(ev(f"edCap.lineText({key})") == was_text, "Undo puts them back")
+    pg.wait_for_timeout(900)  # (the preview redrawing after Undo)
+    key = ev(in_view); was_text = ev(f"edCap.lineText({key})")
+    dbl_chip(key)
+    pg.locator("#edCapTrack .ed-cap-in").fill("Not this"); pg.keyboard.press("Escape"); pg.wait_for_timeout(300)
+    check(ev(f"edCap.lineText({key})") == was_text, "Esc doesn't keep them")
+    pb0, gb = pg.locator(".ed-panel").bounding_box(), pg.locator("#edPanelGrip").bounding_box()
+    pg.mouse.move(gb["x"] + 6, gb["y"] + 200); pg.mouse.down(); pg.mouse.move(gb["x"] - 94, gb["y"] + 200, steps=6); pg.mouse.up(); pg.wait_for_timeout(300)
+    pb1 = pg.locator(".ed-panel").bounding_box()
+    check(abs(pb1["width"] - pb0["width"] - 100) < 4 and pb1["x"] + pb1["width"] == pb0["x"] + pb0["width"], f"the panel's edge makes it wider ({pb0['width']} -> {pb1['width']})")
+    gb = pg.locator("#edPanelGrip").bounding_box()
+    pg.mouse.move(gb["x"] + 6, gb["y"] + 200); pg.mouse.down(); pg.mouse.move(100, gb["y"] + 200, steps=8); pg.mouse.up(); pg.wait_for_timeout(300)
+    check(pg.locator(".ed-stage").bounding_box()["width"] >= 379, "the player always keeps its room")
+    pg.reload(); pg.wait_for_selector("#edVideo", state="visible"); pg.wait_for_timeout(1500)
+    w_kept = pg.locator(".ed-panel").bounding_box()["width"]
+    check(w_kept > pb0["width"] + 90, f"kept for next time ({w_kept})")
+    gb = pg.locator("#edPanelGrip").bounding_box(); pg.mouse.dblclick(gb["x"] + 6, gb["y"] + 200); pg.wait_for_timeout(300)
+    check(abs(pg.locator(".ed-panel").bounding_box()["width"] - 320) < 2, "a double-click: the usual width")
+    pg.set_viewport_size({"width": 1280, "height": 800}); pg.wait_for_timeout(400)
+    gb = pg.locator("#edPanelGrip").bounding_box(); pw = pg.locator(".ed-panel").bounding_box()["width"]
+    pg.mouse.move(gb["x"] + 6, gb["y"] + 150); pg.mouse.down(); pg.mouse.move(gb["x"] - 54, gb["y"] + 150, steps=5); pg.mouse.up(); pg.wait_for_timeout(300)
+    check(pg.locator(".ed-panel").bounding_box()["width"] > pw + 50, "and on a laptop, with the tools above")
+    gb = pg.locator("#edPanelGrip").bounding_box(); pg.mouse.dblclick(gb["x"] + 6, gb["y"] + 150); pg.set_viewport_size({"width": 1440, "height": 900}); pg.wait_for_timeout(400)
+
+    print("12f. Under Trim: the playhead's handle, captions that follow, and editing them there, stretched parts too")
+    open_short(BJ, 1)
+    tool("trim", strip=True)
+    film = lambda: pg.locator("#edTrimStrip .ts-film").bounding_box()
+    head = lambda: ev("edHeadNow()")
+    win = ev("edTS.win()"); fb = film()
+    TX = lambda t: fb["x"] + (t - win["a"]) / (win["b"] - win["a"]) * fb["width"]
+    ps = P(); o0 = ev("edOrigin()")
+    kb = pg.locator("#edTrimStrip .ts-knob").bounding_box()
+    check(kb is not None and kb["y"] < fb["y"], "the playhead has a handle above the row")
+    pg.mouse.move(kb["x"] + 8, kb["y"] + 8); pg.mouse.down(); pg.mouse.move(TX(o0 + 12), kb["y"] + 8, steps=10)
+    pg.wait_for_timeout(300)
+    mid_tf = ev("document.querySelector('#edCapTrack .ed-cap-strip').style.transform")
+    pg.mouse.up(); pg.wait_for_timeout(400)
+    check(near(head(), o0 + 12, 0.5) and ev("edTS.sel()") is None, f"dragging the handle moves the playhead, and selects nothing ({head()})")
+    check(ev("edCapNow()") > 10 and pg.locator("#edCapTrack .ed-cap-c.now").count() == 1, "the captions go with it")
+    ticks = pg.locator("#edTrimStrip .ts-ticks").bounding_box()
+    pg.mouse.move(TX(o0 + 20), ticks["y"] + 6); pg.mouse.down(); pg.mouse.move(TX(o0 + 5), ticks["y"] + 6, steps=8); pg.mouse.up(); pg.wait_for_timeout(300)
+    check(near(head(), o0 + 5, 0.5), "dragging along the times above the row does too")
+    # stretch the Short into the vlog after it: its words become captions, here
+    n0, e0 = pg.locator("#edCapTrack .ed-cap-c").count(), P()[-1][1]
+    pg.keyboard.down("Alt"); pg.mouse.move(TX(e0), fb["y"] + fb["height"] / 2); pg.mouse.down(); pg.mouse.move(TX(e0 + 12), fb["y"] + fb["height"] / 2, steps=10); pg.mouse.up(); pg.keyboard.up("Alt")
+    pg.wait_for_timeout(600)
+    n1 = pg.locator("#edCapTrack .ed-cap-c").count()
+    check(P()[-1][1] > e0 + 8 and n1 > n0, f"stretched by {P()[-1][1] - e0:.1f} s: more caption lines on the row ({n0} -> {n1})")
+    add = ev("[...document.querySelectorAll('#edTrimStrip .ts-add')].map(d=>{const r=d.getBoundingClientRect();return [r.left,r.right]})")
+    check(len(add) == 1 and abs(add[0][0] - TX(e0)) < 3 and abs(add[0][1] - TX(P()[-1][1])) < 3, f"the part added shows light green ({len(add)})")
+    ext = ev(f"edCap.track().filter(l=>l.src>{e0}+1)")
+    check(len(ext) > 0, f"lines from the new part ({len(ext)})")
+    # a click goes to the line and stays under Trim, even on a part the saved video hasn't got
+    ev("edCapHand=false"); k_ext = ext[0]["key"]
+    ev(f"edHeadTo({ext[0]['src']})"); pg.wait_for_timeout(300)
+    b = ev(f"(r=>({{x:r.left+r.width/2,y:r.top+r.height/2}}))(document.querySelector(`#edCapTrack .ed-cap-c[data-k='{k_ext}']`).getBoundingClientRect())")
+    pg.mouse.click(b["x"], b["y"]); pg.wait_for_timeout(600)
+    check(ev("edTool") == "trim" and pg.locator("#edTrim").is_visible(), "a click on a caption line stays under Trim")
+    check(near(head(), ext[0]["src"], 0.1) and pg.locator("#edCapTrack .ed-cap-c.now").get_attribute("data-k") == str(k_ext), "and goes to that line, lit")
+    b = ev(f"(r=>({{x:r.left+r.width/2,y:r.top+r.height/2}}))(document.querySelector(`#edCapTrack .ed-cap-c[data-k='{k_ext}']`).getBoundingClientRect())")
+    pg.mouse.click(b["x"], b["y"]); pg.wait_for_timeout(120); pg.mouse.click(b["x"], b["y"])
+    pg.wait_for_selector("#edCapTrack .ed-cap-in", timeout=5000)
+    pg.locator("#edCapTrack .ed-cap-in").fill("Stretched words here"); pg.keyboard.press("Enter"); pg.wait_for_timeout(400)
+    check(ev("edTool") == "trim" and ev(f"edCap.lineText({k_ext})") == "Stretched words here", "a double-click edits the new part's line right there, still under Trim")
+    # playing from the handle, with the captions moving
+    ev(f"edHeadTo({o0 + 4})"); pg.wait_for_timeout(300)
+    tf0 = ev("document.querySelector('#edCapTrack .ed-cap-strip').style.transform")
+    pg.click("#edPlayBtn"); pg.wait_for_timeout(2200)
+    tf1 = ev("document.querySelector('#edCapTrack .ed-cap-strip').style.transform")
+    check(ev("edTV.playing()") and head() > o0 + 4.5 and tf1 != tf0, f"Play: from the handle, the Short as it will be, and the captions move with it ({tf0} -> {tf1})")
+    pg.click("#edPlayBtn"); pg.wait_for_timeout(300); t_stop = head()
+    check(not ev("edTV.playing()") and near(t_stop, head(), 0.01), "Pause: the handle stays where it stopped")
+    pg.locator("#edTrim .tr-sum").click(); pg.keyboard.press("Space"); pg.wait_for_timeout(700)
+    check(ev("edTV.playing()"), "Space plays too")
+    pg.keyboard.press("Space"); pg.wait_for_timeout(200)
+    # stretched at the start: every Play starts from the new start, not the saved one
+    w12 = ev("edTS.win()"); s12 = P()[0][0]
+    win = w12; fb = film()
+    pg.keyboard.down("Alt"); pg.mouse.move(TX(s12), fb["y"] + fb["height"] / 2); pg.mouse.down(); pg.mouse.move(TX(s12 - 8), fb["y"] + fb["height"] / 2, steps=10); pg.mouse.up(); pg.keyboard.up("Alt")
+    pg.wait_for_timeout(500)
+    new_start = P()[0][0]
+    check(new_start < s12 - 1 and ev("edTS.win()") == w12, f"stretched at the start, on the same scale ({s12} -> {new_start})")
+    kb = pg.locator("#edTrimStrip .ts-knob").bounding_box()
+    pg.mouse.move(kb["x"] + 8, kb["y"] + 8); pg.mouse.down(); pg.mouse.move(TX(new_start) + 1, kb["y"] + 8, steps=10); pg.mouse.up(); pg.wait_for_timeout(400)
+    check(near(head(), new_start, 0.5), f"the handle on the new start ({head()})")
+    ev("document.getElementById('edVideo').play().catch(()=>{})"); pg.wait_for_timeout(1200)
+    check(ev("edTV.playing()") and ev("document.getElementById('edVideo').paused") and new_start <= head() < new_start + 3, f"the player's own Play starts there ({head()})")
+    pg.click("#edPlayBtn"); pg.wait_for_timeout(300)
+    ev(f"edHeadTo({new_start})"); pg.wait_for_timeout(200)
+    pg.click("#edPlayBtn"); pg.wait_for_timeout(1000)
+    check(ev("edTV.playing()") and new_start <= head() < new_start + 3, f"the play button too ({head()})")
+    check(ev("edCapNow()") < 3, "and the captions are at the new start")
+    pg.click("#edPlayBtn"); pg.wait_for_timeout(300)
+    # and it's what gets made
+    pg.click("#edSave"); wait_saved(); pg.wait_for_timeout(1000)
+    words = " ".join(open(f, encoding="utf-8").read() for f in glob.glob(os.path.join(H["jobs_dir"], BJ, "captions_*.ass"))).lower()
+    check("stretched" in words, "saved: the changed words are in the Short's burned-in captions")
+    check(pg.locator("#edTrimStrip .ts-add").count() == 0, "saved: it's part of the Short now, so no more green")
+    check(ev("edCap.lineText(%d)" % k_ext) == "Stretched words here", "and still on the row after the remake")
+    tool("details")
+
     print("13. The vlog's video is gone")
     for f in glob.glob(os.path.join(H["jobs_dir"], BJ, "source.*")):
         os.remove(f)
     open_short(BJ, 2)
     tool("trim")
-    check("video was deleted" in pg.inner_text("#edTrim"), "Trim says why")
+    check("file was deleted" in pg.inner_text("#edTrim"), "Trim says why")
     tool("captions")
     pg.wait_for_function("document.querySelector('#edCap .cp-on')", timeout=20000)
-    check("video was deleted" in pg.inner_text("#edCap") and pg.locator("#cpOn").is_disabled()
+    check("file was deleted" in pg.inner_text("#edCap") and pg.locator("#cpOn").is_disabled()
           and pg.locator(".cp-pre").first.is_disabled(), "Captions says why, and can't be changed")
     tool("trim")
     tool("trim", strip=True)
     fb = pg.locator("#edTrimStrip .ts-film").bounding_box()
     pg.mouse.click(fb["x"] + fb["width"] * 0.4, fb["y"] + 20); pg.mouse.click(fb["x"] + fb["width"] * 0.5, fb["y"] + 20); pg.wait_for_timeout(300)
-    check(ev("edTS.sel()") is None and ev("edTS.first()") is None and pg.locator("#edTrimStrip .ts.ro").count() == 1,
+    check(ev("edTS.sel()") is None and pg.locator("#edTrimStrip .ts.ro").count() == 1,
           "clicks on the video row don't choose anything to cut")
     tool("trim")
     b4 = P()
@@ -892,7 +1024,7 @@ with sync_playwright() as p:
           "the part is put back")
     tool("reframe")
     pg.wait_for_function("document.querySelector('#edRf .ae-warn, #edRf .ae-help')", timeout=20000)
-    check("video was deleted" in pg.inner_text("#edRf") and pg.locator("#edRf [data-layout]").first.is_disabled(),
+    check("file was deleted" in pg.inner_text("#edRf") and pg.locator("#edRf [data-layout]").first.is_disabled(),
           "Reframe says why, and can't be changed")
 
     # ---------------------------------------------------------------- 13b. the vlog deleted, the Shorts' clean clips kept

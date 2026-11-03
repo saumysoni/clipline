@@ -1,17 +1,16 @@
-// The editor's Video row (js/editor.js): the vlog's pictures around the Short, on one fixed scale, so the whole clip is in
-// view however much is trimmed (nothing to scroll or zoom). What the Short keeps is bright; what it leaves out is dimmed.
-// Times are the Short's own: 0:00 is where the saved Short starts (as the player counts), earlier is −.
-// Under the Trim tool it's how you trim: click where the part to cut starts, then where it ends: a yellow box, made once.
-// After that it's shaped, not made again: drag its ends to stretch or narrow it, drag inside it to move it (snapping to
-// the gaps between words; Alt / Option: freely); a click elsewhere does nothing; Esc or Clear removes it. Cut it out
-// takes it out of the Short (then a preview plays without it): cut parts are blurred and striped red ("cut"), unlike
+// The editor's Video row (js/editor.js), on one fixed scale (nothing to scroll or zoom). Under every tool but Trim it shows
+// only the Short, because the vlog around it can't be used there. Under Trim it also shows the vlog around the Short, dimmed,
+// to reach into. Times are the Short's own: 0:00 is where the saved Short starts (as the player counts), earlier is −.
+// The playhead has a handle: drag it, or the times above the row, to move through the video. A click moves it too (a moment the
+// saved video hasn't got shows big instead); there's no cut mode. Outside Trim a drag on the pictures moves it as well. Under Trim, a
+// drag across the row makes the yellow box of the part to cut out. Then drag its ends to stretch or narrow it, drag inside it to
+// move it (snapping to the gaps between words; Alt / Option: freely), or drag elsewhere for a new one; Esc or Clear removes it.
+// Cut it out takes it out of the Short (then a preview plays without it): cut parts are blurred and striped red ("cut"), unlike
 // the vlog around the Short (dimmed). The Short's own two ends have grips: drag them out into the vlog around it to
-// add it, or in to shorten it. While the pointer is over the row, the player's place shows that moment big (trimView,
-// below). Under every other tool a click moves the player (a moment the saved video hasn't got shows big instead).
+// add it, or in to shorten it. While dragging, the player's place shows that moment big (trimView, below); never just from
+// pointing at the row, which would cover the player and its controls.
 // Changes go to o.commit(pieces) (AI Edit's pieces: one Undo, one Save with the other tools).
-const TS_SNAP=8, TS_EDGE=14, TS_MIN_SEL=0.3, TS_MORE=30;  // px, px, s, s
-// the margin either side of the Short: room to reach into the vlog without asking (Show more of the vlog adds TS_MORE)
-const tsMargin=len=>Math.min(90, Math.max(30, len*0.5));
+const TS_SNAP=8, TS_EDGE=14, TS_MIN_SEL=0.3, TS_MARGIN=30, TS_DRAG=4;  // px, px, s, s, px (a press that moves less is a click)
 const tsClock=(d,tenths)=>{ const s=Math.abs(d), m=Math.floor(s/60), r=s-m*60;
   return (d<-0.05?"−":"")+m+":"+(r<10?"0":"")+(tenths?r.toFixed(1):Math.floor(r)); };
 function trimStrip(o){
@@ -21,7 +20,7 @@ function trimStrip(o){
   // seek(t), hover(t | null) (the pointer over the row), onSel() (the selection changed), saved() (the saved Short's
   // pieces: what's cut is what they had and these don't), commit(pieces) (a Short end dragged)
   const box=o.box;
-  let win=null, winFor="", on=false, more=0, sel=null, first=null, drag=null, vid=null, vidSrc="", frames=new Map(), drawing=false, want=0;
+  let win=null, winFor="", on=false, sel=null, drag=null, vid=null, vidSrc="", frames=new Map(), drawing=false, want=0;
   const r3=v=>+v.toFixed(3);
   const W=()=>box.querySelector(".ts-film").clientWidth||1;
   const pps=()=>W()/Math.max(0.1,win.b-win.a);
@@ -30,24 +29,27 @@ function trimStrip(o){
   const rel=t=>t-o.origin();
   function frame(p){
     const info=o.info(), dur=info.duration||p[p.length-1][1];
-    const a0=Math.min(o.origin(), info.start, p[0][0]), b0=Math.max(info.end, p[p.length-1][1]), m=tsMargin(b0-a0)+more;
-    const [r0,r1]=info.reach||[0,dur];  // what there is to show: the vlog, or the Short's clean clip once it's gone
-    let a=a0-m, b=b0+m;
-    if(win){ a=Math.min(a,win.a); b=Math.max(b,win.b); }  // never shrinks while this Short is open
-    return {a:Math.max(0,r0,a), b:Math.min(dur,r1,b)};
+    if(!o.trim()){  // only the Short: its parts, and what was cut from inside it
+      const sv=(o.saved&&o.saved())||p;
+      return {a:Math.min(sv[0][0],p[0][0]), b:Math.max(sv[sv.length-1][1],p[p.length-1][1])};
+    }
+    // Under Trim: the saved Short and TS_MARGIN either side, on a scale that doesn't move while it's stretched. A Short saved
+    // longer gets TS_MARGIN either side again.
+    const sv=(o.saved&&o.saved())||p, [r0,r1]=info.reach||[0,dur];
+    return {a:Math.max(0,r0,Math.min(sv[0][0]-TS_MARGIN,p[0][0])), b:Math.min(dur,r1,Math.max(sv[sv.length-1][1]+TS_MARGIN,p[p.length-1][1]))};
   }
   function paint(){
     const info=o.info(), p=o.pieces();
     if(!on) return;
     if(!info || !p.length){ box.innerHTML='<p class="ed-tl-msg">Getting the parts of this Short...</p>'; win=null; return; }
     const key=JSON.stringify([info.start,info.end,info.duration]);
-    if(key!==winFor){ winFor=key; win=null; more=0; sel=first=null; frames=new Map(); }
+    if(key!==winFor){ winFor=key; win=null; sel=null; frames=new Map(); }
     const was=win&&win.a+":"+win.b; win=frame(p);
     if(!box.querySelector(".ts")){
-      box.innerHTML='<div class="ts" role="group" aria-label="The video: the Short and the vlog around it">'+
+      box.innerHTML='<div class="ts" role="group" aria-label="The video: the Short and the video around it">'+
         '<div class="ts-ticks" aria-hidden="true"></div>'+
         '<div class="ts-film"><canvas class="ts-pics" aria-hidden="true"></canvas><div class="ts-dims"></div><div class="ts-sel" hidden><i class="s"></i><i class="e"></i></div>'+
-        '<div class="ts-first" hidden></div><div class="ts-hover" hidden></div><div class="ts-head" aria-hidden="true"></div><div class="ts-tip" hidden></div></div></div>';
+        '<div class="ts-hover" hidden></div><div class="ts-head" aria-hidden="true"><i class="ts-knob" title="Drag to move through the video"></i></div><div class="ts-tip" hidden></div></div></div>';
       wire();
     }
     const ts=box.querySelector(".ts");
@@ -73,14 +75,20 @@ function trimStrip(o){
     }
     const grips=o.trim()&&o.canEdit()?'<div class="ts-grip s" style="left:'+pc(p[0][0])+'" title="Drag to start the Short earlier or later"></div>'+
       '<div class="ts-grip e" style="left:'+pc(p[p.length-1][1])+'" title="Drag to end the Short earlier or later"></div>':'';
-    setHTML(box.querySelector(".ts-dims"), seg.map(([a,b,k])=>'<div class="ts-'+k+'" style="left:'+pc(a)+';width:calc('+pc(b)+' - '+pc(a)+')">'+
+    // Added: kept now, but not in the saved Short (it was stretched into the vlog, not saved yet): the lightest green.
+    const added=[];
+    for(const [a,b] of p){
+      let at2=a;
+      for(const [u,v] of sv){ if(v<=at2||u>=b) continue; if(u>at2+0.01) added.push([at2,u]); at2=Math.max(at2,v); }
+      if(at2<b-0.01) added.push([at2,b]);
+    }
+    setHTML(box.querySelector(".ts-dims"), added.map(([a,b])=>'<div class="ts-add" style="left:'+pc(a)+';width:calc('+pc(b)+' - '+pc(a)+')"></div>').join("")+seg.map(([a,b,k])=>'<div class="ts-'+k+'" style="left:'+pc(a)+';width:calc('+pc(b)+' - '+pc(a)+')">'+
         (k==="cut"&&x(b)-x(a)>34?'<span>cut</span>':'')+'</div>').join("")+
       p.map(([a,b])=>'<div class="ts-keep" style="left:'+pc(a)+';width:calc('+pc(b)+' - '+pc(a)+')"></div>').join("")+grips);
   }
   function marks(){
-    const s=box.querySelector(".ts-sel"), f=box.querySelector(".ts-first");
+    const s=box.querySelector(".ts-sel");
     s.hidden=!sel; if(sel){ s.style.left=pc(sel.a); s.style.width="calc("+pc(sel.b)+" - "+pc(sel.a)+")"; }
-    f.hidden=first==null; if(first!=null) f.style.left=pc(first);
   }
   function follow(){
     const h=box.querySelector(".ts-head"); if(!h||!win) return;
@@ -142,64 +150,65 @@ function trimStrip(o){
   // the Short's own ends (its first part's start, its last part's end): "s", "e" or null
   const shortEnd=t=>{ const p=o.pieces(); if(!p.length) return null; const ds=Math.abs(x(t)-x(p[0][0])), de=Math.abs(x(t)-x(p[p.length-1][1]));
     return Math.min(ds,de)>TS_EDGE ? null : ds<=de ? "s" : "e"; };
+  function startScrub(e, film){
+    if(o.press) o.press();
+    drag={side:"head", id:e.pointerId, was:sel&&{...sel}};
+    film.setPointerCapture(e.pointerId); box.querySelector(".ts-head").classList.add("drag"); film.style.cursor="grabbing";
+    const t=timeAt(e); o.seek(t); tip(t,tsClock(rel(t),true));
+  }
   function wire(){
     const film=box.querySelector(".ts-film");
+    box.querySelector(".ts-ticks").addEventListener("pointerdown",e=>{ if(e.button!==0 || !win) return; e.preventDefault(); startScrub(e,film); });
     film.addEventListener("pointermove",e=>{
       if(!win) return;
       if(drag && e.pointerId===drag.id){ move(e); return; }
       const t=timeAt(e), h=box.querySelector(".ts-hover"), ed=o.trim()&&o.canEdit();
       h.hidden=false; h.style.left=pc(t);
-      film.style.cursor=ed&&(atEdge(t)||(!inside(t)&&shortEnd(t)))?"ew-resize":ed&&inside(t)?"grab":ed&&!sel?"crosshair":ed?"default":"pointer";
-      tip(t, tsClock(rel(t),true)+(first!=null?" · "+Math.abs(t-first).toFixed(1)+" s":""));
-      o.hover(t);
+      film.style.cursor=ed&&(atEdge(t)||(!inside(t)&&shortEnd(t)))?"ew-resize":ed&&inside(t)?"grab":"pointer";
+      tip(t, tsClock(rel(t),true));
     });
-    film.addEventListener("pointerleave",()=>{ if(drag) return; box.querySelector(".ts-hover").hidden=true; box.querySelector(".ts-tip").hidden=true; o.hover(null); });
+    film.addEventListener("pointerleave",()=>{ if(drag) return; box.querySelector(".ts-hover").hidden=true; box.querySelector(".ts-tip").hidden=true; });
     film.addEventListener("pointerdown",e=>{
       if(e.button!==0 || !win) return;
-      e.preventDefault();
-      if(!o.trim() || !o.canEdit()){ o.seek(timeAt(e)); return; }
-      const t=timeAt(e);
+      e.preventDefault(); if(o.press) o.press();
+      if(e.target.closest(".ts-knob") || !o.trim() || !o.canEdit()){ startScrub(e,film); return; }
+      const t=timeAt(e), head=o.now();
+      // the line itself can be taken too, unless a yellow box or the Short's end is right there
+      if(head!=null && Math.abs(x(t)-x(head))<=6 && !atEdge(t) && !inside(t) && !shortEnd(t)){ startScrub(e,film); return; }
       if(atEdge(t)){  // an end of the box: stretch or narrow it
         drag={side:Math.abs(x(t)-x(sel.a))<=Math.abs(x(t)-x(sel.b))?"a":"b", id:e.pointerId, was:{...sel}};
         film.setPointerCapture(e.pointerId); return;
       }
-      const se=first==null && !inside(t) && shortEnd(t);  // (inside the yellow box, the box comes first)
+      const se=!inside(t) && shortEnd(t);  // (inside the yellow box, the box comes first)
       if(se){  // the Short's own end: stretch it into the vlog around it, or shorten it
-        drag={side:"short-"+se, id:e.pointerId, p0:o.pieces().map(q=>[...q]), p:null, down:{clientX:e.clientX, altKey:e.altKey}};
+        drag={side:"short-"+se, id:e.pointerId, p0:o.pieces().map(q=>[...q]), p:null, x0:e.clientX, t0:t};
         film.setPointerCapture(e.pointerId); return;
       }
       if(inside(t)){  // inside it: move it along, the same length
-        drag={side:"move", id:e.pointerId, was:{...sel}, t0:t};
+        drag={side:"move", id:e.pointerId, was:{...sel}, t0:t, x0:e.clientX, moved:false};
         film.setPointerCapture(e.pointerId); film.style.cursor="grabbing"; return;
       }
-      pickAt(e);
+      // elsewhere: a click moves the player, a drag makes a new yellow box
+      drag={side:"new", id:e.pointerId, t0:t, x0:e.clientX, moved:false, was:sel&&{...sel}};
+      film.setPointerCapture(e.pointerId);
     });
-    // a click that makes the yellow box: its start, then its end (made once: shaped from then on)
-    const pickAt=e=>{
-      const t=timeAt(e);
-      if(sel) return;  // made once: shaped from now on, not made again (Clear / Esc / Cut it out to start afresh)
-      if(first==null){ first=timeAt(e,"start"); sel=null; }
-      else{
-        const t2=timeAt(e, t<first?"start":"end"), a=Math.min(first,t2), b=Math.max(first,t2);
-        if(b-a<TS_MIN_SEL) return;  // the same spot twice: still waiting for the end
-        sel={a:r3(a), b:r3(b)}; first=null;
-      }
-      marks(); o.onSel(); o.hover(t);
-    };
     film.addEventListener("pointerup",e=>{ if(drag && e.pointerId===drag.id){ const d=drag; drag=null;
+      if(d.side==="head"){ box.querySelector(".ts-head").classList.remove("drag"); box.querySelector(".ts-tip").hidden=true; film.style.cursor=""; return; }
       if(d.side.startsWith("short-")){ box.querySelector(".ts-tip").hidden=true;
-        if(d.p && Math.abs(e.clientX-d.down.clientX)>2 && o.commit) o.commit(d.p); else{ paint(); pickAt(d.down); }  // not moved: a click
+        if(d.p && Math.abs(e.clientX-d.x0)>2 && o.commit) o.commit(d.p); else{ paint(); o.seek(d.t0); }  // not moved: a click
         return; }
+      if(d.x0!=null && !d.moved){ box.querySelector(".ts-tip").hidden=true; o.seek(d.t0); }  // not moved: a click
       o.onSel(); } });
     film.addEventListener("pointercancel",()=>{ if(drag){ const d=drag; drag=null; if(d.was) sel=d.was; paint(); o.onSel(); } });
     document.addEventListener("keydown",e=>{
-      if(e.key!=="Escape" || !on || (!sel && first==null && !drag)) return;  // (Esc while dragging a Short end: it stays)
+      if(e.key!=="Escape" || !on || (!sel && !drag)) return;  // (Esc while dragging a Short end: it stays)
       const a=document.activeElement; if(a && (a.tagName==="INPUT"||a.tagName==="TEXTAREA")) return;
-      e.preventDefault(); if(drag){ if(drag.was) sel=drag.was; drag=null; paint(); } else { sel=null; first=null; } marks(); o.onSel();
+      e.preventDefault(); if(drag){ sel=drag.was||null; drag=null; paint(); } else sel=null; marks(); o.onSel();
     });
     new ResizeObserver(()=>{ if(on && win) pics(); }).observe(film);
   }
   function move(e){
+    if(drag.side==="head"){ const t=timeAt(e); o.seek(t); tip(t,tsClock(rel(t),true)); return; }
     if(drag.side.startsWith("short-")){
       const p=drag.p0.map(q=>[...q]), n=p.length-1, info=o.info(), [r0,r1]=info.reach||[0,info.duration||win.b];
       if(drag.side==="short-s"){ const t=timeAt(e,"start"); p[0][0]=r3(Math.max(win.a, r0, Math.min(p[0][1]-0.5, t))); }
@@ -209,7 +218,18 @@ function trimStrip(o){
       tip(at,(drag.side==="short-s"?"Starts ":"Ends ")+tsClock(rel(at),true)+" · Short "+fmt(len)); o.hover(at);
       return;
     }
+    if(drag.side==="new"){
+      if(!drag.moved && Math.abs(e.clientX-drag.x0)<TS_DRAG) return;
+      drag.moved=true;
+      const raw=timeAt(e), side=raw<drag.t0?"start":"end", t=timeAt(e,side), from=timeAt({clientX:box.querySelector(".ts-film").getBoundingClientRect().left+x(drag.t0), altKey:e.altKey}, side==="start"?"end":"start");
+      if(Math.abs(t-from)<TS_MIN_SEL){ sel=drag.was||null; marks(); return; }
+      sel={a:r3(Math.min(t,from)), b:r3(Math.max(t,from))}; marks();
+      tip(t, tsClock(rel(sel.a),true)+" → "+tsClock(rel(sel.b),true)+" · "+(sel.b-sel.a).toFixed(1)+" s"); o.hover(t);
+      return;
+    }
     if(drag.side==="move"){
+      if(!drag.moved && Math.abs(e.clientX-drag.x0)<TS_DRAG) return;
+      drag.moved=true;
       const len=drag.was.b-drag.was.a, d=timeAt(e)-drag.t0;
       let a=Math.min(win.b-len, Math.max(win.a, drag.was.a+d));
       if(!e.altKey){ const s=timeAt({clientX:box.querySelector(".ts-film").getBoundingClientRect().left+x(a), altKey:false},"start"); a=Math.min(win.b-len, Math.max(win.a, s)); }
@@ -225,14 +245,10 @@ function trimStrip(o){
   return {
     paint, follow,
     show(v){ on=!!v; if(on) paint(); },
-    reset(){ win=null; winFor=""; more=0; sel=first=null; drag=null; box.innerHTML=""; },
+    reset(){ win=null; winFor=""; sel=null; drag=null; box.innerHTML=""; },
     win:()=>win && {...win},
-    sel:()=>sel && {...sel}, first:()=>first,
-    setSel(s){ sel=s?{a:r3(Math.max(win?win.a:0,s.a)), b:r3(Math.min(win?win.b:1e9,s.b))}:null; first=null; if(win) marks(); o.onSel(); },
-    widen(){ more+=TS_MORE; if(win){ const info=o.info(), dur=info.duration||win.b, [r0,r1]=info.reach||[0,dur];
-      win={a:Math.max(0,r0,win.a-TS_MORE), b:Math.min(dur,r1,win.b+TS_MORE)}; ticks(); } paint(); },
-    canWiden:()=>{ if(!win) return false; const info=o.info(), dur=info.duration||win.b, [r0,r1]=info.reach||[0,dur];
-      return win.a>Math.max(0,r0)+0.01 || win.b<Math.min(dur,r1)-0.01; },
+    sel:()=>sel && {...sel},
+    setSel(s){ sel=s?{a:r3(Math.max(win?win.a:0,s.a)), b:r3(Math.min(win?win.b:1e9,s.b))}:null; if(win) marks(); o.onSel(); },
     rel,
   };
 }
@@ -241,12 +257,12 @@ function trimStrip(o){
 function trimView(o){
   // o: host (over the player), src() (the vlog's video, or a clip starting at the vlog second off()), crop(t) -> {x, y, z} (0-1) or null (the whole picture), size()
   // -> {width, height} of the vlog, onTime(t | null) (playing; null = stopped)
-  let vid=null, vidSrc="", playing=false, raf=0, at=0, plan=null;
+  let vid=null, vidSrc="", playing=false, raf=0, at=0, plan=null, unlocked=false;
   const cv=()=>o.host.querySelector("canvas"), off=()=>o.off?o.off():0;
   const vt=()=>vid.currentTime+off();  // the video's place, in vlog seconds
   function video(){
     const src=o.src(); if(!src) return null;
-    if(src!==vidSrc){ vidSrc=src; vid=document.createElement("video"); vid.preload="auto"; vid.playsInline=true; vid.src=src;
+    if(src!==vidSrc){ vidSrc=src; unlocked=false; vid=document.createElement("video"); vid.preload="auto"; vid.playsInline=true; vid.src=src;
       vid.addEventListener("seeked",()=>{ if(!playing) paint(); }); vid.addEventListener("loadeddata",()=>{ if(!playing) vid.currentTime=Math.max(0,at-off()); }); }
     return vid;
   }
@@ -264,6 +280,14 @@ function trimView(o){
     o.host.querySelector(".tv-time").textContent=text||""; o.host.hidden=false;
   }
   const api={
+    // Called from a press. Safari only lets a video play with sound if it first played from a person's press or click, and the
+    // player's own Play button (which comes here through a "play" event) doesn't count: a silent instant now means sound later.
+    unlock(){
+      const v=video(); if(!v||unlocked||playing) return; unlocked=true;
+      const vol=v.volume; v.volume=0; const r=v.play();
+      const done=()=>{ if(!playing) v.pause(); v.volume=vol; };
+      if(r&&r.then) r.then(done,()=>{ unlocked=false; v.volume=vol; }); else done();
+    },
     // show the moment t (vlog seconds) big
     show(t, text){ if(playing) return; const v=video(); if(!v) return; open(text); at=t;
       if(v.readyState>=1 && Math.abs(vt()-t)>0.03) v.currentTime=Math.max(0,t-off()); else paint(); },

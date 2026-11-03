@@ -102,3 +102,7 @@
 .cp-line.own .cp-at{color:var(--primary-text);font-weight:700}
 .cp-at[data-k]:not(:disabled){text-decoration:underline dotted;text-underline-offset:3px}
 @media (prefers-reduced-motion:reduce){ .cp-prev img{transition:none} }
+
+/* typing a line's words on the Captions row (js/editor.js edCapEdit) */
+.ed-cap-c.typing{max-width:none;background:var(--raised);border-color:var(--primary)}
+.ed-cap-in{height:26px;min-width:60px;padding:0 6px;border:0;border-radius:5px;background:transparent;color:var(--ink);font:inherit;outline:none}

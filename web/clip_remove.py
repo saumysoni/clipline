@@ -37,7 +37,7 @@ def _record(job_id, idx, key, match):
 def clip_delete_youtube(job_id, idx):
     with LOCK:
         if job_id in POSTING:
-            return jsonify(error="This vlog's Shorts are being posted right now. Try again when that's finished."), 400
+            return jsonify(error="This video's Shorts are being posted right now. Try again when that's finished."), 400
         rec = _record(job_id, idx, "uploads", lambda u: u.get("video_id"))
     if not rec:
         return jsonify(error="This Short isn't on YouTube."), 400

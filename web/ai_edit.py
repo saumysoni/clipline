@@ -28,8 +28,8 @@ from web import clean_clips
 from web.server import app
 from web.store import JOBS, LOCK, RETRY_LOCKS, editable_job, load_job, next_file_number, update, update_short
 
-NEAR = 30  # seconds of the vlog either side of the moment whose words Trim shows
-NO_VIDEO = ("This vlog's video was deleted, so Pit Crew can't cut this Short again. You can still change its title, "
+NEAR = 30  # seconds of the vlog either side of the moment whose words Trim and the Captions row can use (js/trim-strip.js TS_MARGIN)
+NO_VIDEO = ("This video's file was deleted, so Pit Crew can't cut this Short again. You can still change its title, "
             "hashtags and thumbnail text.")
 
 
@@ -77,7 +77,7 @@ def ai_edit_info(job_id, idx):
     why_not = "" if src else NO_VIDEO
     reach = list(src["reach"]) if src else [0, _duration(job, tr)]
     reach[1] = min(reach[1], _duration(job, tr) or reach[1])
-    near = [{"w": w["w"], "s": w["s"], "e": w["e"]} for w in
+    near = [{"w": w["w"], "s": w["s"], "e": w["e"], "i": pos[id(w)]} for w in
             pipeline.words_in(tr["words"], {"start": float(me["start"]) - NEAR, "end": float(me["end"]) + NEAR})]
     return jsonify(start=me["start"], end=me["end"], duration=_duration(job, tr), reach=reach, clip=bool(src and src["clip"]), pieces=[list(p) for p in pieces], length=pipeline.short_length(me),
                    near=near,

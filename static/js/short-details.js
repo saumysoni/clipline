@@ -64,7 +64,7 @@ function shortDetails(o){
     }});
     if(pend.hook) showHook(pend.hook);
     // the vlog's video is deleted: the hook can't be put back into the video (titles and looks still work)
-    box.querySelectorAll(".hk-change,.hk-apply,.hk-rewrite").forEach(b=>{ b.disabled=gone||!!cl.remaking; if(gone) b.title="Needs the vlog's video, which was deleted"; });
+    box.querySelectorAll(".hk-change,.hk-apply,.hk-rewrite").forEach(b=>{ b.disabled=gone||!!cl.remaking; if(gone) b.title="Needs the video's file, which was deleted"; });
     // hashtags and caption: held, saved together
     wirePostText(box,sv,cl.job,body=>{ pend.text={...(pend.text||{}),...body}; changed(); }, "caption" in held ? {caption:held.caption} : null);
     // thumbnail: look, text and Try again are chosen here and made on Save
@@ -85,14 +85,14 @@ function shortDetails(o){
         hint(); changed();
       };
       l1.addEventListener("input",typed); l2.addEventListener("input",typed);
-      if(!tinfo.can_text){ l1.disabled=l2.disabled=true; l2.title="The vlog's video was deleted, so this thumbnail can't be redrawn"; }
+      if(!tinfo.can_text){ l1.disabled=l2.disabled=true; l2.title="The video's file was deleted, so this thumbnail can't be redrawn"; }
       // Try again: on or off; while it's on, the text is the AI's (the fields wait)
       again.onclick=()=>{
         const on=!pend.tagain; if(on) pend.tagain=true; else delete pend.tagain;
         again.setAttribute("aria-pressed",on); again.lastChild.textContent=on?"New thumbnail on save":"Try again";
         l1.disabled=l2.disabled=on||!tinfo.can_text; hint(); if(o.onLook&&on) o.onLook(); changed();
       };
-      if(!tinfo.can_again){ again.disabled=true; again.title="Needs the vlog's video, which was deleted"; }
+      if(!tinfo.can_again){ again.disabled=true; again.title="Needs the video's file, which was deleted"; }
       if(pend.ttext){ l1.value=pend.ttext.line1; l2.value=pend.ttext.line2; }
       if(pend.tagain){ again.setAttribute("aria-pressed",true); again.lastChild.textContent="New thumbnail on save"; l1.disabled=l2.disabled=true; }
     }

@@ -48,7 +48,7 @@ def make_shorts(job_id, src, link, count, style, vlog=None, note="", must=()):
     with LOCK:  # what an earlier, paused run of this vlog already did
         done = json.loads(json.dumps({k: JOBS[job_id].get(k) for k in ("plan", "made", "shorts")}, default=str))
     try:
-        step(stage=0, pct=0, msg="Getting your vlog")
+        step(stage=0, pct=0, msg="Getting your video")
         if link:
             import gdown
             src = job_dir / "source.mp4"
@@ -204,7 +204,7 @@ def start():
     job_dir = JOBS_DIR / job_id
     job_dir.mkdir()
     src = None
-    name = "Your vlog"
+    name = "Your video"
     if upload:
         try:
             src, name = take_upload(upload, g.user["id"], job_dir)

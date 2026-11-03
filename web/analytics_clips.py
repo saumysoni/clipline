@@ -63,7 +63,7 @@ def posted_clips(user_id, vlog=""):
     for job in user_jobs(user_id):
         if vlog and job["id"] != vlog:
             continue
-        name = (job.get("vlog") or {}).get("title") or job.get("name") or "Your vlog"
+        name = (job.get("vlog") or {}).get("title") or job.get("name") or "Your video"
         ups = {u["idx"]: u for u in job.get("uploads") or []}
         reels = {p["idx"]: p for p in job.get("ig_posts") or [] if p["status"] == "done" and p.get("media_id")}
         for s in job.get("shorts", []):

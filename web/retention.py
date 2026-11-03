@@ -89,7 +89,21 @@ def video_expires(job):
 
 def is_draft(job, s):
     return not any(u["idx"] == s["idx"] for u in job.get("uploads") or []) and \
-        not any(p["idx"] == s["idx"] for p in job.get("ig_posts") or [])
+        not any(p["idx"] == s["idx"] for p in job.get("ig_posts") or []) and \
+        not any(r["idx"] == s["idx"] for r in job.get("yt_removed") or [])  # a grey card (web/removed.py), not a draft
+
+
+def removed_expires(job, s):
+    """When a Short that's gone from everywhere it was posted (a grey card, web/removed.py) is deleted: KEEP_DRAFT_DAYS after it
+    was found gone, not after its last edit (that can be long past). None: not one, or kept forever."""
+    idx = s["idx"]
+    if not keep_draft() or any(u["idx"] == idx for u in job.get("uploads") or []):
+        return None
+    reels = [p for p in job.get("ig_posts") or [] if p["idx"] == idx]
+    if any(p.get("status") != "removed" for p in reels):
+        return None
+    times = [r.get("removed_at") or 0 for r in job.get("yt_removed") or [] if r["idx"] == idx] + [p.get("removed_at") or 0 for p in reels]
+    return max(times) + keep_draft() if times else None
 
 
 def draft_expires(job, s):
@@ -161,7 +175,7 @@ def _remove(paths):
 def _busy(job):
     return (job.get("status") != "ready" or job["id"] in POSTING
             or job.get("upload_status") in ("starting", "connecting", "uploading")
-            or (job.get("vpost") or {}).get("state") == "uploading"
+            or (job.get("vpost") or {}).get("state") in ("uploading", "paused")
             or any(s.get("retrying") for s in job.get("shorts", [])))
 
 
@@ -188,12 +202,20 @@ def sweep_job(job_id, now=None):
     done = []
     with LOCK:
         job = load_job(job_id)
+        post = (job or {}).get("vpost") or {}
+        # a paused upload to YouTube waits as long as a vlog's video is kept, then it's dropped (Upload starts it again)
+        if post.get("state") == "paused" and keep_original() and \
+                now >= (job.get("last_edit_at") or created_at(job)) + keep_original():
+            job.update(vresume=None, last_edit_at=now,
+                       vpost={**post, "state": "error", "error": "It was paused for too long. Press Upload to send it again."})
+            JOBS[job_id] = job
+            (JOBS_DIR / job_id / "job.json").write_text(json.dumps(job, default=str), encoding="utf-8")
         failed = bool(job) and job.get("status") == "error" and (job.get("vpost") or {}).get("state") != "uploading"
         if job and job.get("status") == "paused":  # web/pause.py: kept like a stopped vlog, then it stops for good
             if keep_original() and now >= (job.get("last_edit_at") or created_at(job)) + keep_original():
                 job.update(status="error", pausing=False,
-                           error="It was paused for longer than Pit Crew keeps a vlog's video, so it stopped. "
-                                 "Upload the vlog again to make its Shorts.")
+                           error="It was paused for longer than Pit Crew keeps a video's file, so it stopped. "
+                                 "Upload the video again to make its Shorts.")
                 (JOBS_DIR / job_id / "job.json").write_text(json.dumps(job, default=str), encoding="utf-8")
                 failed = True
             else:
@@ -204,7 +226,7 @@ def sweep_job(job_id, now=None):
     job_dir = JOBS_DIR / job_id
     if failed:
         return _sweep_stopped(job, now)
-    title = (job.get("vlog") or {}).get("title") or job.get("name") or "your vlog"
+    title = (job.get("vlog") or {}).get("title") or job.get("name") or "your video"
 
     # 1. the vlog's video
     exp = video_expires(job)
@@ -214,11 +236,11 @@ def sweep_job(job_id, now=None):
             done.append("video deleted")
         elif now >= exp - WARN_BEFORE and job.get("warned_video") != exp:
             _email(job.get("owner"), f"Pit Crew: the video of \"{title}\" will be deleted {_date(exp, job.get('tz'))}",
-                   f"To keep storage free, Pit Crew deletes a vlog's video {keep_original() / 3600:.0f} hours after "
+                   f"To keep storage free, Pit Crew deletes a video's file {keep_original() / 3600:.0f} hours after "
                    f"it was last edited. The video of \"{title}\" will be deleted on {_date(exp, job.get('tz'))}.\n\n"
                    "Its Shorts, thumbnails, transcript and posts all stay, and each draft Short keeps a short piece of "
-                   "the vlog around it, so you can still change its captions, framing, hook and trim. After that, making "
-                   "new Shorts from it, or Try again, needs the vlog uploaded again.\n\n"
+                   "the video around it, so you can still change its captions, framing, hook and trim. After that, making "
+                   "new Shorts from it, or Try again, needs the video uploaded again.\n\n"
                    "Still working on it? Any edit to one of its Shorts keeps the video for another "
                    f"{keep_original() / 3600:.0f} hours.\n")
             update(job_id, warned_video=exp)
@@ -228,7 +250,7 @@ def sweep_job(job_id, now=None):
     gone, warn = [], []
     for s in job.get("shorts", []):
         exp = draft_expires(job, s)
-        if exp and now >= exp:
+        if (exp and now >= exp) or ((rexp := removed_expires(job, s)) and now >= rexp):
             gone.append(s)
         elif exp and now >= exp - WARN_BEFORE and s.get("warned_at") != exp:
             warn.append((s, exp))
@@ -243,7 +265,7 @@ def sweep_job(job_id, now=None):
     if gone:
         with LOCK:
             live = JOBS.get(job_id) or load_job(job_id)
-            ids = {s["idx"] for s in gone if is_draft(live, s)}  # still drafts right now
+            ids = {s["idx"] for s in gone if is_draft(live, s) or removed_expires(live, s)}  # still drafts or grey cards right now
             live["shorts"] = [x for x in live["shorts"] if x["idx"] not in ids]
             (job_dir / "job.json").write_text(json.dumps(live, default=str), encoding="utf-8")
         _remove([p for s in gone if s["idx"] in ids for p in _short_files(job_dir, s)])
