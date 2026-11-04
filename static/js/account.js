@@ -53,6 +53,7 @@ async function boot(){
   if(booted){ if(jobId) startPolling(jobId); return; }  // signed in again mid-session: pick the job back up
   booted=true;
   openRoute(location.hash.slice(1));
+  onbBoot();
 }
 // The screen for an address (#vlogs, #new, #vlog/new, #vlog/<id>, #drafts[/shorts], #edit/<vlog id>/<short>, #scheduled[/shorts], #analytics, #settings,
 // or a vlog's id). The Vlogs page is home. #youtube (older links) is Scheduled's Shorts & Reels tab.

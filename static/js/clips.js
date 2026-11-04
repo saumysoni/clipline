@@ -81,16 +81,18 @@ async function clGoneAct(c,action){
   clToast(action==="draft"?"Back in Drafts":"Removed", action==="draft"?"Edit it and post it again from Drafts.":"");
   loadClips();
 }
+const CL_NO_PIC='<span class="cl-x-nopic"><span class="ms" aria-hidden="true">movie</span></span>';  // Instagram's picture addresses expire
 // A Short on the channel that Pit Crew didn't post (web/channel_videos.py): a card with its YouTube link and why Pit Crew can't edit it.
 function clOutsideCard(x){
   if(x.gone) return '<article class="clip cl-gone cl-x" data-x="'+esc(x.id)+'"><div class="cl-thumb"><span class="cl-gone-msg"><span class="ms" aria-hidden="true">block</span>Removed or deleted from YouTube</span></div>'+
     '<div class="cl-body"><b class="cl-t" title="'+esc(x.title)+'">'+esc(x.title)+'</b><div class="cl-meta"><span>Made outside Pit Crew</span></div></div>'+
     '<div class="cl-foot cl-gone-acts"><button type="button" class="linkbtn cl-x-clear">Remove</button></div></article>';
-  return '<article class="clip cl-x" data-x="'+esc(x.id)+'"><div class="cl-thumb"><a class="cl-play" href="'+esc(x.url)+'" target="_blank" rel="noopener" aria-label="Watch '+esc(x.title)+' on YouTube">'+
-      '<img src="'+esc(x.thumb)+'" alt="" loading="lazy" referrerpolicy="no-referrer"><span class="ms cl-pi" aria-hidden="true">open_in_new</span></a><span class="cl-len">'+fmt(x.seconds)+'</span></div>'+
-    '<div class="cl-body"><b class="cl-t" title="'+esc(x.title)+'">'+esc(x.title)+'</b><div class="cl-meta"><span class="ms yt" aria-hidden="true">smart_display</span><span>YouTube Shorts'+(x.published?' · '+esc(clShortDate(x.published)):'')+'</span></div>'+
+  const isIg=x.platform==="instagram", app=isIg?"Instagram":"YouTube";
+  return '<article class="clip cl-x" data-x="'+esc(x.id)+'"><div class="cl-thumb"><a class="cl-play" href="'+esc(x.url)+'" target="_blank" rel="noopener" aria-label="Watch '+esc(x.title)+' on '+app+'">'+
+      (x.thumb?'<img src="'+esc(x.thumb)+'" alt="" loading="lazy" referrerpolicy="no-referrer">':CL_NO_PIC)+'<span class="ms cl-pi" aria-hidden="true">open_in_new</span></a>'+(x.seconds?'<span class="cl-len">'+fmt(x.seconds)+'</span>':'')+'</div>'+
+    '<div class="cl-body"><b class="cl-t" title="'+esc(x.title)+'">'+esc(x.title)+'</b><div class="cl-meta"><span class="ms '+(isIg?'ig':'yt')+'" aria-hidden="true">'+(isIg?'photo_camera':'smart_display')+'</span><span>'+(isIg?'Instagram Reels':'YouTube Shorts')+(x.published?' · '+esc(clShortDate(x.published)):'')+'</span></div>'+
       '<div class="cl-x-note">Made outside Pit Crew, so its file isn\'t here to edit or analyse.</div></div>'+
-    '<div class="cl-foot"><a class="ghost sm" href="'+esc(x.url)+'" target="_blank" rel="noopener"><span class="ms" aria-hidden="true">open_in_new</span>Watch on YouTube</a></div></article>';
+    '<div class="cl-foot"><a class="ghost sm" href="'+esc(x.url)+'" target="_blank" rel="noopener"><span class="ms" aria-hidden="true">open_in_new</span>Watch on '+app+'</a></div></article>';
 }
 function clCard(c){
   if(isGoneClip(c)) return clGoneCard(c);
@@ -195,8 +197,8 @@ function paintClips(){
     $("clAdd").hidden = !one || one.video_deleted;
   }
   const base=clFiltered(), list=clSorted(base);
-  // Shorts from outside Pit Crew: only when no video of Pit Crew's is chosen, and never under the Instagram tab
-  const outside=clMode==="out" && !clVlog && clPlat!=="instagram" ? clOutside : [];
+  // Shorts and Reels from outside Pit Crew: only when no video of Pit Crew's is chosen, newest first, under their own app's tab
+  const outside=clMode==="out" && !clVlog ? clOutside.filter(x=>!clPlat||(x.platform||"youtube")===clPlat).sort((a,b)=>String(b.published).localeCompare(String(a.published))) : [];
   const [emptyB,emptyT] = pool.length||outside.length ? ["Nothing here","Try another filter."]
     : clMode==="drafts" ? ["No Shorts or Reels drafts", clData.length?"Every clip Pit Crew made is posted or scheduled. Make Shorts from a video to get new ones.":"Upload a video and Pit Crew turns it into Shorts and Reels."]
     : ["Nothing posted yet", clData.length?"Your clips are under Drafts and Scheduled. They show up here once they go out.":"Upload a video and Pit Crew turns it into Shorts and Reels."];
@@ -204,6 +206,7 @@ function paintClips(){
   setHTML($("clGrid"), list.length||making.length||outside.length ? (clMode==="drafts" ? clGroupsHTML(list,making) : list.map(clCard).join("")+outside.map(clOutsideCard).join(""))
     : '<div class="card cl-empty"><span class="ms" aria-hidden="true">movie</span><b>'+emptyB+'</b><span>'+emptyT+'</span></div>');
   if(clMode==="drafts") clWireGroups(making);
+  $("clGrid").querySelectorAll(".cl-x img").forEach(i=>i.onerror=()=>{ i.outerHTML=CL_NO_PIC; });
   $("clGrid").querySelectorAll(".cl-x-clear").forEach(b=>b.onclick=async()=>{
     const id=b.closest(".clip").dataset.x; try{ await fetch("/api/channel-videos/"+id+"/remove",{method:"POST"}); }catch(e){}
     clOutside=clOutside.filter(x=>x.id!==id); paintClips(); });
@@ -314,8 +317,8 @@ $("clPlayer").addEventListener("close",()=>{ $("clVideo").pause(); $("clVideo").
 $("clPlatTabs").querySelectorAll("button").forEach(b=>b.onclick=()=>{ clPlat=b.dataset.p; paintClips(); });
 function clPlatTabs(){
   const pool=clData.filter(c=>isOutClip(c) && (!clVlog||c.job===clVlog));
-  const out=clVlog?0:clOutside.length;
-  $("clNAll").textContent=pool.length+out; $("clNYt").textContent=pool.filter(c=>clOnPlat(c,"youtube")).length+out; $("clNIg").textContent=pool.filter(c=>clOnPlat(c,"instagram")).length;
+  const outIg=clVlog?0:clOutside.filter(x=>x.platform==="instagram").length, out=clVlog?0:clOutside.length;
+  $("clNAll").textContent=pool.length+out; $("clNYt").textContent=pool.filter(c=>clOnPlat(c,"youtube")).length+out-outIg; $("clNIg").textContent=pool.filter(c=>clOnPlat(c,"instagram")).length+outIg;
   $("clPlatTabs").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.p===clPlat));
 }
 $("clSort").onchange=()=>{ try{ localStorage.setItem("pc-clip-sort",$("clSort").value); }catch(e){} paintClips(); };
@@ -397,7 +400,7 @@ $("clSchedGo").onclick=async()=>{
       start:$("clStart").value, every:+$("clEvery").value, channel:yt.channel&&yt.channel.id, ig_id:ig.ig_id})}); j=await r.json(); }
   catch(e){ r={ok:false}; j={error:"Couldn't reach Pit Crew. Check your internet connection, then try again."}; }
   $("clSchedGo").disabled=false;
-  if(!r.ok){ $("clSchedErr").textContent=j.error||"Couldn't schedule them."; if(j.signin==="youtube") signIn(); else if(j.signin==="instagram") igSignIn(); return; }
+  if(!r.ok){ $("clSchedErr").textContent=j.error||"Couldn't schedule them."; if(j.signin==="youtube") signIn(()=>{}); else if(j.signin==="instagram") igSignIn(()=>{}); return; }  // (a callback: no first-connect screen over this dialog)
   clKeptPicks=null; $("clSched").close(); clPicked.clear(); $("clBrowse").classList.remove("selecting"); $("clSelect").lastChild.textContent="Select"; $("clSelect").setAttribute("aria-pressed",false);
   const parts=[j.youtube&&j.youtube+" to YouTube", j.instagram&&j.instagram+" to Instagram"].filter(Boolean);
   clToast("Scheduled "+parts.join(" and "), $("clWhen").value==="now"?"They're going out now: see them in Shorts & Reels.":"See them under Scheduled.");

@@ -32,6 +32,7 @@ from web import (  # noqa: E402,F401
     ai_edit,
     captions,
     delete_account,
+    first_import,
     health,
     legal,
     analytics,

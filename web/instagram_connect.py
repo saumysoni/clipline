@@ -17,6 +17,7 @@ from flask import g, jsonify, redirect, request
 
 import instagram as ig
 
+from web import first_import
 from web.google_redirect import instagram_redirect_uri
 from web.server import app
 
@@ -63,6 +64,7 @@ def instagram_callback():
         traceback.print_exc()
         return instagram_done_page(False, "Something went wrong while connecting Instagram. Try again.", popup)
     ig.forget_insights(uid)
+    first_import.begin_safely(uid)
     msg = f"Connected @{a.get('username', '')}."
     if not a.get("can_post"):
         msg += (" This is a personal account, so Pit Crew can't post to it yet: in the Instagram app go to "
@@ -77,12 +79,12 @@ def instagram_done_page(ok, msg, popup=False):
 <style>body{{font:16px/1.5 system-ui,sans-serif;margin:0;min-height:100vh;display:grid;place-items:center;
 background:#0e1018;color:#e8eaf2;padding:16px}}main{{max-width:440px;text-align:center}}a{{color:#8fb4ff}}</style>
 </head><body><main><h1 style="font-size:1.3rem">{"Instagram connected" if ok else "Instagram not connected"}</h1>
-<p>{html.escape(msg)}</p><p><a href="/">Back to Pit Crew</a></p></main>
+<p>{html.escape(msg)}</p><p><a href="/#vlogs">Back to Pit Crew</a></p></main>
 <script>
 var m={payload};
 if({json.dumps(popup)}){{ try{{ window.opener && window.opener.postMessage(m, location.origin); }}catch(e){{}}
   if(m.ok && !/personal account/.test(m.msg)) setTimeout(function(){{ window.close(); }}, 900); }}
-else if(m.ok && location.hostname==="localhost") setTimeout(function(){{ location.replace("/"); }}, 1500);
+else if(m.ok && location.hostname==="localhost") setTimeout(function(){{ location.replace("/#vlogs"); }}, 1500);
 </script></body></html>""", 200 if ok else 400)
 
 

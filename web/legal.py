@@ -19,7 +19,7 @@ from settings import ROOT
 from web.retention import keep_draft, keep_original, keep_posted, keep_transcript
 from web.server import app
 
-UPDATED = "November 2, 2026"
+UPDATED = "November 3, 2026"
 LEGAL = ROOT / "static" / "legal"
 TITLES = {"welcome": ("Pit Crew: Shorts and Reels from your videos", "Turn one long video into finished YouTube Shorts "
                       "and Instagram Reels, post them, and see how they do."),

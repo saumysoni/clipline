@@ -173,6 +173,7 @@ def forget_removed_vlogs(user_id, now):
 
 def upkeep(user_id, now=None):
     from web.channel_videos import refresh_user  # (they import web/vlogs.py like this file; kept apart from page routes)
+    from web.instagram_reels import refresh_user as refresh_reels
     from web.removed import sync_instagram
 
     now = now or time.time()
@@ -180,6 +181,7 @@ def upkeep(user_id, now=None):
     sync_deleted(user_id, force=True)
     refresh_user(user_id, now)
     sync_instagram(user_id, now)
+    refresh_reels(user_id, now)
     forget_removed_vlogs(user_id, now)
     forget_gone_channels(user_id, now)
     refresh_vlog_links(user_id, now)

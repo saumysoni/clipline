@@ -17,6 +17,7 @@ from flask import g, jsonify
 import youtube as yt
 from accounts import db
 
+from web.instagram_reels import reel_items, refresh_if_old, running as reels_running
 from web.server import app
 from web.vlogs import user_jobs
 
@@ -102,7 +103,8 @@ def channel_video_list():
     checks = [db.channel_checked(uid, c) for c in channels]
     if any(not c or now - c >= DAY for c in checks):
         _soon(uid)
-    return jsonify(items=items_for(uid), pending=uid in _RUNNING, checked_at=min(checks) if checks and all(checks) else None)
+    refresh_if_old(uid, now)
+    return jsonify(items=items_for(uid) + reel_items(uid), pending=uid in _RUNNING or reels_running(uid), checked_at=min(checks) if checks and all(checks) else None)
 
 
 @app.post("/api/channel-videos/check")
