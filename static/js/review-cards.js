@@ -44,7 +44,7 @@ function wire(el){
   const redo=el.querySelector(".redo"), err=el.querySelector(".rerr");
   el.querySelector(".retry").onclick=()=>{
     if(job.video_deleted_at){  // nothing to cut a new moment from: say so instead of a button that does nothing
-      err.textContent="This vlog's video was deleted from Pit Crew (it's kept for 72 hours after the last edit), so Try again can't cut a new moment. Upload the vlog again to remake this Short.";
+      err.textContent="This video's file was deleted from Pit Crew (it's kept for 72 hours after the last edit), so Try again can't cut a new moment. Upload the video again to remake this Short.";
       return;
     }
     redo.hidden=!redo.hidden; if(!redo.hidden) redo.querySelector("textarea").focus();
@@ -81,10 +81,10 @@ function paintState(el,s){
   el.classList.toggle("on",reviewPicked.has(job.id+":"+s.idx));
   el.querySelector(".bmsg").textContent = s.retrying ? (s.retry_msg||"Making this Short") : "";
   if(s.pending) return;
-  const gone=!!job.video_deleted_at;  // the vlog's video is deleted: nothing can be re-cut (titles and looks still work)
+  const gone=!!job.video_deleted_at && !s.clip;  // the vlog's video is deleted (and no clean clip): nothing can be re-cut (titles and looks still work)
   el.querySelector(".retry").disabled = !!s.retrying;  // a deleted video is explained on click instead
   el.querySelectorAll(".hk-change,.hk-apply,.hk-rewrite").forEach(b=>b.disabled=!!s.retrying || gone);
-  if(gone) el.querySelector(".retry").title="Needs the vlog's video, which was deleted";
+  if(job.video_deleted_at) el.querySelector(".retry").title="Needs the video's file, which was deleted";  // Try again needs another moment
   const rerr=el.querySelector(".rerr");
   if(s.retry_error) rerr.textContent="Try again stopped: "+s.retry_error;
   else if(!gone || rerr.textContent.startsWith("Try again stopped")) rerr.textContent="";
@@ -96,8 +96,8 @@ function paintTitle(){
   const asked=job.count||0, few=job.shorts.length<asked;
   $("fewNote").hidden=!few;
   if(few) $("fewNote").innerHTML='<span class="ms" aria-hidden="true">lightbulb</span><span>'+"Found "+n+" good moment"+(n===1?"":"s")+" out of the "+asked+" you asked for. "+
-    (job.little_speech ? "Pit Crew picks moments from what's said, and this vlog doesn't have much talking. "
-                       : "The rest of the vlog didn't have strong stand-alone moments. ")+
+    (job.little_speech ? "Pit Crew picks moments from what's said, and this video doesn't have much talking. "
+                       : "The rest of the video didn't have strong stand-alone moments. ")+
     "Use <b>Add a Short</b> at the end to pick more moments yourself, by describing them or by their times.</span>";
   $("goneNote").hidden=!job.video_deleted_at;
   $("addCard").hidden=!!job.video_deleted_at;

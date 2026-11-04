@@ -134,7 +134,9 @@ developers.facebook.com → the Pit Crew app. **Start Business Verification firs
 `instagram_business_basic`:
 > When a creator connects their Instagram professional account, Pit Crew reads the account's ID, username, account type
 > and profile picture, so it can show which account is connected, check it's a Business or Creator account (only those
-> can be posted to), and let the creator switch between their connected accounts.
+> can be posted to), and let the creator switch between their connected accounts. It also lists the account's existing Reels
+> (ID, first line of the caption, date, link, thumbnail) on the creator's own Shorts & Reels page, each linking to Instagram, so
+> everything they've posted is in one place; the list is read on connecting and daily, never shown to anyone else, and deleted when they disconnect.
 
 `instagram_business_content_publish`:
 > Pit Crew turns the creator's long vlog into short vertical clips. When the creator chooses a clip, writes or accepts its

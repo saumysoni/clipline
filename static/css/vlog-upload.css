@@ -86,3 +86,24 @@ dialog.mk-dialog::backdrop{background:rgba(8,10,18,.62)}
   .mk-vlog{flex-wrap:wrap}
 }
 #vuSaved:empty{display:none}
+
+.vu-run-acts{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0}
+.vu-run-acts .ghost{gap:6px}
+.up-pause{margin-top:10px;gap:6px}
+.up-paused{margin:8px 0 0}
+
+/* AI suggestions under a field (js/vlog-suggest.js) */
+.vs{margin-top:8px}
+.vs-open{display:inline-flex;align-items:center;gap:5px;font-size:.84rem}
+.vs-open .ms{font-size:16px}
+.vs-panel{display:flex;flex-direction:column;gap:8px;margin-top:8px;padding:12px;border:1px solid var(--line-2);border-radius:12px;background:var(--raised)}
+.vs-panel[hidden]{display:none}
+.vs-lab{display:flex;flex-direction:column;gap:4px;font-size:.82rem;font-weight:600}
+.vs-lab small{font-weight:400;color:var(--faint)}
+.vs-go{align-self:flex-start}
+.vs-err:empty{display:none}
+.vs-opt{display:flex;align-items:flex-start;gap:10px;justify-content:space-between;padding:8px 10px;border:1px solid var(--line);border-radius:10px;font-size:.86rem;line-height:1.4}
+.vs-opt.on{border-color:var(--primary);background:var(--primary-soft)}
+.vs-t{min-width:0;white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow:auto}
+.vs-opt .ghost{flex:none}
+.vs-out{display:flex;flex-direction:column;gap:6px}

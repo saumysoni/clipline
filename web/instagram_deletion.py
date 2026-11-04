@@ -4,7 +4,8 @@ Business login settings), which Meta's App Review checks:
 
   - Deauthorize callback URL: https://<domain>/api/instagram/deauthorize. Meta calls it when someone removes Pit Crew in
     Instagram (Settings › Website permissions › Apps and websites): that account's connection (its token) is deleted,
-    in every Pit Crew account that had connected it, as Disconnect does.
+    in every Pit Crew account that had connected it, as Disconnect does, and with it the list of its other Reels
+    (db.drop_connection).
   - Data deletion request URL: https://<domain>/api/instagram/data-deletion. Meta calls it when someone asks Meta to have
     Pit Crew delete their data. As above, plus everything Pit Crew kept from Instagram about that account: the records
     of its Reels (Instagram ID, link, username; the clips themselves stay in Pit Crew, as drafts on the Instagram side)

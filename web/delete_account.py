@@ -27,7 +27,7 @@ from web.vlogs import user_jobs
 def _busy(job):
     return (job.get("status") == "working" or job["id"] in POSTING
             or job.get("upload_status") in ("starting", "connecting", "uploading")
-            or (job.get("vpost") or {}).get("state") == "uploading"
+            or (job.get("vpost") or {}).get("state") in ("uploading", "paused")
             or any(s.get("retrying") for s in job.get("shorts", []))
             or any(p.get("status") == "posting" for p in job.get("ig_posts") or []))
 
@@ -50,10 +50,10 @@ def delete_account():
     with LOCK:  # a vlog being stopped is hidden from user_jobs(), but its thread is still finishing
         stopping = any((JOBS.get(i) or {}).get("owner") == user["id"] for i in STOPPING)
     if stopping:
-        return jsonify(error="A vlog is still stopping. Wait a moment, then delete your account."), 400
+        return jsonify(error="A video is still stopping. Wait a moment, then delete your account."), 400
     busy = next((j for j in jobs if _busy(j)), None)
     if busy:
-        title = (busy.get("vlog") or {}).get("title") or busy.get("name") or "a vlog"
+        title = (busy.get("vlog") or {}).get("title") or busy.get("name") or "a video"
         return jsonify(error=f"Pit Crew is still working on \"{title}\". Wait until it's finished (or press Stop), "
                              "then delete your account."), 400
 

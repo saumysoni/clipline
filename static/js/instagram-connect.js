@@ -1,5 +1,5 @@
 // Connect Instagram: the sign-in window and the account line on the Post page (web/instagram_connect.py).
-let ig={configured:false,signed_in:false,accounts:[]}, igWatch=null, igThen=null;
+let ig={configured:false,signed_in:false,accounts:[]}, igWatch=null, igThen=null, igAsked=false;  // igAsked: as ytAsked in js/youtube-connect.js
 async function loadIg(){
   try{ const r=await fetch("/api/instagram/me"); if(r.ok) ig=await r.json(); }catch(e){}
   paintIg();
@@ -36,7 +36,7 @@ function paintIg(){
 }
 // add: connecting another account, so Instagram asks who to log in as (not the account the browser is in).
 function igSignIn(then,add){
-  igThen=then||null;
+  igThen=then||null; igAsked=true;
   if(!ig.configured){ loadIg(); return; }
   const url="/api/instagram/signin"+(add?"?add=1":""), w=520, h=700, x=Math.max(0,(screen.width-w)/2), y=Math.max(0,(screen.height-h)/2);
   const win=window.open(url+(add?"&":"?")+"popup=1","clipline-instagram","popup,width="+w+",height="+h+",left="+x+",top="+y);
@@ -50,11 +50,12 @@ function igSignIn(then,add){
 }
 function igSignedIn(a){
   clearInterval(igWatch); ig=a; paintIg();
-  const f=igThen; igThen=null; if(f && ig.signed_in) f();
+  const f=igThen, first=igAsked; igThen=null; igAsked=false; if(!ig.signed_in || !first) return;
+  if(f){ f(); onbQuiet(); } else onbConnected();  // in the middle of something: it comes in behind it (js/first-import.js)
 }
 window.addEventListener("message",e=>{
   if(e.origin!==location.origin || !e.data || e.data.clipline!=="instagram") return;
-  if(!e.data.ok){ igThen=null; if($("igErr")) $("igErr").textContent=e.data.msg; return; }
+  if(!e.data.ok){ igThen=null; if(!$("onb").hidden) $("onbErr").textContent=e.data.msg; else if($("igErr")) $("igErr").textContent=e.data.msg; return; }
   fetch("/api/instagram/me").then(r=>r.json()).then(a=>{ if(a.signed_in) igSignedIn(a); }).catch(()=>{});
 });
 // Disconnect one account (none given: the active one); another connected account becomes active.

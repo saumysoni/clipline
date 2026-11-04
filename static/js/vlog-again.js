@@ -4,8 +4,8 @@
 // kept: the vlog was already prepared for YouTube, so stopping only stops its Shorts (its upload and details stay).
 // after(): what to show once it's stopped (default: Drafts, where the vlog or its Shorts were).
 async function stopVlog(id, kept, errEl, after){
-  if(!confirm(kept ? "Stop making Shorts from this vlog?\n\nIts YouTube upload and details stay."
-                   : "Stop and delete this vlog?\n\nThe video you sent is deleted. This can't be undone.")) return;
+  if(!confirm(kept ? "Stop making Shorts from this video?\n\nIts YouTube upload and details stay."
+                   : "Stop and delete this video?\n\nThe video you sent is deleted. This can't be undone.")) return;
   let r,j; try{ r=await fetch("/api/vlogs/"+id+"/stop",{method:"POST"}); j=await r.json(); }
   catch(e){ r={ok:false}; j={error:"Couldn't reach Pit Crew. Check your internet connection, then try again."}; }
   if(!r.ok){ errEl.textContent=j.error||"Couldn't stop it."; return; }

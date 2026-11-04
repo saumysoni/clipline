@@ -76,7 +76,7 @@ def stop_vlog(job_id):
         return jsonify(ok=True, kept=kept)
     with LOCK:  # being made: its thread stops at its next progress report
         if job.get("status") != "working":
-            return jsonify(error="This vlog isn't being made any more."), 400
+            return jsonify(error="This video isn't being made any more."), 400
         STOPPING.add(job_id)
     return jsonify(ok=True, kept=kept)
 
@@ -88,10 +88,10 @@ def vlog_again(job_id):
     with LOCK:
         job = load_job(job_id)
         if job.get("status") != "error":
-            return jsonify(error="This vlog isn't stopped, so there's nothing to try again."), 400
+            return jsonify(error="This video isn't stopped, so there's nothing to try again."), 400
         src = next((JOBS_DIR / job_id).glob("source.*"), None)
         if job.get("video_deleted_at") or not src:
-            return jsonify(error="Pit Crew no longer has this vlog's video (it's deleted a while after it stopped, "
+            return jsonify(error="Pit Crew no longer has this video's file (it's deleted a while after it stopped, "
                                  "to keep storage free). Upload it again."), 400
         prep = job.get("kind") == "vlog" and not job.get("count")
         job.update(error_detail="", shorts=[], moments_found=[], little_speech=False, recoveries=0, plan=None, made=None)

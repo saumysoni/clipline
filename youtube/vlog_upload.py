@@ -8,9 +8,19 @@ from pathlib import Path
 PRIVACY = ("public", "unlisted", "private")
 
 
+class UploadPaused(Exception):
+    """Raised between two pieces when should_pause() says so. uri + at carry the upload on later (YouTube keeps a
+    resumable upload for about a week)."""
+
+    def __init__(self, uri, at):
+        super().__init__("paused")
+        self.uri, self.at = uri, at
+
+
 def upload_vlog(youtube, video_path, title, description, tags, privacy="public", publish_at=None,
-                thumb_path=None, progress=lambda pct: None):
-    """Returns (video_id, thumb_note). publish_at (aware datetime) schedules it: private until then."""
+                thumb_path=None, progress=lambda pct: None, should_pause=None, resume=None):
+    """Returns (video_id, thumb_note). publish_at (aware datetime) schedules it: private until then.
+    should_pause(): checked after each piece, raises UploadPaused. resume: {"uri", "at"} from that, to carry on."""
     from googleapiclient.http import MediaFileUpload
 
     status = {"selfDeclaredMadeForKids": False}
@@ -25,11 +35,15 @@ def upload_vlog(youtube, video_path, title, description, tags, privacy="public",
     mime = {".mov": "video/quicktime", ".webm": "video/webm", ".mkv": "video/x-matroska"}.get(ext, "video/mp4")
     media = MediaFileUpload(str(video_path), mimetype=mime, chunksize=16 * 1024 * 1024, resumable=True)
     req = youtube.videos().insert(part="snippet,status", body=body, media_body=media)
+    if resume:  # (next_chunk() skips starting a new upload once it has the address)
+        req.resumable_uri, req.resumable_progress = resume["uri"], int(resume["at"])
     resp = None
     while resp is None:
         st, resp = req.next_chunk()
         if st:
             progress(st.progress() * 100)
+        if resp is None and should_pause and should_pause():
+            raise UploadPaused(req.resumable_uri, req.resumable_progress)
     video_id = resp["id"]
     note = None
     if thumb_path and Path(thumb_path).exists():

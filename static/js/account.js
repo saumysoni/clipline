@@ -3,7 +3,7 @@
 let signup=false, booted=false, myEmail="";
 function paintAuth(){
   $("authTitle").textContent = signup ? "Create your account" : "Sign in";
-  $("authLede").textContent = signup ? "Free to start. Your vlogs and Shorts stay in your own account." : "Turn one vlog into a week of Shorts.";
+  $("authLede").textContent = signup ? "Free to start. Your videos and Shorts stay in your own account." : "Turn one video into a week of Shorts.";
   $("nameRow").hidden=!signup; $("authGo").textContent = signup ? "Create account" : "Sign in";
   $("authPass").autocomplete = signup ? "new-password" : "current-password";
   $("authPass").placeholder = signup ? "At least 8 characters" : "";
@@ -53,6 +53,7 @@ async function boot(){
   if(booted){ if(jobId) startPolling(jobId); return; }  // signed in again mid-session: pick the job back up
   booted=true;
   openRoute(location.hash.slice(1));
+  onbBoot();
 }
 // The screen for an address (#vlogs, #new, #vlog/new, #vlog/<id>, #drafts[/shorts], #edit/<vlog id>/<short>, #scheduled[/shorts], #analytics, #settings,
 // or a vlog's id). The Vlogs page is home. #youtube (older links) is Scheduled's Shorts & Reels tab.
@@ -60,6 +61,7 @@ function openRoute(h){
   if(h==="youtube" || h==="scheduled/shorts") openPosted("shorts");
   else if(h==="scheduled") openPosted("vlogs");
   else if(h==="drafts" || h==="drafts/shorts") openDrafts(h==="drafts"?"vlogs":"shorts");
+  else if(/^drafts\/shorts\/[0-9a-f]{10}$/.test(h)) openDrafts("shorts",h.slice(14));
   else if(/^edit\/[0-9a-f]{10}\/\d+$/.test(h)){ const [,j,i]=h.split("/"); openEditor(j,+i); }
   else if(h==="clips" || h.startsWith("clips/")) openClips(h.slice(6));
   else if(h==="analytics" || h.startsWith("analytics/")) openAnalytics(h.slice(10));
@@ -76,7 +78,7 @@ window.addEventListener("hashchange",()=>{
   if(!booted || $("app").hidden) return;
   const h=location.hash.slice(1);
   if(h.startsWith("reset=")) return;
-  const at = !$("s9").hidden?"clips"+(clVlog?"/"+clVlog:"") : !$("s7").hidden?"vlogs" : !$("s5").hidden?"scheduled"+($("schShorts").hidden?"":"/shorts") : !$("s11").hidden?"drafts"+(dfTab==="shorts"?"/shorts":"") : !$("s12").hidden?"edit/"+(edKey||"").replace(":","/") : !$("s6").hidden?"analytics"+(anVlog?"/"+anVlog:"") : !$("s8").hidden?"settings" : !$("s1").hidden?"new" : !$("s10").hidden?"vlog/"+(vuId||"new") : jobId;
+  const at = !$("s9").hidden?"clips"+(clVlog?"/"+clVlog:"") : !$("s7").hidden?"vlogs" : !$("s5").hidden?"scheduled"+($("schShorts").hidden?"":"/shorts") : !$("s11").hidden?dfHash() : !$("s12").hidden?"edit/"+(edKey||"").replace(":","/") : !$("s6").hidden?"analytics"+(anVlog?"/"+anVlog:"") : !$("s8").hidden?"settings" : !$("s1").hidden?"new" : !$("s10").hidden?"vlog/"+(vuId||"new") : jobId;
   if(h===at || (!h && at==="vlogs")) return;
   openRoute(h);
 });

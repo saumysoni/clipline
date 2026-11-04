@@ -30,6 +30,7 @@ from settings import JOBS_DIR
 from pipeline.transcript_cache import find_saved_transcript, remember_transcript
 from web import notices
 from web.errors import plain_error
+from web.pause import PAUSING, Paused, pause_point, paused_now
 from web.server import app
 from web.stop_and_retry import Stopped, finish_stop, settle, stop_point
 from web.allowance import charge, upload_problem
@@ -37,8 +38,9 @@ from web.job_queue import enqueue_locked
 from web.video_upload import take_upload
 from web.store import JOBS, LOCK, STAGES, load_job, update
 
-VLOG_STAGES = ["Getting your vlog", "Transcribing", "Writing the title, description and chapters", "Designing the thumbnail"]
+VLOG_STAGES = ["Getting your video", "Transcribing", "Writing the title, description and chapters", "Designing the thumbnail"]
 UPLOADING = set()  # vlog jobs being sent to YouTube right now
+POST_PAUSING = set()  # ones whose Pause was pressed: they stop after the piece being sent
 
 
 def prepare_vlog(job_id, src, link):
@@ -48,8 +50,12 @@ def prepare_vlog(job_id, src, link):
         stop_point(job_id)
         update(job_id, **kw)
 
+    def next_stage(**kw):  # between stages is where a Pause takes effect (web/pause.py): what's done is kept
+        pause_point(job_id)
+        step(**kw)
+
     try:
-        step(stage=0, pct=0, msg="Getting your vlog")
+        next_stage(stage=0, pct=0, msg="Getting your video")
         if link:
             import gdown
             src = job_dir / "source.mp4"
@@ -61,7 +67,7 @@ def prepare_vlog(job_id, src, link):
         step(duration=meta["duration"], width=meta["width"], height=meta["height"])
         charge(job_id, meta["duration"])  # this creator's monthly minutes (web/allowance.py), once per vlog
 
-        step(stage=1, pct=0, msg="Transcribing")
+        next_stage(stage=1, pct=0, msg="Transcribing")
         job_tr = job_dir / "transcript.json"
         saved = find_saved_transcript(src)
         if saved and not job_tr.exists():
@@ -70,28 +76,36 @@ def prepare_vlog(job_id, src, link):
         tr = pipeline.transcribe(src, job_tr, lambda p, m: step(pct=p, msg=m))
         remember_transcript(src, job_tr)
 
-        step(stage=2, pct=0, msg="Writing the title, description and chapters")
+        next_stage(stage=2, pct=0, msg="Writing the title, description and chapters")
         with LOCK:
             note = (JOBS.get(job_id) or {}).get("note", "")
-        try:
-            m = pipeline.write_vlog_meta(tr, {"note": note}, lambda p, msg: step(pct=p, msg=msg))
-        except Exception as e:  # noqa: BLE001  (the AI is busy or has no key: the creator writes them)
-            print("Vlog details without AI:", repr(e)[:300])
-            m = {"titles": [], "text": "", "chapters": [], "hashtags": [], "description": "", "tags": [],
-                 "thumb_line1": "", "thumb_line2": "", "ai_failed": True}
+            m = (JOBS.get(job_id) or {}).get("vmeta")  # written before a pause
+        if not m:
+            try:
+                m = pipeline.write_vlog_meta(tr, {"note": note}, lambda p, msg: step(pct=p, msg=msg))
+            except Exception as e:  # noqa: BLE001  (the AI is busy or has no key: the creator writes them)
+                print("Vlog details without AI:", repr(e)[:300])
+                m = {"titles": [], "text": "", "chapters": [], "hashtags": [], "description": "", "tags": [],
+                     "thumb_line1": "", "thumb_line2": "", "ai_failed": True}
+            step(vmeta=m)
 
-        step(stage=3, pct=0, msg="Designing the thumbnail")
+        next_stage(stage=3, pct=0, msg="Designing the thumbnail")
         with LOCK:
             name = (JOBS.get(job_id) or {}).get("name", "")
         title = (m["titles"] or [name])[0]
         thumb = pipeline.make_vlog_thumbnail(src, meta["duration"], job_dir, title, m["thumb_line1"], m["thumb_line2"])
         done = time.time()  # the video is kept from here (KEEP_ORIGINAL_HOURS, web/retention.py)
-        if not settle(job_id, stage=len(VLOG_STAGES), pct=100, msg="Ready", status="ready", last_edit_at=done,
+        if not settle(job_id, stage=len(VLOG_STAGES), pct=100, msg="Ready", status="ready", last_edit_at=done, vmeta=None,
                       vdraft={**m, "title": title, "thumb": thumb, "look": "frame"}):
             finish_stop(job_id)
             return
         notices.vlog_ready(job_id)
+    except Paused:
+        if not paused_now(job_id, settle):  # Stop was pressed as well: Stop wins
+            finish_stop(job_id)
     except Exception as e:  # noqa: BLE001
+        with LOCK:
+            PAUSING.discard(job_id)
         if not isinstance(e, Stopped):
             traceback.print_exc()
         with LOCK:
@@ -122,7 +136,7 @@ def vlog_start():
     job_id = uuid.uuid4().hex[:10]
     job_dir = JOBS_DIR / job_id
     job_dir.mkdir()
-    src, name = None, "Your vlog"
+    src, name = None, "Your video"
     if upload:
         try:
             src, name = take_upload(upload, g.user["id"], job_dir)
@@ -145,9 +159,9 @@ def _vlog_job(job_id, need_video=True):
     if not job or job.get("kind") != "vlog":
         abort(404)
     if job.get("status") != "ready":
-        return None, (jsonify(error="Wait until the vlog is ready."), 400)
+        return None, (jsonify(error="Wait until the video is ready."), 400)
     if need_video and (job.get("video_deleted_at") or not next((JOBS_DIR / job_id).glob("source.*"), None)):
-        return None, (jsonify(error="Pit Crew no longer has this vlog's video (it's deleted 72 hours after the "
+        return None, (jsonify(error="Pit Crew no longer has this video's file (it's deleted 72 hours after the "
                                     "last change, to keep storage free). Upload it again."), 400)
     return json.loads(json.dumps(job, default=str)), None
 
@@ -196,15 +210,17 @@ def vlog_look(job_id):
     return jsonify(ok=True, thumb=name)
 
 
-def _send(user_id, job_id, draft, privacy, when, channel):
+def _send(user_id, job_id, draft, privacy, when, channel, resume=None):
+    """resume: {"uri", "at", "counted", "day"} of a paused upload (job["vresume"]): it carries on, already counted."""
     from web import youtube_quota as quota  # (it imports this file)
     job_dir = JOBS_DIR / job_id
-    counted = None
+    counted = (resume or {}).get("counted")
     try:
-        counted = quota.take(user_id, "vlog")
+        if not resume:
+            counted = quota.take(user_id, "vlog")
         if not counted:  # YouTube's daily uploads are used up: it waits and goes up after the reset
             _post(job_id, state="waiting", pct=0, queued_at=time.time(), owner=user_id, error="",
-                  note=quota.waiting_message(1).replace("1 Short will", "The vlog will"))
+                  note=quota.waiting_message(1).replace("1 Short will", "The video will"))
             quota._WAKE.set()
             return
         service = yt.get_service(user_id, channel)
@@ -212,19 +228,26 @@ def _send(user_id, job_id, draft, privacy, when, channel):
         try:
             vid, note = yt.upload_vlog(service, src, draft["title"], draft["description"], draft.get("tags") or [],
                                        privacy, when, job_dir / draft["thumb"] if draft.get("thumb") else None,
-                                       progress=lambda p: _post(job_id, pct=round(p, 1)))
+                                       progress=lambda p: _post(job_id, pct=round(p, 1)),
+                                       should_pause=lambda: job_id in POST_PAUSING, resume=resume)
+        except yt.UploadPaused as p:
+            update(job_id, vresume={"uri": p.uri, "at": p.at, "counted": counted, "day": quota.today()},
+                   last_edit_at=time.time())  # the video is kept KEEP_ORIGINAL_HOURS from here (web/retention.py)
+            _post(job_id, state="paused", pausing=False)
+            return
         except Exception as e:
             quota.give_back(user_id, counted)
             counted = None
             if quota.is_quota_error(e):
                 quota.youtube_says_used_up()
                 _post(job_id, state="waiting", pct=0, queued_at=time.time(), owner=user_id, error="",
-                      note=quota.waiting_message(1).replace("1 Short will", "The vlog will"))
+                      note=quota.waiting_message(1).replace("1 Short will", "The video will"))
                 return
             raise
         # The channel it went to (several can be connected; another tab may have switched the active one meanwhile)
         acct = yt.account(user_id)
         own = (next((c for c in acct["channels"] if c["id"] == channel), None) if channel else acct.get("channel")) or {}
+        update(job_id, vresume=None)
         _post(job_id, state="done", pct=100, video_id=vid, note=note, sent_at=time.time(), channel=own.get("id") or channel)
         with LOCK:
             vlog = dict((JOBS.get(job_id) or {}).get("vlog") or {})
@@ -234,10 +257,13 @@ def _send(user_id, job_id, draft, privacy, when, channel):
         update(job_id, vlog=vlog)
     except Exception as e:  # noqa: BLE001
         traceback.print_exc()
-        _post(job_id, state="error", error=yt.upload_error_message(e))
+        update(job_id, vresume=None)  # (a paused upload YouTube has dropped starts again from Upload)
+        _post(job_id, state="error", pausing=False, error=yt.upload_error_message(e))
         notices.post_failed(job_id, "YouTube", yt.upload_error_message(e), "vlog/" + job_id)
     finally:
-        UPLOADING.discard(job_id)
+        with LOCK:
+            UPLOADING.discard(job_id)
+            POST_PAUSING.discard(job_id)
 
 
 def send_waiting_vlog(job_id):
@@ -275,10 +301,12 @@ def vlog_upload(job_id):
         if job_id in UPLOADING or (job.get("vpost") or {}).get("state") in ("uploading", "waiting"):
             return jsonify(error="It's already being sent to YouTube."), 400
         if (job.get("vpost") or {}).get("state") == "done":
-            return jsonify(error="This vlog is already on YouTube."), 400
+            return jsonify(error="This video is already on YouTube."), 400
+        if (job.get("vpost") or {}).get("state") == "paused":
+            return jsonify(error="Its upload is paused. Press Resume, or Cancel to start again."), 400
     draft = _clean_draft(data, job.get("vdraft"))
     if not draft.get("title"):
-        return jsonify(error="Give the vlog a title.", field="title"), 400
+        return jsonify(error="Give the video a title.", field="title"), 400
     acct = yt.account(g.user["id"])
     if not acct.get("signed_in"):
         return jsonify(error="Connect YouTube first, so Pit Crew knows which channel to upload to.", signin=True), 400
@@ -300,6 +328,69 @@ def vlog_upload(job_id):
     return jsonify(ok=True)
 
 
+@app.post("/api/vlog/<job_id>/upload-pause")
+def vlog_upload_pause(job_id):
+    """Pause the upload to YouTube: it stops after the piece being sent (16 MB, usually seconds)."""
+    with LOCK:
+        job, err = _vlog_job(job_id, need_video=False)
+        if err:
+            return err
+        if (job.get("vpost") or {}).get("state") == "paused":
+            return jsonify(ok=True)
+        if job_id not in UPLOADING or (job.get("vpost") or {}).get("state") != "uploading":
+            return jsonify(error="This video isn't being uploaded right now."), 400
+        POST_PAUSING.add(job_id)
+    _post(job_id, pausing=True)
+    return jsonify(ok=True)
+
+
+@app.post("/api/vlog/<job_id>/upload-resume")
+def vlog_upload_resume(job_id):
+    """Carry a paused upload on from where it stopped."""
+    with LOCK:
+        job, err = _vlog_job(job_id)
+        if err:
+            return err
+        post = job.get("vpost") or {}
+        if job_id in POST_PAUSING:  # Pause pressed, not reached yet: just carry on
+            POST_PAUSING.discard(job_id)
+            pausing_only = True
+        else:
+            pausing_only = False
+            if post.get("state") != "paused" or job_id in UPLOADING or not job.get("vresume"):
+                return jsonify(error="This upload isn't paused."), 400
+            UPLOADING.add(job_id)
+    if pausing_only:
+        _post(job_id, pausing=False)
+        return jsonify(ok=True)
+    _post(job_id, state="uploading", pausing=False, error="")
+    when = datetime.fromisoformat(post["when"]) if post.get("when") else None
+    privacy = post.get("privacy") or "public"
+    if when and when <= datetime.now(timezone.utc) + timedelta(minutes=15):  # its time passed during the pause
+        when, privacy = None, "public"
+        _post(job_id, when=None, privacy=privacy)
+    threading.Thread(target=_send, args=(g.user["id"], job_id, job.get("vdraft") or {}, privacy, when, post.get("channel"),
+                                         job["vresume"]), daemon=True).start()
+    return jsonify(ok=True)
+
+
+@app.post("/api/vlog/<job_id>/upload-cancel")
+def vlog_upload_cancel(job_id):
+    """Drop a paused upload: back to the page to check and upload. Nothing reached the channel."""
+    from web import youtube_quota as quota  # (it imports this file)
+    with LOCK:
+        job, err = _vlog_job(job_id, need_video=False)
+        if err:
+            return err
+        if (job.get("vpost") or {}).get("state") != "paused":
+            return jsonify(error="This upload isn't paused."), 400
+    resume = job.get("vresume") or {}
+    if resume.get("day") == quota.today():  # (an earlier day's count has already been reset)
+        quota.give_back(g.user["id"], resume.get("counted"))
+    update(job_id, vresume=None, vpost=None)
+    return jsonify(ok=True)
+
+
 @app.post("/api/vlog/<job_id>/shorts")
 def vlog_shorts(job_id):
     """Make Shorts & Reels from a vlog Pit Crew still has (an uploaded one, within 72 hours). Its transcript is
@@ -310,15 +401,17 @@ def vlog_shorts(job_id):
         if not job:
             abort(404)
         if job.get("status") == "working":
-            return jsonify(error="This vlog is still being worked on. Wait until it's ready."), 400
+            return jsonify(error="This video is still being worked on. Wait until it's ready."), 400
         if [s for s in job.get("shorts", []) if not s.get("pending")]:
-            return jsonify(error="This vlog already has Shorts. Open it to add more."), 400
+            return jsonify(error="This video already has Shorts. Open it to add more."), 400
         src = next((JOBS_DIR / job_id).glob("source.*"), None)
         if job.get("video_deleted_at") or not src:
-            return jsonify(error="Pit Crew no longer has this vlog's video (it's deleted 72 hours after the last "
+            return jsonify(error="Pit Crew no longer has this video's file (it's deleted 72 hours after the last "
                                  "change, to keep storage free). Choose New video file and upload it again."), 400
         if job_id in UPLOADING:
-            return jsonify(error="Wait until the vlog has finished uploading to YouTube."), 400
+            return jsonify(error="Wait until the video has finished uploading to YouTube."), 400
+        if (job.get("vpost") or {}).get("state") == "paused":
+            return jsonify(error="Its upload to YouTube is paused. Resume it or cancel it first."), 400
     count = max(1, min(10, int(data.get("count") or 5)))
     style = data.get("style") if data.get("style") in ("bold", "boxed", "clean") else "bold"
     note = str(data.get("note") or "").strip()[:1000]
@@ -329,7 +422,7 @@ def vlog_shorts(job_id):
     with LOCK:
         job = JOBS[job_id]
         if job.get("status") == "working":  # pressed twice
-            return jsonify(error="This vlog is still being worked on. Wait until it's ready."), 400
+            return jsonify(error="This video is still being worked on. Wait until it's ready."), 400
         job.update(stages=STAGES, count=count, style=style, schedule="custom", note=note, must=[], vlog=vlog, shorts=[],
                    recoveries=0)
         enqueue_locked(job)  # web/job_queue.py starts it when there's a free spot

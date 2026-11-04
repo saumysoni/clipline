@@ -146,8 +146,12 @@ class AfterPosting(Base):
         self.assertEqual(r.status_code, 400)
         self.assertIn("already public", r.json["error"])
 
-    def test_deleted_in_studio_becomes_a_draft_again(self):
+    def test_deleted_in_studio_while_scheduled_becomes_a_draft_again(self):
+        """It never went out, so it isn't a "removed" card; the check is daily (web/youtube_upkeep.py), pages don't ask."""
+        import web.youtube_sync as YS
         F.VIDEOS.pop(self.ups[1]["video_id"])
+        self.assertEqual({c["idx"]: c["status"] for c in self.c.get("/api/clips").json["items"]}[1], "scheduled")
+        YS.sync_deleted(self.u["id"], force=True)
         items = self.c.get("/api/posted").json["items"]
         self.assertEqual(sorted(i["idx"] for i in items), [2, 3])
         clips = {c["idx"]: c["status"] for c in self.c.get("/api/clips").json["items"]}

@@ -134,6 +134,13 @@ def upload_file(job_dir, it):
     return job_dir / it["video"]
 
 
+def _row_idx(row):
+    try:
+        return int(row["idx"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
 @app.post("/api/schedule/<job_id>")
 def schedule(job_id):
     data = request.get_json(force=True)
@@ -144,8 +151,9 @@ def schedule(job_id):
         if job_id in POSTING:
             return jsonify(error="These Shorts are already being posted."), 400
         by_idx = {s["idx"]: s for s in job["shorts"]}
-        if any(s.get("retrying") for s in job["shorts"]):
-            return jsonify(error="Wait until the Short you're remaking is ready."), 400
+        # A Short being remade or added can't go; the finished ones ticked with it can.
+        if any(by_idx.get(_row_idx(r), {}).get("retrying") for r in data.get("shorts", []) if r.get("keep")):
+            return jsonify(error="A Short you ticked is being remade. Untick it, or wait until it's ready."), 400
         earlier = list(job.get("uploads") or [])
     if not yt.is_configured():
         print("YouTube posting is off: no Google client (README step 5).")
@@ -163,7 +171,7 @@ def schedule(job_id):
     items = []
     for row in data.get("shorts", []):
         s = by_idx.get(int(row["idx"]))
-        if s and row.get("keep") and s["idx"] not in posted:
+        if s and row.get("keep") and s["idx"] not in posted and not s.get("pending") and not s.get("retrying"):
             items.append({**s, "title": (row.get("title") or s["title"]).strip()[:95]})
     if not items:
         return jsonify(error="Those Shorts are already on YouTube." if posted else "Tick at least one Short."), 400

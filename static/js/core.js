@@ -2,6 +2,10 @@
 // All files in static/js share one global scope and load in the order listed in index.html.
 const $ = id => document.getElementById(id);
 const fmt = s => { s=Math.round(s); return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); };
+// el.innerHTML = html, only when it's different from what was put there last: the pages check for news every few
+// seconds, and drawing the same thing again makes it blink (pictures reload, hovers and focus are lost). Answers
+// whether it drew. Wire the handlers again either way (the data behind them may be new).
+const setHTML = (el, html) => { if(el._html===html && el.innerHTML) return false; el.innerHTML=html; el._html=html; return true; };
 // "Open in Studio": through Google's sign-in, so a browser that isn't signed in to YouTube shows the
 // sign-in page and then lands on this Short in Studio (a signed-in browser goes straight through).
 const studioLink = id => "https://accounts.google.com/ServiceLogin?service=youtube&continue="+

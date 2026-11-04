@@ -76,6 +76,35 @@ CREATE TABLE IF NOT EXISTS youtube_uploads (
     fair_n INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (day, user_id)
 );
+CREATE TABLE IF NOT EXISTS channel_videos (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    video_id TEXT NOT NULL,
+    channel TEXT NOT NULL,
+    title TEXT NOT NULL,
+    published TEXT NOT NULL,
+    seconds INTEGER NOT NULL,
+    privacy TEXT NOT NULL,
+    is_short INTEGER NOT NULL,
+    seen_at REAL NOT NULL,
+    gone_at REAL,
+    PRIMARY KEY (user_id, video_id)
+);
+CREATE TABLE IF NOT EXISTS instagram_reels (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    media_id TEXT NOT NULL,
+    ig_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    published TEXT NOT NULL,
+    permalink TEXT NOT NULL,
+    thumb TEXT NOT NULL,
+    PRIMARY KEY (user_id, media_id)
+);
+CREATE TABLE IF NOT EXISTS channel_checks (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    channel TEXT NOT NULL,
+    checked_at REAL NOT NULL,
+    PRIMARY KEY (user_id, channel)
+);
 CREATE TABLE IF NOT EXISTS gone_channels (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     channel TEXT NOT NULL,
@@ -112,6 +141,12 @@ def init():
         if con.execute("PRAGMA user_version").fetchone()[0] < 2:
             _seal_tokens(con)
             con.execute("PRAGMA user_version = 2")
+        if con.execute("PRAGMA user_version").fetchone()[0] < 3:
+            # Once: the Connect your accounts screen is for people who sign up from now on, so everyone here already skips it.
+            if "onboarded_at" not in {r[1] for r in con.execute("PRAGMA table_info(users)")}:
+                con.execute("ALTER TABLE users ADD COLUMN onboarded_at REAL")
+            con.execute("UPDATE users SET onboarded_at = ? WHERE onboarded_at IS NULL", (time.time(),))
+            con.execute("PRAGMA user_version = 3")
 
 
 def _seal_tokens(con):
@@ -192,6 +227,18 @@ def create_user(email, name="", password_hash=None, google_sub=None, email_verif
             "VALUES (?, ?, ?, ?, ?, ?)",
             (email.strip().lower(), name.strip()[:100], password_hash, google_sub, int(email_verified), time.time()))
         return cur.lastrowid
+
+
+def onboarded(user_id):
+    """Has this person been past the Connect your accounts screen (web/first_import.py)?"""
+    with connect() as con:
+        row = con.execute("SELECT onboarded_at FROM users WHERE id = ?", (user_id,)).fetchone()
+        return bool(row and row[0])
+
+
+def set_onboarded(user_id):
+    with connect() as con:
+        con.execute("UPDATE users SET onboarded_at = ? WHERE id = ? AND onboarded_at IS NULL", (time.time(), user_id))
 
 
 def change_email(user_id, email):
@@ -368,10 +415,13 @@ def set_active(user_id, platform, account_id):
 def drop_connection(conn_id):
     """Forget one connection. If it was the active one, the most recently added other one becomes active."""
     with connect() as con:
-        me = con.execute("SELECT user_id, platform, active FROM connections WHERE id = ?", (conn_id,)).fetchone()
+        me = con.execute("SELECT user_id, platform, account_id, active FROM connections WHERE id = ?", (conn_id,)).fetchone()
         if not me:
             return
         con.execute("DELETE FROM connections WHERE id = ?", (conn_id,))
+        if me["platform"] == "instagram":  # every way a connection ends: what Pit Crew read about that account's Reels goes too
+            con.execute("DELETE FROM instagram_reels WHERE user_id = ? AND ig_id = ?", (me["user_id"], me["account_id"]))
+            con.execute("DELETE FROM channel_checks WHERE user_id = ? AND channel = ?", (me["user_id"], me["account_id"]))
         if me["active"]:
             con.execute("UPDATE connections SET active = 1 WHERE id = (SELECT id FROM connections WHERE user_id = ? "
                         "AND platform = ? ORDER BY created_at DESC, id DESC LIMIT 1)", (me["user_id"], me["platform"]))
@@ -442,6 +492,87 @@ def gone_since(user_id, channel, now):
 def clear_gone(user_id, channel):
     with connect() as con:
         con.execute("DELETE FROM gone_channels WHERE user_id = ? AND channel = ?", (user_id, channel))
+
+
+# Videos on a creator's channels that Pit Crew didn't post (web/channel_videos.py), read once a day.
+
+def channel_video_ids(user_id, channel):
+    """The ones still on YouTube as far as Pit Crew knows."""
+    with connect() as con:
+        return [r[0] for r in con.execute("SELECT video_id FROM channel_videos WHERE user_id = ? AND channel = ? AND gone_at IS NULL",
+                                          (user_id, channel))]
+
+
+def save_channel_videos(user_id, channel, rows, now):
+    with connect() as con:
+        con.executemany(
+            "INSERT INTO channel_videos (user_id, video_id, channel, title, published, seconds, privacy, is_short, seen_at, gone_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL) ON CONFLICT (user_id, video_id) DO UPDATE SET title = excluded.title, "
+            "published = excluded.published, seconds = excluded.seconds, privacy = excluded.privacy, is_short = excluded.is_short, "
+            "seen_at = excluded.seen_at, gone_at = NULL, channel = excluded.channel",
+            [(user_id, r["id"], channel, r["title"], r["published"], r["seconds"], r["privacy"], int(r["short"]), now) for r in rows])
+
+
+def channel_video_rows(user_id):
+    with connect() as con:
+        return [dict(r) for r in con.execute("SELECT * FROM channel_videos WHERE user_id = ? ORDER BY published DESC", (user_id,))]
+
+
+def channel_video_gone(user_id, video_id, now):
+    with connect() as con:
+        con.execute("UPDATE channel_videos SET gone_at = ? WHERE user_id = ? AND video_id = ? AND gone_at IS NULL", (now, user_id, video_id))
+
+
+def channel_video_remove(user_id, video_id):
+    with connect() as con:
+        con.execute("DELETE FROM channel_videos WHERE user_id = ? AND video_id = ?", (user_id, video_id))
+
+
+def channel_video_clear_gone(user_id, video_id):
+    with connect() as con:
+        con.execute("DELETE FROM channel_videos WHERE user_id = ? AND video_id = ? AND gone_at IS NOT NULL", (user_id, video_id))
+
+
+def forget_old_channel_videos(user_id, gone_before):
+    with connect() as con:
+        con.execute("DELETE FROM channel_videos WHERE user_id = ? AND gone_at IS NOT NULL AND gone_at < ?", (user_id, gone_before))
+
+
+def forget_channel_videos(user_id, channel):
+    with connect() as con:
+        con.execute("DELETE FROM channel_videos WHERE user_id = ? AND channel = ?", (user_id, channel))
+        con.execute("DELETE FROM channel_checks WHERE user_id = ? AND channel = ?", (user_id, channel))
+
+
+# Reels on a creator's Instagram accounts that Pit Crew didn't post (web/instagram_reels.py). When each account was last
+# read is in channel_checks, like a YouTube channel (the ids can't clash: a channel's start with UC, an account's are digits).
+
+def replace_instagram_reels(user_id, ig_id, rows):
+    """Instagram's whole answer replaces what was kept, so a Reel deleted there is simply gone here."""
+    with connect() as con:
+        con.execute("DELETE FROM instagram_reels WHERE user_id = ? AND ig_id = ?", (user_id, ig_id))
+        con.executemany("INSERT OR REPLACE INTO instagram_reels (user_id, media_id, ig_id, title, published, permalink, thumb) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        [(user_id, r["id"], ig_id, r["title"], r["published"], r["permalink"], r["thumb"]) for r in rows])
+
+
+def instagram_reel_rows(user_id, ig_id=None):
+    q, args = "SELECT * FROM instagram_reels WHERE user_id = ?", [user_id]
+    if ig_id:
+        q, args = q + " AND ig_id = ?", args + [ig_id]
+    with connect() as con:
+        return [dict(r) for r in con.execute(q + " ORDER BY published DESC", args)]
+
+
+def channel_checked(user_id, channel):
+    with connect() as con:
+        row = con.execute("SELECT checked_at FROM channel_checks WHERE user_id = ? AND channel = ?", (user_id, channel)).fetchone()
+        return row[0] if row else None
+
+
+def set_channel_checked(user_id, channel, now):
+    with connect() as con:
+        con.execute("INSERT OR REPLACE INTO channel_checks (user_id, channel, checked_at) VALUES (?, ?, ?)", (user_id, channel, now))
 
 
 # YouTube uploads per Pacific day and creator (web/youtube_quota.py). fair_n: those made after the open part of the day.

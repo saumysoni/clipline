@@ -1,5 +1,6 @@
 """
-Pause and Resume while Shorts are being made (the making page and Drafts' card for a vlog being made).
+Pause and Resume while Shorts are being made (the making page and Drafts' card for a vlog being made) or a vlog upload is
+being prepared (web/vlog_upload.py, its safe points are between its stages).
 
 Pause takes effect after the current step, at a safe point (pause_point in web/make_shorts.py: before transcribing,
 before finding moments, before each Short is edited, before each thumbnail is waited for), never half-way through one.
@@ -47,22 +48,16 @@ def _mine(job_id):
     return job
 
 
-def _makes_shorts(job):
-    return not (job.get("kind") == "vlog" and not job.get("count"))  # not a vlog upload being prepared
-
-
 @app.post("/api/vlogs/<job_id>/pause")
 def pause_vlog(job_id):
     from web.job_queue import take_waiting  # (the queue imports make_shorts, which imports this file)
     from web.stop_and_retry import STOPPING
 
     job = _mine(job_id)
-    if not _makes_shorts(job):
-        return jsonify(error="Only making Shorts can be paused."), 400
     if job.get("status") == "paused":
         return jsonify(ok=True, paused=True)
     if job.get("status") != "working" or job_id in STOPPING:
-        return jsonify(error="These Shorts aren't being made any more."), 400
+        return jsonify(error="This isn't being made any more."), 400
     if take_waiting(job_id):  # hadn't started: paused right away
         now = time.time()
         update(job_id, status="paused", pausing=False, queued=False, msg="Paused", paused_at=now, last_edit_at=now)
@@ -86,9 +81,9 @@ def resume_vlog(job_id):
             job["pausing"] = False
             return jsonify(ok=True)
         if job.get("status") != "paused":
-            return jsonify(error="These Shorts aren't paused."), 400
+            return jsonify(error="This isn't paused."), 400
         if job.get("video_deleted_at") or not job.get("link") and not _has_video(job_id):
-            return jsonify(error="Pit Crew no longer has this vlog's video (it's deleted a while after it was paused, "
+            return jsonify(error="Pit Crew no longer has this video's file (it's deleted a while after it was paused, "
                                  "to keep storage free). Upload it again."), 400
         job.update(pausing=False, recoveries=0)
         enqueue_locked(job)  # web/job_queue.py runs it again; it skips what's done

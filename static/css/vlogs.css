@@ -66,3 +66,14 @@
 .vr-err span:last-child{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .vr-err .ms{margin-top:1px}
 .vl-top>div:first-child{flex:1 1 360px;min-width:0}
+
+/* Removed or deleted from YouTube (web/removed.py): a light grey, blurred card that says so. */
+.vr-gone .vr-thumb{background:#c9ccd3;display:grid;place-items:center;cursor:default;overflow:hidden}
+.vr-gone-pic{position:absolute;inset:-14px;background-size:cover;background-position:center;filter:grayscale(1) blur(9px) brightness(1.25);opacity:.75}
+.vr-gone-msg{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;margin:8px;padding:8px 12px;border-radius:10px;background:rgba(240,241,244,.86);text-align:center;font-weight:700;font-size:.85rem;color:#23252b}
+.vr-gone-msg .ms{font-size:24px}
+.vr-gone .vr-title{color:var(--muted)}
+.vr-why{display:flex;gap:6px;align-items:flex-start;color:var(--muted);font-size:.8rem;line-height:1.35}
+.vr-why .ms{font-size:16px;flex:none;margin-top:1px}
+a.vr-title{display:block;color:inherit;text-decoration:none}
+.vl-checked{display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--muted);margin:0 0 12px}

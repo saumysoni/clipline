@@ -72,7 +72,8 @@ with sync_playwright() as p:
     pg = br.new_page(viewport={"width": 1440, "height": 900}, color_scheme="dark")
     errs = []
     pg.on("pageerror", lambda e: errs.append("pageerror: " + str(e)[:300]))
-    pg.on("console", lambda m: m.type == "error" and "ERR_TUNNEL" not in m.text and errs.append(m.text[:300]))
+    # (i.ytimg.com: the thumbnails of the made-up video ids in 6d. blob: reading the chosen file's length, js/allowance.js)
+    pg.on("console", lambda m: m.type == "error" and "ERR_TUNNEL" not in m.text and not (m.location or {}).get("url", "").startswith(("https://i.ytimg.com", "blob:")) and errs.append((m.text + " " + (m.location or {}).get("url", ""))[:300]))
     pg.on("dialog", lambda d: d.accept())  # Stop asks first
     pg.goto(B + "/")
     pg.evaluate("""fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},
@@ -191,6 +192,103 @@ with sync_playwright() as p:
     g.locator(".clg-again").click()
     pg.wait_for_selector(f'#clGrid .clip[data-k="{bad}:1"]', timeout=60000)
     check(F.job_json(bad)["status"] == "ready", "Try again: made, now a draft")
+
+    # ---------------------------------------------------------------- 6b. making Shorts: the form, then Drafts
+    print("6b. The form, then Drafts filtered to that video with loading cards")
+    pg.goto(B + "/#new"); pg.wait_for_timeout(600)
+    check(pg.locator("#sched").count() == 0 and "When should they post" not in pg.inner_text("#s1") and pg.locator("#sumSched").count() == 0, "no question about when to post")
+    check(pg.locator("#countPick button").count() == 10, "ten number buttons for how many Shorts")
+    pg.click('#countPick button[data-n="3"]'); pg.wait_for_timeout(100)
+    check(pg.get_attribute('#countPick button[data-n="3"]', "aria-checked") == "true" and "3" in pg.inner_text("#make"), "pressing 3 chooses 3")
+    pg.locator("#file").set_input_files(F.test_video(60))
+    F.SLOW.transcribe = 4.0
+    pg.click("#make")
+    pg.wait_for_function("location.hash.startsWith('#drafts/shorts/')", timeout=30000)
+    made = ev("location.hash.split('/')[2]")
+    pg.wait_for_selector("#clGrid .cl-sk", timeout=10000); pg.wait_for_timeout(400)
+    check(now_nav() == "draftsNav" and ev("clVlog") == made and pg.input_value("#clVlog") == made, "Drafts, filtered to this video")
+    check(pg.locator("#clGrid .cl-sk").count() == 3, f"a loading card per Short ({pg.locator('#clGrid .cl-sk').count()})")
+    check(pg.locator(f'#clGrid .clg[data-k="{made}"] .clg-pause').is_visible(), "with Pause on its head")
+    check(not errs, f"no errors so far: {errs}")
+    pg.locator(f'#clGrid .clg[data-k="{made}"] .clg-see').click(); pg.wait_for_timeout(600)
+    check(pg.locator("#makingBack").is_visible(), "the making page has a Back")
+    pg.click("#makingBack"); pg.wait_for_timeout(600)
+    check(now_nav() == "draftsNav", "Back goes to Drafts")
+    F.SLOW.transcribe = 0.0
+    pg.wait_for_selector(f'#clGrid .clip[data-k="{made}:1"]', timeout=60000); pg.wait_for_timeout(500)
+    check(pg.locator("#clGrid .cl-sk").count() == 0, "when they're made, their drafts replace the loading cards")
+    # a Short being added shows as a loading card too
+    from web.store import update as _update
+    _update(made, shorts=F.job_json(made)["shorts"] + [{"idx": 99, "pending": True, "retrying": True}])
+    pg.goto(B + "/#settings"); pg.wait_for_timeout(200); pg.goto(B + f"/#drafts/shorts/{made}"); pg.wait_for_selector("#clGrid .cl-sk", timeout=10000)
+    check(pg.locator("#clGrid .cl-sk").count() == 1, "a Short being added: a loading card on Drafts too")
+    _update(made, shorts=[s for s in F.job_json(made)["shorts"] if s["idx"] != 99])
+
+    # ---------------------------------------------------------------- 6c. a video being prepared for YouTube
+    print("6c. A draft video's upload page: Drafts in the sidebar, Back, Pause, AI suggestions")
+    up = F.upload(c, F.test_video(60))
+    F.SLOW.transcribe = 3.0
+    prep = c.post("/api/vlog/start", data={"upload": up}).json["id"]
+    pg.goto(B + "/#settings"); pg.wait_for_timeout(200); pg.goto(B + f"/#vlog/{prep}")
+    pg.wait_for_selector("#vuPauseBtn", state="visible", timeout=15000); pg.wait_for_timeout(300)
+    check(now_nav() == "draftsNav" and "Back to Drafts" in pg.inner_text("#vuBack"), "the sidebar says Drafts, and so does Back")
+    F.wait(lambda: F.job_json(prep).get("stage") == 1, what="transcribing")
+    pg.click("#vuPauseBtn")
+    pg.wait_for_function("document.getElementById('vuPauseBtn').textContent.includes('Resume')", timeout=20000)
+    check(F.job_json(prep)["status"] == "paused" and "Paused" in pg.inner_text("#vuPauseNote"), "Pause while it's prepared")
+    F.SLOW.transcribe = 0.0
+    pg.click("#vuPauseBtn")
+    pg.wait_for_selector("#vuT", state="visible", timeout=30000)
+    check(F.job_json(prep)["status"] == "ready", "Resume, then it's ready to check")
+    pg.locator('.vs[data-field="title"] .vs-open').click()
+    pg.locator('.vs[data-field="title"] .vs-ask').fill("funnier")
+    pg.locator('.vs[data-field="title"] .vs-go').click()
+    pg.wait_for_selector('.vs[data-field="title"] .vs-opt', timeout=15000)
+    chosen = pg.locator('.vs[data-field="title"] .vs-t').first.inner_text()
+    pg.locator('.vs[data-field="title"] .vs-opt button').first.click(); pg.wait_for_timeout(1300)
+    check(pg.input_value("#vuT") == chosen and F.job_json(prep)["vdraft"]["title"] == chosen, f"AI suggestions: Use this fills the title and saves it ({chosen})")
+    check(pg.locator('.vs[data-field="description"] .vs-open').is_visible() and pg.locator('.vs[data-field="tags"] .vs-open').is_visible(), "the description and tags have them too")
+    pg.click("#vuBack"); pg.wait_for_timeout(800)
+    check(now_nav() == "draftsNav" and not pg.locator("#s11").is_hidden(), "Back goes to Drafts")
+
+    # ---------------------------------------------------------------- 6d. the whole channel; gone from YouTube
+    print("6d. The Videos page: the rest of the channel, and what's gone from YouTube")
+    import web.channel_videos as CV
+    import web.youtube_sync as YS
+    CH = F.job_json(ready)["uploads"][0]["channel"] if F.job_json(ready).get("uploads") else None
+    uid = F.job_json(ready)["owner"]
+    channel = CH or (F.yt_account(uid)["channels"][0]["id"])
+    F.VIDEOS["outsidelong"] = {"title": "A video from before", "channel": channel, "privacy": "public", "seconds": 900}
+    F.VIDEOS["outsideshrt"] = {"title": "A Short from before #shorts", "channel": channel, "privacy": "public", "seconds": 40}
+    F.VIDEOS["gonelater01"] = {"title": "Deleted soon", "channel": channel, "privacy": "public", "seconds": 900}
+    CV.refresh_user(uid)
+    F.VIDEOS.pop("gonelater01"); CV.refresh_user(uid)
+    pg.goto(B + "/#settings"); pg.wait_for_timeout(200); pg.goto(B + "/#vlogs"); pg.wait_for_selector("#vlGrid .vr-outside", timeout=15000); pg.wait_for_timeout(300)
+    t = pg.inner_text("#vlGrid")
+    check("A video from before" in t and "Not posted with Pit Crew" in t, "a video posted elsewhere, with the reason")
+    check(pg.get_attribute("#vlGrid .vr-outside a.ghost", "href") == "https://www.youtube.com/watch?v=outsidelong", "and its YouTube link")
+    check("A Short from before" not in t, "Shorts aren't on this page")
+    check("Removed or deleted from YouTube" in t and pg.locator("#vlGrid .vr-gone").count() == 1, "a grey card for one that's gone")
+    pg.screenshot(path=os.path.join(os.getenv("PITCREW_SHOTS", "/tmp"), "videos-page.png"))
+    pg.locator("#vlGrid .vl-x-clear").click(); pg.wait_for_timeout(400)
+    check(pg.locator("#vlGrid .vr-gone").count() == 0, "Remove clears it")
+    posted_job = next(j for j in (ready, made) if F.job_json(j).get("uploads")) if any(F.job_json(j).get("uploads") for j in (ready, made)) else None
+    if not posted_job:
+        posted_job = made
+        c.post(f"/api/schedule/{made}", json={"shorts": [{"idx": 1, "title": "Going out", "keep": True}], "schedule": "now", "channel": channel})
+        F.wait(lambda: F.job_json(made).get("upload_status") == "done", what="posted")
+    gone_idx = F.job_json(posted_job)["uploads"][0]["idx"]
+    F.VIDEOS.pop(F.job_json(posted_job)["uploads"][0]["video_id"]); YS.sync_deleted(uid, force=True)
+    pg.goto(B + "/#settings"); pg.wait_for_timeout(200); pg.goto(B + "/#clips"); pg.wait_for_selector(f'#clGrid .clip.cl-gone[data-k="{posted_job}:{gone_idx}"]', timeout=15000); pg.wait_for_timeout(300)
+    t = pg.inner_text("#clGrid")
+    check("Removed or deleted from YouTube" in t, "Shorts & Reels: a grey card, not posted")
+    check("A Short from before" in t and "Made outside Pit Crew" in t, "and a Short from outside Pit Crew, marked, with its link")
+    pg.screenshot(path=os.path.join(os.getenv("PITCREW_SHOTS", "/tmp"), "shorts-page.png"))
+    pg.locator(f'#clGrid .clip[data-k="{posted_job}:{gone_idx}"] .cl-back').click(); pg.wait_for_timeout(700)
+    check(pg.locator(f'#clGrid .clip[data-k="{posted_job}:{gone_idx}"]').count() == 0, "Back to Drafts takes it off this page")
+    drafts_shorts()
+    check(pg.locator(f'#clGrid .clip[data-k="{posted_job}:{gone_idx}"]').count() == 1, "and it's a draft again")
+    check("Vlog" not in pg.inner_text("#s11") and "Videos" in pg.inner_text(".side"), "the word on the pages is Videos")
 
     # ---------------------------------------------------------------- 7. light mode, phone width
     pg.emulate_media(color_scheme="light"); pg.wait_for_timeout(300)

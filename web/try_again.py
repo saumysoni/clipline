@@ -34,14 +34,18 @@ def remake_short(job_id, idx, note, times=None):
             src = next(job_dir.glob("source.*"), None)
             tr_path = job_dir / "transcript.json"
             if not src or not tr_path.exists():
-                raise RuntimeError("This vlog's video was deleted, so Pit Crew can't cut a new Short from it. "
-                                   "Upload the vlog again to make new Shorts from it.")
+                raise RuntimeError("This video's file was deleted, so Pit Crew can't cut a new Short from it. "
+                                   "Upload the video again to make new Shorts from it.")
             tr = json.loads(tr_path.read_text(encoding="utf-8"))
             if times:
                 m = pipeline.manual_moment(tr, *times, note, say, context=job.get("vlog"))
             else:
                 m = pipeline.repick_moment(tr, taken, rejected, note, say, context=job.get("vlog"), current=me)
 
+            if me.get("captions"):  # the creator's caption look stays; word changes were for the old words
+                m["captions"] = pipeline.caption_style_only(me["captions"])
+            if me.get("reframe"):  # the layout stays; moves were on the old moment's times
+                m["reframe"] = pipeline.reframe_style_only(me["reframe"])
             num = next_file_number(job)
             meta = pipeline.probe(src)
             pipeline.prepare_job_fonts(job_dir)

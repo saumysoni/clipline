@@ -5,23 +5,25 @@
 // (dfMaking), kept up to date by the progress card's checks (js/jobs-now.js dfFollow).
 let dfVlogs=null, dfAll=[], dfTab="vlogs";
 // Vlogs whose Shorts are being made, are paused, or stopped (not a vlog upload being prepared: that's the Vlogs tab).
-const dfMaking=()=>dfAll.filter(v=>!v.prep && ["working","paused","error"].includes(v.status));
+// Also a vlog that's ready with a new Short being added (Add a Short): its loading card goes here too.
+const dfMaking=()=>dfAll.filter(v=>!v.prep && (["working","paused","error"].includes(v.status) || v.pending_shorts>0));
 // A vlog upload being prepared for YouTube (or that stopped while it was).
-const dfPrepping=v=>v.prep && ["working","error"].includes(v.status);
-const dfPick=pageTabs("dfTabs",tab=>{ dfTab=tab; location.hash="drafts"+(tab==="shorts"?"/shorts":""); clDock(); qrClose(); });
+const dfPrepping=v=>v.prep && ["working","paused","error"].includes(v.status);
+const dfHash=()=>"drafts"+(dfTab==="shorts"?"/shorts"+(clVlog?"/"+clVlog:""):"");
+const dfPick=pageTabs("dfTabs",tab=>{ dfTab=tab; location.hash=dfHash(); clDock(); qrClose(); });
 // tab: "vlogs" or "shorts" (none = the tab last clicked, else the first one with something in it); vlog: show only
 // that vlog's draft clips.
 async function openDrafts(tab,vlog){
   clearInterval(poll); tab=tab||dfPick.saved();
-  dfTab=tab||"vlogs"; location.hash="drafts"+(dfTab==="shorts"?"/shorts":""); show(11); dfPick(dfTab);
+  dfTab=tab||"vlogs"; clVlog=vlog||""; location.hash=dfHash(); show(11); dfPick(dfTab);
   await loadDraftVlogs();  // first: the clip browser draws the Shorts being made from it
   await clOpen("drafts",$("dfShorts"),vlog);
-  if(!tab && dfVlogs && !dfVlogs.length && (clData.some(isDraftClip) || dfMaking().length)){ dfTab="shorts"; dfPick(dfTab); location.hash="drafts/shorts"; clDock(); }
+  if(!tab && dfVlogs && !dfVlogs.length && (clData.some(isDraftClip) || dfMaking().length)){ dfTab="shorts"; dfPick(dfTab); location.hash=dfHash(); clDock(); }
   refreshJobsNow();  // checks again every few seconds while something is being made (dfFollow)
 }
 async function loadDraftVlogs(){
   try{ const r=await fetch("/api/vlogs"); if(!r.ok) throw 0; dfAll=(await r.json()).items||[]; }
-  catch(e){ $("dfErr").textContent="Couldn't load your vlogs. Check your internet connection, then reload the page."; return; }
+  catch(e){ $("dfErr").textContent="Couldn't load your videos. Check your internet connection, then reload the page."; return; }
   paintDraftVlogs();
 }
 function paintDraftVlogs(){
@@ -29,7 +31,7 @@ function paintDraftVlogs(){
   $("dfErr").textContent=""; tabCount("dfNVlogs",dfVlogs.length);
   const vl=$("dfVlogList");
   vl.innerHTML = dfVlogs.length ? dfVlogs.map(vlRow).join("")
-    : tabEmpty("video_library","No vlog drafts","Vlogs you prepare for YouTube wait here until you upload them. Start one with Upload a vlog.",["add","Upload a vlog"]);
+    : tabEmpty("video_library","No video drafts","Videos you prepare for YouTube wait here until you upload them. Start one with Upload a video.",["add","Upload a video"]);
   vl.querySelectorAll(".vrow").forEach(el=>vlWire(el,dfVlogs.find(v=>v.id===el.dataset.id),loadDraftVlogs,"dfErr"));
   tabCount("dfNShorts",clData.filter(isDraftClip).length+dfMaking().length);
   const go=vl.querySelector(".tab-empty-go"); if(go) go.onclick=()=>openVlogUpload();

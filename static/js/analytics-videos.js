@@ -68,8 +68,8 @@ function anPairsPaint(){
   const B=['<div class="an-card an-pair-card"><div class="an-head"><div><h2>YouTube vs Instagram, clip by clip</h2><p class="sub">'+
     (anPairRate?"Per 1,000 views, so a clip with more views doesn't win just by being bigger.":"Totals since each clip was posted. “Per 1,000 views” compares them fairly.")+'</p></div>'+
     seg("anPairRate",[["0","Totals"],["1","Per 1,000 views"]],anPairRate?"1":"0")+'</div>'+
-    '<div class="an-pair-pick"><span class="sub">Clips on the charts:</span>'+seg("anPairPick",[["top","Top 6 by views"],["newest","Newest 6"],["vlog","From one vlog"],["choose","Choose clips…"]],anPairPick)+
-    (anPairPick==="vlog"?'<select id="anPairVlog" aria-label="Vlog">'+vlogs.map(([id,n])=>'<option value="'+esc(id)+'"'+(id===anPairVlog?" selected":"")+'>'+esc(n)+'</option>').join("")+'</select>':'')+
+    '<div class="an-pair-pick"><span class="sub">Clips on the charts:</span>'+seg("anPairPick",[["top","Top 6 by views"],["newest","Newest 6"],["vlog","From one video"],["choose","Choose clips…"]],anPairPick)+
+    (anPairPick==="vlog"?'<select id="anPairVlog" aria-label="Video">'+vlogs.map(([id,n])=>'<option value="'+esc(id)+'"'+(id===anPairVlog?" selected":"")+'>'+esc(n)+'</option>').join("")+'</select>':'')+
     '<span class="sub">'+(all.length>AN_PAIR_MAX?"At most 6 clips per chart so the bars stay readable. Every clip is in the list below.":"")+'</span></div>'];
   if(anPairPick==="choose") B.push('<div class="an-pair-choose" role="group" aria-label="Choose up to 6 clips">'+all.map(c=>{ const k=c.job+":"+c.idx, on=anPairChosen.includes(k);
     return '<label><input type="checkbox" data-k="'+esc(k)+'"'+(on?" checked":"")+(!on&&anPairChosen.length>=AN_PAIR_MAX?" disabled":"")+'> '+esc(c.title||"Clip")+'</label>'; }).join("")+'</div>');
@@ -165,15 +165,15 @@ async function anVlogsLoad(q){
   if($("anVlogs").dataset.q!==q) return;
   const items=(j.items||[]);
   if(!items.length||!anShowYt()){ $("anVlogs").innerHTML=""; return; }
-  $("anVlogs").innerHTML=card("anVl","Vlogs and their Shorts","How each vlog did next to the Shorts made from it, and how many viewers the Shorts sent to it · since each was posted",
+  $("anVlogs").innerHTML=card("anVl","Videos and their Shorts","How each video did next to the Shorts made from it, and how many viewers the Shorts sent to it · since each was posted",
     '<div class="vl-links">'+items.map(v=>'<div class="vl-link">'+(v.thumb?'<img src="'+esc(v.thumb)+'" alt="" referrerpolicy="no-referrer" loading="lazy">':'<span class="noimg"></span>')+
-      '<div class="vl-t"><b>'+esc(v.title||"Your vlog")+'</b><small>'+v.shorts+' Short'+(v.shorts===1?"":"s")+' posted</small></div>'+
-      '<div class="vl-n"><span>Vlog views</span><b>'+compact(v.views)+'</b></div>'+
+      '<div class="vl-t"><b>'+esc(v.title||"Your video")+'</b><small>'+v.shorts+' Short'+(v.shorts===1?"":"s")+' posted</small></div>'+
+      '<div class="vl-n"><span>Video views</span><b>'+compact(v.views)+'</b></div>'+
       '<div class="vl-n"><span>Its Shorts\' views</span><b>'+compact(v.shorts_views)+'</b></div>'+
-      '<div class="vl-n hi"><span>Viewers sent by the Shorts</span><b>'+compact(v.sent)+'</b><small>'+(v.views?pct(v.sent/v.views*100)+" of the vlog's views":"")+'</small></div>'+
-      (!v.views&&v.shorts_views?'<p class="vl-hint"><span class="ms" aria-hidden="true">info</span>No views on the vlog yet. If it\'s still private (YouTube keeps uploads from new apps private until Google\'s review), make it public in YouTube Studio so the Shorts can send people to it.</p>':'')+'</div>').join("")+'</div>'+
+      '<div class="vl-n hi"><span>Viewers sent by the Shorts</span><b>'+compact(v.sent)+'</b><small>'+(v.views?pct(v.sent/v.views*100)+" of the video's views":"")+'</small></div>'+
+      (!v.views&&v.shorts_views?'<p class="vl-hint"><span class="ms" aria-hidden="true">info</span>No views on the video yet. If it\'s still private (YouTube keeps uploads from new apps private until Google\'s review), make it public in YouTube Studio so the Shorts can send people to it.</p>':'')+'</div>').join("")+'</div>'+
     '<p class="sub">"Sent by the Shorts" counts views that came from the related-video link on a Short. YouTube Analytics, about 2 days behind.</p>',
-    table(["Vlog","Vlog views","Shorts","Shorts' views","Sent by Shorts"],items.map(v=>[v.title,full(v.views),full(v.shorts),full(v.shorts_views),full(v.sent)]),[1,2,3,4]));
+    table(["Video","Video views","Shorts","Shorts' views","Sent by Shorts"],items.map(v=>[v.title,full(v.views),full(v.shorts),full(v.shorts_views),full(v.sent)]),[1,2,3,4]));
   wireCards();
 }
 

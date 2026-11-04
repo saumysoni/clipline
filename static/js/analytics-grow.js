@@ -85,7 +85,7 @@ function anGrowPaint(){
     if(t.engaged!=null) L.push({id:"engaged",plat:"youtube",title:"Engaged views: who really watched",big:pct(t.engaged/t.views*100),note:"of views were engaged ("+full(t.engaged)+" of "+full(t.views)+")",
       what:"An engaged view is someone who didn't swipe away in the first seconds. It rises when the opening lands.",try:"judge a new clip by engaged views, not views alone."});
     if(t.subs!=null) L.push({id:"subs",plat:"youtube",title:"Turning viewers into subscribers",big:(t.subs>0?"+":"")+full(t.subs),note:"new subscribers from "+full(t.views)+" views",
-      what:t.subs<=0?"People watched, but nothing told them there's more. A clip from a vlog has a built-in reason: the full story.":"Each new subscriber will see your next videos first.",
+      what:t.subs<=0?"People watched, but nothing told them there's more. A clip from a video has a built-in reason: the full story.":"Each new subscriber will see your next videos first.",
       try:"end with where the full story is: “The whole trip is on my channel.”"});
   }
   const it=(ig&&ig.totals)||{};

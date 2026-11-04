@@ -16,6 +16,9 @@ day for every account:
     and deleted if YouTube doesn't show them any more. The title stays: the creator saw or typed it in the form, and
     it's the vlog's name in Pit Crew.
   - Numbers kept in memory are never older than 30 days (youtube/stored_data.py).
+  - The list of videos on a connected channel that Pit Crew didn't post (web/channel_videos.py) is read again every day. A
+    video gone from YouTube keeps only its title, for a card, for 30 days, then it's deleted.
+  - Every Reel Pit Crew posted is checked to still be on Instagram (web/removed.py).
 
 Deleting an account deletes all of it at once (web/delete_account.py). RETENTION_OFF=1 stops this timer too (tests).
 """
@@ -38,6 +41,7 @@ DAY = 24 * 3600
 CHECK_DAYS = 7
 GONE_DAYS = 5
 LINK_DAYS = 30
+REMOVED_DAYS = 30
 LINK_FIELDS = ("description", "tags", "channel", "channel_id", "channel_handle", "video_id", "complete")
 BUSY_STATES = ("working", "queued")
 
@@ -49,7 +53,8 @@ def _save(job):
 
 def _busy(job):
     from web.vlog_upload import UPLOADING
-    return job["id"] in POSTING or job["id"] in UPLOADING or job.get("status") in BUSY_STATES
+    return job["id"] in POSTING or job["id"] in UPLOADING or job.get("status") in BUSY_STATES \
+        or (job.get("vpost") or {}).get("state") == "paused"
 
 
 def recheck_channels(user_id, now):
@@ -66,6 +71,7 @@ def channels_in_records(job):
     """The YouTube channels a job's records mention: its Shorts' uploads and, for a vlog upload, the vlog."""
     found = {u.get("channel") for u in job.get("uploads") or []}
     found.add((job.get("vpost") or {}).get("channel"))
+    found |= {r.get("channel") for r in job.get("yt_removed") or []}
     return found - {None, ""}
 
 
@@ -83,6 +89,7 @@ def forget_channel(user_id, channel):
                 continue
             before = len(job.get("uploads") or [])
             job["uploads"] = [u for u in job.get("uploads") or [] if u.get("channel") != channel]
+            job["yt_removed"] = [r for r in job.get("yt_removed") or [] if r.get("channel") != channel]
             n += before - len(job["uploads"])
             post = dict(job.get("vpost") or {})
             if post.get("channel") == channel:
@@ -95,6 +102,7 @@ def forget_channel(user_id, channel):
                 job["vlog"] = vlog
                 n += 1
             _save(job)
+    db.forget_channel_videos(user_id, channel)
     yt.forget_old_numbers(gone_channels=[channel])
     return n, later
 
@@ -115,7 +123,7 @@ def forget_gone_channels(user_id, now, jobs=None):
             if not later:  # else kept on the list: the rest goes on the next check
                 db.clear_gone(user_id, ch)
             print(f"YouTube upkeep, user {user_id}: channel {ch} isn't connected any more: {n} record(s) forgotten"
-                  + (f", {later} vlog(s) busy, next time" if later else ""))
+                  + (f", {later} video(s) busy, next time" if later else ""))
             out.append(ch)
     return out
 
@@ -150,10 +158,31 @@ def refresh_vlog_links(user_id, now):
     return n
 
 
+def forget_removed_vlogs(user_id, now):
+    """A vlog that's gone from YouTube keeps its video id for its card and the link to Studio for REMOVED_DAYS at most."""
+    for snap in user_jobs(user_id):
+        post = snap.get("vpost") or {}
+        if post.get("state") != "removed" or now - (post.get("removed_at") or now) < REMOVED_DAYS * DAY:
+            continue
+        with LOCK:
+            job = load_job(snap["id"])
+            if job and (job.get("vpost") or {}).get("state") == "removed":
+                job["vpost"] = {"state": "cleared", "removed_at": post.get("removed_at")}
+                _save(job)
+
+
 def upkeep(user_id, now=None):
+    from web.channel_videos import refresh_user  # (they import web/vlogs.py like this file; kept apart from page routes)
+    from web.instagram_reels import refresh_user as refresh_reels
+    from web.removed import sync_instagram
+
     now = now or time.time()
     recheck_channels(user_id, now)
     sync_deleted(user_id, force=True)
+    refresh_user(user_id, now)
+    sync_instagram(user_id, now)
+    refresh_reels(user_id, now)
+    forget_removed_vlogs(user_id, now)
     forget_gone_channels(user_id, now)
     refresh_vlog_links(user_id, now)
 

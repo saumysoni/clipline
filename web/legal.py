@@ -19,9 +19,9 @@ from settings import ROOT
 from web.retention import keep_draft, keep_original, keep_posted, keep_transcript
 from web.server import app
 
-UPDATED = "October 26, 2026"
+UPDATED = "November 3, 2026"
 LEGAL = ROOT / "static" / "legal"
-TITLES = {"welcome": ("Pit Crew: Shorts and Reels from your vlogs", "Turn one long vlog into finished YouTube Shorts "
+TITLES = {"welcome": ("Pit Crew: Shorts and Reels from your videos", "Turn one long video into finished YouTube Shorts "
                       "and Instagram Reels, post them, and see how they do."),
           "privacy": ("Privacy policy · Pit Crew", "What Pit Crew collects, why, who it's shared with, and how to delete it."),
           "terms": ("Terms of use · Pit Crew", "The rules for using Pit Crew."),
@@ -51,9 +51,9 @@ def _values():
         "AI_NOTE": ("We use Google's paid Gemini API plan, under which Google doesn't use what we send to improve its products."
                     if paid else
                     "During the beta we use Google's free Gemini API plan, under which Google may use what we send to "
-                    "improve its products (people at Google may review it). Don't upload a vlog you wouldn't want reviewed. "
+                    "improve its products (people at Google may review it). Don't upload a video you wouldn't want reviewed. "
                     "We'll update this page when we move to the paid plan, which doesn't allow that. On the free plan "
-                    "nothing from your YouTube account goes to Gemini: no channel numbers, and not the details of a vlog "
+                    "nothing from your YouTube account goes to Gemini: no channel numbers, and not the details of a video "
                     "read from its YouTube link (Pit Crew's read on Analytics is then written without AI)."),
         "KEEP_ORIGINAL": _span(keep_original(), "hours"),
         "KEEP_DRAFT": _span(keep_draft(), "days"),

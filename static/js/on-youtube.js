@@ -14,12 +14,12 @@ function ytStillToCome(u){
 function schCount(){ tabCount("schNShorts", schN.yt==null||schN.ig==null ? null : schN.yt+schN.ig); }
 async function loadScheduledVlogs(){
   let items; try{ const r=await fetch("/api/vlogs"); if(!r.ok) throw 0; items=(await r.json()).items||[]; }
-  catch(e){ $("schErr").textContent="Couldn't load your vlogs. Check your internet connection, then reload the page."; return; }
+  catch(e){ $("schErr").textContent="Couldn't load your videos. Check your internet connection, then reload the page."; return; }
   $("schErr").textContent=""; schVlogs=items.filter(isScheduledVlog).sort((a,b)=>a.vpost.when.localeCompare(b.vpost.when));
   tabCount("schNVlogs",schVlogs.length);
   const box=$("schVlogList");
   box.innerHTML = schVlogs.length ? schVlogs.map(vlRow).join("")
-    : tabEmpty("video_library","No vlogs scheduled","When you upload a vlog with Schedule, it waits here until it goes public.",["add","Upload a vlog"]);
+    : tabEmpty("video_library","No videos scheduled","When you upload a video with Schedule, it waits here until it goes public.",["add","Upload a video"]);
   box.querySelectorAll(".vrow").forEach(el=>{
     const v=schVlogs.find(x=>x.id===el.dataset.id); vlWire(el,v,loadScheduledVlogs,"schErr");
     if(v.vpost.video_id) el.querySelector(".vr-acts").insertAdjacentHTML("beforeend",  // Pit Crew can't move a vlog's time; Studio can
@@ -73,7 +73,7 @@ async function openPosted(tab){
     const u=j.items[+li.dataset.i], form=li.querySelector(".pform"), inp=form.querySelector("input"), err=li.querySelector(".err");
     const mv=li.querySelector(".mv");
     if(mv) mv.onclick=()=>{
-      if(!j.signed_in){ signIn(); return; }
+      if(!j.signed_in){ signIn(()=>{}); return; }
       const cur=(u.state&&u.state.publish_at)||u.when; const d=cur?new Date(cur):new Date(Date.now()+86400000);
       inp.min=localInput(new Date(Date.now()+16*60000)); inp.value=localInput(d<new Date()?new Date(Date.now()+3600000):d);
       form.hidden=false; inp.focus();

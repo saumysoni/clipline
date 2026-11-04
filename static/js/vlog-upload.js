@@ -1,12 +1,22 @@
 // New vlog (screen 10): upload a whole vlog to YouTube with AI help (web/vlog_upload.py).
 // Pick the video, Pit Crew prepares a title, description with chapters, tags and a thumbnail, the creator checks
 // them and uploads. Afterwards it offers to make the vlog's Shorts & Reels (js/make-choice.js).
-let vuId=null, vuJob=null, vuPoll=null, vuSaveT=null, vuFilled=null, vuAsked=new Set();
+let vuFromVlogs=false, vuId=null, vuJob=null, vuPoll=null, vuSaveT=null, vuFilled=null, vuAsked=new Set();
+// This page belongs to Drafts until the vlog is on YouTube, then to Vlogs: the sidebar and Back follow that.
+// (A new upload started from the Vlogs page goes back there, until it has a draft to go back to.)
+const vuPosted=j=>j ? ["done","uploading"].includes((j.vpost||{}).state) : vuFromVlogs;
+function vuHome(){
+  const on=vuPosted(vuJob);
+  document.querySelectorAll(".side .navlink,.side .create").forEach(b=>{ b.classList.remove("now"); b.removeAttribute("aria-current"); });
+  const nav=$(on?"vlogsNav":"draftsNav"); if(nav){ nav.classList.add("now"); nav.setAttribute("aria-current","page"); }
+  $("vuBack").lastChild.textContent=on?"Back to Videos":"Back to Drafts";
+}
+const vuLeave=()=>vuPosted(vuJob)?openVlogs():openDrafts("vlogs");
 const VU_KEEP_H=72;  // web/retention.py KEEP_ORIGINAL_HOURS: the video is kept this long after the last change
 function openVlogUpload(id){
-  clearInterval(poll); vuStop(); jobId=null;
-  vuId=id||null; vuJob=null; vuFilled=null; $("vuH").textContent="Upload a vlog to YouTube";
-  location.hash = "vlog/"+(id||"new"); show(10);
+  vuFromVlogs=!id && !$("s7").hidden; clearInterval(poll); vuStop(); jobId=null;
+  vuId=id||null; vuJob=null; vuFilled=null; $("vuH").textContent="Upload a video to YouTube";
+  location.hash = "vlog/"+(id||"new"); show(10); vuHome();
   ["vuErr1","vuErr2","vuErr3"].forEach(e=>$(e).textContent="");
   if(!id){ vuReset(); vuView("pick"); return; }
   seenJob(id); vuView("work"); $("vuTasks").innerHTML=""; vuTick(); vuPoll=setInterval(vuTick,1500);
@@ -21,7 +31,7 @@ function vuView(v){
 function vuReset(){
   $("vuFile").value=""; $("vuLink").value=""; $("vuNote").value="";
   $("vuDrop").classList.remove("has"); $("vuDropIc").textContent="cloud_upload";
-  $("vuDropText").textContent="Drop your vlog here"; $("vuDropSub").textContent="or click to choose the video file";
+  $("vuDropText").textContent="Drop your video here"; $("vuDropSub").textContent="or click to choose the video file";
   $("vuGo").disabled=false; $("vuSendBar").hidden=true;
 }
 // ---- 1. Choose the video
@@ -38,7 +48,7 @@ $("vuDrop").addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ e.
 $("vuGo").onclick=async()=>{
   $("vuErr1").textContent="";
   const f=$("vuFile").files[0], link=$("vuLink").value.trim();
-  if(!f && !link){ $("vuErr1").textContent="Choose your vlog file or paste a Google Drive link."; return; }
+  if(!f && !link){ $("vuErr1").textContent="Choose your video file or paste a Google Drive link."; return; }
   const fd=new FormData();
   if(!f) fd.append("link",link);
   fd.append("note",$("vuNote").value.trim());
@@ -58,7 +68,7 @@ $("vuGo").onclick=async()=>{
   catch(e){ done(); $("vuErr1").textContent="Couldn't reach Pit Crew. Check your internet connection, then press the button again (the video is already sent)."; return; }
   done();
   if(r.status===401) return;  // the sign-in screen is showing (js/account.js)
-  if(!r.ok){ if(j.upload_gone && f) upRemember(f,null); $("vuErr1").textContent=j.error||"Something went wrong sending the vlog."; if(j.field==="link") $("vuLink").focus(); return; }
+  if(!r.ok){ if(j.upload_gone && f) upRemember(f,null); $("vuErr1").textContent=j.error||"Something went wrong sending the video."; if(j.field==="link") $("vuLink").focus(); return; }
   if(f) upRemember(f,null);
   openVlogUpload(j.id);
 };
@@ -67,11 +77,24 @@ async function vuTick(){
   const id=vuId; if(!id) return;
   let r; try{ r=await fetch("/api/status/"+id); }catch(e){ return; }
   if(id!==vuId || $("s10").hidden) return;
-  if(r.status===404){ vuStop(); openVlogs(); return; }
-  const j=await r.json(); vuJob=j;
+  if(r.status===404){ vuStop(); openDrafts("vlogs"); return; }
+  const j=await r.json(); vuJob=j; vuHome();
   if(j.kind!=="vlog" || j.count){ vuStop(); startPolling(id); return; }  // its Shorts are being made (or done)
-  $("vuStopRow").hidden=j.status!=="working";
-  if(j.status==="working"){ vuView("work"); vuTasks(j); $("vuErr2").textContent=""; $("vuStopBtn").onclick=()=>stopVlog(id, false, $("vuErr2"), ()=>{ vuStop(); openDrafts("vlogs"); }); return; }
+  const paused=j.status==="paused";
+  $("vuStopRow").hidden=j.status!=="working" && !paused;
+  $("vuPauseNote").hidden=!paused && !j.pausing;
+  if(j.status==="working" || paused){
+    vuView("work"); vuTasks(j); $("vuErr2").textContent="";
+    $("vuStopBtn").onclick=()=>stopVlog(id, false, $("vuErr2"), ()=>{ vuStop(); openDrafts("vlogs"); });
+    $("vuPauseNote").textContent=paused?"Paused. What's done is kept, and its place in line goes to your next video. Resume when you're ready.":"It pauses when this step is done.";
+    const b=$("vuPauseBtn"); b.querySelector(".ms").textContent=paused?"play_arrow":"pause";
+    b.lastChild.textContent=paused?"Resume":j.pausing?"Pausing...":"Pause"; b.disabled=!paused&&!!j.pausing;
+    b.onclick=()=>paused
+      ? resumeVlog(id,$("vuErr2"),()=>{ vuStop(); vuPoll=setInterval(vuTick,1500); vuTick(); })
+      : pauseVlog(id,$("vuErr2"),()=>vuTick());
+    if(paused) vuStop();  // nothing changes until Resume
+    return;
+  }
   if(j.status==="error"){
     vuStop(); vuView("work"); vuTasks(j);
     $("vuErr2").innerHTML=esc("Stopped: "+(j.error||"Something went wrong."))+' <button type="button" class="ghost sm" id="vuTry">Try again</button>'+
@@ -85,6 +108,16 @@ async function vuTick(){
   vuPaintPost(j);
   if(p.state!=="uploading") vuStop();
 }
+// Pause, Resume or Cancel the upload to YouTube (web/vlog_upload.py).
+async function vuPostCall(what){
+  const id=vuId; $("vuErr3").textContent="";
+  let r,j; try{ r=await fetch("/api/vlog/"+id+"/upload-"+what,{method:"POST"}); j=await r.json(); }
+  catch(e){ r={ok:false}; j={error:"Couldn't reach Pit Crew. Check your internet connection, then try again."}; }
+  if(!r.ok){ $("vuErr3").textContent=j.error||"That didn't work. Try again."; return; }
+  refreshJobsNow(); vuStop(); vuPoll=setInterval(vuTick,1500); vuTick();
+}
+$("vuPostPause").onclick=()=>vuPostCall((vuJob.vpost||{}).state==="paused"||(vuJob.vpost||{}).pausing?"resume":"pause");
+$("vuPostCancel").onclick=()=>{ if(confirm("Cancel this upload?\n\nNothing has gone public. Your video and details stay here, and you can upload again.")) vuPostCall("cancel"); };
 function vuTasks(j){
   const at=j.stage||0;
   $("vuTasks").innerHTML=(j.stages||[]).map((s,i)=>{
@@ -170,20 +203,28 @@ function vuPaintAcct(){
 // The upload button, bar and message for where the upload is.
 function vuPaintPost(j){
   if(!j) return;
-  const p=j.vpost||{}, wait=p.state==="waiting", up=p.state==="uploading"||wait;
+  const p=j.vpost||{}, wait=p.state==="waiting", held=p.state==="paused", up=p.state==="uploading"||wait||held;
+  $("vuPostActs").hidden=!(p.state==="uploading"||held); $("vuPostCancel").hidden=!held;
+  $("vuPostPause").querySelector(".ms").textContent=held||p.pausing?"play_arrow":"pause"; $("vuPostPause").lastChild.textContent=held||p.pausing?"Resume":"Pause";
   ["vuT","vuD","vuTags","vuPrivacy","vuStart"].forEach(f=>$(f).disabled=up);
   $("vuLook").querySelectorAll("button").forEach(b=>b.disabled=up);
   $("vuIdeas").querySelectorAll("button").forEach(b=>b.disabled=up);
+  document.querySelectorAll("#vuEdit .vs button,#vuEdit .vs input").forEach(b=>b.disabled=up);
   $("vuUpload").disabled=up; $("vuUpBar").hidden=!up;
   if(wait){  // YouTube's daily limit (web/youtube_quota.py): it goes up by itself after the reset
     $("vuUpBar").hidden=true;
     $("vuUpload").innerHTML='<span class="ms" aria-hidden="true">schedule</span>Waiting for YouTube';
     $("vuUpMsg").textContent=p.note||"It goes up to YouTube by itself after midnight Pacific time.";
+  } else if(held){
+    const pct=Math.round(p.pct||0);
+    $("vuUpBar").firstElementChild.style.width=pct+"%";
+    $("vuUpload").innerHTML='<span class="ms" aria-hidden="true">pause_circle</span>Paused at '+pct+'%';
+    $("vuUpMsg").textContent="Press Resume to carry on from here. Nothing is public yet, and Pit Crew keeps your video for "+VU_KEEP_H+" hours while it's paused.";
   } else if(up){
     const pct=Math.round(p.pct||0);
     $("vuUpBar").firstElementChild.style.width=pct+"%";
     $("vuUpload").innerHTML='<span class="spin" aria-hidden="true"></span>Uploading '+pct+'%';
-    $("vuUpMsg").textContent="You can leave this page; the upload carries on while Pit Crew is running.";
+    $("vuUpMsg").textContent=p.pausing?"It pauses after the part being sent. Press Resume to carry on instead.":"You can leave this page; the upload carries on while Pit Crew is running.";
   } else {
     const s=$("vuPrivacy").value==="schedule";
     $("vuUpload").innerHTML='<span class="ms" aria-hidden="true">'+(s?"event":"cloud_upload")+'</span>'+(s?"Schedule on YouTube":"Upload to YouTube");
@@ -191,13 +232,13 @@ function vuPaintPost(j){
   }
   if(p.state==="error" && !$("vuErr3").textContent) $("vuErr3").textContent="The upload stopped: "+(p.error||"Something went wrong.")+" Press Upload to try again.";
   // web/youtube_sync.py: it went up, then YouTube no longer had it (deleted, or removed for spam, copyright...)
-  if(p.state==="removed" && !$("vuErr3").textContent) $("vuErr3").innerHTML="YouTube removed this vlog after it was uploaded, so its link no longer works. "+
+  if(p.state==="removed" && !$("vuErr3").textContent) $("vuErr3").innerHTML="YouTube removed this video after it was uploaded, so its link no longer works. "+
     (p.video_id?'<a href="'+esc(studioLink(p.video_id))+'" target="_blank" rel="noopener">Open it in YouTube Studio</a> to see why (often spam rules, copyright or a duplicate). ':"Check YouTube Studio and your email for why. ")+
     "Fix that, then press Upload to send it again. Uploading as Private or Unlisted first is safest.";
 }
 $("vuUpload").onclick=async()=>{
   $("vuErr3").textContent="";
-  if(!$("vuT").value.trim()){ $("vuErr3").textContent="Give the vlog a title."; $("vuT").focus(); return; }
+  if(!$("vuT").value.trim()){ $("vuErr3").textContent="Give the video a title."; $("vuT").focus(); return; }
   if(!yt.signed_in){ signIn(()=>$("vuUpload").click()); $("vuErr3").textContent="Connect YouTube in the window that opened; the upload starts once you're connected."; return; }
   const privacy=$("vuPrivacy").value;
   if(privacy==="schedule" && !$("vuStart").value){ $("vuErr3").textContent="Choose when it goes public."; $("vuStart").focus(); return; }
@@ -222,9 +263,9 @@ function vuPaintDone(j){
   vuView("done");
   const p=j.vpost||{}, v=j.vlog||{}, when=p.when?new Date(p.when):null, later=p.privacy==="schedule" && when && when>new Date();
   const at=when?when.toLocaleString([], {weekday:"long", month:"short", day:"numeric", hour:"numeric", minute:"2-digit"}):"";
-  $("vuH").textContent=(v.title||(j.vdraft||{}).title||"Your vlog");
-  $("vuDoneH").textContent = later ? "Your vlog is scheduled" : p.privacy==="unlisted" ? "Your vlog is on YouTube, unlisted"
-    : p.privacy==="private" ? "Your vlog is on YouTube, private" : "Your vlog is on YouTube";
+  $("vuH").textContent=(v.title||(j.vdraft||{}).title||"Your video");
+  $("vuDoneH").textContent = later ? "Your video is scheduled" : p.privacy==="unlisted" ? "Your video is on YouTube, unlisted"
+    : p.privacy==="private" ? "Your video is on YouTube, private" : "Your video is on YouTube";
   $("vuDoneSub").textContent = later ? "It goes public on "+at+(v.channel?" on "+v.channel:"")+"."
     : p.privacy==="unlisted" ? "Only people with the link can watch it."
     : p.privacy==="private" ? "Only you can see it. Change that in YouTube Studio when you're ready."
@@ -240,4 +281,4 @@ $("vuLater").onclick=()=>{
   $("vuDoneNote").textContent=[$("vuDoneNote").textContent, "You can make its Shorts & Reels any time in the next "+VU_KEEP_H+" hours: Shorts & Reels, then Make Shorts."].filter(Boolean).join(" ");
 };
 $("vuMakeNow").onclick=()=>openMake(vuId);
-$("vuBack").onclick=()=>openVlogs();
+$("vuBack").onclick=()=>vuLeave();

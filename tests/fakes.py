@@ -84,13 +84,20 @@ class FakeAI:
         for key, kind in (("Return ONLY a JSON array of exactly", "moments"), ("The creator chose this moment", "manual"),
                           ("Decide what they want", "again"), ("You write on-screen hooks", "hooks"),
                           ("thumbnail for a YouTube Short", "thumb"), ("full YouTube vlog (landscape", "vthumb"),
-                          ("helping a YouTube vlogger upload a full vlog", "meta"), ("analytics coach", "coach"),
-                          ("You are shortening a YouTube Short", "shorten")):
+                          ("You improve one detail of a creator's full YouTube video", "vdetail"), ("helping a YouTube vlogger upload a full vlog", "meta"), ("analytics coach", "coach")):
             if key in text:
                 return kind
         if '{"items"' in text or "\"items\"" in text:
             return "items"
         raise ValueError("FakeAI doesn't know this prompt: " + text[:200])
+
+    @staticmethod
+    def _vdetail(text):
+        if "THE CURRENT TAGS" in text:
+            return {"items": [["hills", "road trip", "#Market"], ["street food", "india"]]}
+        if "THE CURRENT DESCRIPTION" in text:
+            return {"items": ["We got lost in the hills.\n0:00 not a real chapter", "I lost $2,000 in the hills."]}
+        return {"items": ["We got lost #vlog", "I lost $2,000 in the hills", "A new way up the hills"]}
 
     @staticmethod
     def _segments(text):
@@ -141,22 +148,6 @@ class FakeAI:
                              {"t": 90, "title": "The view"}],
                 "tags": ["travel vlog", "hills", "road trip", "street food", "market", "india", "vlog", "day trip"],
                 "hashtags": ["travel", "vlog", "india"], "thumb_line1": "WE GOT", "thumb_line2": "LOST"}
-
-    @staticmethod
-    def _sentences(text):
-        """(number, seconds) of each numbered sentence in an AI Edit prompt."""
-        return [(int(k), float(d)) for k, d in re.findall(r"^\[(\d+)\] \([\d:]+, ([\d.]+)s\)", text, flags=re.M)]
-
-    def _shorten(self, text):
-        """Skips the first sentence (so a test can tell the AI chose), then keeps sentences up to the target."""
-        target = float(re.search(r"to about (\d+) seconds", text).group(1))
-        keep, total = [], 0.0
-        for k, d in self._sentences(text)[1:]:
-            if total >= target * 0.9:
-                break
-            keep.append(k)
-            total += d
-        return {"keep": keep, "why": "Cut the slow start."}
 
     def _items(self, text):
         return {"items": ["The view was worth it", "Lost in the best way", "One road, one market, one view"]}
@@ -226,8 +217,24 @@ def yt_upload_short(service, path, title, desc, tags, publish_at=None, thumb_pat
     return v, None
 
 
+RESUMED = []  # the resume= of each vlog upload
+UPLOAD_GATE = threading.Event()
+UPLOAD_GATE.set()
+
+
+def _yt_real_paused(uri, at):
+    from youtube.vlog_upload import UploadPaused
+    return UploadPaused(uri, at)
+
+
 def yt_upload_vlog(service, path, title, desc, tags, privacy="public", publish_at=None, thumb_path=None,
-                   progress=lambda p: None):
+                   progress=lambda p: None, should_pause=None, resume=None):
+    RESUMED.append(resume)
+    if UPLOAD_GATE.is_set() is False and not resume:  # a test holds the upload half-way, to press Pause
+        progress(40)
+        UPLOAD_GATE.wait(5)
+    if should_pause and should_pause():
+        raise _yt_real_paused("https://upload.example/session", 1234)
     v = _vid("pcvlog")
     VIDEOS[v] = {"title": title, "channel": service.channel, "publish_at": publish_at, "desc": desc,
                  "published": (publish_at or datetime.now(timezone.utc)).date(), "kind": "videoOnDemand",
@@ -235,6 +242,19 @@ def yt_upload_vlog(service, path, title, desc, tags, privacy="public", publish_a
     UPLOADED.append((service.channel, title, desc, list(tags or []), Path(path).stat().st_size))
     progress(100)
     return v, None
+
+
+def yt_channel_videos(service):
+    """What's on this channel. A test adds its own: VIDEOS[id] = {"title", "channel", "seconds", "tags", "desc", ...}."""
+    from youtube.channel_videos import is_short
+    out = []
+    for i, v in VIDEOS.items():
+        if v.get("channel") != service.channel or v.get("hidden") or v.get("privacy") not in ("public", "unlisted", None):
+            continue
+        sec = v.get("seconds", 600)
+        out.append({"id": i, "title": v["title"], "published": "2026-10-01T10:00:00Z", "seconds": sec,
+                    "privacy": v.get("privacy") or "public", "short": is_short(v["title"], v.get("desc"), v.get("tags"), sec)})
+    return out
 
 
 def yt_video_states(service, ids):
@@ -531,8 +551,9 @@ def ig_call(method, url, params=None, data=None, headers=None, timeout=30):
         return {"permalink": f"https://www.instagram.com/reel/{last}/", "id": last}
     if last == "media" and method == "GET":
         return {"data": [{"id": m, "media_product_type": "REELS", "caption": r["caption"], "like_count": 90,
-                          "comments_count": 4, "permalink": f"https://www.instagram.com/reel/{m}/", "thumbnail_url": "",
-                          "timestamp": r["posted"].strftime("%Y-%m-%dT%H:%M:%S+0000")} for m, r in REELS.items()]}
+                          "comments_count": 4, "permalink": f"https://www.instagram.com/reel/{m}/", "thumbnail_url": r.get("thumb", ""),
+                          "timestamp": r["posted"].strftime("%Y-%m-%dT%H:%M:%S+0000")} for m, r in REELS.items()
+                         if r.get("ig_id", parts[-2]) == parts[-2]]}
     if last == "insights" and parts[-2] in REELS:
         v = 2400
         return {"data": [{"name": n, "values": [{"value": x}]} for n, x in (
@@ -660,16 +681,25 @@ def _jpeg(path, size=(1080, 1920), color=(200, 40, 60)):
 RENDERED = []  # what each fast_render was asked to make (AI Edit tests)
 
 
-def fast_render(video_path, meta, moment, words, idx, style, job_dir, cx="find"):
+def fast_render(video_path, meta, moment, words, idx, style, job_dir, cx="find", offset=0.0):
     from pipeline.captions import build_ass
-    from pipeline.pieces import kept, timeline
+    from pipeline.pieces import kept
+    from pipeline.render import short_words
     job_dir = Path(job_dir)
-    RENDERED.append({"idx": idx, "pieces": kept(moment), "hook": moment.get("hook", ""), "hook_mode": moment.get("hook_mode")})
+    RENDERED.append({"idx": idx, "pieces": kept(moment), "hook": moment.get("hook", ""), "hook_mode": moment.get("hook_mode"),
+                     "captions": moment.get("captions"), "reframe": moment.get("reframe"),
+                     "src": Path(video_path).name, "offset": offset, "cx": cx})
     time.sleep(SLOW.render)  # SLOW.render > 0: editing takes a while (Pause tests)
-    build_ass(timeline(moment, words), 0.0, sum(b - a for a, b in kept(moment)), moment.get("hook", ""), style,
-              job_dir / f"captions_{idx}.ass")
+    build_ass(short_words(moment, words), 0.0, sum(b - a for a, b in kept(moment)), moment.get("hook", ""), style,
+              job_dir / f"captions_{idx}.ass", moment.get("captions"))
     (job_dir / f"short_{idx}.mp4").write_bytes(b"\x00\x00\x00\x18ftypmp42" + os.urandom(64))
     return f"short_{idx}.mp4", None if cx == "find" else cx
+
+
+def fast_clean_clip(video_path, meta, a, b, out_path):
+    import shutil
+    shutil.copyfile(video_path, out_path)  # a real (small) video, so it can be read like a clip
+    return {"from": round(a, 3), "to": round(b, 3), "scale": 1.0}
 
 
 THUMB_AVOIDED = []  # the last thumbnail's plan each Try again asked to avoid
@@ -691,6 +721,7 @@ def fast():
     import pipeline
     pipeline.transcribe = fake_transcribe
     pipeline.render_short = fast_render
+    pipeline.make_clean_clip = fast_clean_clip
     pipeline.make_thumbnail = fast_thumbnail
     pipeline.make_vlog_thumbnail = fast_vlog_thumbnail
     pipeline.retext_thumbnail = lambda v, m, mo, cx, num, d: (fast_thumbnail(v, m, mo, cx, num, d), None)
@@ -723,7 +754,7 @@ def install():
     import youtube
     import youtube.analytics as YA
     for name, fn in (("account", yt_account), ("get_service", yt_get_service), ("upload_short", yt_upload_short),
-                     ("upload_vlog", yt_upload_vlog), ("video_states", yt_video_states), ("reschedule", yt_reschedule),
+                     ("upload_vlog", yt_upload_vlog), ("channel_videos", yt_channel_videos), ("video_states", yt_video_states), ("reschedule", yt_reschedule),
                      ("update_title", yt_update_title), ("delete_video", yt_delete_video),
                      ("fetch_video_info", yt_fetch_video_info), ("sign_out", yt_sign_out)):
         setattr(youtube, name, fn)
@@ -736,7 +767,8 @@ def install():
     import instagram.http as IH
     import instagram.insights as II
     import instagram.publish as IP
-    IH.call = IC.call = IP.call = II.call = ig_call
+    import instagram.reels as IRL
+    IH.call = IC.call = IP.call = II.call = IRL.call = ig_call
     IA.http.call = ig_call
     import instagram.config as ICONF
     ICONF.is_configured = lambda: True
@@ -760,6 +792,13 @@ def reset():
     RENDERED.clear()
     ANALYTICS_CALLS.clear()
     SLOW.transcribe, SLOW.fail, SLOW.render = 0.0, "", 0.0
+    import sqlite3
+    from accounts import db as _db
+    try:
+        with _db.connect() as con:  # each test starts with the day's YouTube uploads unused (web/youtube_quota.py)
+            con.execute("DELETE FROM youtube_uploads")
+    except sqlite3.OperationalError:  # (the database isn't set up yet: nothing to clear)
+        pass
     from web import accounts as WA
     WA.FAILS.clear()
     WA.SIGNUPS.clear()
@@ -785,13 +824,15 @@ def app():
     return flask_app
 
 
-def new_user(email=None, password="password-123", verified=True, name="Test"):
+def new_user(email=None, password="password-123", verified=True, name="Test", onboarded=True):
     from accounts import db
     from werkzeug.security import generate_password_hash
     db.init()
     email = email or f"u{time.time_ns()}@example.com"
     uid = db.create_user(email, name, password_hash=generate_password_hash(password, method="pbkdf2:sha256:1000"),
                          email_verified=verified)
+    if onboarded:  # past Connect your accounts (web/first_import.py); a test of that screen says onboarded=False
+        db.set_onboarded(uid)
     return db.user_by_id(uid)
 
 

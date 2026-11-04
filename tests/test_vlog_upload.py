@@ -98,7 +98,7 @@ class VlogUpload(unittest.TestCase):
         F.wait(lambda: F.job_json(self.jid).get("upload_status") == "done", what="Short posted")
         short = F.VIDEOS[F.job_json(self.jid)["uploads"][0]["video_id"]]
         self.assertIn(f"https://www.youtube.com/watch?v={post['video_id']}", short["desc"])
-        self.assertIn("This vlog already has Shorts", self.c.post(f"/api/vlog/{self.jid}/shorts", json={}).json["error"])
+        self.assertIn("This video already has Shorts", self.c.post(f"/api/vlog/{self.jid}/shorts", json={}).json["error"])
 
     def test_vlog_removed_by_youtube_shows_as_removed(self):
         F.connect_youtube(self.u["id"], CH)

@@ -193,7 +193,7 @@ def rules(f):
     if y.get("views") and y.get("new_subscribers") is not None and y["new_subscribers"] <= 0:
         tips.append({"platform": "youtube", "title": "Give viewers a reason to follow",
                      "because": f"{y['views']:,} Shorts views so far brought {y['new_subscribers']} new subscribers.",
-                     "try": "End with where the full story is: your vlog on the channel."})
+                     "try": "End with where the full story is: your video on the channel."})
     if i.get("shares"):
         tips.append({"platform": "instagram", "title": "Make clips worth sending",
                      "because": f"Your Reels were shared {i['shares']:,} times in the last {i.get('days')} days.",

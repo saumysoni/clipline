@@ -43,7 +43,7 @@ def video_link_problem(url):
     return {
         "youtube": "That's a YouTube link. Pit Crew can't download videos from YouTube (YouTube's rules don't "
                    "allow it). Upload the original video file or use a Google Drive link instead. To use the "
-                   "YouTube link for the title and description, paste it under About this vlog.",
+                   "YouTube link for the title and description, paste it under About this video.",
         "youtube_page": "That's a YouTube link. Pit Crew can't download videos from YouTube, so upload the "
                         "original video file or use a Google Drive link instead.",
         "drive_folder": "That's a link to a Drive folder. Open the folder, right-click the video, choose "
@@ -58,12 +58,12 @@ def video_link_problem(url):
 def youtube_link_problem(url):
     """Plain-English problem with a link pasted as the vlog's YouTube link, or None."""
     return {
-        "drive_file": "That's a Google Drive link. Paste it in the Google Drive box under Your vlog; "
-                      "this box is for the vlog's YouTube link.",
-        "drive_folder": "That's a Google Drive link. This box is for the vlog's YouTube link.",
-        "drive_page": "That's a Google Drive link. This box is for the vlog's YouTube link.",
+        "drive_file": "That's a Google Drive link. Paste it in the Google Drive box under Your video; "
+                      "this box is for the video's YouTube link.",
+        "drive_folder": "That's a Google Drive link. This box is for the video's YouTube link.",
+        "drive_page": "That's a Google Drive link. This box is for the video's YouTube link.",
         "youtube_page": "That's a YouTube link, but not to one video (maybe a channel or playlist). "
-                        "Open the vlog on YouTube and copy its link from the Share button.",
-        "other": "That doesn't look like a YouTube video link. Open the vlog on YouTube and copy its link "
+                        "Open the video on YouTube and copy its link from the Share button.",
+        "other": "That doesn't look like a YouTube video link. Open the video on YouTube and copy its link "
                  "from the Share button.",
     }.get(link_kind(url))

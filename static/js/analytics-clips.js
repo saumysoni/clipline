@@ -14,10 +14,10 @@ function paintClipStats(){
   const plats=AC_PLATS.filter(([k])=>(!anPlat||anPlat===k) && d.clips.some(c=>c[k]));
   const clips=d.clips.filter(c=>plats.some(([k])=>c[k]));
   const vname=anVlog&&(d.clips[0]||{}).vlog;
-  const B=['<div class="an-plat"><i style="background:var(--primary)"></i><h2>'+(anVlog?"First week of the clips from "+esc(vname||"this vlog"):"Each clip's first week")+'</h2><span>Views in each clip\'s first 7 days, so old and new clips compare fairly (the dates above don\'t change this part)</span>'+
-    (anVlog?'<button type="button" class="linkbtn" id="acAll">Show all vlogs</button>':'')+'</div>'];
+  const B=['<div class="an-plat"><i style="background:var(--primary)"></i><h2>'+(anVlog?"First week of the clips from "+esc(vname||"this video"):"Each clip's first week")+'</h2><span>Views in each clip\'s first 7 days, so old and new clips compare fairly (the dates above don\'t change this part)</span>'+
+    (anVlog?'<button type="button" class="linkbtn" id="acAll">Show all videos</button>':'')+'</div>'];
   if(!clips.length){
-    B.push('<div class="an-card an-mini"><span class="ms" aria-hidden="true">movie</span><p>'+(anVlog?"None of this vlog's clips are posted yet.":"Once Pit Crew posts your clips, each one's first week shows up here, so you can see if new ones do better than old ones.")+'</p></div>');
+    B.push('<div class="an-card an-mini"><span class="ms" aria-hidden="true">movie</span><p>'+(anVlog?"None of this video's clips are posted yet.":"Once Pit Crew posts your clips, each one's first week shows up here, so you can see if new ones do better than old ones.")+'</p></div>');
     box.innerHTML=B.join(""); wireAc(); return;
   }
   const points=plats.reduce((a,[k])=>a+clips.filter(c=>c[k]&&c[k].first7!=null).length,0);
