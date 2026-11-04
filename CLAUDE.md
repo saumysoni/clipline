@@ -615,6 +615,14 @@ The code is split so two people can work on different features without touching 
 
 ## Testing without burning API quota
 
+**Every change is tested twice: the code and the UI.** Run the suites below, then look at every screen the change
+touches in a real browser (Playwright screenshots are fine): light and dark, laptop (1440 px), small laptop
+(1180 px), tablet (900 px) and phone (390 px), and with something else going on (a vlog being made: its progress card
+sits at the bottom on phones). Check that nothing is cut off, covered or sticks out sideways, the page shows no
+errors, and every icon shows (gotcha 32). In a sandbox with no internet, load the page's fonts from local copies
+(npm `material-symbols`, `@fontsource/*`), or icons show as their names and the layout is wrong. Report UI problems
+found this way even when they're older than the change; fix them only once Saumya or Nesh says yes.
+
 **Automated tests** (standard-library `unittest`, no internet, no keys, no quota; the same on a laptop and the server):
 
 | Suite | Run | What | Time |
