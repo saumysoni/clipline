@@ -73,7 +73,7 @@ async function openPosted(tab){
     const u=j.items[+li.dataset.i], form=li.querySelector(".pform"), inp=form.querySelector("input"), err=li.querySelector(".err");
     const mv=li.querySelector(".mv");
     if(mv) mv.onclick=()=>{
-      if(!j.signed_in){ signIn(); return; }
+      if(!j.signed_in){ signIn(()=>{}); return; }
       const cur=(u.state&&u.state.publish_at)||u.when; const d=cur?new Date(cur):new Date(Date.now()+86400000);
       inp.min=localInput(new Date(Date.now()+16*60000)); inp.value=localInput(d<new Date()?new Date(Date.now()+3600000):d);
       form.hidden=false; inp.focus();

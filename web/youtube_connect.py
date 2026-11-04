@@ -11,6 +11,7 @@ from flask import g, jsonify, redirect, request, session
 
 import youtube as yt
 
+from web import first_import
 from web.accounts import google_user, login_problem_page, start_session
 from web.google_redirect import youtube_redirect_uri
 from web.server import app
@@ -50,6 +51,7 @@ def youtube_callback():
         return youtube_done_page(False, "Sign in to Pit Crew first, then connect YouTube.", nxt, popup)
     try:
         channel = yt.finish_youtube(request.args.to_dict(), pending, g.user["id"])
+        first_import.begin_safely(g.user["id"])
         return youtube_done_page(True, f"Connected {channel['title']}."
                                        + (" You can close this window." if popup else ""), nxt, popup)
     except RuntimeError as e:
@@ -62,7 +64,7 @@ def youtube_callback():
 def youtube_done_page(ok, msg, nxt="", popup=False):
     # In the small sign-in window: tell the page (if the browser kept the link to it) and close.
     # Opened in the same tab (popups blocked): go back to the job's page.
-    back = "/" + ("#" + nxt if nxt else "")
+    back = "/#" + (nxt or "vlogs")  # (plain "/" is the homepage)
     payload = json.dumps({"clipline": "youtube", "ok": ok, "msg": msg}).replace("<", "\\u003c")
     return (f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Pit Crew · YouTube</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">

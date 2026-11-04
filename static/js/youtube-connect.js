@@ -40,15 +40,16 @@ function paintAccount(){
   if(typeof vuPaintAcct==="function" && !$("s10").hidden) vuPaintAcct();
 }
 // Opens Google's sign-in in a small window. Must run straight from a click, or the browser blocks it.
-function ytError(msg){ if(!$("s10").hidden) $("vuErr3").textContent=msg; else if(!$("s1").hidden) $("err1").textContent=msg; else if(!$("reviewView").hidden) $("err3r").textContent=msg; else $("err3").textContent=msg; }
+function ytError(msg){ if(!$("onb").hidden) $("onbErr").textContent=msg; else if(!$("s10").hidden) $("vuErr3").textContent=msg; else if(!$("s1").hidden) $("err1").textContent=msg; else if(!$("reviewView").hidden) $("err3r").textContent=msg; else $("err3").textContent=msg; }
 // What to do once the sign-in lands (e.g. the upload the creator asked for before signing in).
-let ytThen=null;
+let ytThen=null, ytAsked=false;  // ytAsked: a sign-in is waiting; the window's message and the 2 s check both report it, only the first counts
 function signedIn(a){
   clearInterval(ytWatch); yt=a; paintAccount(); ytError("");
-  const f=ytThen; ytThen=null; if(f && yt.signed_in) f();
+  const f=ytThen, first=ytAsked; ytThen=null; ytAsked=false; if(!yt.signed_in || !first) return;
+  if(f){ f(); onbQuiet(); } else onbConnected();  // in the middle of something: it comes in behind it (js/first-import.js)
 }
 function signIn(then){
-  ytThen = then || null;
+  ytThen = then || null; ytAsked = true;
   if(!yt.configured){
     const msg="YouTube posting isn't available right now. Try again later; you can still Save each Short and post it yourself.";
     // Check again first: the file may have been added since the page loaded (then one more click signs in).

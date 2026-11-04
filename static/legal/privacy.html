@@ -52,7 +52,11 @@ Analytics page are fetched from YouTube when you open it and kept only in the se
 <p>We ask Instagram for: your profile (<code>instagram_business_basic</code>: username, account type, picture),
 publishing (<code>instagram_business_content_publish</code>: post the Reels you choose at the time you pick) and
 insights (<code>instagram_business_manage_insights</code>: your Reels' and account's numbers for the Analytics page).
-We keep the access token, encrypted, and a record of each Reel Pit Crew posted (its Instagram ID and link). Once a
+We keep the access token, encrypted, and a record of each Reel Pit Crew posted (its Instagram ID and link). We also keep
+a list of the other Reels on your connected accounts (each one's Instagram ID, the first line of its caption, date, link
+and picture address), so the Shorts &amp; Reels page can list them with a link to Instagram; we never download them. Pit
+Crew reads that list when you connect the account and then once a day, and it's deleted as soon as you disconnect the
+account or remove Pit Crew from Instagram. Once a
 day we save the numbers of the Reels Pit Crew posted (views, likes, comments, shares, saves), so Analytics can show
 each clip's first week; Instagram only gives running totals. Other Instagram numbers are kept only in memory, for up to
 10 minutes. To post a Reel, Instagram downloads the clip from Pit Crew through a private link that expires.</p>

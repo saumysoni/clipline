@@ -551,8 +551,9 @@ def ig_call(method, url, params=None, data=None, headers=None, timeout=30):
         return {"permalink": f"https://www.instagram.com/reel/{last}/", "id": last}
     if last == "media" and method == "GET":
         return {"data": [{"id": m, "media_product_type": "REELS", "caption": r["caption"], "like_count": 90,
-                          "comments_count": 4, "permalink": f"https://www.instagram.com/reel/{m}/", "thumbnail_url": "",
-                          "timestamp": r["posted"].strftime("%Y-%m-%dT%H:%M:%S+0000")} for m, r in REELS.items()]}
+                          "comments_count": 4, "permalink": f"https://www.instagram.com/reel/{m}/", "thumbnail_url": r.get("thumb", ""),
+                          "timestamp": r["posted"].strftime("%Y-%m-%dT%H:%M:%S+0000")} for m, r in REELS.items()
+                         if r.get("ig_id", parts[-2]) == parts[-2]]}
     if last == "insights" and parts[-2] in REELS:
         v = 2400
         return {"data": [{"name": n, "values": [{"value": x}]} for n, x in (
@@ -766,7 +767,8 @@ def install():
     import instagram.http as IH
     import instagram.insights as II
     import instagram.publish as IP
-    IH.call = IC.call = IP.call = II.call = ig_call
+    import instagram.reels as IRL
+    IH.call = IC.call = IP.call = II.call = IRL.call = ig_call
     IA.http.call = ig_call
     import instagram.config as ICONF
     ICONF.is_configured = lambda: True
@@ -822,13 +824,15 @@ def app():
     return flask_app
 
 
-def new_user(email=None, password="password-123", verified=True, name="Test"):
+def new_user(email=None, password="password-123", verified=True, name="Test", onboarded=True):
     from accounts import db
     from werkzeug.security import generate_password_hash
     db.init()
     email = email or f"u{time.time_ns()}@example.com"
     uid = db.create_user(email, name, password_hash=generate_password_hash(password, method="pbkdf2:sha256:1000"),
                          email_verified=verified)
+    if onboarded:  # past Connect your accounts (web/first_import.py); a test of that screen says onboarded=False
+        db.set_onboarded(uid)
     return db.user_by_id(uid)
 
 
