@@ -10,10 +10,12 @@ vlog (they need other moments).
 """
 import json
 import traceback
+from pathlib import Path
 
 import pipeline
 from settings import JOBS_DIR
 
+from web import remake_progress
 from web.store import JOBS, LOCK, load_job
 
 
@@ -91,8 +93,13 @@ def render(src, moment, words, num, style, job_dir, me):
     """render_short from this source (source() above): the face position scaled into its pixels and back, so the Short
     keeps it in the vlog's. Returns (video file name, cx in the vlog's pixels)."""
     meta = pipeline.probe(src["path"])
-    video, cx = pipeline.render_short(src["path"], meta, moment, words, num, style, job_dir, cx=scaled_cx(me, src),
-                                      offset=src["offset"])
+    job_id, idx = Path(job_dir).name, me.get("idx")
+    try:
+        with remake_progress.tracking(job_id, idx, pipeline.short_length(moment)):
+            video, cx = pipeline.render_short(src["path"], meta, moment, words, num, style, job_dir, cx=scaled_cx(me, src),
+                                              offset=src["offset"])
+    finally:
+        remake_progress.done(job_id, idx)
     if isinstance(cx, (int, float)) and src["scale"]:
         cx = cx / src["scale"]
     return video, cx

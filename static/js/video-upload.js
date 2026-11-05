@@ -6,9 +6,10 @@ const UP_SIGNIN="You were signed out. Sign in, then press the button again: the 
 let upSending=0;  // videos this tab is sending: closing the tab asks first (they can carry on later)
 window.addEventListener("beforeunload",e=>{ if(upSending){ e.preventDefault(); e.returnValue=""; } });
 class UpStop extends Error{}
-// Pause: stops after the piece being sent (8 MB). The server keeps what it has for 24 hours (web/video_upload.py).
-let upPaused=false, upWake=null;
-function upSetPaused(on){ upPaused=!!on; if(!on && upWake){ upWake(); upWake=null; } upPaintPause(); jobsUploadPaused(upPaused); }
+// Pause: at once, the piece on its way is dropped and sent again on Resume. The server keeps what it has for 24 hours
+// (web/video_upload.py).
+let upPaused=false, upWake=null, upCut=null;
+function upSetPaused(on){ upPaused=!!on; if(on && upCut) upCut.abort(); if(!on && upWake){ upWake(); upWake=null; } upPaintPause(); jobsUploadPaused(upPaused); }
 function upPaintPause(){
   document.querySelectorAll(".up-pause").forEach(b=>{ b.hidden=!upSending;
     b.innerHTML='<span class="ms" aria-hidden="true">'+(upPaused?"play_arrow":"pause")+'</span>'+(upPaused?"Resume sending":"Pause sending"); });
@@ -36,9 +37,13 @@ async function sendVideo(file,onProgress,onNote){
     onProgress(received/file.size*100);
     let fails=0;
     while(received<file.size){
-      if(upPaused) await new Promise(res=>{ upWake=res; });
+      if(upPaused){
+        await new Promise(res=>{ upWake=res; });
+        try{ const [r,j]=await upJSON("/api/upload/"+id); if(r.ok) received=j.received; }catch(x){}  // (what arrived before the pause)
+      }
       try{
-        const [r,j]=await upJSON("/api/upload/"+id+"?offset="+received,{method:"POST",headers:{"Content-Type":"application/octet-stream"},body:file.slice(received,received+UP_PIECE)});
+        upCut=new AbortController();
+        const [r,j]=await upJSON("/api/upload/"+id+"?offset="+received,{method:"POST",headers:{"Content-Type":"application/octet-stream"},body:file.slice(received,received+UP_PIECE),signal:upCut.signal});
         if(r.ok||r.status===409){ received=j.received; fails=0; onNote(""); onProgress(received/file.size*100); continue; }
         if(r.status===401) throw new UpStop(UP_SIGNIN);
         if(r.status===404){ upRemember(file,null); throw new UpStop("Pit Crew no longer has the part already sent. Press the button again to send the video again."); }
@@ -46,6 +51,7 @@ async function sendVideo(file,onProgress,onNote){
         throw new Error("Pit Crew answered "+r.status);
       }catch(e){
         if(e instanceof UpStop) throw e;
+        if(e.name==="AbortError" && upPaused) continue;  // Pause cut the piece off: not a lost connection
         const pct=Math.floor(received/file.size*100);
         if(++fails>40) throw new UpStop("The connection kept dropping. Press the button again: the video carries on from "+pct+"%.");
         const wait=Math.min(30,2**Math.min(fails,5));

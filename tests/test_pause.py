@@ -1,5 +1,5 @@
-"""Pause and Resume while Shorts are being made (web/pause.py, web/make_shorts.py): paused after the current step,
-waiting vlogs at once, the spot goes to the next vlog, Resume skips what's done, Stop and retention on a paused vlog."""
+"""Pause and Resume while Shorts are being made (web/pause.py, web/make_shorts.py): paused at once whatever it's doing,
+waiting vlogs too, the spot goes to the next vlog, Resume skips what's done, Stop and retention on a paused vlog."""
 from tests import _env  # noqa: F401  (first: clean settings)
 
 import time
@@ -26,16 +26,14 @@ class Pause(unittest.TestCase):
     def wait_status(self, jid, status):
         return F.wait(lambda: (j := F.job_json(jid)).get("status") == status and j, timeout=30, what=status)
 
-    def test_pause_after_transcribing_frees_the_spot_and_resumes(self):
+    def test_pause_while_transcribing_is_at_once_frees_the_spot_and_resumes(self):
         F.SLOW.transcribe = 1.0
         first, second = self.start(), self.start()  # one at a time per creator: the second waits
         F.wait(lambda: F.job_json(first).get("stage") == 1, what="transcribing")
         r = self.c.post(f"/api/vlogs/{first}/pause")
-        self.assertEqual(r.json, {"ok": True, "paused": False})  # after this step
-        self.assertTrue(self.c.get(f"/api/status/{first}").json["pausing"])
+        self.assertEqual(r.json, {"ok": True, "paused": True})  # by the time the button's request answers
         j = self.wait_status(first, "paused")
-        self.assertEqual(j["stage"], 1)  # transcribing finished, finding moments didn't start
-        self.assertTrue((JOBS_DIR / first / "transcript.json").exists())
+        self.assertEqual(j["stage"], 1)  # finding moments didn't start
         self.assertNotIn("moments", F.AI.kinds())
         F.SLOW.transcribe = 0
         self.assertEqual(F.wait_ready(self.c, second)["status"], "ready")  # its spot went to the other vlog
@@ -54,8 +52,10 @@ class Pause(unittest.TestCase):
     def test_pause_while_editing_keeps_the_shorts_made(self):
         F.SLOW.render = 0.6
         jid = self.start(seconds=150, count=3)
-        F.wait(lambda: F.job_json(jid).get("stage") == 3, timeout=30, what="editing")
-        self.c.post(f"/api/vlogs/{jid}/pause")
+        F.wait(lambda: F.job_json(jid).get("made"), timeout=30, what="one Short edited")
+        started = time.time()
+        self.assertTrue(self.c.post(f"/api/vlogs/{jid}/pause").json["paused"])
+        self.assertLess(time.time() - started, 0.5)  # not when this Short's edit is done (0.6 s)
         j = self.wait_status(jid, "paused")
         made = [d["i"] for d in j["made"]]
         self.assertTrue(1 <= len(made) < 3, made)

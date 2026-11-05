@@ -225,8 +225,9 @@ function reframeEdit(o){
   // ---- the stage: the video's picture with the frame(s) on it, and the Short as it'll look
   function video(){
     const src=o.src(); if(!src) return null;
-    if(src!==vidSrc){ vidSrc=src; vid=document.createElement("video"); vid.muted=true; vid.preload="auto"; vid.playsInline=true; vid.src=src;
-      vid.addEventListener("seeked",()=>draw()); vid.addEventListener("loadeddata",()=>{ vid.currentTime=Math.max(0,t-off()); }); }
+    if(src!==vidSrc){ vidSrc=src; vid=document.createElement("video"); vid.muted=true; vid.preload="metadata"; vid.playsInline=true; vid.src=src;
+      vid.addEventListener("seeked",()=>draw()); vid.addEventListener("loadedmetadata",()=>{ vid.currentTime=Math.max(0,t-off()); });
+      vid.addEventListener("loadeddata",()=>draw()); }
     return vid;
   }
   function stage(){

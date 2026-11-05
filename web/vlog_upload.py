@@ -30,7 +30,7 @@ from settings import JOBS_DIR
 from pipeline.transcript_cache import find_saved_transcript, remember_transcript
 from web import notices
 from web.errors import plain_error
-from web.pause import PAUSING, Paused, pause_point, paused_now
+from web.pause import PAUSING, Paused, Run, paused_now
 from web.server import app
 from web.stop_and_retry import Stopped, finish_stop, settle, stop_point
 from web.allowance import charge, upload_problem
@@ -46,20 +46,20 @@ POST_PAUSING = set()  # ones whose Pause was pressed: they stop after the piece 
 def prepare_vlog(job_id, src, link):
     job_dir = JOBS_DIR / job_id
 
-    def step(**kw):  # every progress report is also where a Stop takes effect (web/stop_and_retry.py)
-        stop_point(job_id)
+    run = Run(job_id)
+
+    def step(**kw):  # every progress report is also where Stop and Pause take effect (web/pause.py): what's done is kept
+        run.check()
         update(job_id, **kw)
 
-    def next_stage(**kw):  # between stages is where a Pause takes effect (web/pause.py): what's done is kept
-        pause_point(job_id)
-        step(**kw)
+    next_stage = step
 
     try:
         next_stage(stage=0, pct=0, msg="Getting your video")
         if link:
             import gdown
             src = job_dir / "source.mp4"
-            gdown.download(url=link, output=str(src), quiet=True, fuzzy=True)
+            run.doing(gdown.download, url=link, output=str(src), quiet=True, fuzzy=True)
             if not src.exists() or src.stat().st_size < 1000:
                 raise RuntimeError("Couldn't download that link. Make sure sharing is set to "
                                    "'Anyone with the link', or upload the file instead.")
@@ -73,7 +73,7 @@ def prepare_vlog(job_id, src, link):
         if saved and not job_tr.exists():
             import shutil
             shutil.copy(saved, job_tr)
-        tr = pipeline.transcribe(src, job_tr, lambda p, m: step(pct=p, msg=m))
+        tr = run.doing(pipeline.transcribe, src, job_tr, lambda p, m: step(pct=p, msg=m))
         remember_transcript(src, job_tr)
 
         next_stage(stage=2, pct=0, msg="Writing the title, description and chapters")
@@ -82,7 +82,9 @@ def prepare_vlog(job_id, src, link):
             m = (JOBS.get(job_id) or {}).get("vmeta")  # written before a pause
         if not m:
             try:
-                m = pipeline.write_vlog_meta(tr, {"note": note}, lambda p, msg: step(pct=p, msg=msg))
+                m = run.doing(pipeline.write_vlog_meta, tr, {"note": note}, lambda p, msg: step(pct=p, msg=msg))
+            except (Paused, Stopped):
+                raise
             except Exception as e:  # noqa: BLE001  (the AI is busy or has no key: the creator writes them)
                 print("Vlog details without AI:", repr(e)[:300])
                 m = {"titles": [], "text": "", "chapters": [], "hashtags": [], "description": "", "tags": [],
@@ -93,7 +95,7 @@ def prepare_vlog(job_id, src, link):
         with LOCK:
             name = (JOBS.get(job_id) or {}).get("name", "")
         title = (m["titles"] or [name])[0]
-        thumb = pipeline.make_vlog_thumbnail(src, meta["duration"], job_dir, title, m["thumb_line1"], m["thumb_line2"])
+        thumb = run.doing(pipeline.make_vlog_thumbnail, src, meta["duration"], job_dir, title, m["thumb_line1"], m["thumb_line2"])
         done = time.time()  # the video is kept from here (KEEP_ORIGINAL_HOURS, web/retention.py)
         if not settle(job_id, stage=len(VLOG_STAGES), pct=100, msg="Ready", status="ready", last_edit_at=done, vmeta=None,
                       vdraft={**m, "title": title, "thumb": thumb, "look": "frame"}):
@@ -104,9 +106,12 @@ def prepare_vlog(job_id, src, link):
         if not paused_now(job_id, settle):  # Stop was pressed as well: Stop wins
             finish_stop(job_id)
     except Exception as e:  # noqa: BLE001
+        run.left.set()
         with LOCK:
             PAUSING.discard(job_id)
-        if not isinstance(e, Stopped):
+        if isinstance(e, Stopped):
+            run.wait_for_helper()
+        else:
             traceback.print_exc()
         with LOCK:
             j = JOBS.get(job_id) or {}

@@ -15,7 +15,7 @@
 // hook the captions are saved first and that remake makes them. Undo / Redo (js/editor.js) step through the changes.
 // o: {box, video, ae (the editor's aiEdit(): words and pieces), onChange(), onLoad()}
 function captionEdit(o){
-  let c=null, info=null, cur=null, gen=0, busy=false, shown=false, word=null, sel=new Set(), pv={key:"", ctl:null, timer:null, motion:false, loops:0, slow:false};
+  let c=null, info=null, cur=null, gen=0, busy=false, shown=false, word=null, sel=new Set(), pv={key:"", ctl:null, timer:null, motion:false, loops:0, slow:false, seen:new Map()};
   const PLAYS=3;
   const LINE=["font","size","color","hi","line","upper","bottom"];  // pipeline/captions.py LINE_KEYS
   const copy=x=>JSON.parse(JSON.stringify(x)), same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
@@ -28,6 +28,7 @@ function captionEdit(o){
   // quiet (after a remake): what's shown stays until the new settings are in (no "Getting...", no blink)
   async function load(quiet){
     const my=++gen, cl=c, keep=quiet&&info;
+    pv.seen.clear();  // the Short may have changed (its framing, its hook)
     if(!keep){ info=null; cur=null; word=null; sel=new Set(); pv.key="";
       o.box.innerHTML='<p class="qr-wait">Getting the captions...</p>'; changed(); }
     let j; try{ const r=await fetch("/api/captions/"+cl.job+"/"+cl.idx); j=await r.json(); if(!r.ok) throw new Error(j.error||""); }
@@ -75,7 +76,8 @@ function captionEdit(o){
     const l=lines().find(x=>keyOf(x)===k);
     if(sel.has(k) && l) seek(l.find(w=>w.i===k).s);
     paint(); changed();
-    const box=$("cpLine"); if(box) box.scrollIntoView({block:"nearest"});
+    // after a double-click's time (js/editor.js): scrolling at once could move the page out from under its second click
+    setTimeout(()=>{ const box=$("cpLine"); if(box && !edCapEditing) box.scrollIntoView({block:"nearest"}); },500);
   }
   // ---- drawing
   const seg=(key,opts)=>'<div class="cp-seg" role="group">'+opts.map(([label,v])=>
@@ -252,7 +254,7 @@ function captionEdit(o){
   }
   // ---- the preview: one frame from the server, at the player's time, a moment after the last change; or (pv.motion)
   // a few seconds of video from the start of the line there (a picked line: the first one picked)
-  function preview(wait=350){
+  function preview(wait=120){
     clearTimeout(pv.timer);
     if(!shown || !info || !info.can_apply || !cur.on || !$("cpImg")) return;
     pv.timer=setTimeout(async()=>{
@@ -272,11 +274,17 @@ function captionEdit(o){
       if(key===pv.key && (motion?vid.src:img.src)) return;
       if(pv.ctl) pv.ctl.abort();
       const ctl=pv.ctl=new AbortController(), fig=$("cpPrev");
-      fig.classList.add("busy");
+      const had=pv.seen.get(key);
+      if(!had) fig.classList.add("busy");
       try{
-        const r=await fetch("/api/captions/"+c.job+"/"+c.idx+"/preview",{method:"POST",headers:{"Content-Type":"application/json"},body:key,signal:ctl.signal});
-        if(!r.ok) throw new Error((await r.json().catch(()=>({}))).error||"");
-        const url=URL.createObjectURL(await r.blob()), el=$(motion?"cpVid":"cpImg"), other=$(motion?"cpImg":"cpVid"); if(!el) return;
+        let blob=had;
+        if(!blob){
+          const r=await fetch("/api/captions/"+c.job+"/"+c.idx+"/preview",{method:"POST",headers:{"Content-Type":"application/json"},body:key,signal:ctl.signal});
+          if(!r.ok) throw new Error((await r.json().catch(()=>({}))).error||"");
+          blob=await r.blob();
+          pv.seen.set(key,blob); if(pv.seen.size>40) pv.seen.delete(pv.seen.keys().next().value);  // (the oldest)
+        }
+        const url=URL.createObjectURL(blob), el=$(motion?"cpVid":"cpImg"), other=$(motion?"cpImg":"cpVid"); if(!el) return;
         if(el.src) URL.revokeObjectURL(el.src);
         el.src=url; pv.key=key; el.hidden=false; other.hidden=true;
         if(motion){ other.removeAttribute("src"); pv.loops=0; el.playbackRate=pv.slow?0.5:1; el.play().catch(()=>{}); }
@@ -290,6 +298,30 @@ function captionEdit(o){
   }
   ["seeked","pause"].forEach(e=>o.video.addEventListener(e,()=>preview()));
   const api={
+    // The line being said at t (vlog seconds), drawn on Trim's preview (trimView): quick and close to the finished look.
+    // The real thing is burned in by the server on Save. Line animations aren't drawn.
+    overlay(g,t,W,H){
+      if(!info||!cur||!cur.on) return;
+      const at=t-(cur.shift||0), L=lines().find(l=>{ const s=l.filter(w=>textOf(w).trim()); return s.length && s[0].s<=at && at<=s[s.length-1].e+0.25; });
+      if(!L) return;
+      const look=lookOf(keyOf(L)), k=W/1080, ws=L.filter(w=>textOf(w).trim()).map(w=>({w,t:look.upper?textOf(w).toUpperCase():textOf(w)}));
+      g.save();
+      g.font='800 '+Math.round((look.size||70)*k)+'px "Plus Jakarta Sans",Arial,sans-serif'; g.textBaseline="alphabetic"; g.lineJoin="round";
+      const fs=(look.size||70)*k, sp=g.measureText(" ").width, max=W*0.9, rows=[[]]; let wide=0;
+      for(const x of ws){ const m=g.measureText(x.t).width; if(wide&&wide+sp+m>max){ rows.push([]); wide=0; } rows[rows.length-1].push({...x,m}); wide+=(wide?sp:0)+m; }
+      const lh=fs*1.15; let y=H-(look.bottom||560)*H/1920-(rows.length-1)*lh;
+      for(const r of rows){
+        const rw=r.reduce((a,x)=>a+x.m,0)+sp*(r.length-1); let x=(W-rw)/2;
+        if(look.box){ g.fillStyle=look.line+"c0"; g.fillRect(x-fs*.2,y-fs*.95,rw+fs*.4,fs*1.2); }
+        for(const w of r){
+          const on=look.highlight!=="none" && w.w.s<=at && at<=w.w.e;
+          if(!look.box && look.outline){ g.strokeStyle=look.line; g.lineWidth=look.outline*2*k; g.strokeText(w.t,x,y); }
+          g.fillStyle=on?look.hi:look.color; g.fillText(w.t,x,y); x+=w.m+sp;
+        }
+        y+=lh;
+      }
+      g.restore();
+    },
     open(clip){ c=clip; busy=false; return load(); },
     clear(){ c=null; info=null; cur=null; gen++; busy=false; word=null; clearTimeout(pv.timer); if(pv.ctl) pv.ctl.abort(); o.box.innerHTML=""; changed(); },
     // The clip list was loaded again: after a remake (a new video file), read the saved captions again.

@@ -45,7 +45,7 @@ class Pause(unittest.TestCase):
         F.SLOW.transcribe = 1.0
         jid = self.start()
         F.wait(lambda: self.status(jid).get("stage") == 1, what="transcribing")
-        self.assertEqual(self.c.post(f"/api/vlogs/{jid}/pause").json, {"ok": True, "paused": False})
+        self.assertEqual(self.c.post(f"/api/vlogs/{jid}/pause").json, {"ok": True, "paused": True})  # at once
         F.wait(lambda: self.status(jid)["status"] == "paused", timeout=30, what="paused")
         self.assertEqual(self.status(jid)["stage"], 1)  # transcribing finished, the details didn't start
         before = F.AI.kinds().count("meta")

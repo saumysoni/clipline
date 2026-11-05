@@ -141,10 +141,8 @@ with sync_playwright() as p:
     check(pg.locator("#jobsNow .jn").count() >= 1, "and the progress card too")
     F.wait(lambda: F.job_json(making).get("stage") == 1, what="transcribing")
     g.locator(".clg-pause").click()
-    pg.wait_for_function(f"document.querySelector('#clGrid .clg[data-k=\"{making}\"]') && document.querySelector('#clGrid .clg[data-k=\"{making}\"]').textContent.includes('Pausing')", timeout=10000)
-    check(True, "Pause: it says it pauses after this step")
+    pg.wait_for_function(f"document.querySelector('#clGrid .clg[data-k=\"{making}\"] .clg-run.paused')", timeout=8000)  # at once, even mid-transcription
     F.SLOW.transcribe = 0
-    pg.wait_for_function(f"document.querySelector('#clGrid .clg[data-k=\"{making}\"] .clg-run.paused')", timeout=20000)
     g = group(making)
     check("Paused" in g.inner_text() and "Resume" in g.locator(".clg-pause").inner_text(), "then Paused, with Resume")
     check(F.job_json(making)["status"] == "paused", "the server agrees")
@@ -163,10 +161,10 @@ with sync_playwright() as p:
     pg.wait_for_selector("#pauseBtn:not([hidden])", timeout=20000)
     check(now_nav() == "draftsNav", "the making page marks Drafts")
     F.wait(lambda: F.job_json(other).get("stage") == 1, what="transcribing")
-    pg.click("#pauseBtn"); pg.wait_for_timeout(800)
-    check("Pausing" in pg.inner_text("#pauseBtn") and pg.locator("#pauseBtn").is_disabled(), "Pause: Pausing... until this step is done")
+    pg.click("#pauseBtn")
+    pg.wait_for_function("document.getElementById('lightsTitle').textContent==='Paused'", timeout=8000)  # at once, mid-transcription
+    check(F.SLOW.transcribe == 6 and F.job_json(other)["status"] == "paused", "Pause: paused at once, not when the step is done")
     F.SLOW.transcribe = 0
-    pg.wait_for_function("document.getElementById('lightsTitle').textContent==='Paused'", timeout=20000)
     check("Resume" in pg.inner_text("#pauseBtn"), "Paused, with Resume")
     pg.click("#pauseBtn")
     pg.wait_for_selector("#s3:not([hidden]) .short, #s3:not([hidden]) #reel > *", timeout=60000)
@@ -289,6 +287,16 @@ with sync_playwright() as p:
     drafts_shorts()
     check(pg.locator(f'#clGrid .clip[data-k="{posted_job}:{gone_idx}"]').count() == 1, "and it's a draft again")
     check("Vlog" not in pg.inner_text("#s11") and "Videos" in pg.inner_text(".side"), "the word on the pages is Videos")
+
+    # ---------------------------------------------------------------- Create from video: every video in the list opens
+    ev("openMake()")
+    pg.wait_for_selector("#mkList .mk-vlog", timeout=10000)
+    pg.locator("#mkList .mk-vlog").first.click()
+    check(pg.locator("#mkOpts").is_visible() and pg.locator("#mkGo").is_visible(), "a video in Create from video can be clicked, and goes on to its options")
+    ev("$('mkDialog').close()")
+    urls = ev("clWatch({youtube:{state:'posted',video_id:'abc'},instagram:{state:'posted',permalink:'https://www.instagram.com/reel/x/'}}).map(w=>w.href)")
+    check(urls == ["https://www.youtube.com/shorts/abc", "https://www.instagram.com/reel/x/"], f"a posted clip links to where it is: {urls}")
+    check(ev("clWatch({youtube:{state:'scheduled',video_id:'abc'}}).length") == 0, "one not out yet doesn't")
 
     # ---------------------------------------------------------------- 7. light mode, phone width
     pg.emulate_media(color_scheme="light"); pg.wait_for_timeout(300)

@@ -120,6 +120,7 @@ function clCard(c){
       (c.remaking?'<div class="cl-busy"><span class="spin" aria-hidden="true"></span>Being remade</div>':'')+'</div>'+
     '<div class="cl-body"><b class="cl-t" title="'+esc(c.title)+(c.vlog?' (from '+esc(c.vlog)+')':'')+'">'+esc(c.title)+'</b>'+
       '<div class="cl-meta">'+icons+'<span>'+esc(where)+(when?' · '+esc(clShortDate(when)):'')+'</span></div>'+
+      clWatch(c).map(w=>'<a class="cl-see" href="'+esc(w.href)+'" target="_blank" rel="noopener"><span class="ms" aria-hidden="true">open_in_new</span>'+esc(w.label)+'</a>').join("")+
       (toIg?'<button type="button" class="cl-to" data-to="instagram"><span class="ms" aria-hidden="true">add</span>Post it on Instagram too</button>':'')+
       (toYt?'<button type="button" class="cl-to" data-to="youtube"><span class="ms" aria-hidden="true">add</span>Post it on YouTube too</button>':'')+
       (soon?'<div class="cl-warn" title="Drafts are deleted after 30 days without an edit. Post, schedule or edit it to keep it."><span class="ms" aria-hidden="true">schedule</span><span>Deleted '+esc(vlSoon(c.expires))+' unless edited or posted</span></div>':'')+'</div>'+
@@ -155,6 +156,13 @@ function clDownloadItem(c){
     : {label:"Download", icon:"download", disabled:"Pit Crew no longer keeps this file"};
 }
 // What the ⋮ menu offers for a clip. On Drafts: Quick review, Edit = the editor, and the video's own editor (Try again).
+// Where a clip that went out can be seen: YouTube (while uploads are private, only to the channel's owner, signed in) and Instagram.
+function clWatch(c){
+  const out=[], y=c.youtube, i=c.instagram;
+  if(y&&y.state==="posted"&&y.video_id) out.push({label:"Watch on YouTube", href:"https://www.youtube.com/shorts/"+y.video_id});
+  if(i&&i.state==="posted"&&i.permalink) out.push({label:"Open on Instagram", href:i.permalink});
+  return out;
+}
 function clMenuItems(c){
   const postedYt=c.youtube&&c.youtube.state==="posted"&&c.youtube.video_id, posted=c.status==="posted";
   const gone=[c.youtube,c.instagram].some(p=>p&&p.state==="removed");  // gone from one platform, still on the other
@@ -171,7 +179,8 @@ function clMenuItems(c){
   ];
   // Shorts & Reels: take it down from YouTube and/or Instagram (js/clip-remove.js)
   const out = clMode==="out" && clRemovable(c).length ? [{label:"Delete", icon:"delete", danger:true, run:()=>clRemove(c)}] : [];
-  return drafts.concat(clMode==="drafts" ? [] : [  // a draft has no numbers yet
+  const watch=clWatch(c).map(w=>({label:w.label, icon:"open_in_new", href:w.href}));
+  return watch.concat(drafts).concat(clMode==="drafts" ? [] : [  // a draft has no numbers yet
     {label:"Analytics", icon:"bar_chart", disabled:canAn?"":"Post it to see its numbers",
      run:()=>{ if(postedYt) openShortAnalytics(c.youtube.video_id,c.youtube.channel); else openAnalytics(c.job,"instagram"); }},
   ]).concat([clDownloadItem(c)]).concat(out).concat(gone?[{label:"Clear the Removed note", icon:"close", run:()=>clGoneAct(c,"clear")}]:[]).concat(c.status==="draft"&&!c.remaking ? [{label:"Delete draft", icon:"delete", danger:true, run:()=>clDelete([c])}] : []);
@@ -256,7 +265,7 @@ function clGroupHead(g){
     const paused=v.status==="paused", pct=vlPct(v);
     body='<div class="clg-run'+(paused?' paused':'')+'">'+
       (paused?'<span class="ms" aria-hidden="true">pause_circle</span>':'<span class="spin" aria-hidden="true"></span>')+
-      '<span class="clg-run-t"><b>'+(paused?"Paused":v.pausing?"Pausing after this step":"Making your Shorts")+' · '+pct+'%</b>'+
+      '<span class="clg-run-t"><b>'+(paused?"Paused":v.pausing?"Pausing":"Making your Shorts")+' · '+pct+'%</b>'+
         '<small>'+esc(paused?"What's done is kept. Resume when you're ready.":v.msg||"Working")+'</small></span>'+
       '<i class="clg-bar"><i style="width:'+pct+'%"></i></i>'+
       '<span class="clg-acts">'+

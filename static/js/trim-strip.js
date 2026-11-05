@@ -100,7 +100,7 @@ function trimStrip(o){
     const cv=box.querySelector(".ts-pics"), src=o.src(); if(!cv||!src) return;
     if(src!==vidSrc){
       vidSrc=src; frames=new Map(); if(vid) vid.removeAttribute("src");
-      vid=document.createElement("video"); vid.muted=true; vid.preload="auto"; vid.playsInline=true; vid.src=src;
+      vid=document.createElement("video"); vid.muted=true; vid.preload="metadata"; vid.playsInline=true; vid.src=src;
       vid.addEventListener("loadedmetadata",()=>pics(),{once:true});
     }
     const dpr=window.devicePixelRatio||1, w=Math.round(W()*dpr), h=Math.round(cv.clientHeight*dpr)||1;
@@ -262,8 +262,9 @@ function trimView(o){
   const vt=()=>vid.currentTime+off();  // the video's place, in vlog seconds
   function video(){
     const src=o.src(); if(!src) return null;
-    if(src!==vidSrc){ vidSrc=src; unlocked=false; vid=document.createElement("video"); vid.preload="auto"; vid.playsInline=true; vid.src=src;
-      vid.addEventListener("seeked",()=>{ if(!playing) paint(); }); vid.addEventListener("loadeddata",()=>{ if(!playing) vid.currentTime=Math.max(0,at-off()); }); }
+    if(src!==vidSrc){ vidSrc=src; unlocked=false; vid=document.createElement("video"); vid.preload="metadata"; vid.playsInline=true; vid.src=src;
+      vid.addEventListener("seeked",()=>{ if(!playing) paint(); }); vid.addEventListener("loadedmetadata",()=>{ if(!playing) vid.currentTime=Math.max(0,at-off()); });
+      vid.addEventListener("loadeddata",()=>{ if(!playing) paint(); }); }
     return vid;
   }
   function paint(){
@@ -274,6 +275,7 @@ function trimView(o){
     const f=o.crop(playing?vt():at), sz=o.size(), k=v.videoWidth/(sz.width||v.videoWidth);
     if(f){ const w=rfWindow(sz.width,sz.height,f,9/16); g.drawImage(v,w.l*k,w.t*k,w.w*k,w.h*k,0,0,c.width,c.height); }
     else{ const h=c.width*v.videoHeight/v.videoWidth; g.drawImage(v,0,(c.height-h)/2,c.width,h); }
+    if(o.overlay) o.overlay(g, playing?vt():at, c.width, c.height);
   }
   function open(text){
     if(!cv()) o.host.innerHTML='<canvas aria-label="The Short at this moment"></canvas><span class="tv-time"></span>';

@@ -21,6 +21,7 @@ const shortLen = s => s.pieces && s.pieces.length ? s.pieces.reduce((n,[a,b])=>n
 // wait until they go out), a vlog upload as Vlogs.
 const NAV_FOR = {1:"createBtn", 2:"draftsNav", 3:"draftsNav", 4:"clipsNav", 5:"postedNav", 6:"analyticsNav", 7:"vlogsNav", 8:"settingsNav", 9:"clipsNav", 10:"vlogsNav", 11:"draftsNav", 12:"draftsNav"};
 function show(n){
+  document.querySelectorAll("video").forEach(v=>{ if(!v.paused) v.pause(); });  // nothing keeps playing behind another page
   [1,2,3,4,5,6,7,8,9,10,11,12].forEach(i=>$("s"+i).hidden = i!==n);
   if(typeof qrClose==="function") qrClose();  // Drafts' Quick review panel belongs to that page
   if(n!==12 && typeof edClose==="function") edClose();  // unsaved details in the editor go with it

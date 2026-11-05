@@ -1062,6 +1062,28 @@ with sync_playwright() as p:
           "the Short plays, from its start (not where the last Short was)")
     pg.click("#edBack"); pg.wait_for_timeout(1200)
     check(ev("document.getElementById('edVideo').paused"), "Back to Drafts stops it (it doesn't play on in the background)")
+    # Trim's preview plays a video of its own, with sound: leaving must stop that too. No label over the picture, and the captions on it
+    open_short(A, 2)
+    tool("trim"); pg.wait_for_timeout(500)
+    pg.click("#trPlay"); pg.wait_for_timeout(900)
+    check(ev("edTV.playing()"), "Play the Short as it'll be plays")
+    check(ev("document.querySelector('#edTrimView .tv-time').textContent") == "", "with no words over the picture")
+    check(ev("""(()=>{ const c=document.createElement('canvas'); c.width=540; c.height=960; const g=c.getContext('2d'), l=edCap.track()[0];
+      edCap.overlay(g, l.src+0.05, 540, 960); return g.getImageData(0,0,540,960).data.some(x=>x>0); })()"""), "the captions are drawn on it")
+    ev("location.hash='#drafts/shorts'"); pg.wait_for_timeout(1200)
+    check(not ev("edTV.playing()"), "leaving the editor stops Trim's preview")
+    # The Save ring
+    open_short(A, 2)
+    check(pg.locator("#edRing").is_hidden(), "the Save ring only shows while saving")
+    ev("edBusy=true; edPaintSave()"); pg.wait_for_timeout(300)
+    check(pg.locator("#edRing").is_visible() and "wait" in pg.get_attribute("#edRing", "class"), "it spins until there's a number")
+    ev("edRingPct=42; edRingPaint()")
+    check(pg.get_attribute("#edRing", "aria-valuenow") == "42" and pg.get_attribute("#edRingV", "stroke-dasharray") == "42 100", "and then fills up")
+    for w in (1440, 1180, 900):
+        pg.set_viewport_size({"width": w, "height": 820}); pg.wait_for_timeout(250)
+        pg.screenshot(path=os.path.join(os.getenv("PITCREW_SHOTS", "/tmp"), f"editor-ring-{w}.png"))
+        check(ev("(b=>b.scrollWidth<=b.clientWidth+1)(document.getElementById('edRing').parentElement)"), f"it fits the top bar at {w} px")
+    pg.set_viewport_size({"width": 1440, "height": 900}); ev("edBusy=false; edPaintSave()")
     open_short(A, 2)
     check(parts().count() == len(SV()), "the timeline is drawn again")
     pg.set_viewport_size({"width": 1180, "height": 820}); pg.wait_for_timeout(600)
