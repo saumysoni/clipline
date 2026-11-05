@@ -54,7 +54,7 @@ function renderProgress(){
   $("pauseBtn").querySelector(".ms").textContent = paused ? "play_arrow" : "pause";
   $("pauseBtn").lastChild.textContent = paused ? "Resume" : job.pausing ? "Pausing..." : "Pause";
   $("pauseBtn").disabled = !paused && !!job.pausing;
-  $("pauseNote").textContent = job.pausing && !paused ? "It pauses when this step is done." : paused ? "Paused. Its place in line goes to your next video." : "";
+  $("pauseNote").textContent = paused ? "Paused. Its place in line goes to your next video." : "";
   const id=job.id;
   $("pauseBtn").onclick=()=> paused ? resumeVlog(id, $("err2"), ()=>startPolling(id)) : pauseVlog(id, $("err2"), tick);
   $("stopBtn").onclick=()=>stopVlog(job.id, !!job.vdraft, $("err2"));

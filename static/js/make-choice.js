@@ -35,7 +35,7 @@ function mkPaintList(){
     const p=v.vpost||{}, up=["uploading","paused"].includes(p.state);
     const pic=v.vthumb?'<img src="/media/'+esc(v.id)+'/'+esc(v.vthumb)+'" alt="" loading="lazy">':v.yt_thumb?'<img src="'+esc(v.yt_thumb)+'" alt="" loading="lazy" referrerpolicy="no-referrer">':'<span class="ms" aria-hidden="true">movie</span>';
     const state=p.state==="paused"?"Upload paused at "+Math.round(p.pct||0)+"%":up?"Uploading to YouTube "+Math.round(p.pct||0)+"%":p.state==="done"?"On YouTube":"Not on YouTube yet";
-    return '<button type="button" class="mk-video" data-id="'+esc(v.id)+'"'+(up?' disabled title="Wait until it has finished uploading"':'')+'><span class="mk-pic">'+pic+'</span>'+
+    return '<button type="button" class="mk-vlog" data-id="'+esc(v.id)+'"'+(up?' disabled title="Wait until it has finished uploading"':'')+'><span class="mk-pic">'+pic+'</span>'+
       '<span class="mk-t"><b>'+esc(v.title)+'</b><small>'+esc([v.duration?fmt(v.duration):"",state].filter(Boolean).join(" · "))+'</small></span>'+
       (v.video_expires?'<span class="mk-left"><span class="ms" aria-hidden="true">schedule</span>'+mkLeft(v.video_expires)+'</span>':'')+'</button>';
   }).join("");

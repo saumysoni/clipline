@@ -59,13 +59,33 @@ async function openEditor(jid,idx){
   edPaint();
 }
 // Leaving the editor (another screen): unsaved details are dropped. Buttons here ask first (edLeave).
-function edClose(){ $("edVideo").pause(); edOpened=null; edBusy=false; edD.clear(); edAE.clear(); edCap.clear(); edRf.clear(); edTlDrop(); clearTimeout(edTimer); document.body.classList.remove("ed-on"); if($("edFin").open) $("edFin").close(); }
+function edClose(){ $("edVideo").pause(); edTV.stop(); edTV.hide(); edOpened=null; edRing(false); edBusy=false; edD.clear(); edAE.clear(); edCap.clear(); edRf.clear(); edTlDrop(); clearTimeout(edTimer); document.body.classList.remove("ed-on"); if($("edFin").open) $("edFin").close(); }
 function edLeave(){
   if(!edD.dirty()) return true;
   if(!confirm("Discard your changes to this Short?\n\nThey haven't been saved.")) return false;
   edD.clear(); return true;
 }
 // While it's being remade, check the clip list every 3 s (Drafts does that itself, but it isn't showing).
+// The ring beside the save state: how much of the new version is made (web/remake_progress.py). It spins until there's a
+// number: while saving, or while another Short of this video is being remade first.
+let edRingTimer=null, edRingFor="", edRingPct=null;
+function edRingPaint(){
+  const r=$("edRing"), n=edRingPct; r.classList.toggle("wait",n==null);
+  $("edRingV").setAttribute("stroke-dasharray",(n==null?25:n)+" 100");
+  if(n==null) r.removeAttribute("aria-valuenow"); else r.setAttribute("aria-valuenow",n);
+}
+async function edRingAsk(){
+  const c=edC, my=edRingFor; if(!c||!my) return;
+  let pct=null; try{ const x=await fetch("/api/remake/"+c.job+"/"+c.idx); if(x.ok) pct=(await x.json()).pct; }catch(e){}
+  if(my!==edRingFor) return;
+  edRingPct=pct; edRingPaint(); edPaintSave(); edRingTimer=setTimeout(edRingAsk,1000);
+}
+function edRing(on){
+  const key=on&&edC?clKey(edC):"";
+  if(key===edRingFor) return;
+  edRingFor=key; clearTimeout(edRingTimer); edRingPct=null; $("edRing").hidden=!key; edRingPaint();
+  if(key) edRingAsk();
+}
 function edWatch(){ clearTimeout(edTimer); edTimer=setTimeout(()=>{ if(!$("s12").hidden) loadClips(); },3000); }
 // A new video for the Short (remade): the frame on screen stays (drawn on #edFreeze) until the new one can show at
 // the same place, then fades, so the player doesn't flash black or to the thumbnail. Playing carries on.
@@ -88,7 +108,8 @@ function edPaintSave(){
   const on=edD.dirty(), n=edD.count(), busy=!!(edC&&edC.remaking)||edBusy, st=$("edState");
   $("edSaveRow").hidden=!on||edSaving; $("s12").classList.toggle("dirty",on);
   $("edSave").disabled=busy; $("edSaveN").textContent=(n===1?"1 change":n+" changes")+" not saved";
-  st.textContent = edSaving ? "Saving..." : on ? (n===1?"1 change":n+" changes")+" not saved" : busy ? "Remaking the Short..." :
+  edRing(edSaving||busy);
+  st.textContent = edSaving ? "Saving..." : on ? (n===1?"1 change":n+" changes")+" not saved" : busy ? (edRingPct==null?"Saving your changes...":"Saving "+edRingPct+"%") :
     edC && !isDraftClip(edC) ? "Not a draft" : "Saved";
   st.classList.toggle("warn",on&&!edSaving); st.classList.toggle("busy",!on&&(busy||edSaving));
 }
@@ -353,7 +374,7 @@ function edHeadPlay(){
   const src=edHeadNow(), p=edAE.pieces(), s=edAE.saved(), same=JSON.stringify(p)===JSON.stringify(s);
   if(!edTlSrc || (same && s && aeToFile(s,src)!=null) || !p.length){ edHeadT=null; v.play().catch(()=>{}); return; }
   // (before the Short's first part, or at its very end: from its start)
-  edTV.play(p, src<=p[0][0]||src>=p[p.length-1][1]-0.05 ? p[0][0] : src, null, "The Short as it'll be"); edTrimPaint(); edPlayPaint();
+  edTV.play(p, src<=p[0][0]||src>=p[p.length-1][1]-0.05 ? p[0][0] : src, null, ""); edTrimPaint(); edPlayPaint();
 }
 function edPlayPaint(){
   const on=edTV.playing()||!$("edVideo").paused, b=$("edPlayBtn");
@@ -368,7 +389,7 @@ const edTS=trimStrip({box:$("edTrimStrip"), pieces:()=>edAE.pieces(), info:()=>e
   // a click, or dragging the handle: the playhead goes there (a moment the saved video hasn't got shows big)
   seek:t=>edHeadTo(t), press:()=>edTV.unlock(),
   hover:t=>edTrimHover(t), onSel:()=>{ edTrimHover(null); edTrimPaint(); }});
-const edTV=trimView({host:$("edTrimView"), src:()=>edTlSrc, off:()=>edTlOff, crop:t=>edRf.cropAt(t), size:()=>edRf.size(),
+const edTV=trimView({host:$("edTrimView"), src:()=>edTlSrc, off:()=>edTlOff, crop:t=>edRf.cropAt(t), size:()=>edRf.size(), overlay:(g,t,w,h)=>edCap.overlay(g,t,w,h),
   onTime:t=>{ edTS.follow(); edCapFollow(); edTimeNow();
     if(t==null){ edHeadT=edTV.time(); const sv=edAE.saved(), f=sv?aeToFile(sv,edHeadT):null; if(f!=null) $("edVideo").currentTime=f; edHeadShow(); edPlayPaint(); edTrimPaint(); } }});
 // The moment being dragged to (vlog seconds), big; when the drag ends (null) the player is back, with its controls.
@@ -481,7 +502,7 @@ function edTrimPaint(){
     if(edTlSrc){ edTV.play(r, s.a-3, s.b+3, "Without "+T(s.a)+" to "+T(s.b)); edTrimPaint(); }
   };
   if($("trClear")) $("trClear").onclick=()=>edTS.setSel(null);
-  $("trPlay").onclick=()=>{ if(edTV.playing()){ edTV.stop(); return; } edTV.play(p, p[0][0], null, "The Short as it'll be"); edTrimPaint(); };
+  $("trPlay").onclick=()=>{ if(edTV.playing()){ edTV.stop(); return; } edTV.play(p, p[0][0], null, ""); edTrimPaint(); };
 }
 document.addEventListener("keydown",e=>{  // Delete / Backspace: cut out the yellow part (else the part chosen on Twick's timeline)
   if($("s12").hidden || !edAE.canEdit() || !["Delete","Backspace"].includes(e.key)) return;
@@ -497,6 +518,11 @@ document.addEventListener("keydown",e=>{  // Delete / Backspace: cut out the yel
 // words are in: the captions' look, opening the tool.
 let edCapKey="", edCapLs=[], edCapX=0, edCapHand=false, edCapUser=0, edCapRaf=0;
 let edCapClick=null, edCapEditing=false;  // a line's words are being typed on its chip: nothing redraws or moves the strip until that's done
+// (That first click moved the strip: the second may land between two chips. It still counts.)
+$("edCapTrack").addEventListener("click",e=>{
+  if(e.target.closest(".ed-cap-c,.ed-cap-in") || e.shiftKey || e.metaKey || e.ctrlKey) return;
+  if(edCapClick && performance.now()-edCapClick.at<450){ const was=edCapClick.k; edCapClick=null; edCapEdit(was); }
+});
 function edCapTrack(){
   if(edCapEditing) return;
   const el=$("edCapTrack"), ls=edCap.track();
@@ -513,8 +539,8 @@ function edCapTrack(){
       ' title="'+esc(l.text)+(l.own?' (a look of its own)':'')+'. Double-click to change the words" aria-pressed="'+l.on+'"><small>'+fmt(l.s)+'</small><span>'+esc(l.text)+'</span></button>').join("")+'</div>';
     el.querySelectorAll(".ed-cap-c").forEach(b=>b.onclick=e=>{
       // A second click soon after: type the line clicked first. (That click moved the strip, so the pointer may be on another chip by now.)
-      const k=+b.dataset.k, now=performance.now();
-      if(edCapClick && now-edCapClick.at<450){ const was=edCapClick.k; edCapClick=null; edCapEdit(was); return; }
+      const k=+b.dataset.k, now=performance.now(), more=e.shiftKey||e.metaKey||e.ctrlKey;  // (picking more lines is never a double-click)
+      if(!more && edCapClick && now-edCapClick.at<450){ const was=edCapClick.k; edCapClick=null; edCapEdit(was); return; }
       edCapClick={k, at:now};
       // Under the Captions tool a click picks the line, for a look of its own. Under any other tool it goes to the line and
       // stays there: double-click edits it right here, with no trip to the Captions tool.

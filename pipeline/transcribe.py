@@ -7,11 +7,16 @@ Tune with WHISPER_MODEL / WHISPER_DEVICE / WHISPER_BATCH_SIZE / WHISPER_THREADS 
 Pit Crew is English-only for now: WHISPER_LANGUAGE defaults to "en", so the language is never guessed
 (guessing once turned an English vlog into Welsh, and a Hinglish vlog into invented English). Set
 WHISPER_LANGUAGE=auto to let Whisper work it out instead.
+
+Stopping part-way loses nothing: when the progress callback raises (Pause), the words so far are saved beside the
+transcript (transcript.partial.json, also every SAVE_EVERY seconds in case the server restarts), and the next run
+listens from where that stopped.
 """
 import json
 import os
 import re
 import subprocess
+import threading
 import time
 from pathlib import Path
 
@@ -20,6 +25,17 @@ from pipeline.text import fmt_mmss
 
 
 SAMPLE_RATE = 16000  # what Whisper expects
+SAVE_EVERY = 30  # seconds between saves of the words so far
+_LOCKS = {}  # transcript file -> lock: a run that was left behind finishes saving before the next one reads it
+_LOCKS_GUARD = threading.Lock()
+
+
+class _Halted(Exception):
+    """The progress callback raised: why is the exception to pass on, once the words so far are saved."""
+
+    def __init__(self, why):
+        super().__init__(str(why))
+        self.why = why
 
 
 def load_audio(video_path):
@@ -122,59 +138,123 @@ def transcribe(video_path, out_json, progress=lambda pct, msg: None):
     out_json = Path(out_json)
     if out_json.exists():
         return json.loads(out_json.read_text(encoding="utf-8"))
+    with _LOCKS_GUARD:
+        lock = _LOCKS.setdefault(str(out_json), threading.Lock())
+    with lock:
+        if out_json.exists():
+            return json.loads(out_json.read_text(encoding="utf-8"))
+        return _transcribe(video_path, out_json, progress)
 
+
+def _partial_path(out_json):
+    return out_json.with_name(out_json.stem + ".partial.json")
+
+
+def _read_partial(out_json, total):
+    """What an earlier, stopped run heard: {"upto", "words", "language"}, or nothing (none, or of another length)."""
+    try:
+        d = json.loads(_partial_path(out_json).read_text(encoding="utf-8"))
+        if abs(float(d["total"]) - total) < 1 and isinstance(d["words"], list):
+            return d
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    return {"upto": 0.0, "words": [], "language": None}
+
+
+def _save_partial(out_json, total, upto, words, language):
+    try:
+        tmp = _partial_path(out_json).with_suffix(".tmp")
+        tmp.write_text(json.dumps({"total": total, "upto": upto, "words": words, "language": language},
+                                  ensure_ascii=False), encoding="utf-8")
+        tmp.replace(_partial_path(out_json))
+    except OSError as e:  # (the vlog was stopped and its folder removed)
+        print(f"Couldn't save the words so far: {e}")
+
+
+def _transcribe(video_path, out_json, progress):
     model_name = os.getenv("WHISPER_MODEL", "small")
     progress(0, "Extracting the audio")
     audio = load_audio(video_path)
     total = len(audio) / SAMPLE_RATE
+    before = _read_partial(out_json, total)
+    upto = float(before["upto"])
+    done_pct = min(99, upto / max(total, 1) * 100)
 
-    progress(0, f"Loading speech model ({model_name})")
+    progress(done_pct, f"Loading speech model ({model_name})")
     started = time.time()
     model = whisper_model(model_name)
     language = (os.getenv("WHISPER_LANGUAGE") or "en").strip().lower()
     language = None if language == "auto" else language
+    language = language or before.get("language")
     if not language and not model_name.endswith(".en"):
-        progress(0, "Working out the language")
+        progress(done_pct, "Working out the language")
         language = detect_language(model, audio)
 
-    progress(0, "Listening to the video")
+    progress(done_pct, f"Transcribed {fmt_mmss(upto)} of {fmt_mmss(total)}" if upto else "Listening to the video")
+    audio = audio[int(upto * SAMPLE_RATE):]  # what's left; its times are moved back by upto (_collect_words)
     batch = int(os.getenv("WHISPER_BATCH_SIZE", "8") or 0)
-    words, engine = None, None
-    if batch > 0:
-        try:
-            from faster_whisper import BatchedInferencePipeline
-            segments, info = BatchedInferencePipeline(model).transcribe(
-                audio, word_timestamps=True, batch_size=batch, language=language)
-            words = _collect_words(segments, total, progress)
-            engine = f"faster-whisper:{model_name}:batched{batch}"
-        except Exception as e:  # noqa: BLE001
-            print(f"Batched transcription failed ({e}); trying the one-at-a-time way.")
-            words = None
-    if words is None:
-        segments, info = model.transcribe(audio, word_timestamps=True, vad_filter=True, language=language)
-        words = _collect_words(segments, total, progress)
-        engine = f"faster-whisper:{model_name}"
+    words, engine, info = None, None, None
+    state = {"upto": upto, "words": list(before["words"])}
 
+    def collect(segments):
+        state.update(upto=upto, words=list(before["words"]))
+        return _collect_words(segments, total, progress, upto, state, lambda: _save_partial(
+            out_json, total, state["upto"], state["words"], language))
+
+    try:
+        if len(audio) < SAMPLE_RATE // 2:  # nothing left to listen to
+            words, engine = state["words"], f"faster-whisper:{model_name}"
+        if words is None and batch > 0:
+            try:
+                from faster_whisper import BatchedInferencePipeline
+                segments, info = BatchedInferencePipeline(model).transcribe(
+                    audio, word_timestamps=True, batch_size=batch, language=language)
+                words = collect(segments)
+                engine = f"faster-whisper:{model_name}:batched{batch}"
+            except _Halted:
+                raise
+            except Exception as e:  # noqa: BLE001
+                print(f"Batched transcription failed ({e}); trying the one-at-a-time way.")
+                words = None
+        if words is None:
+            segments, info = model.transcribe(audio, word_timestamps=True, vad_filter=True, language=language)
+            words = collect(segments)
+            engine = f"faster-whisper:{model_name}"
+    except _Halted as h:
+        _save_partial(out_json, total, state["upto"], state["words"], language)
+        raise h.why from None
+
+    words.sort(key=lambda w: w["s"])
     words = drop_repeats(words)
     for w in words:  # a stuck letter ("sooooooo", "hmmmmmmm") is cut to two
         w["w"] = re.sub(r"(.)\1{3,}", r"\1\1", w["w"])
     print(f"Transcribed {fmt_mmss(total)} with {engine} in {time.time() - started:.0f}s.")
-    data = {"duration": total, "language": language or info.language,
+    data = {"duration": total, "language": language or (info.language if info else "en"),
             "segments": sentence_segments(words), "words": words, "engine": engine}
     out_json.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    _partial_path(out_json).unlink(missing_ok=True)
     return data
 
 
-def _collect_words(segments, total, progress):
-    words = []
+def _collect_words(segments, total, progress, base, state, save):
+    """Adds each segment's words to state["words"] (times moved on by base: what an earlier run already heard), keeping
+    state["upto"] at the last one. progress raising becomes _Halted, so it isn't taken for the speech engine failing."""
+    saved_at = time.time()
     for s in segments:
         for w in s.words or []:
             t = w.word.strip()
             if t:
-                words.append({"w": t, "s": round(w.start, 2), "e": round(w.end, 2)})
-        progress(min(99, s.end / max(total, 1) * 100), f"Transcribed {fmt_mmss(s.end)} of {fmt_mmss(total)}")
-    words.sort(key=lambda w: w["s"])
-    return words
+                state["words"].append({"w": t, "s": round(w.start + base, 2), "e": round(w.end + base, 2)})
+        end = s.end + base
+        state["upto"] = max(state["upto"], end)
+        if time.time() - saved_at > SAVE_EVERY:
+            save()
+            saved_at = time.time()
+        try:
+            progress(min(99, end / max(total, 1) * 100), f"Transcribed {fmt_mmss(end)} of {fmt_mmss(total)}")
+        except Exception as e:  # noqa: BLE001
+            raise _Halted(e) from e
+    return state["words"]
 
 
 def drop_repeats(words, most=2):

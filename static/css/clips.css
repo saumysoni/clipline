@@ -24,6 +24,9 @@
 .cl-to{align-self:flex-start;display:inline-flex;align-items:center;gap:4px;border:0;background:none;padding:0;font:inherit;font-size:.8rem;font-weight:600;cursor:pointer;color:var(--primary-text)}
 .cl-to .ms{font-size:16px}
 .cl-to:hover{text-decoration:underline}
+.cl-see{align-self:flex-start;display:inline-flex;align-items:center;gap:4px;font-size:.8rem;font-weight:600;color:var(--primary-text);text-decoration:none}
+.cl-see .ms{font-size:16px}
+.cl-see:hover{text-decoration:underline}
 .cl-warn{display:flex;gap:5px;align-items:flex-start;font-size:.78rem;color:var(--warn);font-weight:600;line-height:1.35}
 .cl-warn .ms{font-size:15px;margin-top:1px;flex:none}
 .cl-foot{display:flex;align-items:center;gap:6px;padding:6px 6px 8px 12px;margin-top:auto}

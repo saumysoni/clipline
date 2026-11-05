@@ -4,13 +4,30 @@ Running FFmpeg and reading a video's size, rotation and length.
 Not every FFmpeg can burn captions (some builds have no libass), so ffmpeg_exe() picks one that can.
 Always call ffmpeg_exe(); never hard-code "ffmpeg".
 """
+import contextlib
 import json
 import os
 import shutil
 import subprocess
+import tempfile
+import threading
 
 
 _FFMPEG = None
+_WATCH = threading.local()  # what run() does in this thread (watching() below)
+
+
+@contextlib.contextmanager
+def watching(check=None, on_time=None):
+    """For FFmpeg runs in this thread. check(): called about 5 times a second; if it raises, FFmpeg is killed at once and
+    the exception carries on (Pause and Stop). on_time(seconds): how much of the output is done (a progress ring).
+    Pipeline code doesn't need to know: it keeps calling run()."""
+    was = getattr(_WATCH, "check", None), getattr(_WATCH, "on_time", None)
+    _WATCH.check, _WATCH.on_time = check or was[0], on_time or was[1]
+    try:
+        yield
+    finally:
+        _WATCH.check, _WATCH.on_time = was
 
 
 def ffmpeg_has_captions(exe):
@@ -54,11 +71,54 @@ def ffmpeg_exe():
 
 def run(cmd, cwd=None):
     """Run a command and raise a readable error if it fails."""
+    check, on_time = getattr(_WATCH, "check", None), getattr(_WATCH, "on_time", None)
+    if check or on_time:
+        return _run_watched(cmd, cwd, check, on_time)
     p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
     if p.returncode != 0:
         tail = "\n".join(p.stderr.strip().splitlines()[-12:])
         raise RuntimeError(f"Command failed: {' '.join(map(str, cmd[:3]))} ...\n{tail}")
     return p.stdout
+
+
+def _run_watched(cmd, cwd, check, on_time):
+    """run() with watching()'s check and on_time. stderr goes to a file so a full pipe can never hold FFmpeg up."""
+    if check:
+        check()
+    is_ffmpeg = "ffmpeg" in os.path.basename(str(cmd[0]))
+    if on_time and is_ffmpeg:
+        cmd = [cmd[0], "-progress", "pipe:1", "-nostats", *cmd[1:]]
+    lines = []
+
+    def read(out):
+        for line in out:
+            lines.append(line)
+            if on_time and is_ffmpeg and line.startswith("out_time_us="):
+                with contextlib.suppress(ValueError):
+                    on_time(max(0.0, int(line.split("=", 1)[1]) / 1e6))
+
+    with tempfile.TemporaryFile("w+", encoding="utf-8", errors="replace") as err:
+        p = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=err, text=True, errors="replace")
+        reader = threading.Thread(target=read, args=(p.stdout,), daemon=True)
+        reader.start()
+        try:
+            while True:
+                try:
+                    p.wait(timeout=0.2)
+                    break
+                except subprocess.TimeoutExpired:
+                    if check:
+                        check()
+        except BaseException:
+            p.kill()
+            p.wait()
+            raise
+        reader.join(timeout=5)
+        if p.returncode != 0:
+            err.seek(0)
+            tail = "\n".join(err.read().strip().splitlines()[-12:])
+            raise RuntimeError(f"Command failed: {' '.join(map(str, cmd[:3]))} ...\n{tail}")
+    return "".join(lines)
 
 
 def probe(path):

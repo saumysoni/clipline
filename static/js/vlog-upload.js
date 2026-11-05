@@ -86,7 +86,7 @@ async function vuTick(){
   if(j.status==="working" || paused){
     vuView("work"); vuTasks(j); $("vuErr2").textContent="";
     $("vuStopBtn").onclick=()=>stopVlog(id, false, $("vuErr2"), ()=>{ vuStop(); openDrafts("vlogs"); });
-    $("vuPauseNote").textContent=paused?"Paused. What's done is kept, and its place in line goes to your next video. Resume when you're ready.":"It pauses when this step is done.";
+    $("vuPauseNote").textContent=paused?"Paused. It carries on from here when you resume, and its place in line goes to your next video.":"Pausing...";
     const b=$("vuPauseBtn"); b.querySelector(".ms").textContent=paused?"play_arrow":"pause";
     b.lastChild.textContent=paused?"Resume":j.pausing?"Pausing...":"Pause"; b.disabled=!paused&&!!j.pausing;
     b.onclick=()=>paused

@@ -16,6 +16,7 @@ function renderDone(){
     const sub=d?d.toLocaleDateString(undefined,{month:"short",day:"numeric"})+", "+d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}):"Posting now";
     return '<li><div class="day">'+day+'<small>'+sub+'</small></div><div>'+esc(u.title)+(u.note?'<div class="from">'+esc(u.note)+'</div>':'')+'</div>'+
       '<span class="acts">'+thumbLink(job.id,u)+relatedLink()+
+      '<a href="https://www.youtube.com/shorts/'+esc(u.video_id)+'" target="_blank" rel="noopener">Watch on YouTube<span class="ms" aria-hidden="true">open_in_new</span></a>'+
       '<a href="'+esc(studioLink(u.video_id))+'" target="_blank" rel="noopener">Open in Studio<span class="ms" aria-hidden="true">open_in_new</span></a></span></li>';
   }).join("");
   show(4);
