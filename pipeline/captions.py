@@ -175,13 +175,21 @@ def lines_of(words, caps):
     return lines
 
 
-def build_ass(words, clip_start, clip_end, hook, style, path, caps=None):
-    """words: the Short's words on its own clock ({"w", "s", "e"}, and "i" = its position in transcript.json)."""
+def build_ass(words, clip_start, clip_end, hook, style, path, caps=None, overlays=None, pieces=None):
+    """words: the Short's words on its own clock ({"w", "s", "e"}, and "i" = its position in transcript.json).
+    overlays: the Short's text on screen (pipeline/overlays.py, vlog seconds) on the Short the pieces make; none = the
+    file is exactly what it was before overlays (tests/captions_golden.json). Shown whether captions are on or off."""
     c = clean_captions(caps, style) if caps else preset(style if style in PRESETS else "bold")
     font = caption_font_name(Path(path).parent / "fonts")
     cfont = caption_font(c["font"], Path(path).parent / "fonts")
     text, hi = ass_color(c["color"]), ass_color(c["hi"])
     line = ass_color(c["line"], 0x40 if c["box"] else 0)
+    ovl_styles, ovl = "", []
+    if overlays:
+        from pipeline.overlays import overlay_events, overlay_styles  # (it imports this file)
+        ovl = overlay_events(overlays, pieces or [(clip_start, clip_end)], Path(path).parent / "fonts")
+        if ovl:
+            ovl_styles = overlay_styles(font)
     head = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: {OUT_W}
@@ -193,7 +201,7 @@ ScaledBorderAndShadow: yes
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Cap,{cfont},{c["size"]},{text},{text},{line},&H80000000,{-1 if c["font"] in BOLD else 0},0,0,0,100,100,0,0,{3 if c["box"] else 1},{c["outline"]},{c["shadow"]},2,80,80,{c["bottom"]},1
 Style: Hook,{font},66,&H00111111,&H00111111,&H00FFFFFF,&H00FFFFFF,-1,0,0,0,100,100,0,0,3,18,0,8,90,90,200,1
-
+{ovl_styles}
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
@@ -276,4 +284,5 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 out.append(f"Dialogue: 0,{ass_time(max(0.0, start))},{ass_time(end)},Cap,,0,0,{margin},,{intro}{' '.join(parts)}")
     if hook:
         out.append(f"Dialogue: 1,{ass_time(0)},{ass_time(2.8)},Hook,,0,0,0,,{ass_escape(hook)}")
+    out += ovl
     Path(path).write_text(head + "\n".join(out) + "\n", encoding="utf-8")

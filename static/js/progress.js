@@ -60,6 +60,6 @@ function renderProgress(){
   $("stopBtn").onclick=()=>stopVlog(job.id, !!job.vdraft, $("err2"));
   if(job.status==="error"){ clearInterval(poll);
     $("err2").insertAdjacentHTML("beforeend",' <button type="button" class="ghost" style="margin-left:8px" id="againBtn">Try again</button>'+
-      '<button class="ghost" style="margin-left:8px" onclick="location.hash=\'\';location.reload()">Start over</button>'+helpLine(job.id));
-    $("againBtn").onclick=()=>vlogAgain(job.id, $("err2")); }
+      '<button type="button" class="ghost" style="margin-left:8px" id="overBtn">Start over</button>'+helpLine(job.id));
+    $("againBtn").onclick=()=>vlogAgain(job.id, $("err2")); $("overBtn").onclick=()=>openVlogs(); }  // Start over: home (Videos)
 }

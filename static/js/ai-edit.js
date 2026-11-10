@@ -166,7 +166,7 @@ function aiEdit(o){
       if(!aeIn(keep,src)){  // a part that will be cut: jump to the next kept part this video has
         const next=keep.map(p=>p[0]).find(a=>a>src && aeToFile(info.pieces,a)!=null);
         if(next==null){ o.video.pause(); return; }
-        o.video.currentTime=aeToFile(info.pieces,next)+0.01; return;
+        vidSeek(o.video,aeToFile(info.pieces,next)+0.01); return;
       }
     }
     const k=toks.findIndex(t=>t.k==="w" && t.s<=src && src<=t.e+0.05);

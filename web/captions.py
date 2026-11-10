@@ -7,7 +7,7 @@ Captions in the editor (js/captions.js): how a draft Short's burned-in captions 
                                            Short again with them in the background ("retrying" until it's done). The
                                            editor saves without a remake when a cut or a new hook remakes it anyway.
   POST /api/captions/<job>/<idx>/preview   {"captions", "at" (vlog seconds), "pieces" (what the Short will keep, if
-                                           changed), "reframe" (the framing, if changed), "motion"} -> one JPEG frame with them burned in, or with motion a
+                                           changed), "reframe" (the framing, if changed), "overlays" (the text on screen, if changed), "motion"} -> one JPEG frame with them burned in, or with motion a
                                            few seconds of silent MP4 from there (lines coming in); nothing saved
 
 Captions are part of the video, so changing them needs the vlog's video (kept KEEP_ORIGINAL_HOURS, gotcha 21). Every
@@ -148,6 +148,8 @@ def captions_preview(job_id, idx):
     caps = pipeline.clean_captions(data.get("captions"), style)
     if "reframe" in data:  # the framing waiting in Reframe (js/reframe.js), if changed
         moment["reframe"] = pipeline.clean_reframe(data["reframe"], float(job.get("duration") or tr.get("duration") or 0))
+    if "overlays" in data:  # the text waiting in Text & Overlays (js/overlays.js), if changed
+        moment["overlays"] = pipeline.clean_overlays(data["overlays"], float(job.get("duration") or tr.get("duration") or 0))
     try:
         with PREVIEWS:
             pipeline.prepare_job_fonts(JOBS_DIR / job_id)

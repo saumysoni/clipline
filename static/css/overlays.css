@@ -1,0 +1,63 @@
+/* Text & Overlays (js/overlays.js): the panel, the stage over the player, and the timeline's Overlays row. */
+#edOv{display:flex;flex-direction:column;gap:12px}
+#edOv .ed-note,#edOv .ed-fin-wait{margin:0}
+.ov-top{display:flex;align-items:center;gap:10px}
+.ov-top small{font:500 .74rem var(--mono);color:var(--muted)}
+.ov-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.ov-list li{display:flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:10px;background:var(--raised)}
+.ov-list li.on{border-color:var(--cap);background:var(--cap-soft)}
+.ov-pick{flex:1;min-width:0;display:flex;align-items:center;gap:8px;padding:8px 10px;border:0;background:none;color:var(--ink);font:inherit;font-size:.84rem;font-weight:600;text-align:left;cursor:pointer;border-radius:10px}
+.ov-pick small{flex:none;font:500 .7rem var(--mono);color:var(--muted)}
+.ov-pick span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ov-pick:focus-visible{outline:2px solid var(--primary);outline-offset:-2px}
+.ov-edit{display:flex;flex-direction:column;gap:10px;padding:12px;border:1px solid var(--line-2);border-radius:12px;background:var(--panel)}
+.ov-words{width:100%;resize:vertical;min-height:58px;font:inherit;font-size:.9rem}
+.ov-hint{margin-top:-6px;font-size:.72rem;color:var(--muted)}
+.ov-styles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.ov-style{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 2px 6px;border:1px solid var(--line-2);border-radius:10px;background:#4a5a6e;color:#fff;font:inherit;cursor:pointer;min-width:0}
+.ov-style b{font-size:.7rem;font-weight:600;color:#fff}
+.ov-style-s{line-height:1.3;white-space:nowrap}
+.ov-style[aria-pressed=true]{border-color:var(--cap);box-shadow:0 0 0 2px var(--cap)}
+.ov-style:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.ov-when{justify-content:space-between}
+.ov-when span{font:500 .78rem var(--mono);color:var(--muted)}
+.ov-acts{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.ov-acts .linkbtn{display:inline-flex;align-items:center;gap:4px}
+.ov-acts .ms{font-size:17px}
+.ov-exact{margin:0;display:flex;flex-direction:column;gap:6px}
+.ov-exact .ghost{align-self:flex-start}
+.ov-exact small{font-size:.72rem;color:var(--muted)}
+.ov-exact img{width:100%;max-width:260px;align-self:center;aspect-ratio:9/16;object-fit:cover;border-radius:10px;background:#000}
+.ov-exact.busy img{opacity:.5}
+.ov-exact.busy .ghost::after{content:"";width:12px;height:12px;margin-left:6px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:ov-spin .8s linear infinite}
+@keyframes ov-spin{to{transform:rotate(360deg)}}
+
+/* the stage: over the player while the tool is chosen (the player's controls stay below it, as Trim's picture) */
+.ov-host{position:absolute;inset:0 0 56px;z-index:4;background:rgba(7,7,10,.82);border-radius:16px 16px 0 0}
+.ov-host[hidden]{display:none}
+.ov-host .ov-view{inset:0;background:none;border-radius:inherit}
+.ov-none{position:absolute;inset:auto 16px 50%;margin:0;transform:translateY(50%);text-align:center;color:#fff;font-size:.86rem}
+.ov-layer{position:absolute;touch-action:none}
+.ov-layer[hidden]{display:none}
+.ov-box{position:absolute;padding:0;border:1px dashed rgba(255,255,255,.0);border-radius:6px;background:none;cursor:grab}
+.ov-box:hover{border-color:rgba(255,255,255,.7)}
+.ov-box.on{border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.6)}
+.ov-box:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.ov-layer.drag .ov-box{cursor:grabbing}
+/* while dragging: the middle line (it snaps there), and where the apps draw their buttons and title */
+.ov-safe{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .15s}
+.ov-layer.drag .ov-safe{opacity:1;background:
+  linear-gradient(to top,rgba(255,80,80,.22),rgba(255,80,80,.22)) bottom/100% 20% no-repeat,
+  linear-gradient(to left,rgba(255,80,80,.22),rgba(255,80,80,.22)) right 0 top 40%/14% 40% no-repeat}
+.ov-layer.mid .ov-safe::after{content:"";position:absolute;left:50%;top:0;bottom:0;border-left:1px dashed rgba(255,255,255,.8)}
+
+/* the timeline's Overlays row */
+.ed-ov-track{display:flex;align-items:center;gap:6px;padding:0 4px;overflow-x:auto;overflow-y:hidden;border:1px solid var(--line);background:var(--raised);scrollbar-width:none}
+.ed-ov-track::-webkit-scrollbar{display:none}
+.ed-ov-c,.ed-ov-add{flex:none;max-width:220px;height:26px;display:flex;align-items:center;gap:7px;padding:0 10px;border:1px solid var(--line-2);border-radius:7px;background:var(--panel);color:var(--ink);font:inherit;font-size:.74rem;font-weight:600;cursor:pointer}
+.ed-ov-c small{flex:none;font:500 .64rem var(--mono);color:var(--faint)}
+.ed-ov-c span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ed-ov-c:hover,.ed-ov-add:hover{border-color:var(--primary)}
+.ed-ov-c.on{background:var(--cap-soft);border-color:var(--cap)}
+.ed-ov-add{border-style:dashed;background:none;color:var(--muted)}
+.ed-ov-add .ms{font-size:16px}

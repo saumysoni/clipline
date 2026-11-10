@@ -52,6 +52,7 @@ from web import (  # noqa: E402,F401
     job_status,
     make_shorts,
     on_youtube,
+    overlays,
     pages,
     password_reset,
     pause,

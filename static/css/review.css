@@ -34,7 +34,9 @@
 .pick-row{margin-top:10px}
 .pick-row .ghost{width:100%;padding:9px 12px;font-size:.88rem}
 .short .err{font-size:.84rem;margin-top:0}
-.busy{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px;text-align:center;background:rgba(9,12,20,.78);backdrop-filter:blur(3px);color:#fff;font-weight:600;font-size:.9rem}
+/* (only the review cards' own: a bare .busy also caught the editor's caption preview and save state, which are
+   marked busy too, and laid a dark blurred layer over the editor for a moment) */
+.short .busy{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px;text-align:center;background:rgba(9,12,20,.78);backdrop-filter:blur(3px);color:#fff;font-weight:600;font-size:.9rem}
 .short.redoing .busy{display:flex}
 .spin{width:28px;height:28px;border-radius:50%;border:3px solid currentColor;border-top-color:transparent;animation:spin .8s linear infinite;flex:none}
 .short.addcard{background:transparent;border:1.5px dashed var(--line-2)}

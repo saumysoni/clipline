@@ -100,7 +100,7 @@ async function vuTick(){
     $("vuErr2").innerHTML=esc("Stopped: "+(j.error||"Something went wrong."))+' <button type="button" class="ghost sm" id="vuTry">Try again</button>'+
       ' <button type="button" class="ghost sm" id="vuAgain">Start over</button>'+helpLine(id);
     $("vuTry").onclick=()=>vlogAgain(id, $("vuErr2"));
-    $("vuAgain").onclick=()=>openVlogUpload(); return;
+    $("vuAgain").onclick=()=>openVlogs(); return;  // Start over: home (Videos), where Upload a video starts again
   }
   const p=j.vpost||{};
   if(p.state==="done"){ vuStop(); vuPaintDone(j); return; }

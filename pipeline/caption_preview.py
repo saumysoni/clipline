@@ -42,7 +42,8 @@ def caption_frame(video_path, meta, moment, words, at, style, job_dir, caps=None
     ass, jpg = job_dir / f"{name}.ass", job_dir / f"{name}.jpg"
     cmds = None
     try:
-        build_ass(short_words(moment, words), 0.0, total, hook, style, ass, caps)
+        build_ass(short_words(moment, words), 0.0, total, hook, style, ass, caps, overlays=moment.get("overlays"),
+                  pieces=kept(moment))
         frame, cmds = reframe_filter(meta, moment.get("cx"), moment.get("reframe"), kept(moment), job_dir)
         # -ss before -i: one frame from there; its clock is moved to the Short's time (before the framing, which moves
         # on that clock) so the captions due then show
@@ -69,7 +70,8 @@ def caption_clip(video_path, meta, moment, words, at, style, job_dir, caps=None,
     ass, mp4 = job_dir / f"{name}.ass", job_dir / f"{name}.mp4"
     cmds = None
     try:
-        build_ass(short_words(moment, words), 0.0, total, hook, style, ass, caps)
+        build_ass(short_words(moment, words), 0.0, total, hook, style, ass, caps, overlays=moment.get("overlays"),
+                  pieces=kept(moment))
         frame, cmds = reframe_filter(meta, moment.get("cx"), moment.get("reframe"), kept(moment), job_dir)
         vf = (f"setpts=PTS-STARTPTS+{t:.3f}/TB,{frame},"
               f"subtitles={ass.name}:fontsdir=fonts,setpts=PTS-STARTPTS,scale={WIDTH}:-2,fps=30")

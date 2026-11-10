@@ -56,7 +56,7 @@ To run a single command without staying logged in, add `--command='...'`, for ex
 | **Read the logs** | `sudo journalctl -u pitcrew -n 100 --no-pager` (Pit Crew), `sudo journalctl -u caddy -n 50 --no-pager` (https) |
 | **Copy the backups to the Mac** | On the Mac: `CLOUDSDK_ACTIVE_CONFIG_NAME=pitcrew gcloud compute scp --recurse pitcrew:/srv/pitcrew/backups ~/pitcrew-backups --zone=us-central1-a` |
 
-Testers invited so far: Nesh (2 addresses), Saumya (2 addresses).
+Testers invited so far: Nesh (2 addresses), Saumya (2 addresses), the Pit Crew helpdesk address.
 
 ---
 
