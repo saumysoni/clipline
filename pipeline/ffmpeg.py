@@ -33,7 +33,7 @@ def watching(check=None, on_time=None):
 def ffmpeg_has_captions(exe):
     """True if this FFmpeg can burn in captions (it needs the 'subtitles' feature, from libass)."""
     try:
-        out = subprocess.run([exe, "-hide_banner", "-filters"], capture_output=True, text=True, timeout=30).stdout
+        out = subprocess.run([exe, "-hide_banner", "-filters"], stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=30).stdout
     except (OSError, subprocess.SubprocessError):
         return False
     return any(line.split()[1:2] == ["subtitles"] for line in out.splitlines() if line.strip())
@@ -70,11 +70,13 @@ def ffmpeg_exe():
 
 
 def run(cmd, cwd=None):
-    """Run a command and raise a readable error if it fails."""
+    """Run a command and raise a readable error if it fails.
+    stdin is always empty: FFmpeg reads keys from a terminal while it encodes, and started from one in the background
+    (deploy/update.sh runs the tests under `timeout`) the system stops it the moment it tries, so it hung for ever."""
     check, on_time = getattr(_WATCH, "check", None), getattr(_WATCH, "on_time", None)
     if check or on_time:
         return _run_watched(cmd, cwd, check, on_time)
-    p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+    p = subprocess.run(cmd, cwd=cwd, stdin=subprocess.DEVNULL, capture_output=True, text=True)
     if p.returncode != 0:
         tail = "\n".join(p.stderr.strip().splitlines()[-12:])
         raise RuntimeError(f"Command failed: {' '.join(map(str, cmd[:3]))} ...\n{tail}")
@@ -98,7 +100,7 @@ def _run_watched(cmd, cwd, check, on_time):
                     on_time(max(0.0, int(line.split("=", 1)[1]) / 1e6))
 
     with tempfile.TemporaryFile("w+", encoding="utf-8", errors="replace") as err:
-        p = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=err, text=True, errors="replace")
+        p = subprocess.Popen(cmd, cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=err, text=True, errors="replace")
         reader = threading.Thread(target=read, args=(p.stdout,), daemon=True)
         reader.start()
         try:

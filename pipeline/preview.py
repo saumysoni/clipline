@@ -31,7 +31,7 @@ def make_preview(video_path, out_path, progress=None):
            "-vf", "fps=24,scale='if(gt(iw,ih),-2,480)':'if(gt(iw,ih),480,-2)'",
            "-c:v", "libx264", "-preset", "veryfast", "-crf", "33", "-g", "24", "-pix_fmt", "yuv420p",
            "-c:a", "aac", "-b:a", "96k", "-ac", "2", "-movflags", "+faststart", str(tmp)]
-    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    p = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     try:
         for line in p.stdout:  # "-progress" writes key=value lines; out_time_us is how far it has got
             if progress and duration and line.startswith("out_time_us="):
