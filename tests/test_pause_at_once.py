@@ -34,6 +34,18 @@ class FFmpegRun(unittest.TestCase):
             ffmpeg.run(["sleep", "20"])
         self.assertLess(time.time() - started, 2)
 
+    def test_ffmpeg_never_gets_the_terminal(self):
+        """stdin is empty on every way in: started from a terminal in the background (update.sh's `timeout`), FFmpeg was
+        stopped by the system when it read a key, and the tests on the server hung until they timed out."""
+        seen = []
+        real_run, real_popen = ffmpeg.subprocess.run, ffmpeg.subprocess.Popen
+        with mock.patch.object(ffmpeg.subprocess, "run", side_effect=lambda *a, **k: (seen.append(k.get("stdin")), real_run(*a, **k))[1]), \
+             mock.patch.object(ffmpeg.subprocess, "Popen", side_effect=lambda *a, **k: (seen.append(k.get("stdin")), real_popen(*a, **k))[1]):
+            ffmpeg.run(["echo", "hi"])
+            with ffmpeg.watching(check=lambda: None):
+                ffmpeg.run(["echo", "hi"])
+        self.assertTrue(len(seen) >= 2 and all(x == ffmpeg.subprocess.DEVNULL for x in seen), seen)  # (run() goes through Popen too)
+
     def test_watched_run_returns_output_and_reports_failures_as_before(self):
         with ffmpeg.watching(check=lambda: None):
             self.assertEqual(ffmpeg.run(["echo", "hi"]).strip(), "hi")

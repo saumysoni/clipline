@@ -386,7 +386,7 @@ def scene_changes(video_path, a, b, offset=0.0):
     from pipeline.ffmpeg import ffmpeg_exe
     p = subprocess.run([ffmpeg_exe(), "-hide_banner", "-ss", f"{max(0.0, a - offset):.3f}", "-i", str(Path(video_path).resolve()),
                         "-t", f"{b - a:.3f}", "-an", "-vf", f"scale=320:-2,select='gt(scene\\,{SCENE})',showinfo", "-f", "null", "-"],
-                       capture_output=True, text=True)
+                       stdin=subprocess.DEVNULL, capture_output=True, text=True)
     return [round(a + float(t), 3) for t in re.findall(r"pts_time:([0-9.]+)", p.stderr)]
 
 
