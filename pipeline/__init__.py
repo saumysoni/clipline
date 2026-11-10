@@ -16,6 +16,7 @@ from pipeline.manual_moment import manual_moment  # noqa: F401
 from pipeline.render import render_short  # noqa: F401
 from pipeline.captions import FONTS as CAPTION_FONTS, PRESETS as CAPTION_PRESETS, clean_captions, preset as caption_preset, style_only as caption_style_only  # noqa: F401
 from pipeline.caption_preview import caption_clip, caption_frame  # noqa: F401
+from pipeline.overlays import ANIMS as OVERLAY_ANIMS, MAX as OVERLAY_MAX, SIZES as OVERLAY_SIZES, STYLES as OVERLAY_STYLES, clean_overlays  # noqa: F401,E501
 from pipeline.clean_clip import clip_reach, make_clean_clip  # noqa: F401
 from pipeline.smart_reframe import GLIDE as REFRAME_GLIDE, ZOOM_MAX as REFRAME_ZOOM_MAX, auto_shots, clean_reframe, follow_moves, reframe_style_only, track_moves  # noqa: F401
 from pipeline.pieces import kept as kept_pieces, length as short_length, normalize as normalize_pieces, said as pieces_said  # noqa: F401

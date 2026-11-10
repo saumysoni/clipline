@@ -5,7 +5,8 @@ A Short is one piece of the vlog (start..end) or, after AI Edit, several (moment
 pieces are cut out and joined in one FFmpeg run, each with a 20 ms fade of its sound so the joins don't click, and the
 captions follow the joined clock (pieces.timeline), in the Short's own caption settings (moment["captions"],
 pipeline/captions.py; none = the job's style), framed by its reframe settings (moment["reframe"],
-pipeline/smart_reframe.py; none = the crop around the face).
+pipeline/smart_reframe.py; none = the crop around the face), with its text on screen (moment["overlays"],
+pipeline/overlays.py).
 """
 import os
 from pathlib import Path
@@ -52,7 +53,8 @@ def render_short(video_path, meta, moment, words, idx, style, job_dir, cx="find"
     ass_name = f"captions_{idx}.ass"
     hook = moment.get("hook", "") if moment.get("hook_mode", "text") != "none" else ""
     total = sum(b - a for a, b in pieces)
-    build_ass(short_words(moment, words), 0.0, total, hook, style, job_dir / ass_name, moment.get("captions"))
+    build_ass(short_words(moment, words), 0.0, total, hook, style, job_dir / ass_name, moment.get("captions"),
+              overlays=moment.get("overlays"), pieces=pieces)
     out_name = f"short_{idx}.mp4"
     frame, cmds = reframe_filter(meta, cx, moment.get("reframe"), pieces, job_dir)
     after = f"{frame},subtitles={ass_name}:fontsdir=fonts"

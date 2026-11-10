@@ -14,6 +14,10 @@ const esc = t => String(t).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&
 let count = 5, jobId = null, poll = null, job = null;
 // A Short's length: its kept pieces added up (AI Edit, pipeline/pieces.py), else end - start.
 const shortLen = s => s.pieces && s.pieces.length ? s.pieces.reduce((n,[a,b])=>n+b-a,0) : s.end-s.start;
+// A seek the page makes itself, marked so a "seeking" listener can tell it from one the person makes with the player's own
+// controls (vidMine(v): the page's). The editor's playhead follows the person's seeks only (js/editor.js).
+function vidSeek(v,t){ v._pcSeek=t; v.currentTime=t; }
+const vidMine = v => v._pcSeek!=null && Math.abs((v.currentTime||0)-v._pcSeek)<0.15;
 
 // Screens: 1 Make Shorts from a new video, 2 Making, 3 Review/Post, 4 Posted, 5 Scheduled, 6 Analytics, 7 Vlogs, 8 Settings,
 // 9 Shorts & Reels, 10 Upload a vlog to YouTube, 11 Drafts, 12 the editor (a draft Short).

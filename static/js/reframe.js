@@ -353,6 +353,7 @@ function reframeEdit(o){
     name:"framing", dirty, count:()=>dirty()?1:0, canEdit:can,
     summary:()=>{ if(!info) return ""; const e=eff(); return !cur?"Pit Crew's framing":e.layout==="fit"?"Fit":e.layout==="split"?"Split":e.shots?"Auto layout":e.moves.length>1?e.moves.length+" moves":"Your framing"; },
     snap:()=>info?{r:cur?copy(cur):null, over:overTime}:null,
+    saved:()=>info?{r:info.reframe?copy(info.reframe):null, over:!!(info.reframe&&info.reframe.moves&&info.reframe.moves.length>1)}:null,
     restore(x){ if(!info||!x) return; cur=x.r?copy(x.r):null; overTime=x.over; exact=null; paint(); changed(); },
     reset(){ if(info){ cur=info.reframe?copy(info.reframe):null; overTime=!!(cur&&cur.moves.length>1); exact=null; note=""; paint(); changed(); } },
     step:remake=>["/api/reframe/"+c.job+"/"+c.idx,{reframe:cur, remake}],

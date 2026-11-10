@@ -5,16 +5,16 @@
 // snap() / restore(p): the changes waiting, as a copy, and putting such a copy back (the editor's Undo / Redo).
 // Saving a hook or a thumbnail change remakes the Short, one at a time: hook, then the thumbnail (Try again or its text),
 // then the look. The page calls remadeDone() when it sees a remake has finished, and the next one starts.
-// o: {box, err, pre, onChange() (pend changed), onLoad() (drawn from what's saved), onTitle(v) (title typed),
+// o: {box, err, pre, quiet (no "Changes saved" pop-up: the editor), onChange() (pend changed), onLoad() (drawn from what's saved), onTitle(v) (title typed),
 //     onRemaking() (a remake started), onGone()
 //     (the Short isn't there any more), onLook() (a look was picked: show the thumbnail),
 //     extra (the editor's AI Edit, js/ai-edit.js: {dirty(), count(), step() -> [url, body] | {error}, sent(), reset()}:
 //     its change is saved with the rest, as the first remake),
-//     caps, frame (the editor's Captions, js/captions.js, and Reframe, js/reframe.js: settings of the video, each
+//     caps, frame, ovl (the editor's Captions, js/captions.js, Reframe, js/reframe.js, and Text, js/overlays.js: settings of the video, each
 //     {name, dirty(), count(), canEdit(), step(remake) -> [url, body], sent(remake), reset()}: saved, then one remake
 //     makes them all, unless a cut or a new hook remakes the Short anyway, then saved just before that)}
 function shortDetails(o){
-  const sets=()=>[o.caps,o.frame].filter(Boolean);
+  const sets=()=>[o.caps,o.frame,o.ovl].filter(Boolean);
   let c=null, s=null, pend={}, queue=[], gen=0, tinfo={}, st=null;  // st: the Short's vlog as last loaded
   const changed=()=>o.onChange&&o.onChange();
   const post=async(url,body)=>{
@@ -148,7 +148,7 @@ function shortDetails(o){
     changed();
     if(remade){ o.box.querySelectorAll("button,input,textarea").forEach(b=>b.disabled=true); if(o.onRemaking) o.onRemaking(); }
     else load(true);
-    clToast("Changes saved", remade?"The Short is being remade with them.":"");
+    if(!o.quiet) clToast("Changes saved", remade?"The Short is being remade with them.":"");  // (the editor shows its own save state and ring)
     loadClips();
   }
   // A remake finished: the next saved change, else the fields again.
@@ -165,8 +165,21 @@ function shortDetails(o){
     dirty:()=>Object.keys(pend).length>0 || !!(o.extra&&o.extra.dirty()) || sets().some(x=>x.dirty()),
     count:()=>Object.keys(pend).length+(o.extra?o.extra.count():0)+sets().reduce((n,x)=>n+x.count(),0),
     has:k=>k in pend,
+    // The hook as it'll be burned in (a change waiting, else what's saved; "" = none): drawn on the editor's Text picture.
+    hookNow:()=>pend.hook ? (pend.hook.mode==="none"?"":pend.hook.text||"") : s && s.hook_mode!=="none" ? s.hook||"" : "",
     // The editor's Undo / Redo: the changes waiting, and putting a copy of them back (the fields are drawn again).
     snap:()=>JSON.parse(JSON.stringify(pend)),
+    // What's saved now for the changes in p, in the same shape (the editor's Undo of a whole save). A thumbnail's Try
+    // again has no "before" (the old frame isn't kept), so it's left out.
+    savedFor(p){
+      const b={}; if(!s) return b;
+      if("title" in p) b.title=s.title||"";
+      if(p.hook) b.hook={mode:s.hook_mode==="none"||!s.hook?"none":"text", text:s.hook||"", style:s.hook_style||"custom"};
+      if(p.look) b.look=s.thumb_look||"frame";
+      if(p.ttext) b.ttext={line1:(tinfo.line1||"").trim(), line2:(tinfo.line2||"").trim()};
+      if(p.text){ b.text={}; if("hashtags" in p.text) b.text.hashtags=[...(s.hashtags||[])]; if("caption" in p.text) b.text.caption=s.ig_caption||""; }
+      return b;
+    },
     restore(p){
       if(!s||!st) return;
       pend=JSON.parse(JSON.stringify(p||{})); draw();

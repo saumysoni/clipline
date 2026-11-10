@@ -184,6 +184,9 @@ with sync_playwright() as p:
     bad = start_vlog(60, 1)
     F.wait(lambda: F.job_json(bad).get("status") == "error", timeout=30, what="stopped")
     F.SLOW.fail = ""
+    pg.goto(B + f"/#{bad}"); pg.wait_for_selector("#overBtn", timeout=20000)
+    pg.click("#overBtn"); pg.wait_for_timeout(800)
+    check(ev("location.hash") == "#vlogs" and pg.locator("#s7").is_visible(), "Start over on a stopped video: the Videos page (home)")
     drafts_shorts()
     g = group(bad)
     check(g.count() == 1 and "Stopped" in g.inner_text() and g.locator(".clg-again").is_visible(), "Stopped, with Try again and its reason")

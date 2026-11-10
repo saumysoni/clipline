@@ -254,7 +254,9 @@ function captionEdit(o){
   }
   // ---- the preview: one frame from the server, at the player's time, a moment after the last change; or (pv.motion)
   // a few seconds of video from the start of the line there (a picked line: the first one picked)
-  function preview(wait=120){
+  // quiet: the player paused or moved (not a change of the creator's): the picture on show stays at full strength until
+  // the new one is ready, so pausing doesn't blink.
+  function preview(wait=120, quiet=false){
     clearTimeout(pv.timer);
     if(!shown || !info || !info.can_apply || !cur.on || !$("cpImg")) return;
     pv.timer=setTimeout(async()=>{
@@ -275,7 +277,7 @@ function captionEdit(o){
       if(pv.ctl) pv.ctl.abort();
       const ctl=pv.ctl=new AbortController(), fig=$("cpPrev");
       const had=pv.seen.get(key);
-      if(!had) fig.classList.add("busy");
+      if(!had && !quiet) fig.classList.add("busy");
       try{
         let blob=had;
         if(!blob){
@@ -285,6 +287,7 @@ function captionEdit(o){
           pv.seen.set(key,blob); if(pv.seen.size>40) pv.seen.delete(pv.seen.keys().next().value);  // (the oldest)
         }
         const url=URL.createObjectURL(blob), el=$(motion?"cpVid":"cpImg"), other=$(motion?"cpImg":"cpVid"); if(!el) return;
+        if(!motion){ try{ const im=new Image(); im.src=url; await im.decode(); }catch(e){} if(ctl.signal.aborted){ URL.revokeObjectURL(url); return; } }  // ready before it's swapped in
         if(el.src) URL.revokeObjectURL(el.src);
         el.src=url; pv.key=key; el.hidden=false; other.hidden=true;
         if(motion){ other.removeAttribute("src"); pv.loops=0; el.playbackRate=pv.slow?0.5:1; el.play().catch(()=>{}); }
@@ -296,7 +299,7 @@ function captionEdit(o){
       finally{ if(pv.ctl===ctl){ pv.ctl=null; const f=$("cpPrev"); if(f) f.classList.remove("busy"); } }
     },wait);
   }
-  ["seeked","pause"].forEach(e=>o.video.addEventListener(e,()=>preview()));
+  ["seeked","pause"].forEach(e=>o.video.addEventListener(e,()=>preview(120,true)));
   const api={
     // The line being said at t (vlog seconds), drawn on Trim's preview (trimView): quick and close to the finished look.
     // The real thing is burned in by the server on Save. Line animations aren't drawn.
@@ -368,7 +371,7 @@ function captionEdit(o){
       set({edits:e}); return true;
     },
     // The editor's Undo / Redo.
-    snap:()=>cur?copy(cur):null,
+    snap:()=>cur?copy(cur):null, saved:()=>info?copy(info.captions):null,
     restore(x){ if(!info||!x) return; cur=copy(x); paint(); changed(); },
     reset(){ if(info){ cur=copy(info.captions); word=null; paint(); changed(); } },
     // For shortDetails(): the request that saves them (remake: make the Short again now), and once it's sent.

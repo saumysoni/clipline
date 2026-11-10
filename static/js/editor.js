@@ -5,9 +5,9 @@
 // (saves, waits for a remake, then Schedule it or Back to Drafts).
 // What works: Details (js/short-details.js: title, hook, thumbnail, hashtags, caption), AI Edit (js/ai-edit.js: cut
 // pauses, filler words, by the transcript), Captions (js/captions.js: presets, look, motion, position, timing, words),
-// the timeline and Trim (Twick's timeline,
+// Reframe (js/reframe.js), Text & Overlays (js/overlays.js: text on screen at chosen moments), the timeline and Trim (Twick's timeline,
 // editor-app/ built into static/editor-app/, loaded the first time the editor opens: drag a part's ends, split, delete,
-// reach past the moment), Undo / Redo (one history for every tool: Details, AI Edit, Captions, Trim), the Save bar at the
+// reach past the moment), Undo / Redo (one history for every tool: Details, AI Edit, Captions, Reframe, Text, Trim), the Save bar at the
 // bottom of the tool panel and the player. AI Edit keeps the pieces both it and Trim change, so one Save and one save
 // state cover everything. The other tools are laid out but not working yet: each lists what it will do, marked
 // "Soon".
@@ -19,10 +19,7 @@ const ED_TOOLS=[
   {id:"reframe", icon:"crop", name:"Reframe", sub:"Keep the subject in frame", built:true},
   {id:"trim", icon:"content_cut", name:"Trim", sub:"Cut a part, change the ends", built:true},  // the timeline
   {sep:true},
-  {id:"text", icon:"title", name:"Text & Overlays", sub:"Titles, keywords, stickers", about:"Text and stickers at a moment you choose.", acts:[
-    ["title","Text","Titles and keywords on screen"],
-    ["touch_app","Call to action","Follow, watch the full video..."],
-    ["emoji_events","Stickers","Shapes and stickers"]]},
+  {id:"text", icon:"title", name:"Text & Overlays", sub:"Titles and key words", built:true},  // js/overlays.js
   {id:"audio", icon:"graphic_eq", name:"Audio", sub:"Voice, volume, music", about:"Make the voice clear and the sound even.", acts:[
     ["graphic_eq","Voice clean-up","Remove background noise"],
     ["tune","Volume","Even out loud and quiet parts"],
@@ -46,7 +43,11 @@ const edCap=captionEdit({box:$("edCap"), video:$("edVideo"), ae:edAE, onChange:(
 // Reframe too (the same way as the captions: one remake makes both).
 const edRf=reframeEdit({box:$("edRf"), stage:$("edRfStage"), ae:edAE, caps:edCap, src:()=>edTlSrc, off:()=>edTlOff, at:()=>edSrcNow(),
   seek:t=>edSeekSrc(t), onChange:()=>{ edPaintSave(); edRecord(); }, onLoad:()=>edHistReset()});
-const edD=shortDetails({box:$("edDBox"), err:$("edDErr"), pre:"ed", onChange:()=>{ edPaintSave(); edRecord(); }, extra:edAE, caps:edCap, frame:edRf,
+// Text & Overlays too: its own picture over the player while it's chosen (the saved video has the saved text burned in).
+const edOv=overlayEdit({box:$("edOv"), stage:$("edOvStage"), ae:edAE, caps:edCap, rf:edRf, hook:()=>edD.hookNow(), src:()=>edTlSrc, off:()=>edTlOff,
+  at:()=>edHeadNow(), seek:t=>edHeadTo(t), onTime:t=>edOvTime(t), onChange:()=>{ edPaintSave(); edRecord(); edOvTrackSoon(); },
+  onLoad:()=>{ edHistReset(); edOvTrackSoon(); }});
+const edD=shortDetails({box:$("edDBox"), err:$("edDErr"), pre:"ed", quiet:true, onChange:()=>{ edPaintSave(); edRecord(); }, extra:edAE, caps:edCap, frame:edRf, ovl:edOv,
   onLoad:()=>edHistReset(),
   onTitle:v=>{ const n=$("edMeta").querySelector(".ed-name"); if(n) n.textContent=v; }, onLook:()=>edView("t"),
   onRemaking:()=>{ $("edVideo").pause(); edBusy=true; edWatch(); edPaintSave(); edFinPaint(); }});  // edSync() follows it
@@ -59,7 +60,7 @@ async function openEditor(jid,idx){
   edPaint();
 }
 // Leaving the editor (another screen): unsaved details are dropped. Buttons here ask first (edLeave).
-function edClose(){ $("edVideo").pause(); edTV.stop(); edTV.hide(); edOpened=null; edRing(false); edBusy=false; edD.clear(); edAE.clear(); edCap.clear(); edRf.clear(); edTlDrop(); clearTimeout(edTimer); document.body.classList.remove("ed-on"); if($("edFin").open) $("edFin").close(); }
+function edClose(){ $("edVideo").pause(); edTV.stop(); edTV.hide(); edOpened=null; edRing(false); edBusy=false; edD.clear(); edAE.clear(); edCap.clear(); edRf.clear(); edOv.clear(); edTlDrop(); clearTimeout(edTimer); document.body.classList.remove("ed-on"); if($("edFin").open) $("edFin").close(); }
 function edLeave(){
   if(!edD.dirty()) return true;
   if(!confirm("Discard your changes to this Short?\n\nThey haven't been saved.")) return false;
@@ -95,7 +96,7 @@ function edSwapVideo(src){
     if(v.readyState>=2 && v.videoWidth){ f.width=v.videoWidth; f.height=v.videoHeight; f.getContext("2d").drawImage(v,0,0); f.hidden=false; f.classList.remove("go"); }
   }catch(e){ f.hidden=true; }
   const done=()=>{ f.classList.add("go"); setTimeout(()=>{ f.hidden=true; f.classList.remove("go"); },220); };
-  v.addEventListener("loadedmetadata",()=>{ v.currentTime=Math.min(t,Math.max(0,(v.duration||t)-0.05));
+  v.addEventListener("loadedmetadata",()=>{ vidSeek(v,Math.min(t,Math.max(0,(v.duration||t)-0.05)));
     v.addEventListener("seeked",done,{once:true}); if(playing) v.play().catch(()=>{}); },{once:true});
   v.addEventListener("error",done,{once:true});
   v.src=src;
@@ -113,10 +114,16 @@ function edPaintSave(){
     edC && !isDraftClip(edC) ? "Not a draft" : "Saved";
   st.classList.toggle("warn",on&&!edSaving); st.classList.toggle("busy",!on&&(busy||edSaving));
 }
-async function edSaveNow(){
-  if(!edD.dirty() || edSaving) return;
+// keep (true): the save of an Undo / Redo of a whole save (edUndoSaved), which moves along the saves' history itself.
+// true when everything was saved.
+async function edSaveNow(keep){
+  if(!edD.dirty() || edSaving) return false;
+  const step={before:edSavedSnap(), after:edSnap()};
   edSaving=true; edPaintSave(); await edD.save(); edSaving=false; edPaintSave();
-  if(!edD.dirty()) edHistReset();  // saved: there's nothing to undo any more
+  if(edD.dirty()) return false;  // refused (the error shows): the history stays as it was
+  if(keep!==true){ edSaves.push(step); if(edSaves.length>50) edSaves.shift(); edRedos.length=0; }
+  edHistReset();  // the changes not saved are gone; Undo now goes back a whole save
+  return true;
 }
 function edPaint(){
   const c=clData.find(x=>clKey(x)===edKey); edC=c||null;
@@ -124,9 +131,9 @@ function edPaint(){
     $("edGone").hidden=false; $("edGone").textContent="This Short isn't here any more: it was deleted, or its video was. Go back to Drafts to see the others."; return; }
   const draft=isDraftClip(c);
   $("edGrid").hidden=false; $("edSmall").hidden=false;
-  $("edGone").hidden=draft && !c.remaking;
-  $("edGone").textContent = !draft ? "This Short isn't a draft any more (it's scheduled or posted), so it can't be edited here." : c.remaking ? "It's being remade. The new version shows here when it's done." : "";
-  if(draft && edOpened!==edKey){ edOpened=edKey; edD.open(c); edAE.open(c); edCap.open(c); edRf.open(c); } else { edD.follow(c); edAE.follow(c); edCap.follow(c); edRf.follow(c); }
+  $("edGone").hidden=draft;  // (while it's remade the save ring beside the save state says how far along it is: no note)
+  $("edGone").textContent = !draft ? "This Short isn't a draft any more (it's scheduled or posted), so it can't be edited here." : "";
+  if(draft && edOpened!==edKey){ edOpened=edKey; edSaves.length=0; edRedos.length=0; edD.open(c); edAE.open(c); edCap.open(c); edRf.open(c); edOv.open(c); } else { edD.follow(c); edAE.follow(c); edCap.follow(c); edRf.follow(c); edOv.follow(c); }
   const name=edD.has("title") && $("edMeta").querySelector(".ed-name") ? $("edMeta").querySelector(".ed-name").textContent : c.title;
   setHTML($("edMeta"),'<b class="ed-name">'+esc(name)+'</b><span class="ed-sub"><span class="ed-from">From '+esc(c.vlog)+'</span>'+
     '<span class="ed-len">'+fmt(c.length)+'</span></span>');
@@ -230,7 +237,7 @@ function edRailApply(){
 // marked Soon (not buttons yet).
 function edPanel(){
   const t=ED_TOOLS.find(x=>x.id===edTool), det=t.id==="details";
-  $("edDetails").hidden=!det; $("edAIWrap").hidden=t.id!=="ai"; $("edTrimWrap").hidden=t.id!=="trim"; $("edCapWrap").hidden=t.id!=="captions"; $("edRfWrap").hidden=t.id!=="reframe"; edRfShow(t.id==="reframe"); edTrimShow(true); edPlayPaint();
+  $("edDetails").hidden=!det; $("edAIWrap").hidden=t.id!=="ai"; $("edTrimWrap").hidden=t.id!=="trim"; $("edCapWrap").hidden=t.id!=="captions"; $("edRfWrap").hidden=t.id!=="reframe"; $("edOvWrap").hidden=t.id!=="text"; edRfShow(t.id==="reframe"); edOvShow(t.id==="text"); edTrimShow(true); edPlayPaint();
   if(t.id!=="trim") edTrimLeave(); edTS.paint(); edTrimPaint();
   edCap.shown(t.id==="captions"); $("edPanel").hidden=det||!!t.built;
   if(det||t.built) return;
@@ -245,7 +252,7 @@ function edTimeNow(){
   const v=$("edVideo"), len=v.duration||(edC&&edC.length)||0, at=Math.min(v.currentTime||0,len);
   const p=edAE.pieces(), head=edTV.playing()||edHeadT!=null ? edHeadNow() : null, on=head!=null&&p.length?aeToFile(p,head):null;
   $("edTime").textContent = head!=null&&p.length ? (on!=null?fmt(on):"–:––")+" / "+fmt(aeLen(p)) : fmt(at)+" / "+fmt(len);  // (the Short as it will be)
-  edTlFollow(); edRf.at(edSrcNow());
+  edTlFollow(); edRf.at(edSrcNow()); edOv.at(edHeadNow());
 }
 ["timeupdate","seeked","loadedmetadata"].forEach(e=>$("edVideo").addEventListener(e,edTimeNow));
 // The player's own Play: its video is the Short as saved. When that isn't what the playhead is on (a part stretched in and not
@@ -253,6 +260,7 @@ function edTimeNow(){
 // (AI Edit's waiting cuts are played by the saved video, skipping them.)
 function edPlayerWrong(){
   const s=edAE.saved(), p=edAE.pieces(); if(!edTlSrc || !s || !p.length || edTool==="reframe") return false;
+  if(edTool==="text") return true;  // (Text shows the Short as it'll be: its own picture plays)
   if(edHeadT!=null && aeToFile(s,edHeadT)==null) return true;
   if(JSON.stringify(p)===JSON.stringify(s)) return false;
   return edTool==="trim" || aeLen(aeMinus(p,s,0,1e9))>0.05;
@@ -268,10 +276,15 @@ document.addEventListener("keydown",e=>{  // Space: play or pause from the playh
   if(e.target.closest("input,textarea,select,button,a,video,[contenteditable],[tabindex],dialog")) return;
   e.preventDefault(); edHeadPlay();
 });
-// The player's own controls moved it: that's the playhead now.
-let edVideoTouch=0;
-["pointerdown","keydown"].forEach(k=>$("edVideo").addEventListener(k,()=>{ edVideoTouch=performance.now(); }));
-$("edVideo").addEventListener("seeked",()=>{ if(performance.now()-edVideoTouch<3000){ edHeadT=null; edHeadShow(); edTS.follow(); } });
+// The player's own controls moved it (any seek the page didn't make, vidSeek): that's the playhead now, while dragging too.
+// (It used to wait for a press on the video in the last 3 s, which Chrome's own scrubber doesn't always send: the red
+// handle stayed where it was.)
+function edUserSeek(){
+  if($("s12").hidden || vidMine($("edVideo"))) return;
+  if(edTV.playing()) edTV.stop();
+  edHeadT=null; edHeadShow(); edTS.follow(); edCapHand=false; edCapFollow(); edTimeNow(); edPlayPaint();
+}
+["seeking","seeked"].forEach(k=>$("edVideo").addEventListener(k,edUserSeek));
 $("edVideo").addEventListener("timeupdate",()=>{ if($("edVideo").paused) edCapFollow(); });
 
 // ---- The timeline (editor-app/main.jsx): the pieces the Short will keep (edAE.pieces()), laid end to end, on the
@@ -344,7 +357,7 @@ let edScrubT=null, edScrubRaf=0;
 function edTlScrub(t){
   edScrubT=t; if(edScrubRaf) return;
   edScrubRaf=requestAnimationFrame(()=>{ edScrubRaf=0; const saved=edAE.saved(), at=saved?aeToFile(saved,edScrubT):null, v=$("edVideo");
-    if(at!=null){ v.pause(); v.currentTime=at; } });
+    if(at!=null){ v.pause(); vidSeek(v,at); } });
 }
 // The Video row (js/trim-strip.js) on one scale, whatever is trimmed: only the Short, or under Trim the vlog around it too;
 // the parts it keeps bright and the rest dimmed; times on the Short's clock (0:00 = where the saved Short starts). A click moves
@@ -354,7 +367,7 @@ function edTlScrub(t){
 // hasn't got: stretched in and not saved yet, or the vlog around the Short), else the saved player. Everything follows this: the
 // Video row, the Captions row and the time.
 let edHeadT=null;
-const edHeadNow=()=>edTV.playing()?edTV.time():edHeadT!=null?edHeadT:edSrcNow();
+const edHeadNow=()=>edTV.playing()?edTV.time():edOv.playing()?edOv.time():edHeadT!=null?edHeadT:edSrcNow();
 function edHeadShow(){  // the big picture only for a place the saved video hasn't got
   const s=edAE.saved(), t=edHeadT;
   if(t!=null && edTlSrc && (!s || aeToFile(s,t)==null)) edTV.show(t, tsClock(t-edOrigin(),true)+(aeIn(edAE.pieces(),t)?" · save to see it in the player":" · not in the Short"));
@@ -362,6 +375,7 @@ function edHeadShow(){  // the big picture only for a place the saved video hasn
 }
 function edHeadTo(t){
   if(edTV.playing()) edTV.stop();
+  edOv.stop();
   $("edVideo").pause(); edHeadT=t; edSeekSrc(t); edHeadShow();
   edTS.follow(); edCapHand=false; edCapFollow(); edTimeNow();
 }
@@ -369,6 +383,7 @@ function edHeadTo(t){
 // moment; otherwise the preview, which plays the Short as it will be, stretched parts and cuts included.
 function edHeadPlay(){
   const v=$("edVideo");
+  if(edTool==="text" && edTlSrc){ v.pause(); edOv.play(); edPlayPaint(); return; }  // the Short as it'll be, text and all
   if(edTV.playing()){ edTV.stop(); return; }
   if(!v.paused){ v.pause(); return; }
   const src=edHeadNow(), p=edAE.pieces(), s=edAE.saved(), same=JSON.stringify(p)===JSON.stringify(s);
@@ -377,7 +392,7 @@ function edHeadPlay(){
   edTV.play(p, src<=p[0][0]||src>=p[p.length-1][1]-0.05 ? p[0][0] : src, null, ""); edTrimPaint(); edPlayPaint();
 }
 function edPlayPaint(){
-  const on=edTV.playing()||!$("edVideo").paused, b=$("edPlayBtn");
+  const on=edTV.playing()||edOv.playing()||!$("edVideo").paused, b=$("edPlayBtn");
   b.querySelector(".ms").textContent=on?"pause":"play_arrow"; b.setAttribute("aria-label",on?"Pause":"Play from here"); b.title=on?"Pause (Space)":"Play from here (Space)";
   b.hidden=edTool==="reframe";
 }
@@ -389,9 +404,9 @@ const edTS=trimStrip({box:$("edTrimStrip"), pieces:()=>edAE.pieces(), info:()=>e
   // a click, or dragging the handle: the playhead goes there (a moment the saved video hasn't got shows big)
   seek:t=>edHeadTo(t), press:()=>edTV.unlock(),
   hover:t=>edTrimHover(t), onSel:()=>{ edTrimHover(null); edTrimPaint(); }});
-const edTV=trimView({host:$("edTrimView"), src:()=>edTlSrc, off:()=>edTlOff, crop:t=>edRf.cropAt(t), size:()=>edRf.size(), overlay:(g,t,w,h)=>edCap.overlay(g,t,w,h),
+const edTV=trimView({host:$("edTrimView"), src:()=>edTlSrc, off:()=>edTlOff, crop:t=>edRf.cropAt(t), size:()=>edRf.size(), overlay:(g,t,w,h)=>{ edCap.overlay(g,t,w,h); edOv.draw(g,t,w,h,false,edTV.playing()); },
   onTime:t=>{ edTS.follow(); edCapFollow(); edTimeNow();
-    if(t==null){ edHeadT=edTV.time(); const sv=edAE.saved(), f=sv?aeToFile(sv,edHeadT):null; if(f!=null) $("edVideo").currentTime=f; edHeadShow(); edPlayPaint(); edTrimPaint(); } }});
+    if(t==null){ edHeadT=edTV.time(); const sv=edAE.saved(), f=sv?aeToFile(sv,edHeadT):null; if(f!=null) vidSeek($("edVideo"),f); edHeadShow(); edPlayPaint(); edTrimPaint(); } }});
 // The moment being dragged to (vlog seconds), big; when the drag ends (null) the player is back, with its controls.
 function edTrimHover(t){
   if(edTool!=="trim" || edTV.playing()) return;
@@ -407,11 +422,36 @@ function edRfShow(on){
   if(on){ $("edVideo").pause(); edView("v"); }
   edRf.shown(on);
 }
+// Text & Overlays takes the player's place the same way (only when the tool changes): the Short as it'll be, at the playhead.
+let edOvOn=false;
+function edOvShow(on){
+  if(on===edOvOn) return; edOvOn=on;
+  if(on){ $("edVideo").pause(); edView("v"); }
+  edOv.shown(on);
+}
+// Text's picture playing (t: vlog seconds), or stopped (null): the playhead, the time and the Captions row follow it.
+function edOvTime(t){
+  edCapFollow(); edTimeNow(); edTS.follow();
+  if(t==null){ edHeadT=edOv.time(); const sv=edAE.saved(), f=sv?aeToFile(sv,edHeadT):null; if(f!=null) vidSeek($("edVideo"),f); edPlayPaint(); }
+}
+// The timeline's Overlays row: every text in time order (when it starts, its words). A click picks it in Text & Overlays
+// and goes to it; with none yet, Add text.
+function edOvTrack(){
+  const el=$("edOvTrack"), ls=edOv.track();
+  const add='<button type="button" class="ed-ov-add" title="Put text on the Short at the playhead"><span class="ms" aria-hidden="true">add</span><span>Add text</span></button>';
+  setHTML(el, ls.map(l=>'<button type="button" class="ed-ov-c'+(l.on?' on':'')+'" data-id="'+esc(l.id)+'" aria-pressed="'+l.on+'" title="'+esc(l.text)+'">'+
+    '<small>'+(l.at==null?"cut":fmt(l.at))+'</small><span>'+esc(l.text)+'</span></button>').join("")+(ls.length<edOv.max()?add:""));
+  el.querySelectorAll(".ed-ov-c").forEach(b=>b.onclick=()=>{ edOvOpen(); edOv.pick(b.dataset.id); });
+  const a=el.querySelector(".ed-ov-add"); if(a) a.onclick=()=>{ edOvOpen(); edOv.add(); };
+}
+let edOvT=0;
+function edOvTrackSoon(){ cancelAnimationFrame(edOvT); edOvT=requestAnimationFrame(edOvTrack); }
+function edOvOpen(){ if(edTool!=="text"){ edTool="text"; edRail(); edPanel(); } }
 // The playhead in the vlog's seconds (where the saved video is), and moving it to a vlog time (where it can).
 function edSrcNow(){ const saved=edAE.saved(); return saved ? aeToSrc(saved,$("edVideo").currentTime||0) : null; }
 function edSeekSrc(t){
   const saved=edAE.saved(), f=saved?aeToFile(saved,t):null, at=aeToFile(edAE.pieces(),t), v=$("edVideo");
-  if(f!=null){ v.pause(); v.currentTime=f; }
+  if(f!=null){ v.pause(); vidSeek(v,f); }
   $("edTlNote").hidden=f!=null;  // a part the saved video doesn't have: "Save to play the new parts"
   if(edTl && at!=null) edTl.setTime(at);
   edRf.at(t);
@@ -631,13 +671,23 @@ function edHook(){
 // Undo / Redo on the timeline: AI Edit's cuts not saved yet.
 // ---- Undo / Redo: one history of every change not saved yet (Details, AI Edit, Captions, Trim). A step is what was
 // waiting to be saved (edD.snap()), the pieces the Short keeps (edAE.pieces()) and the captions (edCap.snap()); typing in
-// one field counts as one step until a pause. Saving, Discard and opening a Short start it afresh.
-let edHist=[], edFut=[], edNow=null, edLast={key:"", at:0}, edRestoring=false;
-const edSnap=()=>({d:edD.snap(), p:JSON.stringify(edAE.pieces()), c:edCap.snap(), r:edRf.snap()});
+// one field counts as one step until a pause. Saving and Discard start it afresh.
+// Then (nothing waiting to be saved) Undo goes back a whole save, and saves that straight away (the Short is remade as it
+// was: no Save to press); Redo puts it back the same way. edSaves: {before, after} of each save in this visit (before =
+// what was saved, in the same shape as a step: edSavedSnap()), edRedos: the ones undone. Opening a Short starts them afresh (emptied in place: edUndoSaved holds them across a save).
+// A thumbnail's Try again can't be undone (there's no frame to go back to): the rest of that save is.
+let edHist=[], edFut=[], edNow=null, edLast={key:"", at:0}, edRestoring=false, edSaves=[], edRedos=[];
+const edSnap=()=>({d:edD.snap(), p:JSON.stringify(edAE.pieces()), c:edCap.snap(), r:edRf.snap(), o:edOv.snap()});
+const edSavedSnap=()=>({d:edD.savedFor(edD.snap()), p:JSON.stringify(edAE.saved()), c:edCap.saved(), r:edRf.saved(), o:edOv.saved()});
 const edSame=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 // What changed between two steps, when it's typing (the same field again soon after is the same step), else "".
 function edTyping(a,b){
   if(a.p!==b.p || !edSame(a.c,b.c) || !edSame(a.r,b.r)) return "";
+  if(!edSame(a.o,b.o)){  // the words of one text, and nothing else: typing
+    if(!edSame(a.d,b.d) || !a.o || !b.o || a.o.length!==b.o.length) return "";
+    const diff=a.o.map((x,k)=>[x,b.o[k]]).filter(([x,y])=>!edSame(x,y));
+    return diff.length===1 && diff[0][0].id===diff[0][1].id && edSame({...diff[0][0],text:""},{...diff[0][1],text:""}) ? "ov:"+diff[0][0].id : "";
+  }
   const keys=[...new Set(Object.keys(a.d).concat(Object.keys(b.d)))].filter(k=>!edSame(a.d[k],b.d[k]));
   if(keys.length!==1) return "";
   const k=keys[0];
@@ -653,19 +703,36 @@ function edRecord(){
   const key=edTyping(edNow,now), t=Date.now();
   if(!(key && key===edLast.key && t-edLast.at<1500)) edHist.push(edNow);
   if(edHist.length>200) edHist.shift();
-  edLast={key, at:t}; edNow=now; edFut=[]; edUndoPaint();
+  edLast={key, at:t}; edNow=now; edFut=[]; if(edD.dirty()) edRedos.length=0;  // (a reload after a remake isn't a new change)
+  edUndoPaint();
 }
 function edHistReset(){ edHist=[]; edFut=[]; edLast={key:"",at:0}; edNow=edC?edSnap():null; edUndoPaint(); }
-function edGo(from,to){
-  if(!from.length || edSaving || (edC&&edC.remaking) || edBusy) return;
-  to.push(edNow); edNow=from.pop(); edLast={key:"",at:0};
+function edApply(x){
   edRestoring=true;
-  try{ edD.restore(edNow.d); edAE.restore(JSON.parse(edNow.p)); edCap.restore(edNow.c); edRf.restore(edNow.r); } finally{ edRestoring=false; }
+  try{ edD.restore(x.d); edAE.restore(JSON.parse(x.p)); edCap.restore(x.c); edRf.restore(x.r); edOv.restore(x.o); } finally{ edRestoring=false; }
   edPaintSave(); edTlLay(); edTrimPaint(); edUndoPaint();
 }
+const edBusyNow=()=>edSaving||!!(edC&&edC.remaking)||edBusy;
+function edGo(from,to){
+  if(edBusyNow()) return;
+  if(!from.length){ if(from===edHist) edUndoSaved(edSaves,edRedos,"before"); else edUndoSaved(edRedos,edSaves,"after"); return; }
+  to.push(edNow); edNow=from.pop(); edLast={key:"",at:0};
+  edApply(edNow);
+}
+// Undo (before) or Redo (after) a whole save: put that version back as changes and save them at once.
+async function edUndoSaved(from,to,side){
+  if(!from.length || edD.dirty() || edBusyNow()) return;
+  const st=from.pop(); edApply(st[side]);
+  if(!edD.dirty()){ edUndoPaint(); return; }  // nothing of it can be put back (only a thumbnail's Try again)
+  if(await edSaveNow(true)) to.push(st); else from.push(st);
+  edUndoPaint();
+}
 function edUndoPaint(){
-  const busy=edSaving||!!(edC&&edC.remaking)||edBusy;
-  $("edUndo").disabled=busy||!edHist.length; $("edRedo").disabled=busy||!edFut.length;
+  const busy=edBusyNow(), dirty=edD.dirty(), u=$("edUndo"), r=$("edRedo");
+  const uSaved=!edHist.length && !dirty && edSaves.length>0, rSaved=!edFut.length && !dirty && edRedos.length>0;
+  u.disabled=busy||!(edHist.length||uSaved); r.disabled=busy||!(edFut.length||rSaved);
+  u.title=uSaved?"Undo the last save: the Short goes back to how it was (Ctrl/Cmd+Z)":"Undo (Ctrl/Cmd+Z)";
+  r.title=rSaved?"Redo that save: the Short is made with it again (Ctrl/Cmd+Shift+Z)":"Redo (Ctrl/Cmd+Shift+Z)";
 }
 $("edUndo").onclick=()=>edGo(edHist,edFut);
 $("edRedo").onclick=()=>edGo(edFut,edHist);

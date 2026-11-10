@@ -1,5 +1,5 @@
   <!-- Editor (#edit/<vlog>/<short>): a draft Short's advanced editing, opened from Drafts (Edit) and Quick review
-       (Edit draft). Details, AI Edit, Captions, Trim and the timeline work; the other tools are laid out, marked Soon (js/editor.js) -->
+       (Edit draft). Details, AI Edit, Captions, Reframe, Trim, Text and the timeline work; the other tools are laid out, marked Soon (js/editor.js) -->
   <section id="s12" hidden>
     <div class="work wide">
       <!-- One bar: Back, the save state, Undo / Redo (every tool's changes not saved yet), ⋮, Export, Finish (save, then
@@ -36,6 +36,8 @@
             <canvas id="edFreeze" class="ed-freeze" hidden aria-hidden="true"></canvas>
             <!-- while Reframe is chosen: the vlog's picture with the frame on it, and the Short as it'll look (js/reframe.js) -->
             <div class="rf-host" id="edRfStage" hidden></div>
+            <!-- while Text & Overlays is chosen: the Short at the playhead as it'll look, the text on it to drag (js/overlays.js) -->
+            <div class="ov-host" id="edOvStage" hidden></div>
             <!-- while trimming: the moment under the pointer on the Video row, big, and the preview playing (js/trim-strip.js trimView) -->
             <div class="tv-host" id="edTrimView" hidden></div>
             <img id="edThumb" class="qr-thumb" alt="Thumbnail" hidden>
@@ -67,7 +69,9 @@
               <!-- each caption line, under where it's said (js/editor.js edCapTrack): a click picks it in Captions -->
               <div class="ed-track ed-cap-track" id="edCapTrack" role="group" aria-label="Caption lines"></div>
               <div class="ed-lab"><span class="ms" aria-hidden="true">graphic_eq</span>Audio</div><div class="ed-track ed-soon">Audio tools are coming</div>
-              <div class="ed-lab"><span class="ms" aria-hidden="true">layers</span>Overlays</div><div class="ed-track ed-soon">Text and overlays are coming</div>
+              <div class="ed-lab"><span class="ms" aria-hidden="true">layers</span>Overlays</div>
+              <!-- every text on the Short, in time order (js/editor.js edOvTrack): a click picks it in Text & Overlays -->
+              <div class="ed-track ed-ov-track" id="edOvTrack" role="group" aria-label="Text on the Short"></div>
             </div>
           </div>
         </div>
@@ -101,6 +105,12 @@
             <div class="ed-p-head"><span class="ms" aria-hidden="true">crop</span><h2>Reframe</h2></div>
             <p class="ed-p-about">What of the video's wide picture the vertical Short shows. It needs the video's file, while it's kept.</p>
             <div id="edRf"></div>
+          </div>
+          <!-- Text & Overlays (js/overlays.js): kept on the page like Captions -->
+          <div id="edOvWrap" hidden>
+            <div class="ed-p-head"><span class="ms" aria-hidden="true">title</span><h2>Text &amp; Overlays</h2></div>
+            <p class="ed-p-about">Titles and key words on screen, at the moments you choose. The picture shows the Short as it'll look: drag the text there to place it. Nothing changes until you save.</p>
+            <div id="edOv"></div>
           </div>
           <div id="edTrimWrap" hidden>
             <div class="ed-p-head"><span class="ms" aria-hidden="true">content_cut</span><h2>Trim</h2></div>

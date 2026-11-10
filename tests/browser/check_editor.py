@@ -226,7 +226,7 @@ with sync_playwright() as p:
     # ---------------------------------------------------------------- 7. undo / redo
     print("7. Undo / Redo")
     n_undo = 0
-    while not pg.locator("#edUndo").is_disabled() and n_undo < 20:
+    while not pg.locator("#edUndo").is_disabled() and state() != "Saved" and n_undo < 20:  # (not past a save: that remakes)
         pg.click("#edUndo"); n_undo += 1; pg.wait_for_timeout(200)
     check(P() == [[s0, e0]] and state() == "Saved" and parts().count() == 1, f"undo x{n_undo} back to the saved Short")
     for _ in range(n_undo):
@@ -566,6 +566,18 @@ with sync_playwright() as p:
     pg.click("#edCancel"); pg.wait_for_timeout(800)
     check(state() == "Saved" and pg.locator("#edUndo").is_disabled() and pg.input_value("#edDBox input.title") == title0, "Discard: back to saved, nothing to undo")
 
+    # ---------------------------------------------------------------- 12b2. the playhead follows the player's own controls
+    print("12b2. The playhead follows the player's own controls")
+    tool("trim", strip=True)
+    ev("edHeadTo(edAE.saved()[0][0]+1)"); pg.wait_for_timeout(400)
+    left0 = ev("(document.querySelector('#edTrimStrip .ts-head')||{style:{}}).style.left")
+    ev("edHeadT=edAE.saved()[0][0]+1")  # as if the handle was dragged there
+    ev("document.getElementById('edVideo').currentTime=6"); pg.wait_for_timeout(800)  # the player's own scrubber (no vidSeek)
+    check(ev("edHeadT") is None and abs(ev("edHeadNow()") - ev("aeToSrc(edAE.saved(),6)")) < 0.3
+          and ev("(document.querySelector('#edTrimStrip .ts-head')||{style:{}}).style.left") != left0,
+          "a seek with the player's own controls moves the red handle there")
+    tool("details")
+
     # ---------------------------------------------------------------- 12c. Captions
     print("12c. Captions")
     open_short(A, 1)
@@ -578,6 +590,14 @@ with sync_playwright() as p:
     check(ev("edCap.summary()") == "Bold" and pg.locator("#edCapTrack .ed-cap-c").count() > 3, "the captions' look: " + ev("edCap.summary()") + ", their lines on the timeline")
     nat = ev("cpImg.naturalWidth+'x'+cpImg.naturalHeight")
     check(nat == "540x960", "the preview is a 9:16 frame: " + nat)
+    ev("""window.BLINK=0; window.BLMO=new MutationObserver(()=>{ if(cpPrev.classList.contains('busy')) BLINK++; });
+          BLMO.observe(document.getElementById('cpPrev'),{attributes:true})""")
+    ev("document.getElementById('edVideo').play()"); pg.wait_for_timeout(1200)
+    ev("document.getElementById('edVideo').pause()"); pg.wait_for_timeout(1500)
+    check(ev("BLINK") == 0, "pausing the player doesn't dim the preview (no blink)")
+    check(ev("['cpPrev','edState'].map(id=>(f=>{f.classList.add('busy'); const p=getComputedStyle(f).position; f.classList.toggle('busy'); return p})(document.getElementById(id)))")
+          == ["static", "static"], "busy never lays a layer over the editor (review.css's .busy is the review cards' own)")
+    ev("BLMO.disconnect()")
     pg.click('.cp-pre[data-p="pop"]'); pg.wait_for_timeout(300)
     check(cap()["font"] == "bangers" and cap()["highlight"] == "grow" and state() == "1 change not saved", "Pop: Bangers, the word grows; 1 change")
     pg.wait_for_function("!cpVid.hidden && cpVid.src.startsWith('blob:') && !cpVid.paused", timeout=20000)
@@ -608,7 +628,7 @@ with sync_playwright() as p:
     tool("captions")
     check(pg.locator("#cpLines .cp-w").count() == n_words - 1, "a word cut in AI Edit leaves the captions too")
     check(state() == "2 changes not saved", "two tools, two changes: " + state())
-    want_caps, want_p = cap(), P()
+    want_caps, want_p, sv_before = cap(), P(), SV()
     pg.click("#edSave")
     wait_saved()
     pg.wait_for_function("edCap.snap() && !edCap.dirty()", timeout=30000)
@@ -620,7 +640,25 @@ with sync_playwright() as p:
     vid = next(x["video"] for x in st["shorts"] if x["idx"] == 1)
     ass = open(os.path.join(H["jobs_dir"], A, vid.replace("short_", "captions_").replace(".mp4", ".ass")), encoding="utf-8").read()
     check("Style: Cap,Bangers," in ass and "KOHIMA" in ass, f"the new video's captions: Bangers, \"{said}\" became KOHIMA")
-    check(state() == "Saved" and pg.locator("#edUndo").is_disabled(), "saved, nothing to undo")
+    check(state() == "Saved" and not pg.locator("#edUndo").is_disabled() and "last save" in (pg.get_attribute("#edUndo", "title") or ""),
+          "saved: Undo now takes back that save")
+    # Undo of a whole save: remade as it was, without pressing Save; Redo makes it again
+    def remade_from(v):
+        pg.wait_for_function(f"(clData.find(c=>c.job==={A!r}&&c.idx===1)||{{}}).video!=={v!r}", timeout=120000)
+        wait_saved()
+        pg.wait_for_function("edCap.snap() && !edCap.dirty() && edAE.info()", timeout=30000)
+        return next(x["video"] for x in ev(f"fetch('/api/status/{A}').then(r=>r.json())")["shorts"] if x["idx"] == 1)
+    pg.click("#edUndo")
+    vid = remade_from(vid)
+    srv = ev(f"fetch('/api/captions/{A}/1').then(r=>r.json())")["captions"]
+    check(srv["preset"] == "bold" and not srv["edits"] and SV() == sv_before and not pg.locator("#edSaveRow").is_visible(),
+          f"Undo of the save: back to {srv['preset']}, no word changes, the cut back, remade without pressing Save")
+    check(not pg.locator("#edRedo").is_disabled(), "Redo is on")
+    pg.click("#edRedo")
+    vid = remade_from(vid)
+    srv = ev(f"fetch('/api/captions/{A}/1').then(r=>r.json())")["captions"]
+    check(srv["preset"] == "pop" and srv["edits"] == want_caps["edits"] and len(server(A, 1)["pieces"]) == 2,
+          "Redo of the save: Pop, the changed words and the cut again")
     # captions alone: their own remake
     vid0 = vid
     pg.click('.cp-seg [data-k="highlight"][data-v="none"]'); pg.wait_for_timeout(200)
@@ -811,7 +849,7 @@ with sync_playwright() as p:
     pg.wait_for_function(f"(clData.find(c=>c.job==={RJ!r}&&c.idx==={RI})||{{}}).video!=={vid0!r} && !edRf.dirty()", timeout=120000)
     sv = rsrv()["reframe"]
     check(sv and len(sv["moves"]) == 2 and sv["cut"] is True and sv["moves"][0]["z"] == zm, f"saved: the moves, the cut, the zoom ({sv})")
-    check(ev("!edRf.dirty() && document.getElementById('edUndo').disabled"), "saved, nothing to undo")
+    check(ev("!edRf.dirty() && !document.getElementById('edUndo').disabled"), "saved: Undo can take that save back")
     # captions and framing changed together: both saved, one remake
     seen_js = f"window.SEEN=new Set(); window.SEENT=setInterval(()=>{{const c=clData.find(c=>c.job==={RJ!r}&&c.idx==={RI}); if(c) SEEN.add(c.video);}},100)"
     ev(seen_js)

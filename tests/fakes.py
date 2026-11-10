@@ -687,11 +687,11 @@ def fast_render(video_path, meta, moment, words, idx, style, job_dir, cx="find",
     from pipeline.render import short_words
     job_dir = Path(job_dir)
     RENDERED.append({"idx": idx, "pieces": kept(moment), "hook": moment.get("hook", ""), "hook_mode": moment.get("hook_mode"),
-                     "captions": moment.get("captions"), "reframe": moment.get("reframe"),
+                     "captions": moment.get("captions"), "reframe": moment.get("reframe"), "overlays": moment.get("overlays"),
                      "src": Path(video_path).name, "offset": offset, "cx": cx})
     time.sleep(SLOW.render)  # SLOW.render > 0: editing takes a while (Pause tests)
     build_ass(short_words(moment, words), 0.0, sum(b - a for a, b in kept(moment)), moment.get("hook", ""), style,
-              job_dir / f"captions_{idx}.ass", moment.get("captions"))
+              job_dir / f"captions_{idx}.ass", moment.get("captions"), overlays=moment.get("overlays"), pieces=kept(moment))
     (job_dir / f"short_{idx}.mp4").write_bytes(b"\x00\x00\x00\x18ftypmp42" + os.urandom(64))
     return f"short_{idx}.mp4", None if cx == "find" else cx
 
