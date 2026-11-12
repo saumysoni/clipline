@@ -23,7 +23,7 @@ from flask import abort, jsonify, request
 
 import pipeline
 
-from web import clean_clips
+from web import clean_clips, reframe_look
 from web.captions import NO_VIDEO as _CAP_NO_VIDEO, _remake, _short, _transcript, _why_not
 from web.server import app
 from web.store import LOCK, editable_job, update, update_short
@@ -55,6 +55,8 @@ def reframe_info(job_id, idx):
             traceback.print_exc()
             why_not = "This video's file couldn't be read, so the framing can't be changed."
     w, h = (meta["width"], meta["height"]) if meta else (1920, 1080)
+    if meta and not why_not:  # the smart buttons' small copy, made while the creator looks (web/reframe_look.py)
+        reframe_look.start(job_id, me, src, pipeline.kept_pieces(me))
     cx = clean_clips.scaled_cx(me, src) if src else me.get("cx")  # in the source's pixels
     return jsonify(reframe=pipeline.clean_reframe(me.get("reframe"), _duration(job, _transcript(job_id))),
                    face=round(cx / w, 4) if isinstance(cx, (int, float)) and w else 0.5,
@@ -106,11 +108,12 @@ def reframe_follow(job_id, idx):
         z = min(pipeline.REFRAME_ZOOM_MAX, max(1.0, float(data.get("z") or 1)))
     except (TypeError, ValueError, AttributeError):
         return jsonify(error="That couldn't be read. Reload the page and try again."), 400
+    meta, pieces = pipeline.probe(src["path"]), clean_clips.in_reach(pieces, src) or pieces
+    src = reframe_look.source(job_id, me, src, pieces)
     if not FOLLOWS.acquire(timeout=60):
         return jsonify(error="Pit Crew is busy following another Short. Try again in a moment."), 503
     try:
-        moves = pipeline.follow_moves(src["path"], pipeline.probe(src["path"]), clean_clips.in_reach(pieces, src) or pieces, z,
-                                      offset=src["offset"])
+        moves = pipeline.follow_moves(src["path"], meta, pieces, z, offset=src["offset"])
     except Exception:  # noqa: BLE001
         traceback.print_exc()
         moves = []
@@ -133,7 +136,8 @@ def _smart_args(job_id, idx, data):
             pieces = pipeline.normalize_pieces(data["pieces"], 0, _duration(job, _transcript(job_id)) or 1e9) or pieces
     except (TypeError, ValueError, AttributeError):
         return None, (jsonify(error="That couldn't be read. Reload the page and try again."), 400)
-    return (src, pipeline.probe(src["path"]), clean_clips.in_reach(pieces, src) or pieces), None
+    meta, pieces = pipeline.probe(src["path"]), clean_clips.in_reach(pieces, src) or pieces
+    return (reframe_look.source(job_id, me, src, pieces), meta, pieces), None
 
 
 @app.post("/api/reframe/<job_id>/<int:idx>/auto")

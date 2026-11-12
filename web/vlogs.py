@@ -218,7 +218,7 @@ def remove_video(job_id):
     if src:
         remember_transcript(src, job_dir / "transcript.json")
         make_clips(job_id)  # the drafts' clean clips first: their editing carries on without the vlog
-    for f in (src, job_dir / "preview.mp4", job_dir / "preview.part.mp4"):
+    for f in (src, job_dir / "preview.mp4", job_dir / "preview.part.mp4", *job_dir.glob("look_*")):  # (look_: Reframe's copies)
         if f:
             f.unlink(missing_ok=True)
     update(job_id, video_deleted_at=time.time(), created_at=uploaded)

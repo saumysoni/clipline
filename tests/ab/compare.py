@@ -8,13 +8,15 @@ A/B comparisons of Pit Crew's own options on the same input, so a setting is cho
              much the headline stands out from the picture behind it (contrast ratio; 4.5+ is easy to read).
   slots      JOB_SLOTS 1 vs 2 on this machine: how long 2 vlogs take to finish, made one after the other or
              together, and the memory it took.
-  whisper    (only where the speech model is downloaded, i.e. on the server) int8 vs float32 and batch sizes:
-             time to transcribe the same audio.
+  whisper    (only where the speech model is downloaded, i.e. on the server) batch sizes and processor threads with
+             word times on (as Pit Crew asks): time to transcribe a minute, and how long an editor click takes while it
+             runs. --video PATH uses a real vlog's first minute (speech); else a test tone.
 
 The AI and transcription are the test fakes, so no keys or quota are used. Run from the clipline folder:
 
     python -m tests.ab.compare                    # everything (a few minutes)
     python -m tests.ab.compare encoder looks      # only some
+    python -m tests.ab.compare whisper --video /srv/pitcrew/jobs/<id>/source.mp4
 Prints a table and writes ab-<date>.md / .json to tests/ab/results (or the temp folder if that isn't writable).
 """
 import os
@@ -152,37 +154,90 @@ def _peak_mb():
     return round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / (1024 if sys.platform != "darwin" else 1024 ** 2))
 
 
+def _click_ms(source):
+    """One editor click's own work: reading a video's size and one frame (like a captions preview), in ms."""
+    from pipeline.ffmpeg import ffmpeg_exe
+    t = time.perf_counter()
+    subprocess.run(["ffprobe", "-v", "error", "-show_format", str(source)], capture_output=True, stdin=subprocess.DEVNULL)
+    subprocess.run([ffmpeg_exe(), "-y", "-loglevel", "error", "-ss", "5", "-i", str(source), "-frames:v", "1", "-f", "null", "-"],
+                   capture_output=True, stdin=subprocess.DEVNULL)
+    return (time.perf_counter() - t) * 1000
+
+
 def whisper(source, tr):
+    """The speech model as the server runs it (word times on, as Pit Crew asks), on VIDEO's first minute when given
+    (--video: a real vlog, with speech; else a test tone, which says less): seconds per minute of audio for the batch
+    sizes and processor threads worth trying, and how long an editor click takes while it runs (it runs at the
+    background priority, web/priority.py) next to none running."""
+    import statistics
+    import threading
+    from web.priority import lower
     if os.getenv("PITCREW_HF_HOME"):  # where the server keeps the speech model (deploy/test.sh passes it)
         os.environ["HF_HOME"] = os.environ["PITCREW_HF_HOME"]
     try:
-        from faster_whisper import WhisperModel
-        from pipeline.transcribe import load_audio
+        from faster_whisper import BatchedInferencePipeline, WhisperModel
+        from pipeline.transcribe import available_cpus, load_audio
     except Exception as e:  # noqa: BLE001
         row("whisper", "skipped", reason=type(e).__name__)
         return
-    audio = load_audio(source)[: 16000 * 60]
-    for compute, batch in (("int8", 8), ("int8", 0), ("float32", 8)):
-        try:
-            model = WhisperModel(os.getenv("WHISPER_MODEL", "small"), device="cpu", compute_type=compute,
-                                 cpu_threads=os.cpu_count() or 2, local_files_only=True)
-        except Exception as e:  # noqa: BLE001  (the model isn't downloaded here)
-            row("whisper", "skipped", reason=str(e)[:60])
+    video = VIDEO or source
+    try:
+        audio = load_audio(video)[: 16000 * 60]
+    except Exception as e:  # noqa: BLE001  (no sound in it)
+        row("whisper", "skipped", reason=str(e)[:60])
+        return
+    cores = available_cpus()
+    idle = [_click_ms(video) for _ in range(5)]
+    row("whisper", "a click, nothing else running", click_ms=round(statistics.median(idle)), click_max_ms=round(max(idle)))
+    tries = [("int8", 8, cores), ("int8", 16, cores), ("int8", 0, cores)]
+    if cores > 2:
+        tries.insert(1, ("int8", 8, cores - 1))
+    for compute, batch, threads in tries:
+        out = {}
+
+        def work():
+            lower()  # as in a real run (web/job_queue.py): the model's threads are made in this thread
+            try:
+                model = WhisperModel(os.getenv("WHISPER_MODEL", "small"), device="cpu", compute_type=compute,
+                                     cpu_threads=threads, local_files_only=True)
+            except Exception as e:  # noqa: BLE001  (the model isn't downloaded here)
+                out["error"] = str(e)[:60]
+                return
+            t = time.time()
+            if batch:
+                segs, _ = BatchedInferencePipeline(model).transcribe(audio, batch_size=batch, language="en", word_timestamps=True)
+            else:
+                segs, _ = model.transcribe(audio, language="en", word_timestamps=True, vad_filter=True)
+            out["words"] = sum(len(s.words or []) for s in segs)
+            out["seconds"] = time.time() - t
+
+        th = threading.Thread(target=work)
+        th.start()
+        clicks = []
+        time.sleep(3)  # (the model loads first)
+        while th.is_alive():
+            clicks.append(_click_ms(video))
+            time.sleep(0.5)
+        th.join()
+        if "error" in out:
+            row("whisper", "skipped", reason=out["error"])
             return
-        t = time.time()
-        if batch:
-            from faster_whisper import BatchedInferencePipeline
-            segs, _ = BatchedInferencePipeline(model).transcribe(audio, batch_size=batch, language="en")
-        else:
-            segs, _ = model.transcribe(audio, language="en")
-        list(segs)
-        row("whisper", f"{compute} batch={batch}", seconds_per_min_audio=round(time.time() - t, 1))
+        row("whisper", f"{compute} batch={batch} threads={threads}", seconds_per_min_audio=round(out["seconds"], 1),
+            words=out["words"], click_ms=round(statistics.median(clicks)) if clicks else None,
+            click_max_ms=round(max(clicks)) if clicks else None)
 
 
 TESTS = {"encoder": encoder, "captions": captions, "looks": looks, "slots": slots, "whisper": whisper}
 
 
+VIDEO = None  # --video PATH: a real vlog for the whisper test
+
+
 def main(names):
+    global VIDEO
+    if "--video" in names:
+        k = names.index("--video")
+        VIDEO, names = Path(names[k + 1]), names[:k] + names[k + 2:]
     F.install()
     F.app()
     source = F.test_video(90, "640x360", plain=True)

@@ -152,6 +152,7 @@ def _short_files(job_dir, s):
     num = re.findall(r"_(\d+)\.", s.get("video") or "")
     if num:
         out.append(job_dir / f"captions_{num[0]}.ass")
+        out += [job_dir / f"look_{num[0]}.mp4", job_dir / f"look_{num[0]}.json"]  # Reframe's small copy (web/reframe_look.py)
     tnum = re.findall(r"_(\d+)\.", s.get("thumb") or "")
     if tnum:
         out.append(job_dir / f"thumbwork_{tnum[0]}")
