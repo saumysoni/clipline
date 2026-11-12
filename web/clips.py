@@ -53,7 +53,7 @@ def _ig_state(job, s):
         return None
     state = {"waiting": "scheduled", "posting": "posting", "done": "posted", "removed": "removed"}.get(p["status"], "failed")
     return {"state": state, "when": p.get("posted_at") if p["status"] == "done" else p.get("when"),
-            "permalink": p.get("permalink", ""), "username": p.get("username", ""),
+            "permalink": p.get("permalink", ""), "username": p.get("username", ""), "ig_id": p.get("ig_id"),
             "error": p.get("error", ""), "status": p["status"]}
 
 

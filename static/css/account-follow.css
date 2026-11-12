@@ -1,0 +1,12 @@
+/* The short "Loading" over Shorts & Reels and Videos after switching channel or account (js/account-follow.js). */
+.af-busy{position:relative}
+.af-wait{display:none}
+.af-busy>.af-wait{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
+  gap:8px;padding:min(22vh,180px) 16px 16px;background:var(--bg);background:color-mix(in srgb,var(--bg) 94%,transparent);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  border-radius:16px;color:var(--ink);text-align:center;animation:af-in .15s var(--ease)}
+.af-wait b{font:600 1rem/1.3 var(--sans)}
+.af-wait small{color:var(--muted);font-size:.85rem;max-width:100%;overflow-wrap:anywhere}
+.af-spin{width:28px;height:28px;border-radius:50%;border:3px solid var(--line-2);border-top-color:var(--primary);animation:af-spin .8s linear infinite}
+@keyframes af-spin{to{transform:rotate(360deg)}}
+@keyframes af-in{from{opacity:0}}
+@media (prefers-reduced-motion:reduce){ .af-spin{animation:none;border-top-color:var(--line-2);border-right-color:var(--primary)} .af-busy>.af-wait{animation:none} }

@@ -71,7 +71,7 @@ def summary(job):
     return {"id": job["id"], "title": vlog.get("title") or vdraft.get("title") or job.get("name") or "Your video",
             "kind": job.get("kind", "shorts"), "vthumb": vdraft.get("thumb", ""),  # kind "vlog": web/vlog_upload.py
             "prep": job.get("kind") == "vlog" and not job.get("count"),  # a vlog upload, before any Shorts were asked for
-            "vpost": {k: vpost.get(k) for k in ("state", "pct", "when", "privacy", "video_id", "pausing")} if vpost else None,
+            "vpost": {k: vpost.get(k) for k in ("state", "pct", "when", "privacy", "video_id", "pausing", "channel")} if vpost else None,
             "duration": job.get("duration"), "created": created_at(job), "status": job.get("status"),
             "stage": job.get("stage", 0), "stages": len(job.get("stages") or []), "pct": job.get("pct"),
             "msg": job.get("msg", ""), "queued": bool(job.get("queued")), "error": _error(job), "pausing": bool(job.get("pausing")), "cover": cover, "poster": _poster(job),

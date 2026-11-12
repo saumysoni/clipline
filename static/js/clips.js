@@ -19,7 +19,14 @@ const isOutClip=c=>!isDraftClip(c) && !isScheduledClip(c);
 const clInMode=c=>clMode==="drafts" ? isDraftClip(c) : isOutClip(c);
 const clShowing=()=>$("clBrowse").offsetParent!==null;
 // On this page a platform counts only once the clip is out there (or going out now): a planned post is on Scheduled.
-const clOnPlat=(c,plat)=>!!c[plat] && !(clMode==="out" && c[plat].state==="scheduled");
+// It also counts only on the channel / account chosen in the sidebar (onActive in js/core.js): one posted with another
+// shows when that one is chosen. Drafts belong to no account yet.
+const clAcct=(c,plat)=>c[plat] && (plat==="youtube" ? c[plat].channel : c[plat].ig_id);
+const clOnPlat=(c,plat)=>!!c[plat] && (clMode!=="out" || (c[plat].state!=="scheduled" && onActive(plat, clAcct(c,plat))));
+// On Shorts & Reels: out on at least one platform with the chosen account.
+const clVisible=c=>clInMode(c) && (clMode!=="out" || clOnPlat(c,"youtube") || clOnPlat(c,"instagram"));
+// Made outside Pit Crew, on the chosen channel / account.
+const clOutsideMine=()=>clOutside.filter(x=>onActive(x.platform||"youtube", x.account));
 async function openClips(vlog){
   clearInterval(poll); clVlog=vlog||""; location.hash="clips"+(clVlog?"/"+clVlog:"");
   show(9); await clOpen("out", $("s9").querySelector(".work"), clVlog);
@@ -91,8 +98,9 @@ function clOutsideCard(x){
   return '<article class="clip cl-x" data-x="'+esc(x.id)+'"><div class="cl-thumb"><a class="cl-play" href="'+esc(x.url)+'" target="_blank" rel="noopener" aria-label="Watch '+esc(x.title)+' on '+app+'">'+
       (x.thumb?'<img src="'+esc(x.thumb)+'" alt="" loading="lazy" referrerpolicy="no-referrer">':CL_NO_PIC)+'<span class="ms cl-pi" aria-hidden="true">open_in_new</span></a>'+(x.seconds?'<span class="cl-len">'+fmt(x.seconds)+'</span>':'')+'</div>'+
     '<div class="cl-body"><b class="cl-t" title="'+esc(x.title)+'">'+esc(x.title)+'</b><div class="cl-meta"><span class="ms '+(isIg?'ig':'yt')+'" aria-hidden="true">'+(isIg?'photo_camera':'smart_display')+'</span><span>'+(isIg?'Instagram Reels':'YouTube Shorts')+(x.published?' · '+esc(clShortDate(x.published)):'')+'</span></div>'+
-      '<div class="cl-x-note">Made outside Pit Crew, so its file isn\'t here to edit or analyse.</div></div>'+
-    '<div class="cl-foot"><a class="ghost sm" href="'+esc(x.url)+'" target="_blank" rel="noopener"><span class="ms" aria-hidden="true">open_in_new</span>Watch on '+app+'</a></div></article>';
+      (x.url?'<a class="cl-see" href="'+esc(x.url)+'" target="_blank" rel="noopener"><span class="ms" aria-hidden="true">open_in_new</span>Watch on '+app+'</a>':'')+
+      '<div class="cl-x-note">Its file isn\'t in Pit Crew, so it can\'t be edited or analysed here.</div></div>'+
+    '<div class="cl-foot"><div class="cl-pills"><span class="cl-pill" title="Posted on '+app+' without Pit Crew">Made outside Pit Crew</span></div></div></article>';
 }
 function clCard(c){
   if(isGoneClip(c)) return clGoneCard(c);
@@ -152,15 +160,15 @@ function clDownloadItem(c){
     ? {label:"Download", icon:"download", download:true, title:"Download, with its thumbnail as the first frame",
        href:"/media/"+c.job+"/"+c.video+"?cover=1&thumb="+encodeURIComponent(c.thumb||"")+"&dl="+encodeURIComponent(dl+".mp4")}
     : postedYt ? {label:"Download from Studio", icon:"open_in_new", href:studioLink(c.youtube.video_id), title:"Pit Crew no longer keeps this file. Download it from YouTube Studio (⋮ › Download)."}
-    : c.instagram&&c.instagram.permalink ? {label:"Open on Instagram", icon:"open_in_new", href:c.instagram.permalink, title:"Pit Crew no longer keeps this file"}
+    : c.instagram&&c.instagram.permalink ? {label:"Watch on Instagram", icon:"open_in_new", href:c.instagram.permalink, title:"Pit Crew no longer keeps this file"}
     : {label:"Download", icon:"download", disabled:"Pit Crew no longer keeps this file"};
 }
 // What the ⋮ menu offers for a clip. On Drafts: Quick review, Edit = the editor, and the video's own editor (Try again).
 // Where a clip that went out can be seen: YouTube (while uploads are private, only to the channel's owner, signed in) and Instagram.
 function clWatch(c){
   const out=[], y=c.youtube, i=c.instagram;
-  if(y&&y.state==="posted"&&y.video_id) out.push({label:"Watch on YouTube", href:"https://www.youtube.com/shorts/"+y.video_id});
-  if(i&&i.state==="posted"&&i.permalink) out.push({label:"Open on Instagram", href:i.permalink});
+  if(y&&y.state==="posted"&&y.video_id&&clOnPlat(c,"youtube")) out.push({label:"Watch on YouTube", href:"https://www.youtube.com/shorts/"+y.video_id});
+  if(i&&i.state==="posted"&&i.permalink&&clOnPlat(c,"instagram")) out.push({label:"Watch on Instagram", href:i.permalink});
   return out;
 }
 function clMenuItems(c){
@@ -187,11 +195,11 @@ function clMenuItems(c){
 }
 function clFiltered(){
   const plat=clMode==="drafts" ? "" : clPlat;
-  return clData.filter(c=>clInMode(c) && (!clVlog||c.job===clVlog) && (!plat||clOnPlat(c,plat)));
+  return clData.filter(c=>clVisible(c) && (!clVlog||c.job===clVlog) && (!plat||clOnPlat(c,plat)));
 }
 function paintClips(){
   // video choices (the ones with clips on this page), newest first
-  const pool=clData.filter(clInMode);
+  const pool=clData.filter(clVisible);
   const vlogs=[...new Map(pool.concat(clData.filter(c=>c.job===clVlog)).map(c=>[c.job,c])).values()];
   // on Drafts, a video whose Shorts are being made can be chosen before it has any clips
   if(clMode==="drafts") dfMaking().forEach(v=>{ if(!vlogs.some(c=>c.job===v.id)) vlogs.unshift({job:v.id, vlog:v.title, vlog_created:v.created, video_deleted:v.video_deleted}); });
@@ -207,9 +215,10 @@ function paintClips(){
   }
   const base=clFiltered(), list=clSorted(base);
   // Shorts and Reels from outside Pit Crew: only when no video of Pit Crew's is chosen, newest first, under their own app's tab
-  const outside=clMode==="out" && !clVlog ? clOutside.filter(x=>!clPlat||(x.platform||"youtube")===clPlat).sort((a,b)=>String(b.published).localeCompare(String(a.published))) : [];
+  const outside=clMode==="out" && !clVlog ? clOutsideMine().filter(x=>!clPlat||(x.platform||"youtube")===clPlat).sort((a,b)=>String(b.published).localeCompare(String(a.published))) : [];
   const [emptyB,emptyT] = pool.length||outside.length ? ["Nothing here","Try another filter."]
     : clMode==="drafts" ? ["No Shorts or Reels drafts", clData.length?"Every clip Pit Crew made is posted or scheduled. Make Shorts from a video to get new ones.":"Upload a video and Pit Crew turns it into Shorts and Reels."]
+    : clData.some(isOutClip)||clOutside.length ? ["Nothing on this account", "Your other clips went out on another YouTube channel or Instagram account: switch to it under Channels in the sidebar."]
     : ["Nothing posted yet", clData.length?"Your clips are under Drafts and Scheduled. They show up here once they go out.":"Upload a video and Pit Crew turns it into Shorts and Reels."];
   const making=clMode==="drafts" ? dfMaking().filter(v=>!clVlog||v.id===clVlog) : [];
   setHTML($("clGrid"), list.length||making.length||outside.length ? (clMode==="drafts" ? clGroupsHTML(list,making) : list.map(clCard).join("")+outside.map(clOutsideCard).join(""))
@@ -325,8 +334,8 @@ $("clPlayer").addEventListener("close",()=>{ $("clVideo").pause(); $("clVideo").
 // Platform tabs: All / YouTube Shorts / Instagram Reels, each with how many clips (for the vlog chosen, if any).
 $("clPlatTabs").querySelectorAll("button").forEach(b=>b.onclick=()=>{ clPlat=b.dataset.p; paintClips(); });
 function clPlatTabs(){
-  const pool=clData.filter(c=>isOutClip(c) && (!clVlog||c.job===clVlog));
-  const outIg=clVlog?0:clOutside.filter(x=>x.platform==="instagram").length, out=clVlog?0:clOutside.length;
+  const pool=clData.filter(c=>clVisible(c) && (!clVlog||c.job===clVlog)), mine=clOutsideMine();
+  const outIg=clVlog?0:mine.filter(x=>x.platform==="instagram").length, out=clVlog?0:mine.length;
   $("clNAll").textContent=pool.length+out; $("clNYt").textContent=pool.filter(c=>clOnPlat(c,"youtube")).length+out-outIg; $("clNIg").textContent=pool.filter(c=>clOnPlat(c,"instagram")).length+outIg;
   $("clPlatTabs").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.p===clPlat));
 }

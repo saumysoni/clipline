@@ -33,6 +33,7 @@ function paintIg(){
   if($("igOut")) $("igOut").onclick=()=>igSignOut();
   if(typeof igDock==="function") igDock();
   if(typeof paintSettings==="function") paintSettings();
+  if(typeof afRepaint==="function") afRepaint();  // Shorts & Reels show this account's Reels
 }
 // add: connecting another account, so Instagram asks who to log in as (not the account the browser is in).
 function igSignIn(then,add){

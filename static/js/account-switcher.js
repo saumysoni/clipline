@@ -63,8 +63,9 @@ async function switchTo(kind,id){
   if(isYt){ yt=a; paintAccount(); } else { ig=a; paintIg(); }
   switchedAccount();
 }
-// The pages that show one channel's numbers follow the switch.
+// The pages that show one channel's numbers (or its videos: js/account-follow.js) follow the switch.
 function switchedAccount(){
+  if(typeof followAccount==="function") followAccount();
   if(location.hash==="#analytics" && typeof loadAnalytics==="function") loadAnalytics();
   else if(location.hash.startsWith("#scheduled") && typeof openPosted==="function") openPosted(location.hash==="#scheduled/shorts"?"shorts":"vlogs");
 }
