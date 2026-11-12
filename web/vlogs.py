@@ -20,6 +20,7 @@ from settings import JOBS_DIR
 
 from web.errors import plain_error
 from web.preview import PREVIEWS, PREVIEW_PCT
+from web.priority import lower
 from web.server import app
 from web.stop_and_retry import STOPPING
 from web.store import JOBS, LOCK, load_job, update
@@ -110,6 +111,7 @@ def _poster(job):
 
 
 def _make_poster(job_id, src, duration):
+    lower()  # (web/priority.py)
     try:
         pipeline.make_poster(src, JOBS_DIR / job_id / "poster.jpg", duration)
     except Exception:  # noqa: BLE001  (the list just keeps showing a Short's thumbnail)

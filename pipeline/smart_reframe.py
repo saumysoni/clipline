@@ -384,8 +384,10 @@ def scene_changes(video_path, a, b, offset=0.0):
     import re
     import subprocess
     from pipeline.ffmpeg import ffmpeg_exe
-    p = subprocess.run([ffmpeg_exe(), "-hide_banner", "-ss", f"{max(0.0, a - offset):.3f}", "-i", str(Path(video_path).resolve()),
-                        "-t", f"{b - a:.3f}", "-an", "-vf", f"scale=320:-2,select='gt(scene\\,{SCENE})',showinfo", "-f", "null", "-"],
+    # -t before -i: it ends the reading at b. After -i it counts the frames that come out, and select lets only the new
+    # shots through, so FFmpeg read on to the end of the vlog (a long vlog: minutes for one Auto layout).
+    p = subprocess.run([ffmpeg_exe(), "-hide_banner", "-ss", f"{max(0.0, a - offset):.3f}", "-t", f"{b - a:.3f}",
+                        "-i", str(Path(video_path).resolve()), "-an", "-vf", f"scale=320:-2,select='gt(scene\\,{SCENE})',showinfo", "-f", "null", "-"],
                        stdin=subprocess.DEVNULL, capture_output=True, text=True)
     return [round(a + float(t), 3) for t in re.findall(r"pts_time:([0-9.]+)", p.stderr)]
 

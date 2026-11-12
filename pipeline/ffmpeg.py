@@ -123,7 +123,31 @@ def _run_watched(cmd, cwd, check, on_time):
     return "".join(lines)
 
 
+_PROBED = {}  # (path, size, modified) -> what probe() found: the editor asks for the same video's size on every click
+_PROBED_MAX = 256
+
+
 def probe(path):
+    """{"width", "height" (as shown: a sideways phone video is turned), "duration", "codec", "pix_fmt"} of a video.
+    Remembered for as long as the file stays the same (its size and modified time): ffprobe takes ~50 ms a time, more on a
+    busy server."""
+    try:
+        st = os.stat(path)
+        key = (os.path.abspath(path), st.st_size, st.st_mtime_ns)
+    except OSError:
+        key = None
+    hit = _PROBED.get(key) if key else None
+    if hit:
+        return dict(hit)
+    info = _probe(path)
+    if key:
+        if len(_PROBED) >= _PROBED_MAX:
+            _PROBED.clear()
+        _PROBED[key] = dict(info)
+    return info
+
+
+def _probe(path):
     # Ask for the full stream info (works on old and new FFmpeg versions alike).
     out = run([
         "ffprobe", "-v", "error", "-select_streams", "v:0",

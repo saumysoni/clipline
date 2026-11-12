@@ -40,10 +40,12 @@ async function clOpen(mode, box, vlog){
 }
 async function loadClips(){
   clearTimeout(clTimer);
+  // the rest of the channel is asked for at the same time (one wait for both, not one after the other)
+  const outside=clMode==="out" ? fetch("/api/channel-videos").then(r=>r.ok?r.json():null).catch(()=>null) : null;
   try{ const r=await fetch("/api/clips"); if(!r.ok) throw 0; const j=await r.json(); clData=j.items||[]; }
   catch(e){ $("clErr").textContent="Couldn't load your clips. Check your internet connection, then reload the page."; return; }
   $("clErr").textContent="";
-  if(clMode==="out"){ try{ const r=await fetch("/api/channel-videos"); if(r.ok) clOutside=((await r.json()).items||[]).filter(x=>x.short); }catch(e){} }
+  if(outside){ const o=await outside; if(o) clOutside=(o.items||[]).filter(x=>x.short); }
   const live=new Set(clData.map(clKey)); clPicked.forEach(k=>{ if(!live.has(k)) clPicked.delete(k); });
   paintClips(); clLoadViews();
   // Keep an eye on clips that are uploading, posting or being remade.

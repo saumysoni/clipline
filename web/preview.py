@@ -10,6 +10,7 @@ import pipeline
 from settings import JOBS_DIR
 
 from web import clean_clips
+from web.priority import lower
 from web.server import app
 from web.store import LOCK, load_job
 
@@ -20,6 +21,7 @@ VIDEO_GONE = "This video's file was deleted, so it can't be played here. Upload 
 
 
 def build_preview(job_id):
+    lower()  # (web/priority.py)
     job_dir = JOBS_DIR / job_id
     try:
         src = next(job_dir.glob("source.*"), None)

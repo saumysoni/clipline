@@ -21,6 +21,7 @@ import traceback
 
 from settings import JOBS_DIR
 
+from web.priority import lower
 from web.store import JOBS, LOCK, RECOVERED, WAITING_MSG, load_job
 
 
@@ -121,6 +122,7 @@ def run_job(job_id):
 
 
 def _run(job_id):
+    lower()  # it gives way to the pages and the editor (web/priority.py)
     try:
         run_job(job_id)
     except Exception:  # noqa: BLE001  (the run records its own errors; this is only a last guard)
