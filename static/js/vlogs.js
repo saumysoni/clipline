@@ -2,7 +2,7 @@
 // grid of cards (web/vlogs.py): a landscape picture, title and details, its Shorts, and ⋮ for Analytics, YouTube and
 // Delete. Tick vlogs (or Select all) to delete several videos at once; their Shorts stay. Videos sent only to make
 // Shorts & Reels aren't vlogs here: their Shorts (and their progress while they're made) are on Drafts.
-let vlOutside=[], vlChecked=null, vlChecking=false, vlData=null, vlPicked=new Set();
+let vlOutsideAll=[], vlChecked=null, vlChecking=false, vlData=null, vlPicked=new Set();
 // Vlogs waiting to go up live on their own pages: Drafts (prepared, not uploaded; js/drafts.js) and Scheduled (uploaded,
 // goes public later; js/on-youtube.js). This page shows the posted ones (isPostedVlog).
 // Draft: a vlog upload (not a Shorts-only video) that's ready, not on YouTube yet, and whose video is kept (so it can be).
@@ -25,7 +25,7 @@ let vlOutsideT=null;
 async function vlLoadOutside(){
   clearTimeout(vlOutsideT);
   try{ const r=await fetch("/api/channel-videos"); if(!r.ok) return; const j=await r.json();
-    vlOutside=(j.items||[]).filter(x=>!x.short); vlChecked=j.checked_at; vlChecking=!!j.pending; }catch(e){ return; }
+    vlOutsideAll=(j.items||[]).filter(x=>!x.short); vlChecked=j.checked_at; vlChecking=!!j.pending; }catch(e){ return; }
   if($("s7").hidden) return;
   paintVlogs();
   if(vlChecking) vlOutsideT=setTimeout(vlLoadOutside,4000);  // reading the channel: shows when it's done
@@ -186,23 +186,26 @@ function vlShown(){
 }
 function vlOutsideShown(){
   const q=$("vlFind").value.trim().toLowerCase();
-  return vlOutside.filter(x=>!q || x.title.toLowerCase().includes(q));
+  return vlOutsideMine().filter(x=>!q || x.title.toLowerCase().includes(q));
 }
-function vlBase(){ return vlData.filter(isPostedVlog); }
+// Only the YouTube channel chosen in the sidebar (onActive in js/core.js): its vlogs and the rest of that channel.
+function vlBase(){ return vlData.filter(v=>isPostedVlog(v) && onActive("youtube", v.vpost.channel)); }
+const vlOutsideMine=()=>vlOutsideAll.filter(x=>onActive("youtube", x.account));
 function paintVlogs(){
   const g=$("vlGrid");
   vlData.forEach(v=>{ if(!vlDeletable(v)) vlPicked.delete(v.id); });
   for(const id of [...vlPicked]) if(!vlData.some(v=>v.id===id)) vlPicked.delete(id);
-  $("vlBar").hidden=!vlBase().length && !vlOutside.length;
+  $("vlBar").hidden=!vlBase().length && !vlOutsideMine().length;
   vlPaintChecked();
-  if(!vlData.some(v=>v.kind==="vlog") && !vlOutside.length){  // never prepared a vlog here (videos sent only for Shorts don't count)
+  if(!vlData.some(v=>v.kind==="vlog") && !vlOutsideMine().length){  // never prepared a vlog here (videos sent only for Shorts don't count)
     g.innerHTML='<div class="card vl-empty"><span class="ms" aria-hidden="true">video_library</span><b>No videos yet</b>'+
       '<span>Upload a video to YouTube with a ready title, description, chapters and thumbnail, then turn it into Shorts and Reels.</span><button type="button" class="primary" id="vlFirst"><span class="ms" aria-hidden="true">add</span>Upload your first video</button></div>';
     $("vlFirst").onclick=()=>openVlogUpload(); vlBar(); return;
   }
-  if(!vlBase().length && !vlOutside.length){  // every vlog is still a draft or scheduled
-    g.innerHTML='<div class="card vl-empty"><span class="ms" aria-hidden="true">video_library</span><b>Nothing posted yet</b>'+
-      '<span>Videos you\'re still preparing are under Drafts, and ones set to go public later are under Scheduled.</span></div>';
+  if(!vlBase().length && !vlOutsideMine().length){  // every vlog is still a draft or scheduled (or on another channel)
+    const elsewhere=vlData.some(v=>isPostedVlog(v)) || vlOutsideAll.length;
+    g.innerHTML='<div class="card vl-empty"><span class="ms" aria-hidden="true">video_library</span><b>Nothing posted '+(elsewhere?"on this channel":"yet")+'</b>'+
+      '<span>'+(elsewhere?"Your other videos are on another channel: switch to it under Channels in the sidebar. ":"")+'Videos you\'re still preparing are under Drafts, and ones set to go public later are under Scheduled.</span></div>';
     vlBar(); return;
   }
   const list=vlShown(), rest=vlOutsideShown();
@@ -213,7 +216,7 @@ function paintVlogs(){
     'Try another word from its title.</span></div>';
   g.querySelectorAll(".vl-x-clear").forEach(b=>b.onclick=async()=>{
     try{ await fetch("/api/channel-videos/"+b.dataset.id+"/remove",{method:"POST"}); }catch(e){}
-    vlOutside=vlOutside.filter(x=>x.id!==b.dataset.id); paintVlogs(); });
+    vlOutsideAll=vlOutsideAll.filter(x=>x.id!==b.dataset.id); paintVlogs(); });
   g.querySelectorAll(".vr-gone").forEach(el=>{
     const v=vlData.find(x=>x.id===el.dataset.gone); if(!v) return;
     el.querySelector(".vl-gone-back").onclick=()=>vlGoneAct(v,"draft");

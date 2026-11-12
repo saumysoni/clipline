@@ -72,6 +72,6 @@ def reel_items(user_id):
     """In the shape of web/channel_videos.py's items, for the same cards."""
     own = _own_ids(user_id)
     return [{"id": r["media_id"], "platform": "instagram", "title": r["title"], "published": r["published"].replace("+0000", "Z"), "seconds": 0, "short": True,
-             "privacy": "public", "gone": False, "url": r["permalink"] if r["permalink"].startswith("https://www.instagram.com/") else "",
+             "privacy": "public", "gone": False, "account": r["ig_id"], "url": r["permalink"] if r["permalink"].startswith("https://www.instagram.com/") else "",
              "thumb": r["thumb"] if r["thumb"].startswith("https://") else ""}
             for r in db.instagram_reel_rows(user_id) if r["media_id"] not in own]

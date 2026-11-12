@@ -90,7 +90,7 @@ def items_for(user_id):
             continue
         gone = r["gone_at"] is not None
         out.append({"id": r["video_id"], "title": r["title"], "published": r["published"], "seconds": r["seconds"],
-                    "short": bool(r["is_short"]), "privacy": r["privacy"], "gone": gone,
+                    "short": bool(r["is_short"]), "privacy": r["privacy"], "gone": gone, "account": r["channel"],
                     "url": "" if gone else ("https://www.youtube.com/shorts/" if r["is_short"] else "https://www.youtube.com/watch?v=") + r["video_id"],
                     "thumb": "" if gone else f"https://i.ytimg.com/vi/{r['video_id']}/mqdefault.jpg"})
     return out

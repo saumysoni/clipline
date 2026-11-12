@@ -38,6 +38,7 @@ function paintAccount(){
   if(typeof dock==="function" && jobId) dock();
   if(typeof paintSettings==="function") paintSettings();
   if(typeof vuPaintAcct==="function" && !$("s10").hidden) vuPaintAcct();
+  if(typeof afRepaint==="function") afRepaint();  // Shorts & Reels and Videos show this channel's
 }
 // Opens Google's sign-in in a small window. Must run straight from a click, or the browser blocks it.
 function ytError(msg){ if(!$("onb").hidden) $("onbErr").textContent=msg; else if(!$("s10").hidden) $("vuErr3").textContent=msg; else if(!$("s1").hidden) $("err1").textContent=msg; else if(!$("reviewView").hidden) $("err3r").textContent=msg; else $("err3").textContent=msg; }

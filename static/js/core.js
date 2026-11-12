@@ -18,6 +18,14 @@ const shortLen = s => s.pieces && s.pieces.length ? s.pieces.reduce((n,[a,b])=>n
 // controls (vidMine(v): the page's). The editor's playhead follows the person's seeks only (js/editor.js).
 function vidSeek(v,t){ v._pcSeek=t; v.currentTime=t; }
 const vidMine = v => v._pcSeek!=null && Math.abs((v.currentTime||0)-v._pcSeek)<0.15;
+// Shorts & Reels and Videos show one YouTube channel and one Instagram account: the ones chosen in the sidebar
+// (yt / ig: js/youtube-connect.js, js/instagram-connect.js). Something with no record of its account (going up now,
+// or nothing connected on that platform) shows under whichever is chosen. js/account-follow.js reloads on a switch.
+function onActive(plat, id){
+  const a = plat==="youtube" ? (typeof yt!=="undefined" && yt.signed_in && yt.channel && yt.channel.id)
+                             : (typeof ig!=="undefined" && ig.signed_in && ig.ig_id);
+  return !id || !a || String(id)===String(a);
+}
 
 // Screens: 1 Make Shorts from a new video, 2 Making, 3 Review/Post, 4 Posted, 5 Scheduled, 6 Analytics, 7 Vlogs, 8 Settings,
 // 9 Shorts & Reels, 10 Upload a vlog to YouTube, 11 Drafts, 12 the editor (a draft Short).
