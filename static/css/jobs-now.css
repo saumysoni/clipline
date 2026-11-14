@@ -26,5 +26,14 @@ button.jn:hover{border-color:var(--line-2)}
   .jn{background:var(--panel);box-shadow:0 10px 30px rgba(0,0,0,.3)}
   .toast{left:16px;right:16px;bottom:16px;max-width:none}
 }
+/* ...and the page makes room for it: --jn-space (js/jobs-now.js) is the height it takes from the bottom of the screen, 0
+   without it. The page ends above it, and the bars at the bottom move up by it. */
+@media (max-width:1023px){
+  .main{padding-bottom:calc(48px + var(--jn-space,0px))}
+  .dock{bottom:var(--jn-space,0px)}
+  .cl-dock{bottom:calc(20px + var(--jn-space,0px))}
+  .toast{bottom:calc(16px + var(--jn-space,0px))}
+}
+@media (max-width:560px){ .cl-dock{bottom:max(76px,calc(8px + var(--jn-space,0px)))} }
 /* On phones the sidebar is the top bar; its blur would pin the card to the bar instead of the screen's bottom. */
 @media (max-width:1023px){ .side{-webkit-backdrop-filter:none!important;backdrop-filter:none!important;background:var(--panel)!important} }

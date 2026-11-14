@@ -79,7 +79,6 @@
   .page-head .ghost{width:100%}
 }
 @media (max-width:380px){ .steps li.now b{display:none} }
-
 button.pill{cursor:pointer;font:inherit;text-align:left}
 button.pill:hover{border-color:var(--line-2);color:var(--ink)}
 .who-am-i{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:.8rem;color:var(--muted);min-width:0}
@@ -146,3 +145,15 @@ button.pill:hover{border-color:var(--line-2);color:var(--ink)}
 .pl-view:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:4px}
 .pl-view[hidden]{display:none}
 @media (max-width:1023px){ .pl-view{display:none} }
+/* The top bar fits a phone's width with Help shown (it cut off Help and Settings below ~400 px, and Help at 561-640 px
+   where the account pills come back): tighter there, every button still 32 px or more to tap; the logo goes on the
+   smallest phones (it only links to the home page). */
+@media (max-width:640px){ .pill{display:none} }
+@media (max-width:400px){
+  .side{gap:4px;padding:8px 10px}
+  .side .create{padding:7px}
+  .side-nav .navlink{padding:2px}
+  .side .navlink.sm{padding:3px}
+  .side-foot,.side-me{gap:2px}
+}
+@media (max-width:360px){ .side .brand{display:none} }

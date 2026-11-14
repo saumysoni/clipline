@@ -695,6 +695,8 @@ Manual checks that work well:
 
 ## Latest changes (November 2026)
 
+Phones (Nov 2026): the progress card that floats at the bottom under 1024 px no longer covers review's "Next: post" bar, the end of Drafts / Shorts & Reels or the selection bar (`--jn-space`, set by js/jobs-now.js from the card's height: `.main` gets that much more room at the bottom, `.dock`, `.cl-dock` and the toast move up by it; 0 without a card). The top bar fits every width with Help shown (it cut off Help and Settings below ~400 px, and Help at 561-640 px): tighter under 400 px with every button 32 px or more, the account pills hidden up to 640 px, the logo hidden at 360 px and under.
+
 Speed on the server (gotcha 37): making Shorts runs at a lower priority than the pages and the editor, the crop's face finder reads only keyframes, Auto layout no longer reads to the end of the vlog, Reframe's smart buttons read a small copy of the Short's part (15-60x quicker on 4K), the Captions preview only redraws the captions at the same moment, deleting a vlog's video no longer keeps the button waiting (its clean clips are cut in the background), video sizes are remembered, Shorts & Reels asks for its two lists at once.
 
 Shorts & Reels and Videos show one account at a time (the channel / Instagram account chosen in the sidebar), with a short Loading on a switch; every card links out the same way ("Watch on ..."). Undo / Redo after Save (a whole save, remade straight away). The player's scrubber moves the timeline's playhead. No pop-up or note while a save is remade (the ring says it). Start over goes to Videos. review.css's `.busy` is now `.short .busy`: bare, it laid a dark blurred layer over the editor whenever the caption preview or the save state was busy (the Captions "blink", and a double-click on a caption line landing on it).
@@ -756,8 +758,6 @@ What Saumya's branch added since PR #19 (`nesh` merged into `main`). Merge `main
 - Low-resolution sources (e.g. 640×360 YouTube downloads) give soft Shorts; use original exports.
 - New YouTube API projects can only upload as **private** until Google's audit is passed (see README).
 - Custom thumbnails for Shorts only work on channels YouTube has enabled them for.
-- On a phone (about 390 px wide) with Help shown, the sidebar's top bar is about 13 px too wide. Known (Oct 2026),
-  not fixed yet.
 - A vlog prepared for YouTube that had Shorts made before it was uploaded can't be uploaded from Pit Crew any more
   (its page opens its Shorts' review page instead), so it shows on neither Vlogs nor Drafts' Vlogs tab; its Shorts are
   on Drafts as usual.
