@@ -55,7 +55,7 @@ def reframe_info(job_id, idx):
             traceback.print_exc()
             why_not = "This video's file couldn't be read, so the framing can't be changed."
     w, h = (meta["width"], meta["height"]) if meta else (1920, 1080)
-    if meta and not why_not:  # the smart buttons' small copy, made while the creator looks (web/reframe_look.py)
+    if meta and not why_not and not job.get("deleting_video"):  # the smart buttons' small copy (web/reframe_look.py)
         reframe_look.start(job_id, me, src, pipeline.kept_pieces(me))
     cx = clean_clips.scaled_cx(me, src) if src else me.get("cx")  # in the source's pixels
     return jsonify(reframe=pipeline.clean_reframe(me.get("reframe"), _duration(job, _transcript(job_id))),

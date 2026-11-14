@@ -36,7 +36,7 @@ from web.stop_and_retry import Stopped, finish_stop, settle, stop_point
 from web.allowance import charge, upload_problem
 from web.job_queue import enqueue_locked
 from web.video_upload import take_upload
-from web.store import JOBS, LOCK, STAGES, load_job, update
+from web.store import JOBS, LOCK, STAGES, load_job, update, video_gone
 
 VLOG_STAGES = ["Getting your video", "Transcribing", "Writing the title, description and chapters", "Designing the thumbnail"]
 UPLOADING = set()  # vlog jobs being sent to YouTube right now
@@ -165,7 +165,7 @@ def _vlog_job(job_id, need_video=True):
         abort(404)
     if job.get("status") != "ready":
         return None, (jsonify(error="Wait until the video is ready."), 400)
-    if need_video and (job.get("video_deleted_at") or not next((JOBS_DIR / job_id).glob("source.*"), None)):
+    if need_video and (video_gone(job) or not next((JOBS_DIR / job_id).glob("source.*"), None)):
         return None, (jsonify(error="Pit Crew no longer has this video's file (it's deleted 72 hours after the "
                                     "last change, to keep storage free). Upload it again."), 400)
     return json.loads(json.dumps(job, default=str)), None
@@ -410,7 +410,7 @@ def vlog_shorts(job_id):
         if [s for s in job.get("shorts", []) if not s.get("pending")]:
             return jsonify(error="This video already has Shorts. Open it to add more."), 400
         src = next((JOBS_DIR / job_id).glob("source.*"), None)
-        if job.get("video_deleted_at") or not src:
+        if video_gone(job) or not src:
             return jsonify(error="Pit Crew no longer has this video's file (it's deleted 72 hours after the last "
                                  "change, to keep storage free). Choose New video file and upload it again."), 400
         if job_id in UPLOADING:

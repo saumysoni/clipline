@@ -1068,7 +1068,11 @@ with sync_playwright() as p:
     # ---------------------------------------------------------------- 13b. the vlog deleted, the Shorts' clean clips kept
     print("13b. The vlog's video deleted by the creator: its drafts keep a clean clip")
     r = ev(f"fetch('/api/vlogs/{A}/delete-video',{{method:'POST'}}).then(r=>r.status)")
-    check(r == 200 and not glob.glob(os.path.join(H["jobs_dir"], A, "source.*")), "the vlog's video is deleted")
+    gone = lambda: ev(f"fetch('/api/status/{A}').then(r=>r.json()).then(j=>!!j.video_deleted_at)")  # noqa: E731
+    deadline = time.time() + 120  # (a longer vlog's clips are cut behind the button: web/vlogs.py delete_soon)
+    while not gone() and time.time() < deadline:
+        pg.wait_for_timeout(500)
+    check(r == 200 and gone() and not glob.glob(os.path.join(H["jobs_dir"], A, "source.*")), "the vlog's video is deleted")
     open_short(A, 1)
     ai = ev("edAE.info()")
     check(ai["can_apply"] and ai["clip"] and ai["reach"][1] - ai["reach"][0] < 200, f"the Short can still be edited, from its clip ({ai['reach']})")

@@ -20,7 +20,7 @@ from web.posting import POSTING, do_upload
 from web.retention import _remove, _short_files, draft_expires, is_draft
 from web.server import app
 from settings import JOBS_DIR
-from web.store import JOBS, LOCK, load_job, update, update_short
+from web.store import JOBS, LOCK, load_job, update, update_short, video_gone
 from web.vlogs import created_at, user_jobs
 
 UPLOADING = ("starting", "connecting", "uploading")
@@ -80,7 +80,7 @@ def clip_list(user_id):
                         "length": round(pipeline.short_length(s)), "status": status,
                         "youtube": y, "instagram": i, "remaking": bool(s.get("retrying")),
                         "expires": None if status == "removed" else draft_expires(job, s), "file_deleted": bool(s.get("file_deleted_at")),
-                        "video_deleted": bool(job.get("video_deleted_at"))})
+                        "video_deleted": video_gone(job)})
     out.sort(key=lambda c: (-c["vlog_created"], c["idx"]))
     return out
 

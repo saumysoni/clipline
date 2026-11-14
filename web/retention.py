@@ -28,8 +28,8 @@ from accounts import db, mail
 from settings import JOBS_DIR
 
 from web.posting import POSTING
-from web.store import JOBS, LOCK, load_job, update
-from web.vlogs import _empty_stop, created_at, remove_video
+from web.store import JOBS, LOCK, load_job, update, video_gone
+from web.vlogs import DELETING, _empty_stop, created_at, remove_video
 
 WARN_BEFORE = 24 * 3600
 CHECK_EVERY = 15 * 60
@@ -82,7 +82,7 @@ def _when(iso):
 
 def video_expires(job):
     """When this vlog's video will be deleted (seconds), or None (kept forever / already gone)."""
-    if not keep_original() or job.get("video_deleted_at"):
+    if not keep_original() or video_gone(job):
         return None
     return (job.get("last_edit_at") or created_at(job)) + keep_original()
 
@@ -229,7 +229,10 @@ def sweep_job(job_id, now=None):
         return _sweep_stopped(job, now)
     title = (job.get("vlog") or {}).get("title") or job.get("name") or "your video"
 
-    # 1. the vlog's video
+    # 1. the vlog's video (a deletion the creator asked for that was cut short, by a restart: finished now)
+    if job.get("deleting_video") and not job.get("video_deleted_at") and job_id not in DELETING:
+        remove_video(job_id)
+        done.append("video deleted")
     exp = video_expires(job)
     if exp and next(job_dir.glob("source.*"), None):
         if now >= exp:

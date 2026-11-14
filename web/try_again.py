@@ -12,7 +12,7 @@ import pipeline
 from settings import JOBS_DIR
 
 from web.server import app
-from web.store import JOBS, LOCK, RETRY_LOCKS, editable_job, next_file_number, update, update_short
+from web.store import JOBS, LOCK, RETRY_LOCKS, editable_job, next_file_number, update, update_short, video_gone
 from web.times import read_times
 
 
@@ -33,7 +33,7 @@ def remake_short(job_id, idx, note, times=None):
             rejected = me.get("tried", []) + ([] if me.get("pending") else [{"start": me["start"], "end": me["end"]}])
             src = next(job_dir.glob("source.*"), None)
             tr_path = job_dir / "transcript.json"
-            if not src or not tr_path.exists():
+            if video_gone(job) or not src or not tr_path.exists():  # (gone: being deleted too)
                 raise RuntimeError("This video's file was deleted, so Pit Crew can't cut a new Short from it. "
                                    "Upload the video again to make new Shorts from it.")
             tr = json.loads(tr_path.read_text(encoding="utf-8"))
