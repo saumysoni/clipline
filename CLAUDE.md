@@ -98,6 +98,8 @@ Format: **feature**: work | routes | page — notes.
   `safe()`), `web/times.py` | `js/setup-form.js`, `js/start.js`, `js/progress.js`, `sections/setup.html`, `making.html`.
 - **Vlog queue** (`JOB_SLOTS`, `JOB_SLOTS_PER_CREATOR`; `enqueue_locked()`, `run_job()`; waiting = `working` + `queued`;
   restarted runs re-queued by `load_job()`, at most `MAX_RECOVERIES`): `web/job_queue.py`, `web/store.py` (`RECOVERED`).
+  A waiting vlog's `msg` = its place + time ("Next in line · about 6 min"), shown by the making page, progress card
+  and Drafts — gotcha 37(j).
 - **Edit queue** (Saves that re-render a Short take turns server-wide): `web/edit_queue.py` — gotcha 37(i).
 - **Pause / Resume** (making: at once, gotcha 36; status `"paused"`, fields `plan` / `made` / `pausing`,
   `transcript.partial.json`; vlog upload: sending = browser `upSetPaused`, preparing = `Run`, YouTube stage =
@@ -483,6 +485,13 @@ Format: **feature**: work | routes | page — notes.
        (2 on the server, ≤ 4); the rest show `WAITING_MSG`. Thumbnail redraws don't wait. 5 saves at once on 2 cores:
        all done at 73 s before; now 30, 30, 58, 59, 73 s, memory 2.4 → 1.4 GB, pages faster. A slot is always given
        back (failed render, deleted vlog).
+    j. **A waiting vlog says its place and when it starts** (`job_queue._paint_locked`): "Next in line · about 6 min",
+       "3rd in line · ...", "Starts after your other video". The time is learned on this server (`SPEED`, seconds per
+       minute of video for "shorts" / "prep", averaged from runs that finished without a pause, kept in
+       `JOBS_DIR/_queue_speed.json`) and covers what's left of the running vlogs (by `pct`) plus those ahead, over
+       `SLOTS`. Nothing learned yet (or a length unknown) = only the place, never a made-up time. Video lengths are
+       probed outside the lock (`_lengths`); the dispatcher repaints every 5 s. Keep the text short: the sidebar card
+       cuts it on a laptop.
 
 ## Conventions
 
@@ -550,6 +559,5 @@ throwaway folders). `update.sh` runs the fast suite before every restart.
   Custom Shorts thumbnails only work on channels YouTube enabled.
 - A vlog prepared for YouTube that had Shorts made before uploading can't be uploaded from Pit Crew (opens its Shorts'
   review page); it shows on neither Videos nor Drafts' Vlogs tab.
-- UI ideas waiting for a yes: "N in line, about X min" while another vlog is made; open on Drafts when nothing is
-  posted; "← Drafts" + the vlog name on the review page; vlog thumbnails on Drafts' group heads; hide the "coming"
+- UI ideas waiting for a yes: open on Drafts when nothing is posted; "← Drafts" + the vlog name on the review page; vlog thumbnails on Drafts' group heads; hide the "coming"
   timeline rows.

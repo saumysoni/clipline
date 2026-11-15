@@ -263,7 +263,7 @@ function clGroupsHTML(list,making){
 function clLoadingCards(v){
   if(!v) return "";
   const n=v.status==="working"||v.status==="paused" ? v.count||1 : v.status==="ready" ? v.pending_shorts||0 : 0, paused=v.status==="paused";
-  const say=paused?"Paused":v.status==="ready"?"Being made":v.queued?"Waiting for a free spot":v.msg||"Working";
+  const say=paused?"Paused":v.status==="ready"?"Being made":v.queued?(v.msg||"Waiting for a free spot"):v.msg||"Working";
   return Array.from({length:n},(_,i)=>'<article class="clip cl-sk'+(paused?" still":"")+'" aria-label="'+esc(paused?"Paused":"This Short is being made")+'">'+
     '<div class="cl-thumb"><span class="cl-sk-pic"></span><span class="cl-sk-reel" aria-hidden="true"><i></i><i></i><i></i></span></div>'+
     '<div class="cl-body"><b class="cl-t">'+(n>1?"Short "+(i+1):"New Short")+'</b><div class="cl-meta"><span>'+esc(say)+'</span></div></div></article>').join("");
