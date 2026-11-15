@@ -10,7 +10,7 @@ from flask import abort, jsonify, request
 import pipeline
 from settings import JOBS_DIR
 
-from web import clean_clips
+from web import clean_clips, edit_queue
 from web.server import app
 from web.store import JOBS, LOCK, RETRY_LOCKS, editable_job, load_job, next_file_number, update, update_short
 
@@ -35,7 +35,8 @@ def rerender_hook(job_id, idx, hook, mode, style, thumb=True):
             moment = {**me, "hook": hook, "hook_mode": mode}
             pipeline.prepare_job_fonts(job_dir)
             num = next_file_number(job)
-            video, cx = clean_clips.render(src, moment, tr["words"], num, job.get("style", "bold"), job_dir, me)
+            with edit_queue.turn(job_id, idx):  # (web/edit_queue.py: a few at once on the whole server)
+                video, cx = clean_clips.render(src, moment, tr["words"], num, job.get("style", "bold"), job_dir, me)
             meta = pipeline.probe(src["path"])
             extra = {}
             if thumb and mode == "text":

@@ -23,7 +23,7 @@ from flask import abort, jsonify, request, send_file
 import pipeline
 from settings import JOBS_DIR
 
-from web import clean_clips
+from web import clean_clips, edit_queue
 from web.server import app
 from web.store import JOBS, LOCK, RETRY_LOCKS, editable_job, load_job, next_file_number, update, update_short
 
@@ -89,7 +89,8 @@ def _remake(job_id, idx, msg="Updating the captions", fail="Couldn't update the 
             if not src or not tr:
                 raise RuntimeError(NO_VIDEO)
             pipeline.prepare_job_fonts(job_dir)
-            video, cx = clean_clips.render(src, me, tr["words"], next_file_number(job), job.get("style", "bold"), job_dir, me)
+            with edit_queue.turn(job_id, idx):  # (web/edit_queue.py: a few at once on the whole server)
+                video, cx = clean_clips.render(src, me, tr["words"], next_file_number(job), job.get("style", "bold"), job_dir, me)
         update_short(job_id, idx, video=video, cx=cx, retrying=False, retry_msg=None)
     except Exception as e:  # noqa: BLE001
         traceback.print_exc()

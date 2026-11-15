@@ -24,7 +24,7 @@ import pipeline
 from pipeline.manual_moment import MANUAL_MAX, MANUAL_MIN
 from settings import JOBS_DIR
 
-from web import clean_clips
+from web import clean_clips, edit_queue
 from web.server import app
 from web.store import JOBS, LOCK, RETRY_LOCKS, editable_job, load_job, next_file_number, update, update_short
 
@@ -107,7 +107,8 @@ def _remake(job_id, idx, keep, start, end):
             fix, note = pipeline.honest_hooks(moment, pipeline.pieces_said(tr, moment))
             moment.update(fix)
             pipeline.prepare_job_fonts(job_dir)
-            video, cx = clean_clips.render(src, moment, tr["words"], next_file_number(job), job.get("style", "bold"), job_dir, me)
+            with edit_queue.turn(job_id, idx):  # (web/edit_queue.py: a few at once on the whole server)
+                video, cx = clean_clips.render(src, moment, tr["words"], next_file_number(job), job.get("style", "bold"), job_dir, me)
         update_short(job_id, idx, video=video, cx=cx, start=start, end=end, pieces=keep, retrying=False, retry_msg=None,
                      edit_note=note, **fix)
     except Exception as e:  # noqa: BLE001

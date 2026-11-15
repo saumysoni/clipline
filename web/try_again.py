@@ -11,6 +11,7 @@ from flask import abort, jsonify, request
 import pipeline
 from settings import JOBS_DIR
 
+from web import edit_queue
 from web.server import app
 from web.store import JOBS, LOCK, RETRY_LOCKS, editable_job, next_file_number, update, update_short, video_gone
 from web.times import read_times
@@ -50,9 +51,10 @@ def remake_short(job_id, idx, note, times=None):
             meta = pipeline.probe(src)
             pipeline.prepare_job_fonts(job_dir)
             say(0, "Editing the Short")
-            video, cx = pipeline.render_short(src, meta, m, tr["words"], num, job.get("style", "bold"), job_dir)
-            say(0, "Designing the thumbnail")
-            thumb = pipeline.make_thumbnail(src, meta, m, cx, num, job_dir, tr["words"], job.get("vlog"))
+            with edit_queue.turn(job_id, idx):  # (web/edit_queue.py: a few at once on the whole server)
+                video, cx = pipeline.render_short(src, meta, m, tr["words"], num, job.get("style", "bold"), job_dir)
+                say(0, "Designing the thumbnail")
+                thumb = pipeline.make_thumbnail(src, meta, m, cx, num, job_dir, tr["words"], job.get("vlog"))
         with LOCK:
             job = JOBS[job_id]
             job["last_edit_at"] = time.time()
