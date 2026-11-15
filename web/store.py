@@ -54,6 +54,12 @@ def _restarted(job, job_dir):
     return True
 
 
+def video_gone(job):
+    """The vlog's video is deleted, or being deleted (web/vlogs.py: its drafts' clean clips are cut first, in the
+    background): nothing new can start from it. Editing a draft carries on meanwhile (web/clean_clips.py source())."""
+    return bool(job.get("video_deleted_at") or job.get("deleting_video"))
+
+
 def update(job_id, **kw):
     with LOCK:
         JOBS[job_id].update(kw)

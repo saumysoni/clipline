@@ -7,7 +7,12 @@ captions follow the joined clock (pieces.timeline), in the Short's own caption s
 pipeline/captions.py; none = the job's style), framed by its reframe settings (moment["reframe"],
 pipeline/smart_reframe.py; none = the crop around the face), with its text on screen (moment["overlays"],
 pipeline/overlays.py).
+
+The same FFmpeg run also writes look_<n>.mp4: the part of the vlog it read, small (LOOK_WIDTH wide), for Reframe's smart
+buttons (web/reframe_look.py). A second output of a run that's decoding the vlog anyway costs ~5 % more; the Short is
+the same to the bit. If that run fails, the Short is made the plain way, without the copy.
 """
+import json
 import os
 from pathlib import Path
 
@@ -18,6 +23,13 @@ from pipeline.reframe import face_center_x
 from pipeline.smart_reframe import drop_commands, reframe_filter
 
 FADE = 0.02  # seconds of sound fade at each join
+LOOK_WIDTH = 640  # Reframe's small copy (web/reframe_look.py)
+
+
+def look_output(name, seconds):
+    """FFmpeg output arguments for Reframe's small copy: the input's picture, LOOK_WIDTH wide, no sound."""
+    return ["-map", "0:v:0", "-t", f"{seconds:.2f}", "-an", "-sn", "-dn", "-vf", f"scale={LOOK_WIDTH}:-2",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "26", "-g", "15", "-pix_fmt", "yuv420p", name]
 
 
 def join_filter(pieces, start, after):
@@ -61,13 +73,26 @@ def render_short(video_path, meta, moment, words, idx, style, job_dir, cx="find"
     enc = ["-c:v", "libx264", "-preset", os.getenv("X264_PRESET", "veryfast"), "-crf", "18",
            "-pix_fmt", "yuv420p", "-r", "30", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", out_name]
     src = ["-ss", f"{s - offset:.2f}", "-i", str(Path(video_path).resolve()), "-t", f"{e - s:.2f}"]
+    if len(pieces) == 1:
+        cmd = [ffmpeg_exe(), "-y", *src, "-vf", after, *enc]
+    else:
+        # -ss before -i: the input's clock starts at s, so trim times are measured from there (to 2 decimals, as -ss)
+        cmd = [ffmpeg_exe(), "-y", *src, "-filter_complex", join_filter(pieces, round(s, 2), after),
+               "-map", "[vo]", "-map", "[ao]", *enc]
+    look, info = f"look_{idx}.mp4", job_dir / f"look_{idx}.json"
+    info.unlink(missing_ok=True)
     try:
-        if len(pieces) == 1:
-            run([ffmpeg_exe(), "-y", *src, "-vf", after, *enc], cwd=job_dir)
-        else:
-            # -ss before -i: the input's clock starts at s, so trim times are measured from there (to 2 decimals, as -ss)
-            run([ffmpeg_exe(), "-y", *src, "-filter_complex", join_filter(pieces, round(s, 2), after),
-                 "-map", "[vo]", "-map", "[ao]", *enc], cwd=job_dir)
+        if not Path(video_path).name.startswith("source."):  # a clean clip (the vlog's video is gone): small already
+            run(cmd, cwd=job_dir)
+            return out_name, cx
+        try:
+            run(cmd + look_output(look, e - s), cwd=job_dir)
+            start = round(s - offset, 2) + offset
+            info.write_text(json.dumps({"from": round(start, 3), "to": round(start + (e - s), 3)}), encoding="utf-8")
+        except RuntimeError as err:  # (not Stop or Pause: those carry on up)
+            (job_dir / look).unlink(missing_ok=True)
+            print(f"The Short is made without Reframe's small copy ({str(err)[:200]}).")
+            run(cmd, cwd=job_dir)
     finally:
         drop_commands(job_dir, cmds)
     return out_name, cx

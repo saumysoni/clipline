@@ -308,9 +308,15 @@ with sync_playwright() as p:
     # (no internet here, so the icon font doesn't load and icons show as their names: give them an icon's size)
     if not ev("document.fonts.check('20px \"Material Symbols Outlined\"')"):
         pg.add_style_tag(content=".ms{display:inline-block;width:1em;overflow:hidden;white-space:nowrap}"); pg.wait_for_timeout(300)
-    # (the sidebar's top bar is checked on its own: with Help shown it's a little too wide on a phone, see CLAUDE.md)
     out = ev("(()=>{ const m=document.querySelector('.main'); return m.scrollWidth-m.clientWidth; })()")
     check(out <= 1, f"phone width: nothing on Drafts sticks out sideways ({out}px)")
+    for w in (320, 360, 390):  # the top bar fits, Settings (and Help when shown) on screen, every button tappable
+        pg.set_viewport_size({"width": w, "height": 844}); pg.wait_for_timeout(200)
+        bar = ev("""(()=>{ const s=document.querySelector('.side');
+            const b=[...s.querySelectorAll('#settingsNav,#helpNav,#createBtn,.side-nav .navlink')].filter(e=>e.offsetParent);
+            return {cut: Math.max(...b.map(e=>Math.round(e.getBoundingClientRect().right-innerWidth))),
+                    small: Math.min(...b.map(e=>Math.round(e.getBoundingClientRect().width)))}; })()""")
+        check(bar["cut"] <= 0 and bar["small"] >= 32, f"{w}px phone: the top bar fits ({bar})")
 
     print()
     check(not errs, f"no errors in the page: {errs}")

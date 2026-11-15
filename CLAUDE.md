@@ -1,759 +1,563 @@
 # CLAUDE.md
 
-**The product is called Pit Crew** (renamed from Clipline in Oct 2026). Use "Pit Crew" in everything people see. Internal names keep `clipline` on purpose (repo, folder, `data/clipline.db`, `clipline-theme` storage key, `clipline_ids`, postMessage `{clipline: ...}`): renaming them would break existing setups for nothing.
+Read before changing code. Dense on purpose: every line is a rule or a fact that cost a bug. Gotcha numbers are cited in
+code comments: keep them stable, add new ones at the end.
 
-**People see "Video", never "Vlog"** (Nov 2026: Pit Crew isn't only for vlogs). The code keeps `vlog` on purpose, as it does here: `/api/vlogs`, `#vlogs`, `kind: "vlog"`, `vpost`, `isDraftVlog`, the `web/vlog_*.py` files. AI prompts can say vlog too. Below, "vlog" means what the code calls it; the page says video.
-
-Guidance for Claude (and humans) working on this repo. Read this before changing code.
+**Names.** The product is **Pit Crew** (was Clipline): use it in everything people see; internal names keep `clipline`
+(repo, `data/clipline.db`, `clipline-theme`, `clipline_ids`, postMessage `{clipline:...}`). People see **"Video", never
+"Vlog"**; the code keeps `vlog` (`/api/vlogs`, `#vlogs`, `kind:"vlog"`, `vpost`, `web/vlog_*.py`), and so does this file.
 
 ## Top priorities (November 2026)
 
-These come first, ahead of anything else listed in this file.
-
-**Saumya**
-- Making the Analytics page easy to navigate
-- Instagram pipeline (posting and getting analytics)
-- Adding meaning to the Undo and Redo buttons
-
-**Nesh**
-- Implement the other advanced editing features, and test and improve the existing ones
-- Fetching info (transcript, title, description) directly through a YouTube URL, without using the YouTube API
-- Deploy the application in production
-
-**Both**
-- Improve the app's latency
+- **Saumya:** Analytics page easy to navigate; Instagram pipeline (posting + analytics); meaningful Undo / Redo.
+- **Nesh:** the other advanced editing features (test and improve the existing ones); transcript / title / description
+  from a YouTube URL without the YouTube API; production deploy.
+- **Both:** app latency (gotcha 37).
 
 ## What Pit Crew is
 
-A local web app that turns one long vlog into finished vertical YouTube Shorts:
-transcribe (faster-whisper) → pick moments (Gemini, or OpenAI with `AI_PROVIDER=openai`) → cut,
-reframe to 9:16 around the face, burn in word-by-word captions (FFmpeg + libass) → thumbnail (Pillow)
-→ review in the browser → upload and schedule (YouTube Data API v3).
+A web app (live on GCP, `deploy/`) that turns one long vlog into vertical Shorts / Reels: transcribe (faster-whisper) →
+pick moments (Gemini, or OpenAI with `AI_PROVIDER=openai`) → cut, reframe 9:16 around the face, burn word-by-word
+captions (FFmpeg + libass) → thumbnail (Pillow) → review → post / schedule (YouTube Data API v3, Instagram API).
+Users are **creators, not developers**: every error they can see is plain English and says what to do next.
 
-Today it runs on your own computer (the prototype); it is going to the cloud (below). The people using it are
-**creators, not developers**:
-every error they can see must be plain English and say what to do next.
+**Cloud rules (every change):** no code paths for one kind of computer (no Apple-only / GPU-brand engines; portable
+libraries that adapt); tune speed with settings (`WHISPER_DEVICE`, `WHISPER_BATCH_SIZE`, `WHISPER_THREADS`,
+`X264_PRESET`...), never `if mac:`; `pipeline/` has no web or UI code (it's the future worker: pass everything in);
+treat local files as temporary (`jobs/` → cloud storage, `JOBS` → a database). `start-mac.command` /
+`start-windows.bat` are local conveniences. (An Apple-GPU MLX transcriber was set aside: `_backups/`.)
 
-## Direction: this is going to the cloud
-
-Decided October 2026: Pit Crew will become a hosted web app. Creators upload from any device and our
-servers do the work. The local version is the prototype. **Every change must work the same on a
-Linux cloud server as on a laptop:**
-
-- **No code paths for one kind of computer** (no Apple-only, Windows-only or GPU-brand-only engines).
-  Use portable libraries that adapt by themselves. For example, faster-whisper uses an NVIDIA GPU
-  when present and the processor otherwise.
-- **Tune speed with environment settings** (`WHISPER_DEVICE`, `WHISPER_BATCH_SIZE`, `WHISPER_THREADS`,
-  `X264_PRESET`, ...), not with `if mac:` branches. A cloud server sets them once.
-- **Keep `pipeline/` free of web or UI concerns.** It will become the worker that processes queued
-  jobs. Pass everything it needs as arguments or settings.
-- **Treat local files as temporary.** The `jobs/` folder will become cloud storage, and in-memory `JOBS`
-  will become a database. Don't build features that assume one long-running process on one disk.
-- `start-mac.command` / `start-windows.bat` are local-development conveniences only.
-- An Apple-GPU (MLX) transcription experiment was set aside for this reason (kept outside git, in
-  `_backups/apple-gpu-transcription/`).
-
-## Next: the advanced editor (decided October 2026)
-
-The editor screen (screen 12, `js/editor.js`) is laid out with a rail of tools. **Details, AI Edit, Captions, Reframe, Trim and Text (Text & Overlays: text only so far)
-work, on Twick's timeline** (AI Edit: plain JS + FFmpeg, gotcha 30; Captions: plain JS + FFmpeg/libass, gotcha 33; Reframe:
-plain JS + FFmpeg, gotcha 34; the timeline: Twick, gotcha 31); the others are marked Soon and are built next.
-They live **only in the editor of a draft** (Drafts › Edit), never on the Shorts & Reels page: clips there have
-already gone out.
-
-**The four features**
-
-| Feature | What it does |
-|---|---|
-| 1. AI Edit (built) | Remove pauses and filler words, improve the hook, better pacing, edit by editing the transcript text (the AI's suggested cuts and "Make it shorter" (30 / 45 / 60 s) were tried and removed, Oct 2026: the creator didn't choose the cuts, and they weren't reliable) |
-| 2. Auto Captions (built) | Edit the words, fonts and colours, highlight the spoken word, animations, timing, caption presets |
-| 3. Smart Reframe (built) | Follow the speaker automatically, adjust the crop by hand, zoom / pan moves over time (glide or cut), Fill / Fit / Split layouts (other aspect ratios left out: Shorts and Reels are 9:16, and the render, cover frame and posting assume 1080x1920) |
-| 4. Effects & Enhancements | Filters, transitions, text overlays (text built Nov 2026: the Text & Overlays tool; call to action and stickers next), B-roll, images, music, speed changes, audio effects |
-
-**Framework: Twick** (React components for a multi-track timeline, canvas editing and live preview, with timeline
-APIs). In use since October 2026 for the editor's timeline only (`editor-app/`, gotcha 31): its video track reads and
-writes a Short's `pieces` (gotcha 30), and the server renders them. Its player and canvas aren't used (the editor's own
-`<video>` plays the saved Short). **Licence:** Twick's own "Sustainable Use License" (its `LICENSE.md`, shipped in
-`static/editor-app/LICENSES.txt`): use in commercial projects and bundling it inside a larger service are allowed;
-offering Twick itself as a hosted service, a competing video-editor product, or "substantial revenue from the
-Software's functionality" need a commercial licence (contact@kifferai.com). Keep its notices, don't use its name or logo.
-"Substantial" isn't defined: get it in writing from them before launch. OpenCut stays a future option only.
-
-**Tech stack**
-
-| Layer | Technology | Purpose |
-|---|---|---|
-| Frontend editor | React + TypeScript + Twick | Timeline, canvas, preview, drag and drop |
-| The rest of Pit Crew | Vanilla JavaScript + CSS (as now) | Every other page stays as it is |
-| Backend | Python + Flask | Editing routes, saving editor projects, render jobs |
-| AI | Gemini / OpenAI through `ai_json()` | Edit suggestions, hooks, smart cuts |
-| Transcription | faster-whisper | Word-level transcript and timings (already in `transcript.json`) |
-| Video | FFmpeg (`ffmpeg_exe()`) | Trims, effects, audio mixing, the final render |
-| Captions | FFmpeg + libass | Styled captions in sync (gotchas 3, 4, 8, 25 still apply) |
-| Face tracking | OpenCV (+ MediaPipe, optional) | Reframing and following the subject (gotcha 2: OpenCV < 5) |
-| Project storage | JSON in the job folder first; a database + file storage in the cloud | The editable timeline and what media it uses |
-
-**What this changes in the rules here (decide each when the work starts):**
-- **The editor is the one exception to "no frontend framework, no build step".** React lives only in `editor-app/`,
-  which builds to `static/editor-app/` (`timeline.js`, `style.css`, `LICENSES.txt`), loaded by `js/editor.js` the
-  first time the editor opens and mounted into `#edTwick`. **The built files are committed**, so the server needs no
-  Node: after changing `editor-app/`, rebuild (`cd editor-app && npm ci --ignore-scripts && npm run build`) and commit
-  both. Every other page stays plain JS.
-- **The page's Save / Discard / Finish stay** (no undo outside the editor): the editor's own undo / redo is extra.
-  Details (`js/short-details.js`) keeps working beside the new tools.
-- **The render stays on the server, with FFmpeg.** The browser preview is only a preview: what goes to YouTube and
-  Instagram is rendered by `pipeline/` (keep it free of web code, the cloud rules above). New work goes in new
-  `pipeline/<feature>.py` files, routes in new `web/<feature>.py` files.
-- **Edits that need the vlog's video** (Trim past the moment, B-roll, Try again) only work while it's kept
-  (`KEEP_ORIGINAL_HOURS`, gotcha 21): say so on the tool, as Try again does.
-- **Hooks must stay true** (gotcha 13) and **no YouTube data to free Gemini** (gotcha 29) for every new AI prompt;
-  each new prompt needs a branch in `tests/fakes.py` `FakeAI.kind()`.
-- **Music and B-roll:** royalty-free tracks only (nothing that gets claimed or muted); B-roll only from the
-  creator's own vlog.
-- Twick's licence is checked (above); check MediaPipe's before using it. Add any new service or stored data to the
-  privacy policy (gotcha 26): Twick adds none (its analytics are off and its web fonts are stripped, gotcha 31).
+**The editor** (screen 12, `js/editor.js`): tools Details, AI Edit (gotcha 30), Captions (33), Reframe (34), Trim + the
+timeline (31), Text & Overlays (text only) work; Audio, Thumbnail, Effects are marked Soon (`ED_TOOLS`). Only in a
+draft's editor (Drafts › Edit), never on Shorts & Reels (those went out). Next: Effects & Enhancements (filters,
+transitions, call to action, stickers, B-roll, images, music, speed, audio effects). Rules for new editor work:
+- React lives only in `editor-app/` (Twick's timeline), built to `static/editor-app/` (`timeline.js`, `style.css`,
+  `LICENSES.txt`) and **committed** (the server has no Node): `cd editor-app && npm ci --ignore-scripts && npm run
+  build`, commit both. Every other page is plain JS, no build.
+- The render stays on the server with FFmpeg (the browser only previews). New work: `pipeline/<feature>.py` +
+  `web/<feature>.py`.
+- Edits that need the vlog's video (Trim past the moment, B-roll, Try again) only work while it's kept (gotcha 21):
+  say so on the tool. Hooks stay true (13); no YouTube data to free Gemini (29); each new prompt needs a branch in
+  `tests/fakes.py` `FakeAI.kind()`. Music: royalty-free only. B-roll: only from the creator's own vlog.
+- **Twick licence** ("Sustainable Use License", `static/editor-app/LICENSES.txt`): fine inside Pit Crew; a commercial
+  licence is needed for "substantial revenue from the Software's functionality" (undefined): get it in writing from
+  contact@kifferai.com before launch. Keep its notices, never its name / logo. Check MediaPipe's licence before use.
+  New services or stored data go in the privacy policy (26).
 
 ## Run it
 
 ```bash
-cp .env.example .env              # then paste a Gemini key into GEMINI_API_KEY
-bash start-mac.command            # Mac (Windows: start-windows.bat)
-# → creates .venv, installs requirements.txt, runs app.py, opens http://localhost:8000
+cp .env.example .env           # paste a Gemini key into GEMINI_API_KEY
+bash start-mac.command         # or start-windows.bat: makes .venv, installs, runs app.py, opens localhost:8000
 ```
-
-The start scripts reinstall packages whenever `requirements.txt` differs from
-`.venv/installed-requirements.txt`, so **changing requirements.txt is how you ship a dependency fix** to
-someone else's machine. Needs Python 3.10+ and FFmpeg/ffprobe on PATH.
-
-Manual run: `.venv/bin/python app.py`. There is no build step. Tests: `python -m unittest discover -s tests -t .`
-(a few seconds; see "Testing" below).
-
-**On a server** (the live site): `python serve.py` (Waitress) behind Caddy, set up by `deploy/setup.sh`, updated with
-`deploy/update.sh`. **LAUNCH.md** is the step-by-step launch; gotcha 24 has the rules.
+The start scripts reinstall when `requirements.txt` differs from `.venv/installed-requirements.txt` (so editing it ships
+a dependency fix). Python 3.10+, FFmpeg / ffprobe on PATH. Manual: `.venv/bin/python app.py`. Server: `serve.py`
+(Waitress) behind Caddy, `deploy/setup.sh` / `deploy/update.sh`, `LAUNCH.md`, `GCP-PRODUCTION.md` (gotcha 24).
 
 ## Where things live: one feature per file
 
-The code is split so two people can work on different features without touching the same file.
-**A feature usually has up to three files with the same name**: the work in `pipeline/` (or
-`youtube/`), the web routes in `web/`, and the page in `static/js/` (+ `static/css/`, `static/sections/`).
+So two people rarely touch the same file. A feature has up to three same-named files: work in `pipeline/` (or
+`youtube/`, `instagram/`, `accounts/`), routes in `web/`, page in `static/js/` (+ `css/`, `sections/`).
+Format: **feature**: work | routes | page — notes.
 
-| Feature | Work | Web routes | Page |
-|---|---|---|---|
-| Accounts (email + Google sign-in), `gate()` | `accounts/db.py` | `web/accounts.py` | `js/account.js`, `sections/auth.html`, `css/auth.css` |
-| Forgot password (reset link by email) | `accounts/db.py` (`password_resets`), `accounts/mail.py` | `web/password_reset.py` | `js/password-reset.js`, `sections/auth.html` |
-| Confirm your email (link on sign-up, `#verify=<token>`, 48 h; **nothing works until it's confirmed**: `gate()` answers 403 `verify: true` except `UNCONFIRMED_OK`; the confirm screen `#verifyForm` checks every 5 s, Resend, Change email for a typo (`POST /api/auth/email`, `change_email()`), Sign out; Google sign-ins are confirmed) | `accounts/db.py` (`email_verifications`, `change_email`) | `web/verify_email.py`, `web/accounts.py` (`UNCONFIRMED_OK`) | `js/verify-email.js` (`showVerify`), `sections/auth.html`, `css/auth.css`, `css/verify-email.css` |
-| Delete account (Settings: type the email; every vlog, saved transcript, connection (YouTube revoked) and the account; refused while something is being made or posted) | `accounts/db.py` (`delete_user`) | `web/delete_account.py` | `js/delete-account.js`, `sections/settings.html` |
-| Emails when away (Shorts ready, vlog ready to upload, stopped, posting failed; not while the creator watches the page, only to confirmed emails; links use `APP_URL`) | | `web/notices.py` | |
-| Stop / Try again a whole vlog (Stop while it's made, or paused: removed, or back to ready if it was prepared for YouTube; then Drafts; Try again after it stopped: same video and transcript) | | `web/stop_and_retry.py` | `js/vlog-again.js` (used by `js/progress.js`, `js/clips.js` (Drafts), `js/vlog-upload.js`) |
-| Pause / Resume on a vlog upload, all three stages (Nov 2026): sending the file (`upSetPaused` in `js/video-upload.js`: at once, the 8 MB piece on its way is dropped and sent again on Resume, browser only); being prepared (at once, `Run` in `web/pause.py`, the words so far and the AI's details kept); going to YouTube (`/upload-pause`, `/upload-resume`, `/upload-cancel`: vpost state `"paused"`, `job["vresume"]` = the resumable address, byte and quota count, never sent to the page; retention drops it after `KEEP_ORIGINAL_HOURS`) | `youtube/vlog_upload.py` (`UploadPaused`) | `web/vlog_upload.py` | `js/vlog-upload.js`, `js/video-upload.js` |
-| AI suggestions for a video's title, description, tags (a request in the creator's words, optional; options to Use; a description's chapter lines are kept as they are; nothing saved until picked) | `pipeline/vlog_suggest.py` | `web/vlog_suggest.py` | `js/vlog-suggest.js`, `css/vlog-upload.css` |
-| Save ring in the editor (beside the save state while a remake runs: how much of the new version is made, spinning until there's a number; `edRing`, read every second, in memory only) | `pipeline/ffmpeg.py` (`watching(on_time=)`, `-progress pipe:1`) | `web/remake_progress.py` (`/api/remake/<job>/<idx>`), `web/clean_clips.py` (`render`) | `js/editor.js`, `sections/editor.html`, `css/editor.css` |
-| Pause / Resume while Shorts are made (the making page and Drafts' card: Pause takes effect **at once, whatever it's doing** (Nov 2026, gotcha 36); status `"paused"` leaves the queue (its spot goes to the next vlog) and keeps what's done (the words so far in `transcript.partial.json`, `plan` = the moments chosen, `made` = the Shorts edited, `shorts` with thumbnails, the transcript file); Resume queues it again and the run carries on from there (a half-edited Short from that Short's start); Stop works on a paused vlog; kept like a stopped one (`web/retention.py`): after `KEEP_ORIGINAL_HOURS` it stops for good. A vlog upload being prepared pauses the same way) | | `web/pause.py`, `web/make_shorts.py` (`safe()`) | `js/vlog-again.js` (`pauseVlog`, `resumeVlog`), `js/progress.js`, `js/clips.js`, `js/jobs-now.js` |
-| Sidebar (+ Create; Workspace: Vlogs, Shorts & Reels, Drafts, Scheduled, Analytics; Channels, each connected one with "View your channel" (YouTube: its @handle, else /channel/<id>) / "View your profile" (Instagram) under its name, opening in a new tab; Settings (with the person's name; the account is the top of Settings) / Appearance; the logo goes to `/welcome`. Making Shorts and their review page mark Drafts (`NAV_FOR` in `js/core.js`)) | | | `sections/sidebar.html`, `js/nav.js`, `js/youtube-connect.js`, `js/instagram-connect.js` (`#ytView`, `#igView`), `css/shell.css` |
-| Drafts page (screen 11, `#drafts` / `#drafts/shorts`; tabs Vlogs = `isDraftVlog` (vlog uploads not on YouTube yet) and ones being prepared or stopped (`dfPrepping`), Shorts & Reels = the Shorts & Reels clip browser in "drafts" mode (`isDraftClip`: on neither platform), **grouped by vlog** (`clGroupsHTML`: a head per vlog with how many drafts and **Review & post** = that vlog's review page, `openJob`), plus vlogs whose Shorts are being made, paused or stopped (`dfMaking`: progress, Pause / Resume, Stop, See progress; Try again, Remove), kept up to date by the progress card's checks (`dfFollow`); vlog filter, Select, Schedule, Delete; a card opens Quick review, its Edit the editor, ⋮ › Review & post the review page) | | `web/vlogs.py`, `web/clips.py` (same APIs) | `js/drafts.js`, `js/clips.js`, `sections/drafts.html`, `css/clips.css` (`.clg`) |
-| Vlogs / Shorts & Reels tabs (Drafts and Scheduled; `pageTabs()`, last tab clicked remembered) | | | `js/page-tabs.js`, `css/page-tabs.css` |
-| Channel videos (Nov 2026: what's on the creator's YouTube channels that Pit Crew didn't post. Long ones on the Videos page, with a YouTube link and why they can't be used; Shorts on Shorts & Reels, marked "Made outside Pit Crew". Public and unlisted only. A Short = `#short` / `#shorts` in the title, description or tags, or 3 minutes or less: the API has no flag, and asking `youtube.com/shorts/<id>` is unofficial, so it isn't used. Read at most daily per channel, or Check now (once per 6 hours: the quota is shared); kept in `channel_videos`) | `youtube/channel_videos.py`, `accounts/db.py` | `web/channel_videos.py` | `js/vlogs.js` (`vlOutside`), `js/clips.js` (`clOutside`) |
-| First connect (Nov 2026; once per account. New accounts get Connect your accounts after the email is confirmed (`users.onboarded_at`; people already signed up skip it; Skip for now). Connecting an account Pit Crew has never read (`db.channel_checked`) reads what's on it straight away, and a full-page wait shows real steps, then lands on Videos or Shorts & Reels. Never holds anyone: after 30 s it sends them on while the read carries on; a failed read says so and the daily read retries. Connected in the middle of something (`signIn(then)`, or screens 1-4, 10, 12): no screen, it comes in behind) | (reads: `web/channel_videos.py`, `web/instagram_reels.py`) | `web/first_import.py` (`/api/import/status`, `/begin`, `/seen`; what's running is in memory only) | `js/first-import.js`, `sections/first-import.html`, `css/first-import.css` |
-| One account at a time (Nov 2026: Shorts & Reels and Videos show only the YouTube channel and Instagram account chosen in the sidebar: `onActive(plat, id)` in `js/core.js`, against upload records' `channel`, `ig_posts`' `ig_id`, a vlog's `vpost.channel` and the outside items' `account`; nothing recorded = shown. A clip on two accounts shows only the chosen one's platform and link; tab counts follow. Switching or disconnecting shows "Loading …" over the page for at least 1 s while it reloads (`followAccount()`, from `switchedAccount()`); `afRepaint()` redraws when the accounts' details arrive. Every card links out as "Watch on YouTube" / "Watch on Instagram", in the same place. Drafts aren't filtered: they belong to no account yet) | | `web/clips.py`, `web/vlogs.py`, `web/channel_videos.py`, `web/instagram_reels.py` (the account on each item) | `js/account-follow.js`, `css/account-follow.css`, `js/clips.js` (`clOnPlat`, `clVisible`, `clOutsideMine`), `js/vlogs.js` (`vlBase`, `vlOutsideMine`); `tests/browser/check_accounts.py` |
-| Instagram's other Reels (Nov 2026: Reels Pit Crew didn't post, on Shorts & Reels as "Made outside Pit Crew" with an Instagram link, in `/api/channel-videos`' items with `platform: "instagram"`. Read on connect, then at most daily; each read replaces the list, so one deleted on Instagram just goes. Kept: id, caption's first line, date, link, picture address (these expire: the daily read renews them, a card with a dead one shows a stand-in). `db.drop_connection` deletes them with the connection, however it ends) | `instagram/reels.py`, `accounts/db.py` (`instagram_reels`) | `web/instagram_reels.py` | `js/clips.js` (`clOutsideCard`) |
-| Removed or deleted cards (a Short or vlog Pit Crew posted that's gone from YouTube or Instagram no longer counts as posted: a grey card on Shorts & Reels or the Videos page, Back to Drafts or Remove; gone from one platform only = a "Removed" pill, still posted on the other. Checked **once a day**, pages never ask: creator's decision, Nov 2026. One deleted while only scheduled just becomes a draft) | | `web/removed.py`, `web/youtube_sync.py`, `web/youtube_upkeep.py` | `js/clips.js` (`clGoneCard`), `js/vlogs.js` (`vlGoneHTML`) |
-| Vlogs page (home: **vlogs posted on YouTube with Pit Crew, or going up now** (`isPostedVlog`), plus the channel's other videos (above): drafts and scheduled ones have their own pages (`isDraftVlog` / `isScheduledVlog`), and videos sent only to make Shorts & Reels aren't vlogs here (their Shorts, progress and stops are on Drafts); a posted vlog stays after its video is deleted here; as a grid of cards (`vlRow`, also on Drafts and Scheduled: picture, title, details, Shorts buttons in `.vr-acts`, ⋮ = Analytics / Watch on YouTube / Delete video); each row's Shorts as buttons "5 drafts" / "1 scheduled" / "2 posted" to Drafts / Scheduled / Shorts & Reels (`vlShortsActs`, `vlOpen`, `vlWire` also used by Drafts and Scheduled); landscape picture = the vlog's YouTube thumbnail, else `poster.jpg`, else a Short's thumbnail on a blur; find by title; tick or Select all to delete several videos, their Shorts stay; a vlog that stopped before making any Shorts is removed completely; stopped vlogs show `web/errors.py`'s plain reason) | `pipeline/poster.py` | `web/vlogs.py` (`/api/vlogs`, `delete-video`, `delete-videos`) | `js/vlogs.js`, `sections/vlogs.html`, `css/vlogs.css` |
-| Upload a vlog to YouTube (+ Create → Upload a vlog, or Upload a vlog on the Vlogs page; screen 10, `#vlog/new` / `#vlog/<id>`): transcribe, AI title ideas + description with chapters + tags + a 16:9 thumbnail (Frame / Duotone), the creator edits (saved as typed), uploads public / scheduled / unlisted / private, then is offered "Make Shorts & Reels from this vlog?" | `pipeline/vlog_meta.py`, `pipeline/vlog_thumbnail.py`, `youtube/vlog_upload.py` | `web/vlog_upload.py` (`/api/vlog/start`, `/<id>/draft`, `/look`, `/upload`, `/shorts`) | `js/vlog-upload.js`, `sections/vlog-upload.html`, `css/vlog-upload.css` |
-| What to make (+ Create asks: upload a vlog, or make Shorts; Make Shorts asks: from a vlog uploaded here, while its video is kept, or a new video file = screen 1) | | `web/vlog_upload.py` (`/shorts`) | `js/make-choice.js`, `sections/make-dialogs.html`, `css/vlog-upload.css` |
-| Shorts & Reels page (header: Create from Vlog = `openMake()`, Upload & Edit = `openCreate()`; the editing tools live in the editor on Drafts, not here (posted clips can't be edited); one filter row: platform tabs left, Select / vlog / sort right; cards (5 a row on a laptop): 9:16 thumbnail (plays), title, platform + date, status pill (one per platform when they differ), views so far (YouTube live count + Reel views, `/api/clips/views` in `web/clip_views.py` via `live_views()`, asked after the cards are drawn, at most once a minute), ⋮ = Play / Edit / Analytics / Download / Delete draft (`clMenuItems`); clips that went out or are going out now, `isOutClip`; drafts and scheduled ones are on their own pages, and a clip that's out on one platform and planned on the other shows only the platform it's out on, `clOnPlat`. `#clBrowse` (bar + grid + Select / dock / schedule dialog) is one clip browser that `clOpen(mode, box, vlog)` moves into Shorts & Reels ("out") or Drafts ("drafts"); platform tabs All / YouTube Shorts / Instagram Reels with counts (`clPlatTabs()`, Shorts & Reels only); vlog filter and sort; Select / Select all on both pages (a tick box on every card, greyed out with the reason when it can't be scheduled: already on both platforms, or being remade; while selecting, a click on the picture ticks the card); Analytics / Download / Edit; schedule several at once on one plan of times; a clip on one platform but not the other has "Post it on Instagram too" / "Post it on YouTube too" on its card (`clPostOne()`: the same dialog, only that platform ticked); titles saved as typed) | | `web/clips.py` | `js/clips.js`, `sections/clips.html`, `css/clips.css` |
-| Quick review (Drafts' Shorts & Reels tab: clicking a draft's picture, or ⋮ › Quick review, opens a panel beside the cards (over them below 1280 px, full screen on a phone): player with a Short / Thumbnail switch (`sdView`), vlog, status per platform, the simple editing in `js/short-details.js` (`shortDetails()`, shared with the editor's Details; hook `wireHook(el, s, {jid, pre, apply})`, look, hashtags / YouTube title / Instagram caption `postTextHTML(s, pre)` + `wirePostText(el, s, jid)`, same routes; **nothing is saved until Save**: changes wait in `qrPend` (post-text's `hold`, hook's `apply`), Cancel goes back to what's saved, closing or leaving with changes asks first), an "AI suggestions" Soon block; Edit draft / Schedule (this clip only) / Download. Saving a hook or look remakes the Short (hook first, then the look): the clip list's 3 s check follows it and `qrSync()` redraws the panel; never `sendMoment()` from here, it starts the review page's polling) | | `web/job_status.py`, `web/hooks.py`, `web/thumbnail_look.py`, `web/post_text.py`, `web/clips.py` (title) | `js/short-details.js`, `js/quick-review.js`, `sections/quick-review.html`, `css/quick-review.css` |
-| Editor (screen 12, `#edit/<vlog>/<short>`, a draft's Edit on Drafts and Quick review's Edit draft; its own layout: the sidebar is hidden (`body.ed-on`); on wide screens the tools' edge (`#edRailGrip`) drags them narrower / wider (160-340 px) or, far left, into a row above the player (`.rail-top`, like a laptop; back with "Tools on the side" or by dragging; arrow keys / Enter too; kept in localStorage `pc-ed-rail`); leaving pauses the player; one bar = Back (Drafts), "Edit Short", the save state (Saved / n changes not saved), **Undo / Redo** (one history for every tool's changes not saved yet: Details through `shortDetails` `snap()` / `restore()`, AI Edit and Trim through `aiEdit` `restore()`, Captions through `captionEdit` `snap()` / `restore()`, Reframe through `reframeEdit` `snap()` / `restore()`; typing in one field is one step until a 1.5 s pause; Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z outside text fields; saving and Discard start it afresh: `edRecord`, `edGo`. **With nothing waiting to be saved, Undo goes back a whole save and saves it at once** (no Save to press: the Short is remade as it was), Redo puts it back: `edSaves` / `edRedos` (`{before, after}`, `edSavedSnap()`, `shortDetails` `savedFor()`), for this visit only; a thumbnail's Try again can't be undone), ⋮, Export (video, thumbnail), Finish (saves, waits for a remake, then Schedule it / Back to Drafts: `#edFin`); the Details tool has the same editing as Quick review (`shortDetails()`, title included); player with Short / Thumbnail (its own scrubber moves the red playhead too: the page's own seeks go through `vidSeek()` in `js/core.js`, any other seek is the creator's, `edUserSeek`); tool rail (Details, AI Edit, Captions, Reframe, Trim, Text & Overlays, Audio, Thumbnail, Effects), player, timeline (Twick's, below), the chosen tool's panel (its edge `#edPanelGrip` drags it wider or narrower, 260-640 px, the player keeps 380; double-click = usual width; kept in localStorage `pc-ed-panel`), with **Save / Discard pinned to its bottom** while something isn't saved (`#edSaveRow`, Cmd/Ctrl+S too). **Most tools are laid out but not working yet** (`ED_TOOLS`: each lists what it will do, marked Soon; `built: true` = a real panel); what works: Details, AI Edit (`js/ai-edit.js`), Captions (`js/captions.js`), Reframe (`js/reframe.js`), Text & Overlays (`js/overlays.js`, text only), Trim and the timeline, player, Finish, Export, ⋮ (Quick review, Open in its vlog = the old editor with Try again, Delete draft). Phones get a "needs a bigger screen" note) | | `web/clips.py` | `js/editor.js`, `sections/editor.html`, `css/editor.css` |
-| Editor timeline and Trim (**Nov 2026: the playhead has a handle (`.ts-knob`): drag it or the times above the row (`startScrub`), and it can rest on a part the saved video hasn't got (`edHeadT`, `edHeadNow()`: the Video row, the Captions row and the time all follow it). `#edPlayBtn` / Space play from it (`edHeadPlay`: the saved video if nothing changed, else `trimView`'s preview). Under every tool but Captions, a click on a caption line goes to it without changing tool, and a double-click edits it there. Words the Short is stretched into are captions too: `near` (`NEAR` 30 s either side). Under Trim the row is the saved Short ± 30 s (`TS_MARGIN`; Show more was removed, Nov 2026), on a scale that holds while it's stretched; what's added and not saved is light green (`.ts-add`). The player's own Play goes to the preview when its saved video isn't what the playhead is on (`edPlayerWrong`); `trimView.unlock()` lets that have sound in Safari carries each word's `i`. This replaces the two-click box described below: a click on the row always moves the player, under Trim too; a drag makes the yellow box; pointing shows only the time, and the big preview shows only during a drag, or for a moment the saved video hasn't got, and never covers the player's controls. Outside Trim the row shows only the Short; the vlog around it shows only under Trim.** **The Video row is the strip, under every tool** (`js/trim-strip.js`): the vlog's pictures around the Short on one fixed scale, zoomed out (the saved Short ± max(30 s, half its length), Show more of the vlog adds 30 s a side), so the whole clip stays in view however much is trimmed (nothing to scroll or zoom); what the Short keeps is bright with a light edge, what it leaves out dimmed; **times on the Short's clock** (0:00 = where the saved Short starts, as the player counts; earlier is −). Under every tool but Trim a click moves the player. **Under Trim: two clicks make the yellow box, once** (where the part to cut out starts, then where it ends); after that it's shaped, not made again: drag its ends to stretch or narrow it, drag inside it to move it (snapping to the gaps between words, Alt freely; a narrow box's middle always moves it), clicks elsewhere do nothing, Esc / Clear removes it; Start / End −1 / −0.1 / +0.1 / +1 s; **Cut it out** (also Delete; off for a part already dimmed) takes it out and then plays the Short without it (from 3 s before); cut parts are blurred and striped red ("cut"), the vlog around the Short only dimmed; **the Short's own two ends have white grips**: drag them out into the vlog around it to add it, or in (a still press there is a click); a click on a moment the saved video hasn't got (other tools) shows it big over the player until the Short plays; **Play the Short as it'll be**. `edTrimPaint()` redraws the Video row on every change of the pieces (a rewrite once lost that and cuts didn't show). Keep it was removed (Oct 2026: the yellow box means cut; reaching past the moment is no longer offered on the page, `/apply` still takes it) (`trimView`: the vlog's video over the player, framed as the Short by Reframe's `cropAt()`, with sound, through the parts kept now, saved or not); pointing at the row shows that moment big over the player. The old Start / End steps, Split at the playhead and Delete part were removed (Oct 2026: creators found them confusing, and stretching a part's end needed many drags). Twick's timeline stays mounted, hidden, under the strip (`edTrimShow`). Opening another Short starts its player at 0:00 (`edSwapVideo` is only for a remake of the same Short). Twick's timeline: the Short's pieces as parts laid end to end, with the vlog's pictures; drag either end of **any** part to shorten or **stretch** it (no need to choose it first: a 12 px grip at each end; a part can grow into the vlog before or after it, up to the next part's own stretch; an outline and a label show the new edge and lengths while dragging, the end snaps to the gaps between words (Alt / Option: freely), the player shows that moment, Esc cancels; never under 0.5 s; while dragging, a lane over the video track shows **the whole Short as it will be, fitted to the box** (every part; the dragged one lit), so all of it stays in view as a part shrinks or grows; held past the box's ends it keeps going, 1-8 s a second); Split at the playhead (on the timeline only until a half is trimmed or deleted), Delete part (button or Delete key), Start / End −5 / −1 / −0.1 / +0.1 / +1 / +5 s on the chosen part, else the Short's start and end (reach back into the vlog or carry on, up to its ends); zoom out / Fit / in (the button says how far in, e.g. "2.6×"; Ctrl or Cmd + scroll or a pinch zooms around the pointer, up to 400 px a second); the wheel scrolls along it, dragging an empty spot scrolls, the scroll bar always shows, and the view follows the playhead; a ruler click moves the player where the saved video has that part, else "Save to play the new parts"; the playhead follows the player; read-only, with the reason, when the vlog's video is gone. Every change goes through AI Edit's pieces, so Undo / Redo / Save / Discard cover it) | (`pipeline/pieces.py`) | `web/ai_edit.py` (`/apply` takes pieces anywhere in the vlog), `/api/preview/<job>` (the vlog's video for the pictures) | `editor-app/` (`src/main.jsx`, `src/timeline.css`, `src/player-state.jsx`, `vite.config.js`), built `static/editor-app/`; `js/editor.js` (`edTl*`, `edTrimPaint`, `edTS`, `edTrimShow`), `js/trim-strip.js`, `css/trim-strip.css`, `#edTwick`, `#edTrimStrip`, `#edTrimWrap` |
-| AI Edit (the editor's first tool: the Short's words as a transcript, click a word or a pause to cut it, Shift-click a stretch; Remove pauses (> 0.7 s) / Tighten pacing (> 0.35 s), Remove filler words, Improve hook (opens Details' hook and presses Rewrite); while edits wait, the player skips the parts to be cut; saved by the editor's Save as the first remake of `shortDetails()` (`o.extra`); needs the vlog's video. `aiEdit()` also keeps the pending pieces for the timeline (`pieces()` / `setPieces()`): one list, one Undo, one save state for both tools) | `pipeline/pieces.py` (`kept`, `length`, `timeline`, `said`), `pipeline/ai_edit.py`, `pipeline/render.py` (joins the pieces) | `web/ai_edit.py` (`/api/ai-edit/<job>/<idx>`, `/apply`) | `js/ai-edit.js`, `css/ai-edit.css`, `sections/editor.html` (`#edAIWrap`, `#edUndo`) |
-| Thumbnail text and Try again (Quick review and the editor's Details, saved with Save: the text is redrawn from the saved frames and plan, no AI; Try again asks the AI for another frame and other text than the last plan (`make_thumbnail(..., avoid=plan)`; the same frame again falls back to the best other one), keeping the creator's look; Try again needs the vlog's video) | `pipeline/thumbnails/` (`thumb_plan`, `avoid`) | `web/thumbnail_edit.py` (`/api/thumb`, `/thumb-text`, `/thumb-again`) | `js/short-details.js`, `css/quick-review.css` |
-| Delete a clip that went out (Shorts & Reels › ⋮ › Delete: tick YouTube and/or Instagram. YouTube: Pit Crew deletes the Short on the channel it went to (`yt.delete_video`, already gone = just forgotten). **Instagram can't be deleted by apps with Instagram Login** (only Facebook Login), so the dialog has the creator delete it in Instagram, then `/instagram-gone` reads the Reel: error 100 = gone, then it's forgotten. Off both = a draft again) | | `web/clip_remove.py` | `js/clip-remove.js`, `sections/clips.html` (`#clRm`), `css/clips.css` |
-| ⋮ menu on clip and vlog cards (`cardMenu(btn, items)`, `cmButton(label)`: one shared list, `position:fixed` so a card can't clip it) | | | `js/card-menu.js` (before `vlogs.js`), `css/card-menu.css` |
-| Progress card (vlog being sent / made / paused, "Shorts ready" pop-up (none for a pause); its checks also keep the Vlogs page and Drafts up to date) | | `web/vlogs.py` | `js/jobs-now.js`, `css/jobs-now.css` |
-| Settings page (account: change password, sign out; connected channels; appearance) | | | `js/settings.js`, `sections/settings.html`, `css/settings.css` |
-| Connect YouTube | `youtube/signin.py`, `youtube/connection.py`, `youtube/config.py` | `web/youtube_connect.py`, `web/google_redirect.py` | `js/youtube-connect.js` |
-| Setup form (count = number buttons 1-10, `#countPick`; style, must-have moments, file, links; no "when to post": that's chosen on the Post page. Making Shorts goes straight to Drafts filtered to that video, `#drafts/shorts/<id>`, with a loading card per Short, `clLoadingCards`) | `youtube/links.py` | `web/make_shorts.py` (`start`), `web/times.py` | `js/setup-form.js`, `js/must-have.js`, `js/video-file.js`, `js/links.js`, `js/start.js`, `sections/setup.html`, `css/setup.css` |
-| Vlog title/description from a YouTube link (API key, else the creator's YouTube connection, else title only) | `youtube/vlog_info.py`, `pipeline/vlog_context.py` | `web/vlog_info.py` | `js/links.js` |
-| Making Shorts (the whole run; the making page has Pause / Resume and Stop) | all of `pipeline/` | `web/make_shorts.py` | `js/progress.js`, `sections/making.html`, `css/making.css` |
-| Vlog queue (`JOB_SLOTS` at once, `JOB_SLOTS_PER_CREATOR` per creator; every vlog run goes through `enqueue_locked()` and `run_job()` builds it from the job; waiting = `working` + `queued`; vlogs under way at a restart are queued again by `load_job()` (`_restarted`, at most `MAX_RECOVERIES`)) | | `web/job_queue.py`, `web/store.py` (`RECOVERED`) | `js/progress.js` (waiting title) |
-| Limits (`MAX_VLOG_MINUTES`, `MONTHLY_VLOG_MINUTES` per account per UTC month; checked at `/api/upload/new`, at start from the sent file (`upload_problem()`: also "not a video"), and in the job after probe (`charge()`, once per vlog: `job["charged"]`); sign-ups 5 per IP per hour) | `accounts/db.py` (`usage`) | `web/allowance.py`, `web/accounts.py` | `js/allowance.js` (hint under the drop zones, length check before sending, Settings usage) |
-| Help (`SUPPORT_EMAIL`: sidebar Help, "Get help" + reference = the vlog's id on a stopped vlog and in emails) | | `web/pages.py` (`/api/config`), `web/notices.py` | `js/help.js` |
-| Sending the video in pieces (resumable: 8 MB pieces, retries, same file = carry on; `MAX_UPLOAD_GB`, room check, unfinished ones gone after 24 h; start routes take `upload=<id>` via `take_upload()`) | | `web/video_upload.py` | `js/video-upload.js` (`sendVideo()`, used by `js/start.js`, `js/vlog-upload.js`) |
-| Transcription (+ saved transcripts) | `pipeline/transcribe.py`, `pipeline/transcript_cache.py` | | |
-| Finding moments | `pipeline/moments.py` | | |
-| Editing a Short (reframe, captions, render) | `pipeline/reframe.py`, `pipeline/captions.py`, `pipeline/render.py`, `pipeline/fonts.py` | | |
-| Captions (**double-click a line on the timeline's Captions row to type its words there** (`edCapEdit`, `setLineText`; the player pauses, the strip holds still, Enter / click away keeps, Esc doesn't; the second click counts for the line clicked first, because the first click moves the strip). The editor's tool: Show captions on / off; a preview frame drawn by the server at the player's time, with the cuts waiting, or 2.5 s of it moving from just before the line (Play it, and by itself after "Lines come in" / "Spoken word" change: `caption_clip()`; plays 3 times then stops, Pause / Play, Slow = half speed); 7 presets (Bold, Clean, Boxed = the making styles, Pop, Cinema, Minimal, Story); font (Pit Crew bold, Anton, Bebas Neue, Poppins Black, Bangers, DM Serif Display), size, text / highlight / outline colours, outline or a box, ALL CAPITALS; the spoken word (Colour, Colour + grow, None), lines come in (At once, Pop = the words one after another with a bounce, Punch = slams in and snaps to size, Fade = slow, Slide up, Word by word = each word shows as it's said, keeping its room); position (Top / Middle / Bottom + a slider, kept clear of the hook and the apps' buttons), words per line 1-5, timing ±0.5 s; the words in caption lines: click one to change it, Leave out, Pop (emphasis) or New line here; **a few lines with a look of their own** (pick a line by its time in the list or its block on the timeline, Shift / Ctrl / ⌘ for more: font, size, colours, capitals, position; Same as the rest). The timeline's Captions row is a strip of every line as a chip with room for its words and its time (`edCapTrack()`; not to the timeline's scale, where a line is a sliver): it moves along as the Short plays, keeping the line being said in the middle and lit (`edCapFollow()`), seeking jumps it there, the wheel scrolls it by hand until the next play or a seek the creator makes (pressed on the player, the timeline or a chip in the last 3 s: the timeline lining up the player seeks too, and mustn't undo it); a click picks the line. Saved by the editor's Save (`shortDetails()` `o.caps`); Undo / Redo, Discard; needs the vlog's video) | `pipeline/captions.py` (`clean_captions`, `PRESETS`, `FONTS`, `build_ass`), `pipeline/caption_preview.py`, `pipeline/caption_fonts/` (OFL), `pipeline/render.py` (`short_words`) | `web/captions.py` (`/api/captions/<job>/<idx>`, `/preview`) | `js/captions.js`, `css/captions.css`, `sections/editor.html` (`#edCapWrap`, `#edCapTrack`) |
-| Reframe smart framing (Fill: **Auto layout per shot** (scene changes in the kept parts via FFmpeg's scene score; each shot: a clear face = Fill on it (a `jump` move), else Fit; listed with Fill / Fit to flip; `shots`), **Track something** (click it in the picture: template matching on a 320 px grey copy every 0.2 s, ~0.3 s for 30 s, smoothed moves until it's lost or its part ends), **Zoom on emphasis** Off / Subtle (8 %) / Punchy (16 %): punch-ins in at a sentence's start or a word that Pops, out at the next, 2.5 s apart (`punch`, worked out on the page from AI Edit's words); all of it is ordinary settings, changeable by hand) | `pipeline/smart_reframe.py` (`auto_shots`, `scene_changes`, `track_moves`, `punch_at`, `fit_at`, `fit_ranges`) | `web/reframe.py` (`/auto`, `/track`) | `js/reframe.js` |
-| Reframe (the editor's tool: what of the wide vlog the 9:16 Short shows, `moment["reframe"]`, none = the crop around the face it was made with, exactly as before; while it's chosen the player's place shows the vlog's picture at the playhead with the frame on it (drag it; Zoom 1-2.5×) and the Short as it'll look beside it, drawn live from the vlog's video; layouts **Fill** (one frame, or **Moves over time**: dragging at a moment adds a move there, the frame glides (0.6 s, eased) or cuts to each; the list goes to or removes each), **Fit** (the whole picture over a blurred copy), **Split** (two 9:8 views stacked, Top / Bottom, each dragged and zoomed); **Follow the speaker** (the face every 0.5 s in the kept parts, a move only when it has moved 7% of the picture for 1 s; no face = says so); Play it (the vlog's video through the kept parts, the frame moving); Check with captions (the server's exact frame, Captions' preview with `reframe`); Back to Pit Crew's framing; saved by the editor's Save with the captions (`shortDetails()` `o.frame`: one remake makes both); Undo / Redo, Discard; an already vertical vlog has nothing to reframe; needs the vlog's video) | `pipeline/smart_reframe.py` (`clean_reframe`, `framing_at`, `reframe_filter`, `follow_moves`), `pipeline/render.py`, `pipeline/caption_preview.py` | `web/reframe.py` (`/api/reframe/<job>/<idx>`, `/follow`), `web/captions.py` (`_remake`, preview's `reframe`) | `js/reframe.js`, `css/reframe.css`, `sections/editor.html` (`#edRfWrap`, `#edRfStage`) |
-| Text & Overlays (the editor's tool, Nov 2026: **text only so far**; Call to action and Stickers are next. Add text at the playhead (2.5 s), its words (up to 3 lines), 4 styles (Bold, Boxed, Shadow, Outline), the caption fonts, S / M / L, text + outline/box/shadow colour, Top / Middle / Lower or dragged on the picture (snaps to the middle; arrow keys), comes in At once / Pop / Fade / Slide up, Starts / Ends ±0.5 s or at the playhead; at most 6 (`MAX`). While it's chosen the player's place is its own `trimView` of the vlog's video (framed by Reframe, captions drawn by Captions, the text on top), never the saved video (its saved text is burned in); a still shows each text in place at full size, playing shows it coming in. Exact frame = Captions' preview with `overlays`. The timeline's Overlays row lists them. `moment["overlays"]` in **vlog seconds** (`a`, `b`), cleaned by `clean_overlays()`; libass draws them with the captions (`build_ass(overlays=, pieces=)`: two Styles `Ovl` / `OvlBox` (BorderStyle is per Style), layer 2, one event per kept piece, shown with captions off; nothing added when there are none, so the golden file holds). Every remake keeps them; Try again drops them (a new moment). Saved by the editor's Save (`shortDetails()` `o.ovl`); Undo / Redo (typing one text = one step), Discard) | `pipeline/overlays.py`, `pipeline/captions.py` (`build_ass`) | `web/overlays.py` (`/api/overlays/<job>/<idx>`), `web/captions.py` (preview's `overlays`) | `js/overlays.js`, `css/overlays.css`, `sections/editor.html` (`#edOvWrap`, `#edOvStage`, `#edOvTrack`), `js/editor.js` (`edOv*`); `tests/test_overlays.py`, `tests/browser/check_text.py` |
-| Clean clips (a draft's moment and 30 s either side, made just before the vlog's video is deleted (the storage timer or the creator's delete), so Captions, Reframe, the hook and AI Edit / Trim inside that reach keep working; `s["clip"]` = {file, from, to, scale}; posted / planned Shorts get none; Try again, Add a Short and reaching further still need the vlog; deleted with its Short) | `pipeline/clean_clip.py` (`clip_reach`, `make_clean_clip`; `offset` on `render_short`, `caption_frame`, `follow_moves`) | `web/clean_clips.py` (`source()`, `render()`, `make_clips()`, called by `web/vlogs.py` `remove_video()`), `web/preview.py` (`status: "clip"` + `offset`), `web/ai_edit.py` (`reach`, `clip`) | `js/editor.js` (`edTlOff`), `js/trim-strip.js`, `js/reframe.js` |
-| Thumbnails | `pipeline/thumbnails/` (`make.py` → `design.py`: `frames` → `plan` → `layout` → `looks/<look>.py`; `simple.py`) | | |
-| Review cards (the review page, `#<vlog id>`: shown when Shorts are made, and from Drafts' Review & post at any time after; YouTube-sized tiles; click opens the full card as a panel; "Post this" starts unticked, ticked cards are outlined, ticks kept in `reviewPicked`) | | `web/job_status.py`, `web/pages.py` (`/media`) | `js/review.js`, `js/review-cards.js`, `js/review-tiles.js`, `sections/review.html`, `css/review.css`, `css/review-tiles.css` |
-| Hooks | `pipeline/hooks.py` | `web/hooks.py` | `js/hooks.js`, `css/hooks.css` |
-| Thumbnail look (Frame / Duotone switch) and download | `pipeline/thumbnails/looks/` (one file per look), `make.py` (`relook_thumbnail`) | `web/thumbnail_look.py` | `js/thumbnail-look.js`, `css/thumbnail-look.css` |
-| Post page (after review: list, when, where, upload; thumbnail as first frame) | `pipeline/cover.py` | `web/posting.py` | `sections/review.html` (`#postView`), `js/posting.js` (`showPost()`), `css/posting.css` |
-| Try again (stays clickable when the vlog's video is deleted: the click explains it and says to upload again) | `pipeline/try_again.py` | `web/try_again.py` | `js/review-cards.js` |
-| Add a Short / must-have moments | `pipeline/manual_moment.py` | `web/add_short.py` | `js/review-cards.js` |
-| Choose on the video | `pipeline/preview.py` | `web/preview.py` | `js/picker.js`, `sections/picker.html`, `css/picker.css` |
-| Upload / schedule | `youtube/upload.py`, `youtube/schedule_times.py` | `web/posting.py` | `js/posting.js`, `css/posting.css` |
-| YouTube's daily upload limit, shared (open until 60 %, then fair shares, 5 kept for Replace; over it a Short or vlog waits in Pit Crew and goes up after midnight Pacific by itself; gotcha 28) | `accounts/db.py` (`youtube_uploads`) | `web/youtube_quota.py` (`take`, `defer`, `send_waiting`, `/api/youtube/today`), `web/posting.py`, `web/vlog_upload.py` (`send_waiting_vlog`) | `js/youtube-today.js`, `js/posting.js`, `js/posted.js`, `js/clips.js`, `js/vlog-upload.js` |
-| Date and time picker (every "when": Post page YouTube + Instagram, Schedule dialog, vlog upload, Change time on Scheduled; a calendar + times every 15 minutes, opening in the page below its button; the hidden `datetime-local` input keeps its value, so callers didn't change; inputs added later are picked up). The choices are "On a day and time I choose" (`custom`) or "Right away" (`now`): the 12 PM / 6 PM presets were removed from the pages in Oct 2026 (the server still accepts `d18` / `d12` / `two` from old jobs) | | | `js/when-picker.js` (right after `theme.js`), `css/when-picker.css` |
-| Posted list (step 4) | | | `js/posted.js`, `sections/posted.html`, `css/posted.css` |
-| Scheduled page (sidebar "Scheduled", `#scheduled` / `#scheduled/shorts`, old `#youtube` = Shorts tab; tabs Vlogs = vlogs set to go public later, Shorts & Reels = YouTube + Instagram lists of what hasn't gone out, plus ones that need a look) | `youtube/manage.py` | `web/on_youtube.py`, `web/instagram_posting.py` (`/api/instagram/posts`) | `js/on-youtube.js`, `js/scheduled-instagram.js`, `js/nav.js` (Make Shorts link), `sections/on-youtube.html`, `sections/sidebar.html`, `css/on-youtube.css` |
-| Analytics first-week section on the Videos tab (each Pit Crew clip's first-week views per platform, What's working, top clips; All / YouTube / Instagram switch; vlog filter) | `youtube/analytics.py` (`first_week_views`), `instagram/insights.py` (`snapshot_reels`), `accounts/db.py` (`reel_snapshots`) | `web/analytics_clips.py` | `js/analytics-clips.js` |
-| Analytics page (4 tabs, `pageTabs("anTabs")`; filters Both / YouTube / Instagram (`anPlat`); range **All time (default)** or **Custom ▾** (a menu: 7 / 28 / 90 days, a year, or two dates: `anRangeSet()`, `?days=` / `?start=&end=`), hidden on Videos › "clips on both apps" (totals since posted); Shorts / Long videos / All = `?content=` -> `CONTENT` (`creatorContentType`), `period()`). **Overview**: Pit Crew's read (one per day, see 22d), paired YouTube/Instagram tiles (Instagram for the same window: `anIgQ()`; All time = each Reel's lifetime totals + total followers), one daily chart (All time starts a week before the first view; Instagram reach on it when the window is in Instagram's 90 days) | `youtube/analytics.py`, `youtube/analytics_coach.py` (`daily_facts`, `rules`, `read`), `instagram/insights.py` | `web/analytics.py`, `web/analytics_coach.py` (`/api/analytics/coach`, one read per day) | `js/analytics.js` (state, filters, `anQuery()`, Overview, clip window `openShortAnalytics`), `sections/analytics.html`, `css/analytics.css`, `css/analytics-pro.css` |
-| Analytics **Videos** tab: each Pit Crew clip on YouTube vs Instagram (4 grouped column charts: likes, comments, shares, new subscribers vs new followers; Totals / Per 1,000 views; top 6 by views / newest 6 / one vlog / choose, at most 6 (`AN_PAIR_MAX`)), all clips list, clip window with both apps; "Compare any videos" (top 3 ticked, up to 8, calendar or days-since-posting, per day or running total); first-week section | `youtube/analytics_more.py` (`clip_totals`), `instagram/insights.py` (`reel_numbers`), `instagram/account_insights.py` (`follows_after`) | `web/analytics_pairs.py` (`/api/analytics/pairs`), `web/analytics_more.py` (`/videos`, `/compare`, `/vlogs`) | `js/analytics-videos.js`, `js/analytics-clips.js` |
-| Analytics **Audience** tab (typical viewer, donuts for parts of a whole (`donutHTML`, ≤5 slices), columns with numbers for lists (`colsHTML`, class `vbar`: theme.css owns `.bar`), funnel, subscribers vs not when YouTube gives it; Instagram reach, followers by country/age/city) and **Grow** tab (when to post: 3 slots from viewers' evenings + Instagram online hours, on the creator's clock; lessons with "Got it", saved in localStorage `pc-an-lessons`) | `youtube/analytics_more.py` (`audience`), `instagram/account_insights.py` | `web/analytics_more.py` (`/audience`, `/instagram`) | `js/analytics-audience.js`, `js/analytics-grow.js` |
-| Analytics loading states (`anSkel(kind, title)` / `anWait(title, kind)`: a skeleton shaped like what's coming (overview, pairs, audience, igaudience, igtiles, grow, compare, detail, chart), shimmer, racing-stripe bar, a status line that steps through what's happening and says "taking longer than usual" after 18 s; one shared timer that stops when no skeleton is left; `anSkelNum` for one number still coming; reloading over numbers already shown dims them under a stripe bar instead; no motion with reduced motion) | | | `js/analytics-loading.js` (before `analytics.js`), `css/analytics-loading.css` |
-| Running on a server (`serve.py`: Waitress, one process; `deploy/setup.sh` Ubuntu 24.04 setup: packages, `pitcrew` user, code in `/opt/pitcrew/app`, data in `/srv/pitcrew`, `.env`, systemd service, Caddy https, nightly backups, firewall; `update.sh` safe updates with rollback, runs `tests/` first; `test.sh` every test suite on the server, safely; `backup.sh`, `invite.sh`, `status.sh`; `envtool.py` fills `.env` without overwriting; `point-docs.sh` turns `docs/` into redirects to the site) | | `web/health.py` (`/healthz`) | `deploy/`, `LAUNCH.md`, `REVIEWS.md` (Google/YouTube/Meta review texts) |
-| YouTube's data rules (daily: re-check connected channels, every posted video, a vlog's link details after 30 days; forget a disconnected channel's data after 5 days; numbers in memory ≤ 30 days; gotcha 27) | `youtube/connection.py` (`recheck`), `youtube/stored_data.py` | `web/youtube_upkeep.py`, `accounts/db.py` (`gone_channels`) | |
-| Private beta invites (`INVITE_ONLY=1`: only emails in `INVITES_FILE` (default `data/invites.txt`) can make an account, by email or Google; existing accounts unaffected; read on every sign-up, no restart) | | `web/invites.py` (used by `web/accounts.py`) | |
-| Public pages (homepage `/welcome`, `/privacy`, `/terms`, `/data-deletion`; filled from settings: `SUPPORT_EMAIL`, `OPERATOR_NAME`, `GEMINI_PAID`, AI keys, retention times; linked from the sign-in screen and Settings) | | `web/legal.py` | `static/legal/` (`page.html` shell, one HTML per page, `legal.css`; the homepage also `home.css` + `home.js` (animated demo, step tabs, caption styles, example chart; `EXTRAS` in `web/legal.py` loads them there only; "Get started" = `/#signup`, "Sign in" = `/#signin`; plain `/` (no `#`) always goes to `/welcome`, signed in or not (`boot()` in `js/account.js`; a server redirect would carry `#verify=` links along), so every way into the app ends in a `#`: `/#vlogs` after Google sign-in, `/#signin` for its errors, "Open Pit Crew" on the homepage when signed in)) |
-| Meta's callbacks (removed in Instagram → `/api/instagram/deauthorize`: connection dropped; data deletion asked through Meta → `/api/instagram/data-deletion`: connection, Reel records and saved numbers deleted, answers a code that `/data-deletion?code=` shows; both need a `signed_request` signed with `INSTAGRAM_APP_SECRET`) | | `web/instagram_deletion.py`, `accounts/db.py` (`deletion_requests`) | `static/legal/data-deletion.html` |
-| Connect Instagram | `instagram/connection.py`, `instagram/config.py`, `instagram/http.py` | `web/instagram_connect.py`, `web/google_redirect.py` | `js/instagram-connect.js` |
-| Hashtags, YouTube title, Instagram caption on each Short's editor card (hook first, then hashtags shared by both platforms, then a tab per connected platform; the caption is suggested from the title + full video (not the hook: it's on screen already, and repeated the title) until edited, then `ig_caption` is saved as typed; `caption_for()` keeps Instagram's 30 hashtags / 2,200 characters; "Generate ideas" under the title and the caption gives three AI options, `HOOK_RULE` + said-numbers check, works without the video) | `instagram/publish.py` (`suggested_caption`, `caption_for`), `pipeline/post_suggest.py` | `web/post_text.py` (`/post-text`, `/suggest`) | `js/post-text.js`, `css/post-text.css` |
-| Post to Instagram (own schedule, Pit Crew posts at the time) | `instagram/publish.py` | `web/instagram_posting.py` (scheduler thread) | `js/instagram-posting.js`, `sections/review.html` (Instagram card), `css/posting.css` |
+*Accounts and pages*
+- **Accounts**, `gate()`: `accounts/db.py` | `web/accounts.py` | `js/account.js`, `sections/auth.html` — gotcha 16.
+- **Forgot password**: `accounts/db.py` (`password_resets`), `accounts/mail.py` | `web/password_reset.py` | `js/password-reset.js`.
+- **Confirm email** (`#verify=<token>`, 48 h; nothing works until confirmed: `gate()` → 403 `verify:true` except
+  `UNCONFIRMED_OK`; Resend, Change email `POST /api/auth/email`; Google sign-ins count as confirmed): `accounts/db.py`
+  | `web/verify_email.py` | `js/verify-email.js` (`showVerify`).
+- **Delete account** (type the email; refused while something is made / posted; YouTube revoked): `db.delete_user` |
+  `web/delete_account.py` | `js/delete-account.js`.
+- **Private beta** (`INVITE_ONLY=1`, `INVITES_FILE`, read on every sign-up): `web/invites.py`.
+- **Limits** (`MAX_VLOG_MINUTES`, `MONTHLY_VLOG_MINUTES` per UTC month; checked at `/api/upload/new`, at start
+  `upload_problem()`, in the job `charge()` once via `job["charged"]`; 5 sign-ups / IP / hour): `db` (`usage`) |
+  `web/allowance.py` | `js/allowance.js`.
+- **Emails when away** (Shorts ready, stopped, posting failed; confirmed emails only, not while watching; links use `APP_URL`): `web/notices.py`.
+- **Help** (`SUPPORT_EMAIL`: sidebar Help, "Get help" + the vlog id): `web/pages.py` (`/api/config`) | `js/help.js`.
+- **Public pages** (`/welcome`, `/privacy`, `/terms`, `/data-deletion`, filled from settings): `web/legal.py` (`UPDATED`,
+  `EXTRAS`) | `static/legal/`. Plain `/` always goes to `/welcome` (`boot()` in `js/account.js`), so every way into the
+  app ends in a `#` (`/#vlogs`, `/#signin`, `/#signup`).
+- **Meta callbacks** (`/api/instagram/deauthorize`, `/data-deletion`, `signed_request` with `INSTAGRAM_APP_SECRET`):
+  `web/instagram_deletion.py`, `db` (`deletion_requests`).
+- **Sidebar** (+ Create; Videos, Shorts & Reels, Drafts, Scheduled, Analytics; channels with View your channel /
+  profile; Settings, Appearance; logo → `/welcome`; making + review pages mark Drafts via `NAV_FOR`):
+  `sections/sidebar.html`, `js/nav.js`, `css/shell.css`. Under 1024 px it's the top bar: it must fit every width with
+  Help shown (under 400 px tighter, buttons ≥ 32 px; pills hidden ≤ 640 px; logo hidden ≤ 360 px).
+- **Progress card** (`#jobsNow`: vlog sent / made / paused, "Shorts ready"; its checks also refresh Videos and Drafts):
+  `web/vlogs.py` | `js/jobs-now.js`, `css/jobs-now.css`. Under 1024 px it floats at the bottom: `--jn-space` (its
+  height, from a ResizeObserver) pads `.main` and lifts `.dock`, `.cl-dock`, `.toast`.
+- **Settings** | `js/settings.js`. **⋮ menus**: `js/card-menu.js` (`cardMenu`, `position:fixed`, before `vlogs.js`).
+  **Tabs** (Drafts, Scheduled): `js/page-tabs.js` (`pageTabs()`). **Date / time picker** (every "when"; keeps a hidden
+  `datetime-local`; choices `custom` / `now`, server still takes old `d18` / `d12` / `two`): `js/when-picker.js`.
 
-**Shared files** (used by many features; change with care and tell the other person):
+*Vlogs and Shorts*
+- **Sending the video** (resumable 8 MB pieces, `MAX_UPLOAD_GB`, room check with spare, unfinished gone after 24 h;
+  start routes take `upload=<id>` via `take_upload()`): `web/video_upload.py` | `js/video-upload.js` (`sendVideo()`).
+- **Setup / Making Shorts** (count 1-10 `#countPick`, style, must-have moments, file / links; lands on Drafts
+  `#drafts/shorts/<id>` with loading cards): `youtube/links.py`, all of `pipeline/` | `web/make_shorts.py` (`start`,
+  `safe()`), `web/times.py` | `js/setup-form.js`, `js/start.js`, `js/progress.js`, `sections/setup.html`, `making.html`.
+- **Vlog queue** (`JOB_SLOTS`, `JOB_SLOTS_PER_CREATOR`; `enqueue_locked()`, `run_job()`; waiting = `working` + `queued`;
+  restarted runs re-queued by `load_job()`, at most `MAX_RECOVERIES`): `web/job_queue.py`, `web/store.py` (`RECOVERED`).
+  A waiting vlog's `msg` = its place + time ("Next in line · about 6 min"), shown by the making page, progress card
+  and Drafts — gotcha 37(j).
+- **Edit queue** (Saves that re-render a Short take turns server-wide): `web/edit_queue.py` — gotcha 37(i).
+- **Pause / Resume** (making: at once, gotcha 36; status `"paused"`, fields `plan` / `made` / `pausing`,
+  `transcript.partial.json`; vlog upload: sending = browser `upSetPaused`, preparing = `Run`, YouTube stage =
+  `/upload-pause` etc., vpost `"paused"`, `job["vresume"]` never sent to the page): `web/pause.py`,
+  `web/vlog_upload.py`, `youtube/vlog_upload.py` (`UploadPaused`) | `js/vlog-again.js` (`pauseVlog`, `resumeVlog`).
+- **Stop / Try again a whole vlog**: `web/stop_and_retry.py` | `js/vlog-again.js`.
+- **Upload a vlog to YouTube** (screen 10 `#vlog/new` / `#vlog/<id>`; AI title ideas, description with chapters, tags,
+  16:9 thumbnail; then "Make Shorts from this vlog?"): `pipeline/vlog_meta.py`, `vlog_thumbnail.py`,
+  `youtube/vlog_upload.py` | `web/vlog_upload.py` | `js/vlog-upload.js` — gotcha 23. AI suggestions:
+  `pipeline/vlog_suggest.py` | `web/vlog_suggest.py` | `js/vlog-suggest.js`. What to make: `js/make-choice.js`.
+- **Vlog info from a YouTube link** (API key, else the creator's connection, else oEmbed title):
+  `youtube/vlog_info.py`, `pipeline/vlog_context.py` | `web/vlog_info.py` | `js/links.js`.
+- **Videos page** (home: vlogs posted with Pit Crew or going up, `isPostedVlog`; drafts / scheduled have their own
+  pages; Shorts-only uploads aren't vlogs here; cards `vlRow`, `vlShortsActs`; picture = YouTube thumbnail, else
+  `poster.jpg`, else a Short's; delete videos (their Shorts stay); stopped ones show `web/errors.py`'s reason):
+  `pipeline/poster.py` | `web/vlogs.py` (`/api/vlogs`, `delete-video`, `delete-videos`) | `js/vlogs.js`.
+- **Channel videos** (what's on the channel that Pit Crew didn't post; public / unlisted; Short = `#short(s)` or ≤ 3 min,
+  the API has no flag and `youtube.com/shorts/<id>` is unofficial; read ≤ daily or Check now ≤ 6 h; `channel_videos`
+  table): `youtube/channel_videos.py` | `web/channel_videos.py` | `vlOutside`, `clOutside`. Instagram's other Reels
+  (each read replaces the list; picture links expire): `instagram/reels.py` | `web/instagram_reels.py`.
+- **First connect** (once per account: `users.onboarded_at`, `db.channel_checked`; never holds anyone > 30 s; what's
+  running is in memory): `web/first_import.py` | `js/first-import.js`.
+- **One account at a time** (Shorts & Reels and Videos show the sidebar's chosen channel / IG account: `onActive(plat,
+  id)` against `channel`, `ig_id`, `vpost.channel`, `account`; nothing recorded = shown; Drafts unfiltered):
+  `js/account-follow.js` (`followAccount`), `clOnPlat`, `clVisible`, `vlBase`.
+- **Removed / deleted cards** (gone from YouTube / Instagram: grey card, Back to Drafts / Remove; checked once a day,
+  pages never ask): `web/removed.py`, `web/youtube_sync.py`, `web/youtube_upkeep.py` | `clGoneCard`, `vlGoneHTML`.
+- **Drafts** (screen 11; Vlogs tab = `isDraftVlog` + `dfPrepping`; Shorts & Reels tab = the clip browser in "drafts"
+  mode, grouped by vlog (`clGroupsHTML`, Review & post = `openJob`), plus vlogs being made / paused / stopped
+  (`dfMaking`, kept fresh by `dfFollow`)): `web/vlogs.py`, `web/clips.py` | `js/drafts.js`, `js/clips.js`, `css/clips.css`.
+- **Shorts & Reels** (clips that went out, `isOutClip`; one browser `#clBrowse` moved by `clOpen(mode, box, vlog)`;
+  platform tabs `clPlatTabs()`; Select / schedule several; "Post it on Instagram too" `clPostOne()`; views via
+  `/api/clips/views` ≤ once a minute): `web/clips.py`, `web/clip_views.py` | `js/clips.js`.
+- **Quick review** (panel on Drafts; `shortDetails()` shared with the editor's Details; nothing saved until Save, changes
+  in `qrPend`; never `sendMoment()` here): `js/short-details.js`, `js/quick-review.js`.
+- **Review page** (`#<vlog id>`, from Drafts' Review & post; "Post this" starts unticked, `reviewPicked`):
+  `web/job_status.py`, `web/pages.py` (`/media`) | `js/review.js`, `review-cards.js`, `review-tiles.js`.
+- **Post page** (`#postView`, thumbnail as first frame): `pipeline/cover.py` | `web/posting.py` | `js/posting.js`.
+- **Try again / Add a Short / must-have moments / Choose on the video**: `pipeline/try_again.py`, `manual_moment.py`,
+  `preview.py` | `web/try_again.py`, `add_short.py`, `preview.py` | `js/review-cards.js`, `js/picker.js`.
+- **Hooks**: `pipeline/hooks.py` | `web/hooks.py` | `js/hooks.js` — gotcha 13.
+- **Thumbnails**: `pipeline/thumbnails/` (`make.py` → `design.py`: frames → plan → layout → `looks/<look>.py`;
+  `simple.py`) — gotcha 12. Look switch: `web/thumbnail_look.py`. Text / Try again (`make_thumbnail(..., avoid=plan)`):
+  `web/thumbnail_edit.py` (`/api/thumb`, `/thumb-text`, `/thumb-again`).
+- **Hashtags, YouTube title, Instagram caption** (`caption_for()`: 30 hashtags / 2,200 chars; ideas via `HOOK_RULE` +
+  said-numbers check): `instagram/publish.py`, `pipeline/post_suggest.py` | `web/post_text.py` | `js/post-text.js`.
+- **Delete a clip that went out** (YouTube deleted by Pit Crew; **Instagram can't be deleted by Instagram-Login apps**:
+  the creator deletes it, `/instagram-gone` reads it, error 100 = gone): `web/clip_remove.py` | `js/clip-remove.js`.
 
-| File | What it is |
-|---|---|
-| `app.py` | Starts the server: loads `.env`, imports every `web/` file (that's what registers its routes), runs Flask. |
-| `settings.py` | `ROOT` and `JOBS_DIR` (set `JOBS_DIR` in the environment to move the jobs folder, e.g. in tests or the cloud). |
-| `web/server.py` | The one Flask `app` every `web/` file adds routes to; cookie/session settings. |
-| `web/store.py` | Job state: `JOBS` (in memory) mirrored to `jobs/<id>/job.json`, `LOCK`, `update()`, `update_short()`, `load_job()`, `editable_job()`. |
-| `pipeline/ai.py` | `ai_json()`: every AI call (Gemini or OpenAI), with retries and model fallbacks. |
-| `web/youtube_sync.py` | `sync_deleted()`: Shorts deleted in YouTube Studio (e.g. a cancelled scheduled one) are forgotten when Shorts & Reels or Scheduled opens (once a minute per creator; only records with a connected `channel`; any YouTube error changes nothing), so they're drafts again. A vlog Pit Crew uploaded that YouTube no longer has (deleted, or removed by YouTube for spam or copyright, sometimes minutes after uploading) gets `vpost` state `removed` (checked in the background when Vlogs opens, `sync_soon()`): its dead link is dropped, the page links to Studio for the reason and offers Upload again. |
-| `web/errors.py` | `plain_error()`: one plain sentence for a failed vlog (AI busy, AI limit, video editor stopped...). The raw text goes to `job["error_detail"]` and the terminal, never to the page. |
-| `pipeline/ffmpeg.py`, `pipeline/text.py`, `pipeline/constants.py` | FFmpeg (`ffmpeg_exe()`, `run()`, `probe()`), small text helpers, shared numbers. |
-| `pipeline/__init__.py`, `youtube/__init__.py`, `instagram/__init__.py` | Only re-export what `web/` uses, so web code can write `pipeline.render_short(...)` / `yt.upload_short(...)` / `ig.post_reel(...)`. |
-| `static/index.html` | The page skeleton: lists the CSS and JS files and includes each `sections/*.html` (the `/` route fills them in). |
-| `static/js/core.js` | `$()`, `fmt()`, `esc()`, `show(n)` (screens 1 New vlog … 7 Vlogs, 8 Settings … 11 Drafts, 12 the editor; `NAV_FOR` marks the sidebar item) and the shared page state (`job`, `jobId`, `poll`, `count`). |
-| `static/css/tokens.css`, `base.css`, `buttons.css`, `fields.css`, `cards.css`, `shell.css` | The look shared by every screen. |
-| `static/css/theme.css` | The Pit Crew look on top of everything (loads after every screen's CSS): carbon glass panels, YouTube-red buttons and glow, the checkered eyebrow, the sidebar rail, stage lights on Making, hazard-stripe progress bars, the pit-lane sign-in backdrop. Colours only from `tokens.css` (contrast-checked). Fonts: Unbounded (headings, wordmark), Plus Jakarta Sans (text), JetBrains Mono (numbers, labels). The logo (three rising slanted bars on a red tile: growth and speed. Never a play button or a red P: those copy YouTube's and Pinterest's logos) is inline SVG in `sections/sidebar.html` and `sections/auth.html` (give each copy its own ids). |
+*Editor (screen 12, `#edit/<vlog>/<short>`)*
+- **Shell**: `js/editor.js`, `sections/editor.html`, `css/editor.css`. Sidebar hidden (`body.ed-on`); resizable rail
+  (`#edRailGrip`, `pc-ed-rail`) and panel (`#edPanelGrip`, `pc-ed-panel`); Save / Discard pinned at the panel's bottom
+  (`#edSaveRow`, Cmd/Ctrl+S); Finish (`#edFin`); Export; phones get "needs a bigger screen". **Undo / Redo** = one
+  history for every tool (`edRecord`, `edGo`; each tool's `snap()` / `restore()`; typing = one step per 1.5 s pause);
+  with nothing unsaved, Undo reverts a whole save and saves it at once (`edSaves` / `edRedos`, this visit only). Seeks
+  the page makes go through `vidSeek()` (`js/core.js`); others are the creator's (`edUserSeek`). Save ring:
+  `pipeline/ffmpeg.py` `watching(on_time=)` | `web/remake_progress.py` | `edRing`.
+- **Timeline and Trim**: `editor-app/` (`src/main.jsx`, `timeline.css`, `player-state.jsx`, `vite.config.js`),
+  `js/trim-strip.js` (the Video row under every tool), `edTl*`, `edTrimPaint` (redraw on every pieces change),
+  `edTrimShow` | `web/ai_edit.py` (`/apply` takes pieces anywhere in the vlog), `/api/preview/<job>`. Playhead handle
+  `.ts-knob` (`startScrub`, `edHeadT`, `edHeadNow()`, `edHeadPlay`); under Trim the row is the saved Short ± 30 s
+  (`TS_MARGIN`), click = move the player, drag = the yellow cut box; added-but-unsaved is green (`.ts-add`); the
+  player's Play uses `trimView`'s preview when the saved video lacks the playhead's moment (`edPlayerWrong`). Read-only
+  with the reason when the vlog's video is gone. Twick stays mounted hidden. Gotchas 30, 31.
+- **AI Edit**: `pipeline/pieces.py`, `pipeline/ai_edit.py` | `web/ai_edit.py` | `js/ai-edit.js` (`aiEdit()`: one pieces
+  list + one Undo for AI Edit and Trim; saved as the first remake via `shortDetails()` `o.extra`).
+- **Captions**: `pipeline/captions.py` (`clean_captions`, `PRESETS`, `FONTS`, `build_ass`), `caption_preview.py`,
+  `caption_fonts/` (OFL) | `web/captions.py` (`/preview`) | `js/captions.js` (`edCapTrack`, `edCapFollow`,
+  `edCapEdit` double-click to type) — gotcha 33. Saved via `shortDetails()` `o.caps`.
+- **Reframe**: `pipeline/smart_reframe.py` | `web/reframe.py` (`/follow`, `/auto`, `/track`), `web/reframe_look.py` |
+  `js/reframe.js` — gotchas 34, 37(e). Saved with captions (`o.frame`: one remake makes both).
+- **Text & Overlays** (text only; ≤ 6, `MAX`; `moment["overlays"]` in vlog seconds `a`/`b`, `clean_overlays()`; libass
+  styles `Ovl` / `OvlBox`, layer 2, one event per kept piece, nothing added when none so the golden file holds; Try
+  again drops them): `pipeline/overlays.py` | `web/overlays.py` | `js/overlays.js` (`edOv*`); saved via `o.ovl`.
+- **Clean clips**: `pipeline/clean_clip.py` | `web/clean_clips.py` | `edTlOff` — gotcha 35.
 
-**Rules for keeping it modular**
+*Posting and YouTube*
+- **Connect YouTube**: `youtube/signin.py`, `connection.py`, `config.py` | `web/youtube_connect.py`,
+  `web/google_redirect.py` | `js/youtube-connect.js` — gotchas 15, 20.
+- **Upload / schedule**: `youtube/upload.py`, `schedule_times.py` | `web/posting.py` | `js/posting.js`.
+- **Daily upload limit** (shared, gotcha 28): `db` (`youtube_uploads`) | `web/youtube_quota.py` | `js/youtube-today.js`.
+- **Scheduled page** (`#scheduled`, old `#youtube`): `youtube/manage.py` | `web/on_youtube.py`,
+  `web/instagram_posting.py` (`/api/instagram/posts`) | `js/on-youtube.js`, `js/scheduled-instagram.js`.
+- **Posted list** (step 4): `js/posted.js`. **YouTube data rules** (gotcha 27): `youtube/connection.py` (`recheck`),
+  `youtube/stored_data.py` | `web/youtube_upkeep.py`, `db` (`gone_channels`).
+- **Connect Instagram**: `instagram/connection.py`, `config.py`, `http.py` | `web/instagram_connect.py` | `js/instagram-connect.js`.
+- **Post to Instagram** (Pit Crew posts at the time): `instagram/publish.py` | `web/instagram_posting.py` (scheduler
+  thread) | `js/instagram-posting.js` — gotcha 19.
 
-- **A new feature gets new files.** Add the work to a new `pipeline/<feature>.py` (or `youtube/`), its routes to a new
-  `web/<feature>.py`, its page code to a new `static/js/<feature>.js` (and CSS/section if needed). Then add **one line**
-  each to `app.py` (import the web file) and `static/index.html` (the `<script>`/`<link>`/include). Those one-line
-  additions are the only shared edits, and git merges them easily.
-- Inside `pipeline/` and `youtube/`, import from the feature file directly (`from pipeline.hooks import hook_fields`),
-  never from the package `__init__` (that causes circular imports). `web/` uses the facades (`pipeline.x`, `yt.x`).
-- `web/` route functions must have unique names: `gate()` in `web/accounts.py` checks `request.endpoint` against
-  `PUBLIC`, which lists function names.
-- **The page's JS files share one global scope** and load in the order listed in `index.html` (no modules, no build).
-  Code that runs while the page loads may only use things defined in the same or an earlier file; anything called
-  later (click handlers, polling) can use any file. `account.js` must stay last: it calls `boot()`.
-- Where it lives at runtime: `jobs/<id>/` holds each run (`source.*`, `transcript.json`, `captions_N.ass`,
-  `short_N.mp4`, `thumb_N.jpg`, `thumbwork_N/`, `preview.mp4`, `job.json`); `jobs/_transcripts/` the transcript
-  cache; `data/` the accounts database and cookie secret. All git-ignored.
+*Analytics*
+- **Page** (tabs Overview / Videos / Audience / Grow, `pageTabs("anTabs")`; `anPlat`; range All time (default) or
+  Custom `?days=` / `?start=&end=` via `anRangeSet()`; `?content=` → `creatorContentType`): `youtube/analytics.py`,
+  `analytics_coach.py` (`daily_facts`, `rules`, `read`), `instagram/insights.py` | `web/analytics.py`,
+  `web/analytics_coach.py` | `js/analytics.js` (`anQuery()`, `openShortAnalytics`). Gotchas 17, 22-22e.
+- **Videos tab** (YouTube vs Instagram per clip, ≤ 6 `AN_PAIR_MAX`; Compare any videos ≤ 8; first-week section):
+  `youtube/analytics_more.py` (`clip_totals`), `instagram/insights.py` (`reel_numbers`), `account_insights.py`
+  (`follows_after`) | `web/analytics_pairs.py`, `web/analytics_more.py`, `web/analytics_clips.py` |
+  `js/analytics-videos.js`, `js/analytics-clips.js`.
+- **Audience / Grow** (`donutHTML` ≤ 5 slices, `colsHTML` class `vbar`: theme.css owns `.bar`; lessons in
+  localStorage `pc-an-lessons`): `analytics_more.py` (`audience`), `account_insights.py` | `js/analytics-audience.js`,
+  `js/analytics-grow.js`.
+- **Loading states** (`anSkel`, `anWait`, `anSkelNum`; one shared timer; no motion with reduced motion):
+  `js/analytics-loading.js` (before `analytics.js`).
+
+*Server*: `serve.py`; `deploy/` (`setup.sh`, `update.sh`, `test.sh`, `backup.sh`, `invite.sh`, `status.sh`,
+`envtool.py`, `point-docs.sh`); `web/health.py` (`/healthz`); `REVIEWS.md` (platform review texts). Gotcha 24.
+
+**Shared files** (change with care, say so in the PR):
+- `app.py` loads `.env`, imports every `web/` file (registers routes). `settings.py`: `ROOT`, `JOBS_DIR` (env-movable).
+- `web/server.py`: the Flask `app`, cookie settings. `web/store.py`: `JOBS` mirrored to `jobs/<id>/job.json`, `LOCK`,
+  `update()`, `update_short()` (counts as an edit, gotcha 21), `load_job()`, `editable_job()`, `video_gone()`,
+  `RETRY_LOCKS` (one remake at a time per vlog), `next_file_number()`.
+- `pipeline/ai.py` `ai_json()` (gotcha 11). `web/errors.py` `plain_error()`: one plain sentence per failure; raw text to
+  `job["error_detail"]` and the terminal, never the page. `web/youtube_sync.py` `sync_deleted()` (Shorts deleted in
+  Studio become drafts; a vlog YouTube removed gets vpost `removed`). `web/priority.py` (gotcha 37a).
+- `pipeline/ffmpeg.py` (`ffmpeg_exe()`, `run()`, `probe()`, `watching()`), `text.py`, `constants.py`.
+  `pipeline/__init__.py`, `youtube/__init__.py`, `instagram/__init__.py` only re-export what `web/` uses.
+- `static/index.html`: the skeleton (CSS / JS lists, `sections/*.html` includes, the icon list, gotcha 32).
+  `static/js/core.js`: `$()`, `fmt()`, `esc()`, `setHTML()`, `show(n)` (screens 1 New vlog … 7 Videos, 8 Settings … 11
+  Drafts, 12 editor), `NAV_FOR`, `shortLen()`, `studioLink()`, shared state. `static/css/tokens.css` (all colours,
+  contrast-checked), `base.css`, `buttons.css`, `fields.css`, `cards.css`, `shell.css`; `theme.css` loads last (fonts
+  Unbounded / Plus Jakarta Sans / JetBrains Mono). The logo (three rising slanted bars on a red tile; never a play
+  button or a red P) is inline SVG in `sections/sidebar.html` and `auth.html` (own ids in each copy).
+
+**Modularity rules**
+- A new feature gets new files, plus **one line** each in `app.py` and `static/index.html` (the only shared edits).
+- Inside `pipeline/` / `youtube/` import from the feature file (`from pipeline.hooks import hook_fields`), never the
+  package `__init__` (circular imports). `web/` uses the facades (`pipeline.x`, `yt.x`, `ig.x`).
+- `web/` route function names are unique: `gate()` checks `request.endpoint` against `PUBLIC` (function names).
+- Page JS shares one global scope, loaded in `index.html` order (no modules): load-time code may only use earlier
+  files; handlers may use any. `account.js` stays last (`boot()`).
+- Runtime: `jobs/<id>/` (`source.*`, `transcript.json`, `captions_N.ass`, `short_N.mp4`, `look_N.mp4`, `thumb_N.jpg`,
+  `thumbwork_N/`, `clip_<idx>.mp4`, `preview.mp4`, `poster.jpg`, `job.json`), `jobs/_transcripts/`, `jobs/_uploads/`,
+  `data/` (database, cookie secret, token key). All git-ignored.
 
 ## Hard-won gotchas (don't undo these)
 
-1. **Audio is decoded with FFmpeg, not faster-whisper's own decoder.** `load_audio()` pipes 16 kHz mono
-   float32 from FFmpeg into `model.transcribe(numpy_array)`. faster-whisper's decoder uses PyAV, and
-   PyAV ≥ 15 removed the `metadata_errors` argument it passes ("open() got an unexpected keyword
-   argument 'metadata_errors'").
-2. **OpenCV is pinned below 5** (`opencv-python-headless>=4.8,<5`). OpenCV 5 dropped
-   `cv2.CascadeClassifier`, which the face finder uses. `face_center_x()` also catches any failure and
-   returns `None`, which means "crop from the centre", so face finding must never fail a job.
-3. **Not every FFmpeg can burn captions.** Some builds (recent Homebrew, Anaconda) ship without libass,
-   so the `subtitles` filter doesn't exist and FFmpeg says `No option name near 'captions_1.ass...'`.
-   `ffmpeg_exe()` uses the first FFmpeg that lists `subtitles` in `-filters`: `$FFMPEG_PATH`, PATH,
-   Homebrew paths, then the complete static binary from the `imageio-ffmpeg` package. Always call
-   `ffmpeg_exe()` and never hard-code `"ffmpeg"`. (`ffprobe` still comes from PATH.)
-4. **Captions need a real font file.** `prepare_job_fonts()` copies `fonts/*.ttf|otf` into the job folder;
-   if there are none it copies a system bold font (Arial Bold on Mac). `caption_font_name()` uses
-   `CAPTION_FONT` only if that family is actually present, otherwise the family that is. Static FFmpeg
-   builds may have no fontconfig, so a missing font can mean invisible captions.
-5. **Gemini models are retired often, and they get busy.** `FALLBACK_MODELS` lists current Flash models,
-   newest first; `.env` `GEMINI_MODEL` is tried first. `gemini_error_kind()` sorts errors into
-   busy / limit / missing / bad_key / other. Busy (5xx) models are retried in rounds (waits in
-   `BUSY_WAITS`), while missing and limited models move on to the next one. As of October 2026, the 2.5
-   models are restricted to accounts that already used them. Check
-   https://ai.google.dev/gemini-api/docs/models before changing names.
-6. **ffprobe call is version-agnostic.** `probe()` uses `-show_streams -show_format` and reads rotation
-   from `side_data_list` *or* the old `tags.rotate`; `stream_side_data=` in `-show_entries` breaks on
-   FFmpeg 4.x.
-7. **Sideways phone videos:** `probe()` swaps width/height when rotation is 90/270.
-8. The subtitles filter runs with `cwd=job_dir` and relative paths (`subtitles=captions_N.ass:fontsdir=fonts`)
-   to avoid Windows drive-letter escaping problems. Keep it that way.
-
-9. **Transcription is batched, and the language is detected across the whole video.** `transcribe()` uses
-   faster-whisper's `BatchedInferencePipeline` (about 2× faster; `WHISPER_BATCH_SIZE=0` turns it off and
-   falls back to one-at-a-time). Batched mode guesses the language from too little audio: an English
-   vlog with car noise came out as **Welsh**. So `detect_language()` votes over 8 clips spread across
-   the video and passes the winner in, but only with `WHISPER_LANGUAGE=auto`: **Pit Crew is English-only for
-   now** and transcribes as English by default (a Hinglish vlog was guessed as English and came out as
-   invented text; Hindi support was tried with large-v3-turbo + Roman transliteration and dropped).
-   `drop_repeats()` keeps any phrase at most twice in a row (Whisper gets stuck over music or noise:
-   "It's snowing everywhere" 40 times), and a letter repeated 4+ times is cut to two.
-   Batched output comes in ~30-second chunks, so `sentence_segments()` rebuilds sentence-sized lines
-   from word timings. Gemini needs those to choose good start points. The model is loaded once per
-   process (`whisper_model()`), and the GPU is used automatically when present.
-
-10. **Never download videos from YouTube.** YouTube's API policies forbid apps from downloading or storing
-    YouTube audiovisual content, even the creator's own, and breaking that risks the API access posting
-    depends on. `fetch_video_info()` reads only public text (Data API with `YOUTUBE_API_KEY`, else oEmbed =
-    title only). The video always comes from an upload or a Drive link.
-11. **AI calls go through `ai_json()`**, which uses Gemini (`gemini_json()`) or OpenAI (`openai_json()`) depending
-    on `AI_PROVIDER`. Both share `ask_models()` (retries busy models, skips retired ones) and parse JSON. Use
-    it for any new AI feature instead of calling a client directly, and pass images as `image_part(bytes)`.
-    OpenAI's JSON mode only returns objects, so a requested list arrives as `{"items": [...]}`; callers must
-    accept a dict wrapping the list (as `pick_moments()` does). OpenAI's reasoning models reject
-    `temperature`, so `openai_json()` retries without it. `OPENAI_FALLBACK_MODELS` needs the same care as
-    `FALLBACK_MODELS` (check https://platform.openai.com/docs/models).
-12. **Thumbnails:** one frame of the Short, chosen by the AI, in one of two looks: **Frame** (default,
-    colour-graded) or **Duotone** (two-colour poster in the Short's accent). Cut-out collages were dropped in
-    October 2026 after a side-by-side test of 8 styles on real Shorts: uneven cut-outs made some thumbnails
-    look bad, and they cost a 180 MB model, 2 GB of memory and seconds per thumbnail.
-    - **Plan** (`plan.py`): 12 frames (up to 1920 px wide, grabbed 4 at a time) go to the AI, which returns
-      `frame`, `focus` (box_2d `[ymin, xmin, ymax, xmax]`, 0-1000, around what must stay in view, usually the
-      face), `line1`, `line2` and `accent`. `clean_plan()` validates everything; a missing frame falls back to
-      `plan_without_ai()` (biggest sharp face from the face finder, else the sharpest frame).
-      **Thumbnails use Gemini whatever `AI_PROVIDER` says** (`THUMB_AI_PROVIDER`): Gemini is trained on box_2d.
-      A provider that fails is skipped by every thumbnail for `REST` (180 s) so the others go straight to the
-      next one (Gemini was overloaded for minutes in a real run), then no AI.
-    - **Text:** `tidy_lines()` drops words from line1 that the headline already has ("Rice Older? / Older
-      Than Me" -> "Rice / Older Than Me"), and the prompt asks for that too. `text_spot()` puts the text above
-      the face if it fits, else below it (clear of the bottom 230 px where YouTube draws the title), else on
-      the roomier side, smaller. Fonts are bundled in `pipeline/thumbnails/fonts/` (OFL): Anton for the
-      headline, DM Serif Display for the small line; Latin only, other scripts use the system bold font.
-    - **Crop** (`layout.portrait()`): 9:16 around `focus`, a little tighter than the frame height (`ZOOM`) so
-      the face can sit at `FACE_AT`; sharpened when blown up a lot (low-resolution vlogs).
-    - **Looks:** `compose()` hands the plan to `looks/<look>.py` (`LOOKS`, `THUMB_LOOK`). The look is saved
-      in `plan.json`; a creator switches it on the card (`/api/look/...`, redrawn from `thumbwork_N/`, no AI,
-      about a second) and can download the thumbnail there. `upgrade_plan()` reads collage-era plans
-      (`face_frame`/`face_box`/`items`), which are redrawn as Frame.
-    - **Colours:** `fresh_accent()` gives each Short of a vlog a different accent (it reads the other
-      `thumbwork_*/plan.json`), chosen under a lock because thumbnails are made side by side.
-    - **Speed:** `make_shorts` starts each thumbnail as soon as its Short is edited, `THUMB_WORKERS` (3) at
-      once; nearly all of a thumbnail's time is the AI call. Drawing takes ~0.15 s.
-    - **Never wait forever on the AI:** every request has a timeout (`ai.TIMEOUT`, 180 s; thumbnails 60 s, no
-      busy waits), and thumbnail planning has an overall `AI_DEADLINE` (120 s) after which `plan_without_ai()` is
-      used. Without these, one Gemini request that never answered left a job stuck on "Thumbnail 2 of 6".
-    Output stays under YouTube's 2 MB thumbnail limit. `THUMB_STYLE=simple` (or a failure) uses `simple.py`.
-    - **Shorts feed thumbnail:** the API can't set it (thumbnails.set only covers search, home and
-      subscriptions, and needs a phone-verified channel: youtube.com/verify). So `pipeline/cover.py` puts the
-      thumbnail in as the first 0.2 s (6 frames) when uploading (`web/posting.upload_file()`) and for the
-      Save button (`/media/...?cover=1`); the creator picks that frame in the YouTube app (any channel), or
-      uses Download thumbnail + Open in Studio (Partner Program). The cover clip is encoded with the Short's
-      own settings and joined without re-encoding (~1 s); if the decode check finds a bad join, it re-encodes.
-      Measured: audio and video stay within 0.3 ms. The Short in the job stays clean (Review plays it
-      without the flash; upload records keep its name), and `cover_<short>_<thumb>.mp4` is cached.
-      `COVER_FRAME=0` turns it off.
-    - **Links on Shorts:** each description (`web/posting.short_description()`) has the hook, "Watch the full
-      video: <vlog link>", "More from @handle" (the vlog's channel, else the uploading channel) and hashtags.
-      Links in Shorts descriptions can't be tapped (YouTube, since Aug 2023); @mentions can. The tappable
-      "Related video" and the Shorts-feed thumbnail can't be set through the API, so the Posted page lists
-      them as manual Studio steps.
-
-13. **Hooks must be true.** Each Short has `hooks` (curiosity / bold / story, plus "custom" if the creator typed
-    one), the chosen `hook`, `hook_style` and `hook_mode` ("text" or "none" = no banner, the original audio opens
-    it). Every prompt carries `HOOK_RULE` (no invented facts), and `hook_fields()` drops any hook with a number
-    that isn't said in the moment ("I lost $2,000" from a clip that never says it). Keep both when changing prompts.
-    Applying a hook can also redraw the thumbnail text (`hook_to_lines()` → `retext_thumbnail()`), which reuses
-    the thumbnail's saved `thumbwork_N/` frames and `plan.json` (no AI, no new frames).
-14. **No emoji in burned-in text.** The caption and thumbnail fonts have no emoji, so they'd show as empty boxes;
-    `without_emoji()` strips them in `ass_escape()` and the thumbnail drawers. Titles/descriptions keep them.
-15. **YouTube sign-in redirects to `/api/youtube/callback` and must match the OAuth client exactly.** Locally that's
-    `http://localhost:8000/...` (not `127.0.0.1`); in the cloud set `YOUTUBE_REDIRECT_URI`. Never go back to
-    `InstalledAppFlow.run_local_server()`: it opens a browser on the server and can't work in the cloud. Scopes are
-    the single `youtube` scope (upload, channel name, reschedule, title update, delete for Replace); a saved token
-    missing it counts as signed out. Replacing an edited Short uploads the new one first, then deletes the old one,
-    and is refused once the Short is public (`yt.is_live`). Upload records store `video`, the file that went up, so
-    an edit is detected by comparing it with the Short's current `video`.
-    The waiting sign-in (state + PKCE verifier + purpose) lives in the user's session cookie, so a callback only
-    finishes a sign-in the same browser started.
-16. **Accounts and ownership.** Every `/api` and `/media` route needs a signed-in user (`gate()` in `web/accounts.py`;
-    only names in `PUBLIC` are open), and any route with a `job_id` checks `job["owner"]` there, so a new job route
-    is protected automatically. Background threads have no request, so pass the user id in (as `do_upload` does).
-    Google sign-in ("login") asks only `openid email profile` (no cap, no warning); Connect YouTube is separate.
-    Users are matched by Google `sub`. Google sign-in with an email that already has an account (not linked to that
-    Google account) is refused with "Email already exists" (`EMAIL_EXISTS`), shown in red on the sign-in screen
-    (`login_problem_page()` puts it in the session; `/api/me` hands it to the page once). Accounts are never joined
-    by email. **Forgot password** (`web/password_reset.py`, `accounts/mail.py`): a one-time link `APP_URL/#reset=<token>`
-    (only its SHA-256 is stored in `password_resets`, 1 hour), emailed over SMTP in a background thread (no SMTP
-    settings = the link is printed in the terminal); the reply is the same whether or not the account exists. Using
-    it sets the password, marks the email verified and bumps `session_version` (ends every old session, which
-    also stops pre-account hijacking: someone signing up with another person's email first). In the cloud set
-    `APP_URL`: never build email links from the request's Host. POSTs from another Origin get 403.
-    Tests must set the `DATABASE_PATH` and `JOBS_DIR` environment settings to temporary paths before importing `app`:
-    a test once wrote to the real jobs.
-    The login throttle keys on `request.remote_addr`; behind a cloud proxy, use the real client IP (ProxyFix).
-17. **Analytics needs a second Google scope.** `youtube` is required; `yt-analytics.readonly` (`ANALYTICS_SCOPE`) is
-    asked on connect but optional. Without it (or without "YouTube Analytics API" enabled in Google Cloud),
-    `youtube/analytics.py` falls back to live counts of Pit Crew's Shorts and adds `notes=["reconnect"]`, and the page
-    shows "Connect again". Shorts are filtered with `creatorContentType==shorts` (camelCase: `shorts`, `videoOnDemand`; the UPPER_CASE names in Google's docs get HTTP 400, checked on a real channel); numbers lag ~2 days. Results are
-    cached 10 minutes per channel. One Short's window (`short_detail`) is its whole life on its own channel (`?channel=`),
-    with YouTube's **live** views/likes/comments (what Studio shows; Analytics lags ~2 days). First-week views use the live
-    count until the week + delay is over, so new clips never show a false 0. Count axes use whole-number steps (`countMax`). Charts: one axis, colours from `css/analytics.css` tokens (validated), text never in
-    series colours, a Table button on every chart.
-18. **Open in Studio goes through Google sign-in** (`studioLink()` in `js/core.js`:
-    `accounts.google.com/ServiceLogin?service=youtube&continue=<studio link>`), so a signed-out creator lands on the
-    Short after signing in instead of on Studio's home page.
-19. **Instagram (Instagram API with Instagram Login, no Facebook Page).** Only professional accounts (Business or
-    Creator) can be posted to; `account_type` is checked on connect and the page shows the switch steps.
-    The 60-day token is refreshed when fewer than 10 days are left (`instagram/connection.load`). **Instagram downloads
-    each Reel from Pit Crew**: the container gets a `video_url`, a signed link that expires (`public_video_url()` ->
-    `/ig-video/<token>.mp4`, public in `PUBLIC`, one file of one job), then it's polled until `FINISHED`, then
-    `media_publish`. Never go back to *resumable upload* (bytes to `rupload.facebook.com`): it only works for apps on
-    Facebook Login for Business; with Instagram Login, Instagram answers "The parameter video_url is required" (a real
-    Reel failed this way in Oct 2026). So Pit Crew must be reachable over https when a Reel goes out: `PUBLIC_URL`, else
-    the `INSTAGRAM_REDIRECT_URI` host (locally the tunnel, which must then be running), else `APP_URL`. `thumb_offset` points at the cover frame
-    (`pipeline/cover.py`). Instagram has **no scheduling for apps**: `web/instagram_posting.py` keeps
-    `job["ig_posts"]` and a daemon thread posts due Reels (also ones that came due while Pit Crew was off). A Reel left
-    in `posting` by a crash becomes `check`, never re-posted on its own. 100 API posts per account per 24 h.
-    In the cloud the scheduler (like the vlog queue, `web/job_queue.py`, and unfinished uploads in `jobs/_uploads`) must run in exactly one process with threads (no gunicorn `--preload`/forking: threads started at import don't survive a fork, and vlogs would wait forever; any proxy in front must accept request bodies of at least 8 MB, the upload pieces) (or move to a job queue). The redirect address is
-    `INSTAGRAM_REDIRECT_URI` (Meta may refuse plain `http://localhost`; use an https tunnel then).
-20. **Several channels and Instagram accounts per creator.** `connections` in `accounts/db.py` (platform youtube /
-    instagram, `account_id` = YouTube channel id / Instagram user id, token, profile, `active`). One per platform is
-    active: it's where *new* posts go, and Analytics shows it. Connecting adds a connection (or updates the same
-    one) and makes it active; Switch just changes `active` (no new sign-in); Disconnect drops one and the newest other
-    becomes active. Pit Crew sign-out leaves connections alone (planned Reels must still go out).
-    **Never act on the active account for something already planned or posted.** Upload/schedule routes take the
-    `channel` / `ig_id` the page showed (another tab may have switched); upload records keep `channel` and each
-    `ig_posts` entry keeps `ig_id` + `username`; reschedule, Replace, the Scheduled page's live state and the
-    Instagram scheduler use those. Pass `channel=` / `ig_id=` to `yt.get_service()` / `ig.post_reel()`.
-    Analytics and Instagram insights caches are keyed per channel/account. Rows moved from the old one-per-user
-    tables (`PRAGMA user_version` 0 → 1; the old tables stay, unused) get their YouTube channel id on first
-    `yt.account()` (`_fill_channel`); Reels planned before this get the first-connected account (`_stamp_account`).
-    "Add account" for Instagram sends `force_reauth=true`, so Instagram asks who to log in as.
-21. **Storage is deleted on a timer (`web/retention.py`, checked every 15 minutes).** A vlog's video: `KEEP_ORIGINAL_HOURS`
-    (72) after `job["last_edit_at"]`; a draft (on neither platform, nor planned): `KEEP_DRAFT_DAYS` (30) after the Short's
-    `edited_at`; a posted Short's video file: `KEEP_POSTED_DAYS` (30) after it went out everywhere it was planned (then
-    `file_deleted_at`, Download points at Studio); a saved transcript (`jobs/_transcripts`): `KEEP_TRANSCRIPT_DAYS` (30) after it was made
-    (`sweep_transcripts()`). 0 = keep forever. Every `update_short()` counts as an edit (stamps
-    both clocks), so route Short changes through it. Warnings a day before: on the card (`video_expires` / `expires` in
-    the APIs) and by email (`mail.notify`, printed when SMTP isn't set). Nothing is touched while a vlog is being made,
-    remade or posted, or while a Reel is still waiting. `remove_video()` (`web/vlogs.py`) is shared with the 🗑 button;
-    after it, Try again and Add a Short are locked (`job.video_deleted_at`); a draft's other editing carries on from its clean clip (gotcha 35). A vlog that stopped keeps its video
-    `KEEP_ORIGINAL_HOURS` after it stopped (`last_edit_at`, for Try again), then it's deleted (`_sweep_stopped`), or the whole vlog
-    if it made nothing to keep (never one prepared for YouTube: `_empty_stop()` in `web/vlogs.py`). `RETENTION_OFF=1` stops the
-    timer (tests). In the cloud this becomes a scheduled job.
-22b. **Analytics reports YouTube refuses are left out, never an error.** Every extra report goes through `_try()`;
-    `engagedViews` is added with `_with_engaged()` (falls back without it); a `creatorContentType==X` filter that a report
-    refuses (HTTP 400) is retried with creatorContentType as a dimension (`_report_by_type(kind)`; YouTube refuses
-    `video,creatorContentType`, so video lists rely on the filter). Real-channel facts (_test/an_diag*.py, Oct 2026):
-    `subscribedStatus` answers HTTP 500 for every metric on some channels, so `_subscribed()` returns None and asks that channel again only after `SUB_RETRY` (24 h); the Audience tab shows the card only when it comes back; "All time" starts at the channel's creation day
-    (`channel_start()`), never 2005 (thousands of empty days made reports take 10-35 s). Google's client
-    (httplib2) is not thread-safe: thread pools use `_per_thread()` clients, and every client has a 40 s timeout
-    (`_http()`). Apps can't read
-    impressions/CTR, realtime, unique or returning viewers, "when your viewers are on YouTube" or Shorts viewed vs swiped
-    away: don't promise them. Instagram account insights: at most 30 days per request,
-    kept 90 days, demographics need 100+ followers, `impressions` is retired (use `views`). `account_insights(days | start, end)`
-    asks any window in the last 90 days in pieces of up to 30 days (`ig_window()`; older dates: `note` "cut" / "old") and adds
-    up the counts; reach and accounts engaged count each account once per piece, so over 30 days they're None (the page says
-    so and shows views by followers/non-followers instead). **Likes/comments: All time = YouTube's live counts; a date range
-    can only come from Analytics**, which can count a comment differently (real channel: live 2, Analytics 1) and is ~2 days
-    behind; the page says which. Compare (calendar) starts on the earliest ticked video's posting day, not the range start
-    (zero-view days are rows too). Column charts say what a bar counts (`colsHTML(rows, {unit})`). Charts: one colour per video,
-    fixed order `--s1..--s8`, kept while ticked (colour follows the video, not its rank); donuts fold past 5 slices into Other.
-    YouTube is `--c-yt` (blue) and Instagram `--c-ig` (orange) everywhere both appear.
-22e. **Upload records of Shorts posted straight away have `"when": None`** (`when` is the scheduled time); `uploaded_at` is
-    saved since Oct 2026, and for older records `fill_dates()` (web/analytics_clips.py, used by both Videos sections) uses YouTube's published date, so dates, "Newest" and the
-    follows window work.
-22c. **Instagram can't say which Reel brought a follower.** "New followers" for a Reel is the account's
-    `follows_and_unfollows` (breakdown `follow_type`) in the 48 h after it went out (`follows_after()`; `complete` false
-    until those 48 h are over; None for Reels older than 88 days, past Instagram's 90-day insight window). The page says so.
-22d. **Pit Crew's read: one per creator per day, and it only quotes real numbers.** The AI is asked at most once a day per
-    creator (cache key: user, YouTube channel, Instagram on/off, date), whatever range or platform the page shows: it reads
-    fixed numbers (`daily_facts()`: Shorts all time, Shorts last 28 days, Instagram's last 30 days, each clip since posted;
-    every key names its time span) and answers a headline for both apps, one for YouTube only, one for Instagram only, and
-    4-6 tagged tips (`_fill()`: at least 2 per app); the page picks by platform. Never key it on the range again (that asked
-    the AI on every range change). `_honest()` drops any tip whose text has a number not in the facts (±1, titles included;
-    counts 0-10 allowed) and swaps a bad headline for `rules()`'s. Gemini first then OpenAI, 25 s per model, no busy waits.
-    **The page never waits for the AI**: `read()` answers `rules()` at once with `pending: true` and asks the AI in a
-    background thread (one per key); the page asks again every 6 s (a real read took 35-70 s). A failed AI read is retried
-    after 10 min. A 7-day read once called a clip "this week's winner" from its lifetime views: keep the spans labelled.
-22. **Compare clips by their first 7 days, never by lifetime totals** (older clips have had longer). YouTube:
-    `first_week_views()` asks each Short's own channel (`video==id`, first 7 days; final after 9 days because of the
-    ~2-day delay; cached). Instagram only gives running totals, so `snapshot_reels()` saves each Pit Crew Reel's numbers
-    once a day (`reel_snapshots`, also every 6 h in the background): first week = the saved day 7–9 days after posting,
-    else "still counting" (< 7 days) or "not enough history" (saving began later). "What's working" (`takeaways()`) only
-    compares groups of 2+ clips, needs 4+ finished clips per platform and a 20% difference, and says what it's based on.
-
-23. **A vlog upload is a job with `kind: "vlog"`** (`web/vlog_upload.py`): `VLOG_STAGES` while it's prepared, then
-    `status: "ready"` with `job["vdraft"]` (what the creator edits) and, once sent, `job["vpost"]` (uploading → done /
-    error) and `job["vlog"]` (video id, URL, channel), so its Shorts link back to it. It has no `count` until Shorts are
-    asked for; `/api/vlogs` calls that `prep`. The page decides from that: `prep` opens the upload page (screen 10),
-    anything else the usual progress / Shorts & Reels (`progress.js` `tick()` hands a `prep` job to `openVlogUpload`).
-    `/shorts` turns it into an ordinary Shorts job on the same video and transcript (no second upload, no second
-    transcription), only while the video is kept (`KEEP_ORIGINAL_HOURS`, 72) and before it has any Shorts. A
-    `vpost` left "uploading" by a restart becomes an error (`load_job`), and retention never deletes a video mid-upload.
-
-24. **The server (deploy/, tested on a fresh Ubuntu 24.04 with systemd, Oct 2026).** One process: `serve.py` (Waitress,
-    threads) behind Caddy (https, `/static` served directly with `Cache-Control: no-cache`, security headers, no access log).
-    The service runs as `pitcrew` with `ProtectSystem=strict`: **the code folder is read-only; anything Pit Crew writes must
-    live under `/srv/pitcrew`** (`DATABASE_PATH`, `JOBS_DIR`, `HF_HOME` for the speech model, `HOME`). A new setting whose
-    laptop default in `.env.example` is wrong for a server goes in setup.sh's first-run `--force` list (a non-empty example
-    value is otherwise kept: `JOB_SLOTS=2` once stayed on a 2-core server). `update.sh` runs from a temp copy of itself,
-    refuses if code on the server was edited, compiles before restarting (a syntax error never takes the site down),
-    and on any later failure moves the **branch** back too (`checkout -B`: a rollback that only moved HEAD once left
-    `main` on the broken commit, and the next update "rolled back" to it). In deploy scripts never pipe a long output
-    into `grep -q` under `set -o pipefail` (grep exits early, the writer gets SIGPIPE, the check fails: it stopped setup
-    at "FFmpeg can't add captions"). Oracle's Ubuntu images block 80/443 in iptables as well as in the cloud firewall.
-25. **Caption fonts by full name.** `caption_font_name()` returns `CAPTION_FONT` when it matches a font's family *or full
-    name*, else the full name ("Montserrat ExtraBold") of the font in the job's fonts folder. On Linux with all Montserrat
-    weights installed (`fonts-montserrat`), asking libass for the family "Montserrat" gave Regular; the full name gives the
-    exact file. setup.sh copies Montserrat ExtraBold into `fonts/`.
-26. **The privacy policy is a promise about the code.** `static/legal/privacy.html` says what is collected, who gets it and
-    how long it's kept; retention times come from web/retention.py's settings (so they can't drift), AI providers from
-    the keys in `.env`. When you collect something new, send data to a new service, store something longer, or change a
-    permission (scope), update the policy and `UPDATED` in `web/legal.py` in the same pull request.
-27. **YouTube's stored-data rules (Developer Policies III.E.4, III.D.2) are kept by `web/youtube_upkeep.py`, once a day.**
-    Connected channels are re-checked every `CHECK_DAYS` (7; the rule is 30): sign-in refreshed (a removal in Google's
-    settings shows up as invalid_grant and drops the connection), name/handle/picture re-read (`yt.recheck()`, stamps
-    `profile.checked_at`), and every posted video checked (`sync_deleted(force=True)`). A channel still in records but no
-    longer connected goes into `gone_channels` (accounts/db.py) and is forgotten `GONE_DAYS` (5) later: its upload records
-    (the Shorts are drafts again), a vlog's `video_id`/link/channel, its numbers in memory; reconnecting before then keeps
-    everything, and a vlog being made or posted is left for the next day (the channel stays listed). The rules allow 7
-    days after a disconnect, 30 after a Google-settings removal; the privacy and data-deletion pages promise 7 and 14.
-    A vlog's details read from its YouTube link (`job["vlog"]`, `fetched_at`) are read again after `LINK_DAYS` (30), or
-    deleted when YouTube says it can't find the video (other errors: retried up to a week, then deleted); the title stays.
-    Numbers in memory (`youtube/stored_data.py`): expired cache entries dropped, first-week views at most 30 days old.
-    **Anything new you keep from a YouTube API answer needs a refresh-or-delete path here** (and a line in the policy).
-28. **YouTube's upload limit is per Google Cloud project, and Pit Crew is one project** (`YOUTUBE_DAILY_UPLOADS`, 100
-    uploads a day, reset at midnight Pacific; a scheduled Short counts the day it's sent, not the day it goes public).
-    Never add more projects to get more: it's against YouTube's API terms; the audit raises the number. Every upload goes
-    through `youtube_quota.take()` first (Shorts, vlogs, Replace) and `give_back()` if it didn't reach YouTube; YouTube's
-    own `quotaExceeded` marks the day used up (`youtube_says_used_up`). Nothing over the limit fails: Shorts go into
-    `job["yt_waiting"]` with their chosen times, a vlog into vpost state `waiting`; the `youtube-waiting` thread sends
-    them after the reset, oldest first (a time that passed meanwhile = public at once). Only Replace says "press again after
-    midnight". Settings: `YOUTUBE_OPEN_SHARE` (60), `YOUTUBE_RESERVE` (5).
-29. **Free Gemini may train on what it's sent, so nothing from YouTube's API goes to it** (Google's Limited Use rule).
-    `pipeline/ai.py` `youtube_data_ok()` is true only for OpenAI or `GEMINI_PAID=1`. Until then a vlog's title and
-    description read from its YouTube link stay out of the prompts (`vlog_context_block()`, the thumbnail plan) and
-    Pit Crew's read on Analytics is written by the rules (`analytics_coach._providers()`). What the creator typed is fine.
-    Any new prompt with YouTube data must check `youtube_data_ok()`.
-30. **A Short can keep several pieces of its moment (AI Edit).** `s["pieces"]` = `[[a, b], ...]` in the vlog's seconds, inside
-    `start`..`end` (none = one piece, `start`..`end`: every Short made before, and every new one). Trim can reach past the
-    moment: `/apply` takes pieces anywhere in the vlog (0..its duration) and sets `start` / `end` to the first piece's start
-    and the last one's end (one piece = just a new `start` / `end`, no pieces), so "inside `start`..`end`" stays true. **Not `keep`: that's the
-    "Post this" tick on every Short** (the first try used it and every route broke). `pipeline/pieces.py` is the only place that
-    reads it: `kept()` (normalized), `length()` (what the pages show as the Short's length: `pipeline.short_length`, `shortLen()`
-    in `js/core.js`; never `end - start` again), `timeline()` (the words on the Short's own clock, for captions) and `said()` (what
-    is still said: hooks, title and caption ideas read it, so a hook can't quote a cut word). `render_short` cuts and joins the
-    pieces in one FFmpeg run (`trim`/`atrim` + `concat`, a 20 ms sound fade at each join; `-ss` before `-i` resets the clock to
-    the first piece). After a cut, `honest_hooks()` drops a hook with a number no longer said and says so (`edit_note`). Try
-    again (a new moment) drops the pieces; a new hook or look keeps them. AI Edit's AI only reads the Short's own words
-    (timeout 60 s, one short busy wait: the creator is waiting on the page).
-31. **Twick's timeline (`editor-app/src/main.jsx`) only works with these, each found the hard way:** the track's type is
-    `"element"` (Twick ignores a clip dragged on its own track of any other type), every clip has its `trackId` (or
-    Delete does nothing), a `frame` (or a trim throws in `getPosition`), a non-empty `src` (or its validator silently undoes
-    every trim: no vlog video = an empty `data:` URL) and `mediaDuration` (the vlog's length, so nothing waits on the
-    video). Each layout gets new clip ids (a clip keeps its own dragged size while its id stays). Twick's own split isn't
-    used (it reloads the video's details for each half and loses the clip if that fails): Split and Delete are worked out
-    on the pieces; a split alone isn't a change (touching pieces are one, `aeNorm`). Its right-click menu and dropping
-    files are caught before they reach it. Changes are reported after Twick's own update (`setTimeout`), and the page
-    lays the timeline out again from `aiEdit()`'s pieces after every change. Its calls do nothing until it's drawn.
-    Privacy: `@twick/live-player` (its canvas player, ~3 MB) is replaced by a stand-in (`src/player-state.jsx`), its
-    PostHog analytics are off (`window.__TWICK_ANALYTICS_DISABLED__` + `analytics.enabled: false`), its stylesheet's
-    `@import`s of Google Fonts / cdnfonts are dropped and every rule is scoped to `.pc-tl` (its class names are generic:
-    `.card`, `.btn`), all in `vite.config.js`. Its ruler is styled inline in white: `src/timeline.css` overrides it.
-    `npm install` needs `--ignore-scripts` (Puppeteer and telemetry downloads). Getting around is ours (`mount()`):
-    Twick's box-select is off (its overlay hidden, and a press on an empty spot is caught first: it scrolls instead,
-    and a plain click there unselects), the wheel scrolls sideways, Ctrl/Cmd + wheel zooms, `setTime` keeps the
-    playhead in view. **Trimming is ours too** (`mount()`: `trimStart` / `trimMove` / `trimEnd`): Twick's handles are 2 px,
-    only on the chosen clip, and won't let a clip pass its neighbour (the parts touch, so a part could only shrink). A
-    press within `EDGE` px of any part's end is caught before Twick sees it (its mouse events during a trim are caught
-    too) and worked out on the pieces: clamped to the part before / after in the vlog and the vlog's ends, at least
-    `MIN_PART` (0.5 s: the page drops parts under 0.3 s, and one dragged to exactly 0.3 s vanished by rounding), snapped
-    to `opts.snaps()` (the gaps between words), committed with `impl.commit()` like any change. A press right on a join
-    goes to the part on the right (its start). Trim's strip (`js/trim-strip.js`) replaces this view on the page, under every tool (`edTrimShow`, only on a change); `mount()` hands it `pieces` / `select` / `deselect`. The browser check (`tests/browser/check_editor.py`) covers all of it: run
-    it after any change here.
-32. **The icon font only has the icons listed in `static/index.html`** (`icon_names=...` on the Material Symbols link, in
-    A-Z order or Google Fonts refuses the request). An icon that isn't listed shows as its name (e.g. "pause_circle").
-    Add a new icon there; `tests/test_page_scripts.py` fails when one is used but not listed.
-33. **Captions are the Short's own `captions` settings** (`pipeline/captions.py`, the editor's Captions tool). None saved =
-    the preset of the job's style, which writes **exactly** the .ass the old code wrote (`tests/captions_golden.json`
-    checks it byte for byte: change the default look on purpose, never by accident). `clean_captions()` checks every key
-    (only `#RRGGBB`, known fonts and choices, clamped numbers). Word changes (`edits`, "" = left out), `pop` and `br` key on
-    the word's **place in transcript.json's `words`** (`"i"`: `render.short_words()`, AI Edit's words), never on its time,
-    and so does a line's own look (`styles`, only `LINE_KEYS`; kept on each of its words, a line takes its first word's:
-    override tags at the line's start and its own MarginV),
-    so cuts and trims never move them; `pieces.timeline()` keeps a word's other keys for that. Every remake reads the
-    saved settings (hook, AI Edit, Trim keep them); Try again keeps the look and drops word changes (`style_only`). The
-    editor's Save sends them **before** a cut or hook remake without a remake of their own (that remake makes them), else
-    as their own remake; if that cut or hook is refused, they get their own remake so the video never lags behind. Fonts
-    are bundled (OFL, licence beside each) and copied into the job's `fonts/` (gotcha 4); libass is asked for the full
-    name (gotcha 25, it logs the font's PostScript name, e.g. `BebasNeue-Regular`), and the one-weight display fonts are
-    asked for without Bold (`BOLD`), or libass thickens them artificially. The preview is one frame of the vlog, reframed
-    like the Short, with the same .ass (`caption_frame()`, ~0.1 s, 2 at once), so it needs the vlog's video; a frame
-    can't show motion, so `caption_clip()` makes 2.5 s of silent video for it (~0.3 s). Pop and Punch put their scale
-    on **every word** of the line (to each word's own size): one line-wide scale tag is undone by the next word's own
-    `\fscx`. Pop hides later words with `\1a\3a\4a` and shows them `POP_STEP` apart (back to the style's own alphas:
-    a box is 0x40). Word by word hides the words still to come the same way, so the line never shifts. Slide up is a
-    `\move` to the line's own place (bottom centre, its MarginV), which matches the next event's position exactly.
-    Effects under ~0.2 s aren't seen at 30 fps.
-
-34. **Reframe is the Short's own `reframe` settings** (`pipeline/smart_reframe.py`). None = `crop_filter(meta, cx)` **exactly** (`tests/test_reframe.py` checks it), and an already vertical vlog is padded as before whatever is saved. Times are the vlog's seconds (like pieces and caption edits) and positions fractions of its picture, so trims and cuts never move a move; the render walks the Short's own clock every 1/30 s, maps it back through the pieces (`to_vlog`) and asks `framing_at`. **A moving frame is FFmpeg `sendcmd`** (a `reframe_<uuid>.cmd` file in the job folder, relative path, gotcha 8, deleted after every run): it sets `crop@rfa` x / y, and with a zoom `scale@rfz` w / h and `crop@rf` x / y. **Never change a crop's own size by command**: FFmpeg stops after the first frame (found Oct 2026); a zoom is a fixed crop of the widest frame, a scale so the wanted part is 1080x1920, then a crop. Pan only costs about nothing; pan + zoom about 2× a still crop. Works on the bundled FFmpeg 7.1 and Homebrew's 8.1 (`tests/system/system_reframe.py` checks where each frame lands on a vlog whose colour is its position). In the Captions preview the clock shift (`setpts`) comes **before** the framing, which moves on that clock. Fit and Split use labelled pads inside the chain (`split[rfa][rfb];...`), which works both in `-vf` and spliced into the joined pieces' `[vc]...[vo]`. Every remake (hook, cut, captions, Trim) keeps it; Try again keeps the layout and drops the moves (`reframe_style_only`). Fill with Fit shots draws both and shows Fit over the frame in them (`overlay=enable='between(t,..)'` on the Short's clock, `fit_ranges`); a punch-in multiplies the frame's zoom (`punch_at`), so the zoom path is used. Thumbnails still use `cx`. Follow the speaker reads each kept part in order (one seek per part, `grab()` then `retrieve()` every 0.5 s) and never fails a request: no face = `[]`.
-
-35. **After a vlog's video is deleted, a draft is remade from its clean clip** (`web/clean_clips.py`). `remove_video()` (the only way a vlog's video goes) calls `make_clips()` first: each draft without one gets `clip_<idx>.mp4` (its kept parts ± `PAD` 30 s, H.264 CRF 20, 1080 on its short side: `scale` = clip width / vlog width). A clip failing never stops the deletion (that Short just can't be remade, as before). **Times stay the vlog's seconds everywhere**: `source()` answers {path, offset (= the clip's `from`), scale, reach} and the pipeline reads the file at (vlog time − offset) (`render_short(..., offset)`, `caption_frame` / `caption_clip`, `follow_moves`, and on the page `edTlOff` in the Video row, Trim's preview and Reframe). **A Short's `cx` is in the vlog's pixels**: `clean_clips.render()` scales it into the clip and back (render_short returns it in the source's pixels). Pieces are clamped to the reach (AI Edit's `reach`; `/apply` and the previews). `tests/system/system_clean_clips.py` checks the same frames come out of the vlog and the clip. The privacy policy says these pieces are kept (with the drafts).
-
-36. **Pause and Stop don't wait (`web/pause.py` `Run`).** A run's own thread only waits on helper threads (`run.doing(fn, ...)`) and checks every 0.1 s, so it leaves at once. What the helper was doing ends as soon as it can: FFmpeg killed within 0.2 s (`pipeline.ffmpeg.watching(check=)`; pipeline code just calls `run()`, so it stays free of web code), transcription at its next batch of words (a CPU can't be interrupted mid-batch; the next run waits for it on a per-file lock, then listens from the last word heard, `transcript.partial.json`), an AI answer dropped when it arrives. Once the run has been left, `Run.check()` raises in the helper too, so **a helper can never write over the paused job**: new run steps must go through `step()`. A progress callback raising is `_Halted` in `transcribe()`, so it's never taken for the batched engine failing (it used to fall back to one-at-a-time first). A new long step in a run goes through `run.doing()`. YouTube's upload stage still pauses after the 16 MB piece being sent. **Every FFmpeg is started with `stdin=subprocess.DEVNULL`** (or `-nostdin`): FFmpeg reads keys from a terminal while it encodes, and `update.sh` runs the tests under `timeout` (a background process group), where the system stops it on the first read: the server's tests hung until they timed out and the update rolled back (Nov 2026; `test_ffmpeg_never_gets_the_terminal`).
+1. **Audio is decoded by FFmpeg** (`load_audio()` pipes 16 kHz mono float32 into `model.transcribe(array)`), not
+   faster-whisper's PyAV decoder (PyAV ≥ 15 broke its `metadata_errors` argument).
+2. **OpenCV < 5** (5 dropped `CascadeClassifier`). Face finding never fails a job: any error → `None` = centre crop.
+3. **Not every FFmpeg has libass** (Homebrew, Anaconda): `ffmpeg_exe()` picks the first with the `subtitles` filter
+   (`$FFMPEG_PATH`, PATH, Homebrew, then `imageio-ffmpeg`'s static binary). Never hard-code `"ffmpeg"` (ffprobe: PATH).
+4. **Captions need a real font file**: `prepare_job_fonts()` copies `fonts/*` (else a system bold) into the job;
+   `caption_font_name()` uses `CAPTION_FONT` only if present. No fontconfig + missing font = invisible captions.
+5. **Gemini models retire and get busy**: `FALLBACK_MODELS` (newest Flash first; `GEMINI_MODEL` tried first);
+   `gemini_error_kind()` = busy / limit / missing / bad_key / other; busy retried in rounds (`BUSY_WAITS`), missing /
+   limited skip ahead. Check https://ai.google.dev/gemini-api/docs/models before renaming.
+6. **`probe()`** uses `-show_streams -show_format`, rotation from `side_data_list` or old `tags.rotate`
+   (`stream_side_data=` breaks FFmpeg 4.x). Remembered per (path, size, mtime) (37d).
+7. **Sideways phone videos**: `probe()` swaps width / height for rotation 90 / 270.
+8. **The subtitles filter runs with `cwd=job_dir` and relative paths** (`subtitles=captions_N.ass:fontsdir=fonts`):
+   Windows drive letters break escaping. Same for `sendcmd` files.
+9. **Transcription is batched** (`BatchedInferencePipeline`, ~2×; `WHISPER_BATCH_SIZE=0` = off). **English only for
+   now**: batched mode guessed an English vlog as Welsh, so with `WHISPER_LANGUAGE=auto` `detect_language()` votes over
+   8 clips; Hindi / Hinglish was tried and dropped. `drop_repeats()` keeps a phrase ≤ 2× in a row (Whisper loops over
+   music) and cuts a letter repeated 4+ to two. `sentence_segments()` rebuilds sentences from word times (the AI needs
+   them). Model loaded once per process (`whisper_model()`); GPU used when present.
+10. **Never download videos from YouTube** (API policy, even the creator's own; risks posting access). Only public text
+    is read (Data API with `YOUTUBE_API_KEY`, else oEmbed). Video comes from an upload or a Drive link.
+11. **Every AI call goes through `ai_json()`** (Gemini `gemini_json()` / OpenAI `openai_json()`, shared `ask_models()`;
+    images as `image_part(bytes)`). OpenAI JSON mode returns objects only: a list arrives as `{"items": [...]}`, callers
+    accept both. OpenAI reasoning models reject `temperature` (retried without). Keep `OPENAI_FALLBACK_MODELS` current.
+12. **Thumbnails**: one AI-chosen frame, look **Frame** (default) or **Duotone** (cut-out collages dropped: ugly cut-outs,
+    180 MB model, 2 GB RAM).
+    - Plan (`plan.py`): 12 frames (≤ 1920 px, 4 at a time) → AI returns `frame`, `focus` (box_2d `[ymin,xmin,ymax,xmax]`
+      0-1000), `line1`, `line2`, `accent`; `clean_plan()` validates; fallback `plan_without_ai()`. **Always Gemini**
+      (`THUMB_AI_PROVIDER`: trained on box_2d); a failing provider is skipped for `REST` (180 s).
+    - Text: `tidy_lines()` drops words repeated from the headline; `text_spot()` above the face, else below (clear of the
+      bottom 230 px), else the roomier side. Fonts bundled (OFL): Anton, DM Serif Display; Latin only.
+    - Crop `layout.portrait()` 9:16 around `focus` (`ZOOM`, `FACE_AT`), sharpened when upscaled a lot.
+    - Looks: `compose()` → `looks/<look>.py` (`LOOKS`, `THUMB_LOOK`); look saved in `plan.json`; switching redraws from
+      `thumbwork_N/` (no AI, ~1 s). `upgrade_plan()` reads collage-era plans. `fresh_accent()` (under a lock) gives each
+      Short of a vlog its own accent.
+    - Speed / never stuck: started as soon as each Short is edited, `THUMB_WORKERS` (3) at once; timeouts everywhere
+      (`ai.TIMEOUT` 180 s, thumbnails 60 s, overall `AI_DEADLINE` 120 s → `plan_without_ai()`); one silent Gemini
+      request once froze a job. Output < 2 MB. `THUMB_STYLE=simple` or failure → `simple.py`.
+    - **Shorts feed thumbnail can't be set by API** (thumbnails.set skips the Shorts feed and needs a verified channel):
+      `pipeline/cover.py` puts it in as the first 0.2 s (6 frames) on upload and on Save (`/media/...?cover=1`), joined
+      without re-encoding (re-encodes if the decode check finds a bad join; A/V within 0.3 ms); the job's Short stays
+      clean; `cover_<short>_<thumb>.mp4` cached; `COVER_FRAME=0` = off.
+    - Descriptions (`short_description()`): hook, "Watch the full video: <link>", "More from @handle", hashtags. Links in
+      Shorts descriptions can't be tapped (@mentions can); Related video and feed thumbnail are manual Studio steps.
+13. **Hooks must be true.** Fields `hooks` (curiosity / bold / story / custom), `hook`, `hook_style`, `hook_mode` ("text"
+    / "none"). Every prompt carries `HOOK_RULE`; `hook_fields()` drops a hook with a number not said in the moment.
+    Applying a hook can redraw the thumbnail text (`hook_to_lines()` → `retext_thumbnail()`, saved frames, no AI).
+14. **No emoji in burned-in text** (fonts lack them: boxes): `without_emoji()` in `ass_escape()` and thumbnail drawers.
+15. **YouTube OAuth redirect must match exactly** (`/api/youtube/callback`; local `http://localhost:8000`, never
+    127.0.0.1; cloud `YOUTUBE_REDIRECT_URI`). Never `InstalledAppFlow.run_local_server()`. One `youtube` scope; a token
+    without it = signed out. Replace uploads the new one first, then deletes the old; refused once public
+    (`yt.is_live`). Upload records keep `video` (the file sent) to detect edits. The pending sign-in (state, PKCE,
+    purpose) is in the session cookie.
+16. **Accounts and ownership.** Every `/api` and `/media` route needs a user (`gate()`; open only `PUBLIC`), and any
+    route with `job_id` checks `job["owner"]`, so new job routes are protected automatically. Background threads get the
+    user id passed in. Google login asks `openid email profile` only; users matched by Google `sub`; an email that
+    already has an account is refused (`EMAIL_EXISTS`), never joined. Reset link `APP_URL/#reset=<token>` (SHA-256
+    stored, 1 h, same reply whether or not the account exists; using it verifies the email and bumps
+    `session_version`). Build email links from `APP_URL`, never the Host header. Cross-Origin POSTs get 403. Login
+    throttle uses `remote_addr` (behind a proxy: `TRUST_PROXY`, ProxyFix). **Tests set `DATABASE_PATH` and `JOBS_DIR`
+    to temp paths before importing `app`** (`tests/_env.py`): a test once wrote to the real jobs.
+17. **Analytics** needs `youtube` + optional `yt-analytics.readonly` (`ANALYTICS_SCOPE`); without it, live counts and
+    `notes=["reconnect"]`. Filter `creatorContentType==shorts` (camelCase: `shorts`, `videoOnDemand`; UPPER_CASE → 400).
+    Numbers lag ~2 days; cached 10 min per channel. `short_detail` = whole life with **live** views / likes / comments;
+    first-week uses live counts until final (no false 0). Charts: one axis, token colours, text never in series
+    colours, a Table button on each, whole-number steps (`countMax`).
+18. **Open in Studio** goes through Google sign-in (`studioLink()`: `ServiceLogin?service=youtube&continue=...`).
+19. **Instagram (Instagram Login, no Facebook Page).** Professional accounts only (`account_type` checked). 60-day token
+    refreshed with < 10 days left. **Instagram downloads each Reel from Pit Crew**: container `video_url` = signed
+    expiring link `/ig-video/<token>.mp4` (`public_video_url()`, in `PUBLIC`), poll until `FINISHED`, then
+    `media_publish`. Never resumable upload to `rupload.facebook.com` (Facebook-Login apps only: "video_url is
+    required"). So Pit Crew must be reachable over https when a Reel goes out (`PUBLIC_URL`, else the
+    `INSTAGRAM_REDIRECT_URI` host, else `APP_URL`). `thumb_offset` = the cover frame. No scheduling for apps: a daemon
+    thread posts due `job["ig_posts"]` (also ones missed while off); one left `posting` by a crash becomes `check`, never
+    re-posted. 100 API posts / account / 24 h. **One process with threads** (scheduler, vlog queue, `jobs/_uploads`): no
+    forking servers / `--preload` (threads don't survive a fork); proxies must accept ≥ 8 MB bodies.
+20. **Several channels / IG accounts per creator** (`connections`: platform, `account_id`, token, profile, `active`).
+    Active = where *new* posts go and what Analytics shows; Switch changes `active`; Disconnect makes the newest other
+    active; sign-out leaves connections. **Never act on the active account for something planned or posted**: routes
+    take the `channel` / `ig_id` the page showed; records keep `channel`, `ig_id` + `username`; pass them to
+    `yt.get_service(channel=)` / `ig.post_reel(ig_id=)`. Caches keyed per account. Old one-per-user rows migrated
+    (`user_version` 1, `_fill_channel`, `_stamp_account`). Add Instagram account sends `force_reauth=true`.
+21. **Storage timers** (`web/retention.py`, every 15 min; 0 = forever; `RETENTION_OFF=1` in tests): vlog video
+    `KEEP_ORIGINAL_HOURS` (72) after `last_edit_at`; draft `KEEP_DRAFT_DAYS` (30) after `edited_at`; posted Short's file
+    `KEEP_POSTED_DAYS` (30) after it went out everywhere (`file_deleted_at`, Download → Studio); saved transcript
+    `KEEP_TRANSCRIPT_DAYS` (30). **Route Short changes through `update_short()`** (it stamps both clocks). Warnings a day
+    before (card + email). Nothing touched while made, remade, posted or a Reel waits. `remove_video()` is the only way
+    a vlog's video goes (37h); then Try again / Add a Short are locked and drafts edit from clean clips (35). A stopped
+    vlog keeps its video `KEEP_ORIGINAL_HOURS`, then it (or the whole vlog if it made nothing, `_empty_stop()`) goes.
+22. **Compare clips by their first 7 days**, never lifetime. YouTube `first_week_views()` (`video==id`, final after 9
+    days); Instagram gives running totals only, so `snapshot_reels()` saves daily (`reel_snapshots`, also every 6 h):
+    first week = the snapshot 7-9 days after posting. `takeaways()` compares groups of 2+, needs 4+ finished clips per
+    platform and a 20 % difference, and says what it's based on.
+22b. **Reports YouTube refuses are left out, never an error** (`_try()`; `_with_engaged()`; a refused content filter is
+    retried as a dimension `_report_by_type(kind)`; `video,creatorContentType` is refused). `subscribedStatus` 500s on
+    some channels: `_subscribed()` → None, retried after `SUB_RETRY` (24 h). "All time" starts at `channel_start()`
+    (never 2005: reports took 10-35 s). httplib2 isn't thread-safe: `_per_thread()` clients, 40 s timeout `_http()`.
+    Apps can't read impressions / CTR, realtime, unique / returning viewers, "when viewers are on", swiped away: don't
+    promise them. Instagram insights: ≤ 30 days per request, kept 90 days, demographics need 100+ followers,
+    `impressions` retired (use `views`); `account_insights()` stitches ≤ 30-day pieces (`ig_window()`, notes "cut" /
+    "old"); reach / accounts engaged over 30 days = None (page says so). Likes / comments: All time = live counts; a
+    range = Analytics (counts differently, ~2 days behind; page says which). Compare (calendar) starts at the earliest
+    ticked video's posting day. Charts: one colour per video `--s1..--s8`, fixed while ticked; donuts fold past 5;
+    YouTube `--c-yt` (blue), Instagram `--c-ig` (orange) everywhere.
+22c. **Instagram can't say which Reel brought a follower**: "new followers" = `follows_and_unfollows` in the 48 h after
+    posting (`follows_after()`; `complete` false until then; None past 88 days). The page says so.
+22d. **Pit Crew's read: ≤ 1 AI call per creator per day** (key: user, channel, Instagram on/off, date; never the range).
+    It reads fixed facts (`daily_facts()`, every key names its span), answers headlines (both / YouTube / Instagram) +
+    4-6 tagged tips (`_fill()`); `_honest()` drops tips with numbers not in the facts (±1; 0-10 allowed) and swaps a bad
+    headline for `rules()`'s. Gemini then OpenAI, 25 s each. **The page never waits**: `read()` answers `rules()` with
+    `pending:true`, the AI runs in a thread, the page re-asks every 6 s; failures retried after 10 min. Keep spans
+    labelled (a 7-day read once called a lifetime number "this week's").
+22e. **Shorts posted straight away have `"when": None`**; `uploaded_at` since Oct 2026; older records get dates from
+    `fill_dates()` (YouTube's published date).
+23. **A vlog upload is a job with `kind:"vlog"`**: `VLOG_STAGES` while prepared, then `status:"ready"` + `job["vdraft"]`
+    (what the creator edits), once sent `job["vpost"]` (uploading → done / error / waiting / paused / removed) and
+    `job["vlog"]` (id, URL, channel; Shorts link to it). No `count` until Shorts are asked for: `/api/vlogs` calls it
+    `prep` (opens screen 10). `/shorts` turns it into a Shorts job on the same video + transcript (only while the video
+    is kept and before any Shorts). vpost left "uploading" by a restart → error; retention never deletes mid-upload.
+24. **The server** (Ubuntu 24.04, systemd): one process, `serve.py` (Waitress, `WEB_THREADS`) behind Caddy (https,
+    `/static` served directly with `no-cache`, security headers, no access log). Runs as `pitcrew` with
+    `ProtectSystem=strict`: **code is read-only; everything written lives under `/srv/pitcrew`** (`DATABASE_PATH`,
+    `JOBS_DIR`, `HF_HOME`, `HOME`). A setting whose laptop default is wrong for a server goes in setup.sh's first-run
+    `--force` list (`JOB_SLOTS=2` once stayed on a 2-core server). `update.sh` runs from a temp copy, refuses if server
+    code was edited, compiles before restarting, runs the fast tests, and on failure moves the **branch** back
+    (`checkout -B`). Never pipe long output into `grep -q` under `pipefail` (SIGPIPE fails the check). Oracle images also
+    block 80/443 in iptables.
+25. **Caption fonts by full name**: `caption_font_name()` returns `CAPTION_FONT` if it matches a family *or full name*,
+    else the full name of the job's font ("Montserrat ExtraBold"); asking libass for a family with many weights gave
+    Regular. setup.sh copies Montserrat ExtraBold into `fonts/`.
+26. **The privacy policy is a promise about the code** (`static/legal/privacy.html`; retention times read from
+    retention's settings, AI providers from `.env`). Collect something new, send to a new service, keep longer, or
+    change a scope → update it and `UPDATED` in `web/legal.py` **in the same PR**.
+27. **YouTube stored-data rules (Developer Policies III.E.4, III.D.2), `web/youtube_upkeep.py` daily**: channels
+    re-checked every `CHECK_DAYS` (7; rule 30): token refreshed (invalid_grant drops it), profile re-read (`yt.recheck()`,
+    `profile.checked_at`), posted videos checked (`sync_deleted(force=True)`). A channel in records but disconnected →
+    `gone_channels`, forgotten `GONE_DAYS` (5) later (upload records → drafts, vlog links, cached numbers); reconnecting
+    first keeps all. Link details (`job["vlog"]`, `fetched_at`) re-read after `LINK_DAYS` (30) or deleted when YouTube
+    can't find the video. Cached numbers ≤ 30 days (`youtube/stored_data.py`). **Anything new kept from a YouTube API
+    answer needs a refresh-or-delete path here** (+ the policy). Open question for the audit: a deleted outside video's
+    title kept on a grey card (`GONE_DAYS` in `web/channel_videos.py`).
+28. **YouTube's upload limit is per Cloud project; Pit Crew is one** (`YOUTUBE_DAILY_UPLOADS` 100, reset midnight
+    Pacific; a scheduled Short counts the day it's sent). Never add projects to get more (against the terms; the audit
+    raises it). Every upload: `youtube_quota.take()` first, `give_back()` if it didn't reach YouTube; YouTube's
+    `quotaExceeded` marks the day used (`youtube_says_used_up`). Over the limit nothing fails: Shorts → `job["yt_waiting"]`,
+    a vlog → vpost `waiting`; the `youtube-waiting` thread sends them after reset, oldest first. Only Replace says "press
+    again after midnight". `YOUTUBE_OPEN_SHARE` (60), `YOUTUBE_RESERVE` (5).
+29. **Nothing from YouTube's API goes to free Gemini** (it may train on it; Google's Limited Use rule):
+    `youtube_data_ok()` is true only for OpenAI or `GEMINI_PAID=1`. Until then YouTube-read titles / descriptions stay
+    out of prompts (`vlog_context_block()`, thumbnail plan) and the Analytics read uses `rules()`. What the creator typed
+    is fine. Every new prompt with YouTube data checks `youtube_data_ok()`.
+30. **A Short can keep several pieces** (`s["pieces"]` = `[[a, b], ...]` in vlog seconds inside `start`..`end`; none =
+    one piece). `/apply` takes pieces anywhere in the vlog and sets `start` / `end` to the first / last piece (one piece =
+    just new `start` / `end`). **Not `keep`: that's the "Post this" tick.** Only `pipeline/pieces.py` reads pieces:
+    `kept()`, `length()` (the Short's length everywhere: `pipeline.short_length`, `shortLen()`; never `end - start`),
+    `timeline()` (words on the Short's clock), `said()` (what's still said: hooks, titles, captions ideas). `render_short`
+    joins them in one FFmpeg run (`trim` / `atrim` + `concat`, 20 ms fades; `-ss` before `-i`). After a cut,
+    `honest_hooks()` drops hooks with numbers no longer said (`edit_note`). Try again drops pieces; hook / look keep
+    them. AI Edit's AI reads only the Short's words (60 s timeout, one short busy wait).
+31. **Twick's timeline (`editor-app/src/main.jsx`) only works with all of these**: track type `"element"`; every clip has
+    `trackId`, `frame`, a non-empty `src` (no video = empty `data:` URL, else its validator undoes trims) and
+    `mediaDuration`; new clip ids per layout. Twick's own split isn't used (reloads video details, can lose the clip):
+    Split / Delete are worked out on the pieces; a split alone isn't a change (`aeNorm`). Its right-click menu and file
+    drops are caught. Changes are reported after Twick's update (`setTimeout`) and the page re-lays it from `aiEdit()`'s
+    pieces. Privacy: `@twick/live-player` replaced by `src/player-state.jsx`, PostHog off
+    (`window.__TWICK_ANALYTICS_DISABLED__`, `analytics.enabled:false`), its Google Fonts / cdnfonts `@import`s dropped,
+    every rule scoped to `.pc-tl` (`vite.config.js`); its inline-white ruler is overridden in `src/timeline.css`.
+    `npm` needs `--ignore-scripts`. Navigation and **trimming are ours** (`mount()`: box-select off, wheel scrolls,
+    Ctrl/Cmd+wheel zooms, `trimStart` / `trimMove` / `trimEnd` within `EDGE` px of any part's end, clamped to
+    neighbours and the vlog, ≥ `MIN_PART` 0.5 s, snapped to `opts.snaps()`, committed via `impl.commit()`; a press on a
+    join takes the right-hand part). Run `tests/browser/check_editor.py` after any change here.
+32. **The icon font only has icons listed in `static/index.html`** (`icon_names=` on the Material Symbols link, A-Z or
+    Google refuses). An unlisted icon shows its name. `tests/test_page_scripts.py` fails on an unlisted one.
+33. **Captions = the Short's `captions` settings.** None = the job style's preset, which writes **exactly** the old .ass
+    (`tests/captions_golden.json`, byte for byte: change the default look only on purpose). `clean_captions()` checks
+    every key. Word changes (`edits`, "" = left out), `pop`, `br` and per-line `styles` (`LINE_KEYS`; a line takes its
+    first word's) key on the word's **index in transcript.json `words`** (`"i"`), never its time, so cuts never move
+    them. Every remake reads them; Try again keeps the look, drops word changes (`style_only`). The editor's Save sends
+    them before a cut / hook remake without their own remake (that one makes them); if that's refused they get their
+    own. Fonts bundled (OFL) and copied to `fonts/` (4); libass gets the full name (25); one-weight display fonts asked
+    without Bold (`BOLD`). Preview = one frame of the vlog framed like the Short with the same .ass (`caption_frame()`,
+    ≤ 2 at once, `PREVIEWS`) or 2.5 s silent video (`caption_clip()`). Pop / Punch scale **every word** (a line-wide tag
+    is undone by each word's `\fscx`); Pop / Word by word hide later words with `\1a\3a\4a` (`POP_STEP`) so the line
+    never shifts; Slide up = `\move` to the line's own place. Effects < 0.2 s aren't visible at 30 fps.
+34. **Reframe = the Short's `reframe` settings** (`pipeline/smart_reframe.py`). None = `crop_filter(meta, cx)` **exactly**
+    (`tests/test_reframe.py`); a vertical vlog is padded as before. Times are vlog seconds, positions fractions; the render
+    walks the Short's clock every 1/30 s, maps back through pieces (`to_vlog`), asks `framing_at`. **A moving frame is
+    `sendcmd`** (`reframe_<uuid>.cmd`, relative path, deleted after the run) setting `crop@rfa` x / y (+ zoom: `scale@rfz`
+    w / h, `crop@rf` x / y). **Never change a crop's size by command** (FFmpeg stops after one frame): zoom = fixed crop of
+    the widest frame → scale → crop. Verified on FFmpeg 7.1 and 8.1 (`tests/system/system_reframe.py`). In the captions
+    preview `setpts` comes **before** the framing. Fit / Split use labelled pads (`split[rfa][rfb];...`), valid in `-vf`
+    and spliced into joined pieces. Remakes keep it; Try again keeps the layout, drops moves (`reframe_style_only`).
+    Fill with Fit shots overlays Fit on the Short's clock (`fit_ranges`); punch-ins multiply zoom (`punch_at`). Thumbnails
+    still use `cx`. Auto layout (`auto_shots`, `scene_changes`), Track (`track_moves`, 320 px template match every
+    0.2 s), Follow (`follow_moves`, a face every 0.5 s, a move after 7 % for 1 s) never fail a request (no face = `[]`).
+35. **After a vlog's video is deleted, drafts are remade from clean clips** (`web/clean_clips.py`). `remove_video()` calls
+    `make_clips()` first: each draft gets `clip_<idx>.mp4` (kept parts ± `PAD` 30 s, H.264 CRF 20, 1080 short side;
+    `s["clip"]` = {file, from, to, scale}); a failure never stops the deletion. **Times stay vlog seconds**: `source()` =
+    {path, offset (clip `from`), scale, reach, clip}; the pipeline reads at (vlog time − offset) (`render_short(offset=)`,
+    `caption_frame`, `follow_moves`; page: `edTlOff`, Trim preview, Reframe). **`cx` is in vlog pixels**:
+    `clean_clips.render()` scales it into the clip and back. Pieces clamp to `reach`. Posted / planned Shorts get none;
+    Try again / Add a Short still need the vlog. `tests/system/system_clean_clips.py`. In the privacy policy.
+36. **Pause and Stop don't wait** (`web/pause.py` `Run`): the run's thread only waits on helpers (`run.doing(fn)`) and
+    checks every 0.1 s. FFmpeg is killed within 0.2 s (`pipeline.ffmpeg.watching(check=)`; pipeline just calls `run()`),
+    transcription stops at its next batch (resumed from `transcript.partial.json` behind a per-file lock), an AI answer
+    is dropped. After the run is left, `Run.check()` raises in helpers too, so **a helper never writes over a paused
+    job**: new run steps go through `step()` / `run.doing()`. A progress callback raising is `_Halted` (not a batched
+    engine failure). YouTube's stage pauses after the 16 MB piece in flight. **Every FFmpeg gets
+    `stdin=subprocess.DEVNULL`** (or `-nostdin`): under `timeout` (update.sh) FFmpeg reading the terminal got stopped and
+    tests hung (`test_ffmpeg_never_gets_the_terminal`).
+37. **Speed on a small server (e2-standard-4 = 2 physical cores).** Pages answer in ms even while a vlog is made; lag is
+    heavy work competing, not file count (105 page files load in ~0.1 s over HTTP/2). Measured on a 2-core box with a
+    4K vlog (`tests/test_speed.py`, `tests/system/system_speed.py`, `tests/test_clean_clips.py` SlowDeletion,
+    `tests/test_edit_queue.py`):
+    a. **Background work runs at nice 10** (`web/priority.py` `lower()` / `background(fn)`): making Shorts
+       (`job_queue._run`), the scrubbing copy, posters, copies, video deletion. On Linux nice is per thread and inherited
+       by threads / programs started after (the speech model's workers, FFmpeg). New long background threads call
+       `lower()` first; threads the creator waits on (a remake after Save) don't.
+    b. **Face finding reads keyframes only** when there's one every ≤ 2.5 s (`reframe.key_frames`: `-skip_frame nokey`,
+       `-vsync passthrough`, grey PGMs on a pipe), else one pass, a picture a second (`_every_second`; a seek per
+       second decoded up to a GOP each): 6× on 1080p, 14× on 4K HEVC.
+    c. **`-t` goes before `-i` when filters drop frames** (`select`): after `-i` it counts output time, so
+       `scene_changes` read to the end of the vlog.
+    d. `probe()` cached per (path, size, mtime) (~50 ms per editor click).
+    e. **Reframe's buttons read a small copy** (`web/reframe_look.py`): `look_<n>.mp4` beside `short_<n>.mp4` (640 wide;
+       `look_<n>.json` = its vlog seconds), a second output of the render (`render.look_output`: +5 %, the Short
+       bit-identical; on failure rendered the plain way; none from a clean clip). Read with `offset` = its start; pieces
+       outside it use the source. Older Shorts get one when Reframe opens (background, never waited for; not while the
+       video is being deleted). Same answers; 4K: Follow 22 → 1.4 s, Auto 17 → 0.6 s, Track 16 → 0.2 s. Deleted with
+       the video (`look_*`) and the Short (`_short_files`); in the privacy policy. The editor's player / Trim / Text keep
+       the vlog itself (a small copy would be blurry there).
+    f. **Captions preview keeps the framed picture** of its last 12 moments (`caption_preview._BASES`; not for a
+       moving frame: its cmd file changes): another change at the same moment only draws captions (4K 1.3 → 0.1 s).
+    g. Transcription tuning on the server: `sudo bash deploy/test.sh ab whisper --video /srv/pitcrew/jobs/<id>/source.mp4`.
+    h. **Deleting a video happens behind the button** (`vlogs.delete_soon`): clips take ~1 min each on 4K, so the
+       request sets `deleting_video`, waits ≤ `SETTLE_WAIT` (5 s; small vlogs and tests finish within it) and the rest
+       runs at nice 10, one vlog after another. `store.video_gone(job)` (deleted or being deleted) is the check for
+       anything needing the whole vlog (page's `video_deleted`, Try again, new thumbnail frames, Make Shorts again,
+       resume, vlog posting). `clean_clips.source()` alone looks at `video_deleted_at`, so editing continues from the
+       vlog meanwhile, but `/api/preview` hands a player only the clip (else `building`), and the file is removed only
+       after remakes started meanwhile finish (`_remakes_done`). A deletion cut short by a restart is finished by the
+       retention sweep.
+    i. **Saves that re-render a Short take turns server-wide** (`web/edit_queue.py` `turn(job_id, idx)` around the
+       render in captions / reframe / text, Trim, hooks, Try again / Add a Short): `EDIT_SLOTS`, default half the cores
+       (2 on the server, ≤ 4); the rest show `WAITING_MSG`. Thumbnail redraws don't wait. 5 saves at once on 2 cores:
+       all done at 73 s before; now 30, 30, 58, 59, 73 s, memory 2.4 → 1.4 GB, pages faster. A slot is always given
+       back (failed render, deleted vlog).
+    j. **A waiting vlog says its place and when it starts** (`job_queue._paint_locked`): "Next in line · about 6 min",
+       "3rd in line · ...", "Starts after your other video". The time is learned on this server (`SPEED`, seconds per
+       minute of video for "shorts" / "prep", averaged from runs that finished without a pause, kept in
+       `JOBS_DIR/_queue_speed.json`) and covers what's left of the running vlogs (by `pct`) plus those ahead, over
+       `SLOTS`. Nothing learned yet (or a length unknown) = only the place, never a made-up time. Video lengths are
+       probed outside the lock (`_lengths`); the dispatcher repaints every 5 s. Keep the text short: the sidebar card
+       cuts it on a laptop.
 
 ## Conventions
 
-- Keep it **dependency-light and single-file-per-concern**. No frontend framework (except the advanced editor, see "Next: the advanced editor"). The only database is
-  `accounts/db.py` (SQLite from the standard library, accounts and YouTube connections); jobs are still `job.json`
-  files. Both are local files for now; in the cloud they need lasting storage (a database server and file storage).
-- User-facing errors: raise `RuntimeError("plain sentence about what happened. What to do.")`. They are
-  shown in the UI as-is. Log technical detail with `print()` / `traceback.print_exc()` in the terminal.
-- Progress: long steps call `progress(pct, "Short message")`; the UI shows the message.
-- **Nothing blinks when the page checks for news or a change is saved.** Pages poll every few seconds (the clip list
-  while a Short is remade); draw with `setHTML(el, html)` (`js/core.js`: only when the HTML changed, then wire handlers
-  again) instead of `innerHTML=`, and reload a tool that's already showing quietly (`load(true)` in `short-details.js`,
-  `ai-edit.js`, `captions.js`: what's shown stays until the new data is in; "Getting..." only the first time). The
-  editor keeps its Twick timeline for the same Short (`edTlFor`: just new parts) and swaps a remade video under the last
-  frame (`edSwapVideo`, `#edFreeze`), at the same place. `check_editor` fails if a save shows "Getting..." or rebuilds
-  the timeline.
-- Settings belong in `.env` (document every new one in `.env.example` and the README), read with
-  `os.getenv(NAME, default)`.
-- Never commit secrets: `.env`, `client_secret.json`, `token.json` and `data/` are git-ignored. `data/clipline.db`
-  holds every user's YouTube connection (can post to real channels; the tokens are encrypted with `TOKEN_KEY`, else
-  `data/token_key`: `accounts/token_box.py`, never store a token without `seal()`) and `data/secret_key` signs sign-in cookies.
-  The login and sign-up limits key on `request.remote_addr`: in the cloud set `TRUST_PROXY` (`web/server.py`, ProxyFix).
-- Don't commit media. `jobs/`, `_test/` and font files are ignored (fonts have their own licences).
-- After changing Python files, at minimum run: `python -m compileall -q app.py settings.py pipeline youtube accounts web`
-  and start the app once (an import error in any `web/` file stops it from starting).
+- Dependency-light, one concern per file, no frontend framework (except `editor-app/`). The only database is SQLite in
+  `accounts/db.py`; jobs are `job.json` files.
+- Creator-facing errors: `raise RuntimeError("What happened. What to do.")`, shown as-is; technical detail via
+  `print()` / `traceback.print_exc()`. Long steps call `progress(pct, "Short message")`.
+- **Nothing blinks on polls or saves**: draw with `setHTML(el, html)` (only when changed), reload a showing tool quietly
+  (`load(true)`; "Getting..." only the first time), keep the Twick timeline for the same Short (`edTlFor`), swap a
+  remade video under the last frame (`edSwapVideo`, `#edFreeze`). `check_editor` fails on a blink.
+- Settings live in `.env` (`os.getenv(NAME, default)`), each documented in `.env.example` and the README.
+- **Never commit secrets** (`.env`, `client_secret.json`, `token.json`, `data/`). Tokens are encrypted (`TOKEN_KEY`, else
+  `data/token_key`; `accounts/token_box.py`: never store a token without `seal()`); `data/secret_key` signs cookies.
+  No media in git (`jobs/`, `_test/`, font files ignored).
+- After Python changes: `python -m compileall -q app.py settings.py pipeline youtube accounts web` and start the app once.
 
 ## Testing without burning API quota
 
-**Every change is tested twice: the code and the UI.** Run the suites below, then look at every screen the change
-touches in a real browser (Playwright screenshots are fine): light and dark, laptop (1440 px), small laptop
-(1180 px), tablet (900 px) and phone (390 px), and with something else going on (a vlog being made: its progress card
-sits at the bottom on phones). Check that nothing is cut off, covered or sticks out sideways, the page shows no
-errors, and every icon shows (gotcha 32). In a sandbox with no internet, load the page's fonts from local copies
-(npm `material-symbols`, `@fontsource/*`), or icons show as their names and the layout is wrong. Report UI problems
-found this way even when they're older than the change; fix them only once Saumya or Nesh says yes.
+**Test the code and the UI.** After the suites, look at every touched screen in a real browser (Playwright screenshots):
+light and dark; 1440, 1180, 900 and 390 px; and with a vlog being made (the progress card). Nothing cut off, covered or
+sideways-scrolling, no page errors, every icon shows (32). Offline sandbox: load fonts locally (npm `material-symbols`,
+`@fontsource/*`) or icons show as names. Report UI problems found, even old ones; fix them only after Saumya or Nesh
+says yes.
 
-**Automated tests** (standard-library `unittest`, no internet, no keys, no quota; the same on a laptop and the server):
-
-| Suite | Run | What | Time |
+| Suite | Run | Covers | Time |
 |---|---|---|---|
-| Fast (unit + combined flows) | `python -m unittest discover -s tests -t .` | every feature through the real routes: accounts, email links, deleting an account, uploads in pieces, the queue, Stop / Try again, restarts, limits, YouTube and Instagram posting, editing, vlog upload, analytics (a strict fake of YouTube Analytics), retention, pages, security, YouTube's data rules, Meta's callbacks; whole creator journeys (`test_flows.py`) | ~45 s |
-| System | `python -m unittest discover -s tests/system -t . -p "system_*.py"` | the real FFmpeg pipeline (vertical Shorts with sound, captions burned in with the highlight, hook banner, designed thumbnails, look switch, cover frame, preview, vlog thumbnail) and the real server process over HTTP (20 MB upload, request limits, killed mid-vlog and started again) | ~2 min |
-| Browser | `python -m tests.browser.check_editor`, `python -m tests.browser.check_drafts`, `python -m tests.browser.check_first_import` and `python -m tests.browser.check_accounts` (need `pip install playwright` + `python -m playwright install chromium`) | in Chromium against the real server and FFmpeg. Editor: the timeline, Trim, AI Edit, Captions, Details and Save together (drag both ends, reach past the moment, split, delete, move, Undo / Redo across the tools, the Save bar, zoom and scrolling, ruler, too short, Discard, the vlog's ends, no video, theme; Captions: presets, a changed / left-out / popped word, Undo / Redo, with a cut, captions alone, Discard, the caption strip (a chip per line, words in full, moving with playing, the wheel, seeking), lines with their own look, the moving preview, no video; the tools' edge (narrower, above the player, back); trimming any part's ends without choosing it, stretching, the label, Esc, snapping and Alt, the chosen part's ±0.1 s, the whole Short in view while dragging (shrinking and growing), past the box's edge; leaving stops the player), then what the server saved; no requests outside Pit Crew. Drafts: groups by vlog, Review & post (the review page, reachable again), Shorts being made with Pause / Resume / Stop (Drafts and the making page), stopped with Try again, Vlogs = posted only, View your channel; no page errors | ~3 + 2 min |
-| A/B | `python -m tests.ab.compare [encoder captions looks slots whisper]` | our options side by side: speed, size, quality (SSIM), thumbnail text contrast, JOB_SLOTS 1 vs 2, speech settings where the model exists | ~2 min |
-| Stress | `python -m tests.stress.stress [--users 25 --seconds 60 --vlogs 1]` | a copy of Pit Crew under many people at once: p50/p95 per request, errors, every vlog finished, memory, threads | 1-4 min |
-| Live check | `python -m tests.stress.stress live --url https://<domain> --email <test account>` | gentle and read-only on the real site; stops itself on errors or slow answers | ≤ 5 min |
+| Fast | `python -m unittest discover -s tests -t .` | every feature through the real routes; creator journeys (`test_flows.py`) | ~90 s |
+| System | `python -m unittest discover -s tests/system -t . -p "system_*.py"` | the real FFmpeg pipeline and the real server over HTTP | ~5 min |
+| Browser | `python -m tests.browser.check_editor` (also `check_drafts`, `check_text`, `check_accounts`, `check_first_import`; need `pip install playwright` + `python -m playwright install chromium`) | Chromium against the real server and FFmpeg | ~3-5 min each |
+| A/B | `python -m tests.ab.compare [encoder captions looks slots whisper]` | options side by side (speed, size, SSIM, contrast, slots, speech settings + click time) | ~2 min |
+| Stress | `python -m tests.stress.stress [--users 25 --seconds 60 --vlogs 1]`; live: `... live --url https://<domain> --email <test account>` (read-only, stops itself) | many users at once: p50 / p95, errors, memory, threads | 1-5 min |
 
-On the server: `sudo bash /opt/pitcrew/app/deploy/test.sh [fast|system|ab|stress|live|all]` (as the `pitcrew` user, low
-priority, throwaway folders). `deploy/update.sh` runs the fast suite before every restart: a failing test keeps the
-old version running.
+Server: `sudo bash /opt/pitcrew/app/deploy/test.sh [fast|system|ab|stress|live|all]` (as `pitcrew`, low priority,
+throwaway folders). `update.sh` runs the fast suite before every restart.
 
-How they stay safe and repeatable:
-- **`tests/_env.py` comes first in every test file.** It switches off `load_dotenv` and removes every setting `.env.example`
-  lists, so the server's keys, AI provider, limits and storage times can't change a result or reach a real service, then
-  points the database, jobs folder and invite list at a temporary folder (removed at exit) and sets `RETENTION_OFF=1`.
-  A new setting goes in `.env.example`, and is then cleared for tests automatically.
-- **`tests/fakes.py` is the outside world:** the real `ai_json()` runs against a fake `google.genai.Client` that answers by
-  prompt (`AI.fail(code, msg)` makes it fail like Gemini); the youtube facade functions and `youtube.analytics._services`
-  are an in-memory channel and a strict Analytics fake (gotcha 22b rules); `instagram.http.call` is an in-memory account;
-  email goes to `OUTBOX`. Fake users are confirmed unless `new_user(verified=False)`. `fast()` swaps transcription, editing and thumbnails for quick stand-ins; the system suite keeps
-  the real ones (`PITCREW_REAL_MEDIA=1`) and fakes only the AI and the speech model. Test videos are generated with FFmpeg
-  and cached per user in the temp folder.
-- A new prompt needs a branch in `FakeAI.kind()`; a new outside call needs a fake here, or tests will reach the internet.
-- `test_page_scripts.py` runs `node --check` on every page script (Python tests can't see a JavaScript syntax error,
-  which stops the whole page) and checks the ids they look up exist.
-- Add a test with every fix: the suites found the Instagram "Same as YouTube" refusal and the upload clean-up race.
-
-Manual checks that work well:
-
-- **Short clip:** `ffmpeg -ss 300 -i long.mp4 -t 90 -c copy test90.mp4` and upload that in the UI.
-- **Skip Gemini:** monkeypatch `google.genai.Client` with a fake whose `models.generate_content()`
-  returns `types.SimpleNamespace(text='[{"start": 17.5, "end": 45.8, "hook": "...", "title": "...",
-  "thumb_line1": "...", "thumb_line2": "...", "why": "...", "hashtags": ["a","b","c"]}]')`, then call
-  `pipeline.pick_moments(transcript, n)` or drive the whole app with `app.app.test_client()`.
-- **Encoder speed:** `X264_PRESET` defaults to `veryfast` (CRF 18): measured 2.5x faster than `medium` with a
-  slightly smaller file and SSIM 0.994 against it (no visible difference). `ultrafast` and `WHISPER_MODEL=base`
-  speed up testing further.
-- **Look at the output:** grab frames with `ffmpeg -ss 1.2 -i jobs/<id>/short_1.mp4 -frames:v 1 f.jpg`
-  and check that the captions, yellow word highlight, hook banner and face crop are all present.
-
+- **`tests/_env.py` comes first in every test file**: no `.env`, every `.env.example` setting removed, database / jobs /
+  invites in a temp folder, `RETENTION_OFF=1`. New settings go in `.env.example` (then they're cleared automatically).
+- **`tests/fakes.py` is the outside world**: real `ai_json()` against a fake Gemini client that answers by prompt
+  (`AI.fail(code, msg)`); in-memory YouTube channel + strict Analytics fake (22b); in-memory Instagram
+  (`instagram.http.call`); email to `OUTBOX`; users confirmed unless `new_user(verified=False)`. `fast()` swaps
+  transcription, editing, thumbnails for stand-ins (`SLOW.render` / `SLOW.transcribe` slow them); the system suite keeps
+  the real ones (`PITCREW_REAL_MEDIA=1`). A new prompt needs a `FakeAI.kind()` branch; a new outside call needs a fake.
+- `test_page_scripts.py` runs `node --check` on every page script and checks looked-up ids exist.
+- Add a test with every fix.
+- Handy: `ffmpeg -ss 300 -i long.mp4 -t 90 -c copy test90.mp4`; frames via `ffmpeg -ss 1.2 -i jobs/<id>/short_1.mp4
+  -frames:v 1 f.jpg`. `X264_PRESET` veryfast (CRF 18) = 2.5× faster than medium, SSIM 0.994; `ultrafast` and
+  `WHISPER_MODEL=base` for quick testing.
 
 ## Working together (two people)
 
-- **Branches: exactly three, no new ones.** Saumya always works on `saumya`, Nesh always on `nesh`. `main`
-  should always run. Push your branch, open a pull request into `main`, and let the other person look before
-  merging. Never merge into `main` locally or push to it directly: changes reach `main` only through a pull
-  request that Saumya or Nesh merges on GitHub. Never create other branches, and never delete these three.
-- **No AI attribution in git.** Commits and pull requests are authored by Saumya or Nesh only: never add
-  `Co-Authored-By: Claude ...`, `Claude-Session: ...`, "Generated with Claude Code" or similar lines to
-  commit messages or PR descriptions. (This repo's history was cleaned of them in October 2026.)
-- Before you start, bring your branch level with `main` (after the other person's PRs are merged):
-  `git checkout saumya` (or `nesh`), `git fetch origin`, `git merge origin/main`, `git push`.
-- If you change `requirements.txt`, say so in the PR. The other person's start script will reinstall
-  automatically on the next launch.
-- Each person keeps their own `.env` (Gemini/OpenAI keys), `client_secret.json` and `data/` (accounts and YouTube
-  connections). Never share these through git.
-- Work on different features = different files (see "Where things live"). If you both need a shared file, keep the
-  change small and say so in the PR.
+- **Exactly three branches**: `saumya`, `nesh`, `main`; never create or delete others. `main` always runs. Push your
+  branch, open a PR into `main`, let the other look. **Never merge into `main` locally or push to it**: only PRs merged
+  on GitHub by Saumya or Nesh.
+- **No AI attribution in git**: never `Co-Authored-By: Claude ...`, `Claude-Session: ...`, "Generated with Claude Code"
+  or similar in commits or PRs (history was cleaned, Oct 2026). Commits are authored by Saumya or Nesh.
+- Before starting: `git checkout <yours> && git fetch origin && git merge origin/main && git push`.
+- Mention `requirements.txt` changes in the PR. Each person keeps their own `.env`, `client_secret.json`, `data/`.
+- Different features = different files; a shared-file change stays small and is mentioned in the PR.
 
-## Latest changes (November 2026)
+## Known limits
 
-Shorts & Reels and Videos show one account at a time (the channel / Instagram account chosen in the sidebar), with a short Loading on a switch; every card links out the same way ("Watch on ..."). Undo / Redo after Save (a whole save, remade straight away). The player's scrubber moves the timeline's playhead. No pop-up or note while a save is remade (the ring says it). Start over goes to Videos. review.css's `.busy` is now `.short .busy`: bare, it laid a dark blurred layer over the editor whenever the caption preview or the save state was busy (the Captions "blink", and a double-click on a caption line landing on it).
-
-Pause at once on every stage (gotcha 36), carrying on from the last word heard. Create from video's list clicks again (the Videos rename had split `.mk-vlog`). Leaving a page stops any video on it, Trim's preview too. Trim's preview draws the captions (`edCap.overlay`, a close look; the server burns the real ones on Save). Save ring in the editor. The editor no longer downloads the whole vlog ahead (`preload="metadata"`): it was competing with the Short. Captions: a shorter wait, and pictures already drawn come back straight away. Posted clips have Watch on YouTube / Watch on Instagram.
-
-First connect: new accounts get Connect your accounts, and connecting an account for the first time waits on a "Getting your dashboard ready" screen while what's on it comes in, once per account. Instagram's other Reels now show on Shorts & Reels. Vlog -> Video on every page. Videos lists the whole channel; deleted things are grey cards, checked daily (no longer when a page opens). Make Shorts lands on Drafts with loading cards, and Add a Short shows one too. Post what's ready while another Short is being made (`/api/schedule` only refuses a ticked Short being remade). Pause / Resume on all three upload stages. AI suggestions on the upload page. Trim: click = player, drag = cut. Captions typed on the timeline. Resizable panel. Back buttons on the setup, making and review pages; the upload page belongs to Drafts until it's on YouTube.
-
-**To decide before launch:** keeping a deleted outside video's title on a grey card for up to 30 days (`channel_videos.gone_at`) was the creator's request; YouTube's Developer Policies III.E.4 asks to delete data YouTube no longer shows, so check it in the audit (`GONE_DAYS` in `web/channel_videos.py`).
-
-## Earlier changes (for Nesh, October 2026)
-
-What Saumya's branch added since PR #19 (`nesh` merged into `main`). Merge `main` into `nesh` once this is merged
-(see "Working together"). Details are in the feature table and the gotchas; this is the short version.
-
-**Behaviour that changed (people will notice)**
-- **Vlogs page = only vlogs posted on YouTube with Pit Crew** (`isPostedVlog`). Videos sent only to make Shorts &
-  Reels aren't vlogs there any more: their Shorts, their progress while they're made, and their stops are on
-  **Drafts › Shorts & Reels**, grouped by vlog. Each group has **Review & post**, which opens that vlog's review page
-  (`#<vlog id>`), so the review page can always be reached again (before, leaving it lost it).
-- The sidebar marks **Drafts** on the making and review pages (it used to mark Shorts & Reels, which looked empty).
-  Stop now goes back to Drafts, not Vlogs.
-- **Pause / Resume** while Shorts are made (making page, Drafts, the progress card). New job status `"paused"`;
-  new job fields `plan` (moments chosen), `made` (Shorts edited), `pausing`. Anything that checks a job's status
-  should think about `"paused"` (`web/pause.py` explains the rules; retention treats it like a stopped vlog).
-- **Sidebar:** "View your channel" (YouTube) / "View your profile" (Instagram) under each connected account.
-- **Editor (Drafts › Edit):** AI Edit (cut pauses, filler words, edit by the transcript), the
-  **Twick timeline** with Trim (drag a part's ends, split, delete, reach past the original moment), **Undo / Redo**
-  in the top bar for every tool, **Save / Discard** at the bottom of the tool panel, timeline zoom buttons and
-  scrolling. The AI's "Suggest cuts" was tried and removed (not reliable).
-- A Short's moment can now grow when Trim reaches past it (`start` / `end` change, `pieces` can be anywhere in the
-  vlog; gotcha 30).
-- Bug fixes: a vlog upload records the channel it went to; storage emails go only to confirmed addresses.
-
-**New things in the repo**
-- `editor-app/`: the only React code (Twick's timeline). Built into `static/editor-app/` (committed, so the server
-  needs no Node). After changing it: `cd editor-app && npm ci --ignore-scripts && npm run build`, commit both.
-  Read gotcha 31 before touching it.
-- New files: `pipeline/pieces.py`, `pipeline/ai_edit.py`, `web/ai_edit.py`, `web/pause.py`, `static/js/ai-edit.js`,
-  `static/css/ai-edit.css`, `tests/test_ai_edit.py`, `tests/test_pause.py`, `tests/browser/` (two Playwright checks).
-- Shared files touched: `app.py` (imports `ai_edit`, `pause`), `static/index.html` (new CSS / JS, and new icons in the
-  font list: gotcha 32), `static/js/core.js` (`NAV_FOR`, `shortLen`), `tests/fakes.py` (AI kinds, `SLOW.render`).
-- Tests: `python -m unittest discover -s tests -t .` (238), the system tests (15), and
-  `python -m tests.browser.check_editor` / `check_drafts` (need `pip install playwright` and
-  `python -m playwright install chromium`).
-
-**Still open**
-- **Twick's licence:** fine for use inside Pit Crew, but it asks for a commercial licence on "substantial revenue
-  from the Software's functionality" without defining it. Email contact@kifferai.com before launch.
-- UI ideas waiting for a yes (not built): open on Drafts when there are no posted vlogs; fix the phone top bar (below);
-  "← Drafts" and the vlog's name on the review page; vlog thumbnails on Drafts' group heads; hide or shorten the
-  "coming" Captions / Audio / Overlays rows under the timeline.
-- Next editor features: Effects & Enhancements ("Next: the advanced editor").
-
-## Ideas / known limits
-
-- Transcription speed: before batching, `WHISPER_MODEL=small` on CPU took about 9 min for a 40-min vlog on an
-  M-series Mac; batching roughly halves that. A GPU cloud server is much faster still.
-- Low-resolution sources (e.g. 640×360 YouTube downloads) give soft Shorts; use original exports.
-- New YouTube API projects can only upload as **private** until Google's audit is passed (see README).
-- Custom thumbnails for Shorts only work on channels YouTube has enabled them for.
-- On a phone (about 390 px wide) with Help shown, the sidebar's top bar is about 13 px too wide. Known (Oct 2026),
-  not fixed yet.
-- A vlog prepared for YouTube that had Shorts made before it was uploaded can't be uploaded from Pit Crew any more
-  (its page opens its Shorts' review page instead), so it shows on neither Vlogs nor Drafts' Vlogs tab; its Shorts are
-  on Drafts as usual.
+- Transcription on CPU (`small`): ~9 min per 40-min vlog on an M-series Mac before batching (~half now); much slower on
+  the 2-core server (move to a hosted Whisper, e.g. Groq, is an option on hold).
+- Low-resolution sources give soft Shorts. New YouTube API projects upload **private** until Google's audit passes.
+  Custom Shorts thumbnails only work on channels YouTube enabled.
+- A vlog prepared for YouTube that had Shorts made before uploading can't be uploaded from Pit Crew (opens its Shorts'
+  review page); it shows on neither Videos nor Drafts' Vlogs tab.
+- UI ideas waiting for a yes: open on Drafts when nothing is posted; "← Drafts" + the vlog name on the review page; vlog thumbnails on Drafts' group heads; hide the "coming"
+  timeline rows.

@@ -40,10 +40,12 @@ async function clOpen(mode, box, vlog){
 }
 async function loadClips(){
   clearTimeout(clTimer);
+  // the rest of the channel is asked for at the same time (one wait for both, not one after the other)
+  const outside=clMode==="out" ? fetch("/api/channel-videos").then(r=>r.ok?r.json():null).catch(()=>null) : null;
   try{ const r=await fetch("/api/clips"); if(!r.ok) throw 0; const j=await r.json(); clData=j.items||[]; }
   catch(e){ $("clErr").textContent="Couldn't load your clips. Check your internet connection, then reload the page."; return; }
   $("clErr").textContent="";
-  if(clMode==="out"){ try{ const r=await fetch("/api/channel-videos"); if(r.ok) clOutside=((await r.json()).items||[]).filter(x=>x.short); }catch(e){} }
+  if(outside){ const o=await outside; if(o) clOutside=(o.items||[]).filter(x=>x.short); }
   const live=new Set(clData.map(clKey)); clPicked.forEach(k=>{ if(!live.has(k)) clPicked.delete(k); });
   paintClips(); clLoadViews();
   // Keep an eye on clips that are uploading, posting or being remade.
@@ -261,7 +263,7 @@ function clGroupsHTML(list,making){
 function clLoadingCards(v){
   if(!v) return "";
   const n=v.status==="working"||v.status==="paused" ? v.count||1 : v.status==="ready" ? v.pending_shorts||0 : 0, paused=v.status==="paused";
-  const say=paused?"Paused":v.status==="ready"?"Being made":v.queued?"Waiting for a free spot":v.msg||"Working";
+  const say=paused?"Paused":v.status==="ready"?"Being made":v.queued?(v.msg||"Waiting for a free spot"):v.msg||"Working";
   return Array.from({length:n},(_,i)=>'<article class="clip cl-sk'+(paused?" still":"")+'" aria-label="'+esc(paused?"Paused":"This Short is being made")+'">'+
     '<div class="cl-thumb"><span class="cl-sk-pic"></span><span class="cl-sk-reel" aria-hidden="true"><i></i><i></i><i></i></span></div>'+
     '<div class="cl-body"><b class="cl-t">'+(n>1?"Short "+(i+1):"New Short")+'</b><div class="cl-meta"><span>'+esc(say)+'</span></div></div></article>').join("");

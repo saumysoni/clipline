@@ -4,6 +4,7 @@
 #   sudo bash /opt/pitcrew/app/deploy/test.sh             fast tests (what update.sh runs before every update), ~1 min
 #   sudo bash /opt/pitcrew/app/deploy/test.sh system      the real FFmpeg pipeline + a real server process, ~5 min
 #   sudo bash /opt/pitcrew/app/deploy/test.sh ab          A/B comparisons on this machine (incl. the speech model), ~5 min
+#        ... ab whisper --video /srv/pitcrew/jobs/<id>/source.mp4   the speech model on a real vlog, and clicks meanwhile
 #   sudo bash /opt/pitcrew/app/deploy/test.sh stress      a COPY of Pit Crew under load: 25 people for 60 s
 #        ... stress --users 40 --seconds 120 --vlogs 2
 #   sudo bash /opt/pitcrew/app/deploy/test.sh live --url https://<domain> --email <test account>

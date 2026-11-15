@@ -202,6 +202,49 @@ class QueueAndStop(unittest.TestCase):
         for jid in (a1, a2, b1):
             self.assertEqual(F.wait_ready(a if jid != b1 else b, jid)["status"], "ready")
 
+    def test_a_waiting_vlog_says_its_place_and_when_it_starts(self):
+        import re
+        import web.job_queue as Q
+        slots, speed = Q.SLOTS, dict(Q.SPEED)
+        Q.SLOTS = 1  # as on a small server
+        Q.SPEED.clear()  # nothing learned yet
+        a, b, c = (F.client(F.new_user()) for _ in range(3))
+        F.SLOW.transcribe = 3.0
+        try:
+            first = self.start(a)
+            F.wait(lambda: F.job_json(first).get("stage") == 1, what="running")
+            second, third = self.start(b), self.start(c)
+            F.wait(lambda: F.job_json(third).get("msg") == "2nd in line", what="its place")
+            self.assertEqual(F.job_json(second)["msg"], "Next in line")  # no time made up before any is known
+            item = next(v for v in b.get("/api/vlogs").json["items"] if v["id"] == second)
+            self.assertEqual(item["msg"], "Next in line")  # what the page shows
+            Q.SPEED["shorts"] = 600.0  # 10 min per minute of video: the 60 s test vlogs take ~10 min each
+            F.wait(lambda: "about" in F.job_json(third).get("msg", ""), timeout=15, what="a time")
+            mins = [int(re.search(r"about (\d+) min", F.job_json(j)["msg"]).group(1)) for j in (second, third)]
+            self.assertTrue(1 <= mins[0] <= 10 and 10 <= mins[1] <= 20, mins)  # what's left of the first, then + one more
+            self.assertTrue(F.job_json(second)["msg"].startswith("Next in line · about "))
+        finally:
+            F.SLOW.transcribe = 0
+            Q.SLOTS = slots
+        for cl, jid in ((a, first), (b, second), (c, third)):
+            self.assertEqual(F.wait_ready(cl, jid, timeout=60)["status"], "ready")
+        Q.SPEED.clear()
+        Q.SPEED.update(speed)
+
+    def test_the_time_is_learned_from_runs_on_this_server(self):
+        import json
+        import web.job_queue as Q
+        speed = dict(Q.SPEED)
+        Q.SPEED.clear()
+        try:
+            F.make_shorts(F.client(F.new_user()), 120, 1)
+            F.wait(lambda: "shorts" in Q.SPEED, what="learned")
+            self.assertGreater(Q.SPEED["shorts"], 0)
+            self.assertEqual(json.loads((JOBS_DIR / Q.SPEED_FILE).read_text())["shorts"], Q.SPEED["shorts"])  # kept
+        finally:
+            Q.SPEED.clear()
+            Q.SPEED.update(speed)
+
     def test_stop_while_waiting_and_while_running(self):
         c = F.client(F.new_user())
         F.SLOW.transcribe = 5

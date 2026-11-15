@@ -72,3 +72,17 @@ function jobsToast(v){
   document.body.appendChild(t);
   setTimeout(()=>t.classList.add("go"),7000); setTimeout(()=>t.remove(),7600);
 }
+// Under 1024 px the card floats at the bottom of the screen (css/jobs-now.css). --jn-space is the room it takes, so the
+// page ends above it (the last cards of a list) and the bars at the bottom (review's "Next: post", Shorts & Reels'
+// selection) sit above it instead of under it. 0 when there's no card or it's in the sidebar.
+(function(){
+  const card=$("jobsNow"), root=document.documentElement;
+  if(!card||!window.ResizeObserver) return;
+  const set=()=>{
+    const r=card.getBoundingClientRect(), floats=getComputedStyle(card).position==="fixed" && r.height>0;
+    root.style.setProperty("--jn-space", floats ? Math.ceil(innerHeight-r.top+8)+"px" : "0px");
+  };
+  new ResizeObserver(set).observe(card);
+  addEventListener("resize",set);
+  set();
+})();

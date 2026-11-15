@@ -10,6 +10,7 @@ import pipeline
 from settings import JOBS_DIR
 
 from web import clean_clips
+from web.priority import lower
 from web.server import app
 from web.store import LOCK, load_job
 
@@ -20,6 +21,7 @@ VIDEO_GONE = "This video's file was deleted, so it can't be played here. Upload 
 
 
 def build_preview(job_id):
+    lower()  # (web/priority.py)
     job_dir = JOBS_DIR / job_id
     try:
         src = next(job_dir.glob("source.*"), None)
@@ -68,6 +70,16 @@ def preview(job_id):
     if not job:
         abort(404)
     src = next((JOBS_DIR / job_id).glob("source.*"), None)
+    if src and job.get("deleting_video") and not job.get("video_deleted_at"):
+        # the video is about to go (web/vlogs.py delete_soon): never handed to a player that would lose it; the
+        # Short's clean clip once it's cut, until then nothing (the editor shows the timeline without pictures)
+        me = next((s for s in job.get("shorts") or [] if s.get("idx") == data.get("idx")), None)
+        f = JOBS_DIR / job_id / (me.get("clip") or {}).get("file", "") if me and (me.get("clip") or {}).get("file") else None
+        if f and f.is_file():
+            c = me["clip"]
+            return jsonify(status="clip", url=f"/media/{job_id}/{f.name}", offset=float(c["from"]),
+                           reach=[float(c["from"]), float(c["to"])])
+        return jsonify(status="building", url=None, pct=None)
     if not src and not (JOBS_DIR / job_id / "preview.mp4").exists():
         # the editor (js/editor.js) asks for one Short: its clean clip once the vlog is gone (web/clean_clips.py);
         # "offset" = the vlog second it starts at

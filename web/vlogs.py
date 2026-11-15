@@ -20,9 +20,10 @@ from settings import JOBS_DIR
 
 from web.errors import plain_error
 from web.preview import PREVIEWS, PREVIEW_PCT
+from web.priority import lower
 from web.server import app
 from web.stop_and_retry import STOPPING
-from web.store import JOBS, LOCK, load_job, update
+from web.store import JOBS, LOCK, load_job, update, video_gone
 
 
 def created_at(job):
@@ -80,7 +81,7 @@ def summary(job):
             "shorts": len(shorts), "posted": posted, "scheduled": scheduled, "drafts": drafts, "removed": removed,
             "remaking": any(s.get("retrying") for s in job.get("shorts", [])),
             "removable": _empty_stop(job),
-            "youtube_url": vlog.get("youtube_url", ""), "video_deleted": bool(job.get("video_deleted_at")),
+            "youtube_url": vlog.get("youtube_url", ""), "video_deleted": video_gone(job),
             "video_expires": _video_expires(job)}
 
 
@@ -101,7 +102,7 @@ def _poster(job):
     job_dir = JOBS_DIR / job["id"]
     if (job_dir / "poster.jpg").exists():
         return "poster.jpg"
-    if job.get("status") != "working" and not job.get("video_deleted_at") and job["id"] not in POSTERING:
+    if job.get("status") != "working" and not video_gone(job) and job["id"] not in POSTERING:
         src = next(job_dir.glob("source.*"), None)
         if src:
             POSTERING.add(job["id"])
@@ -110,6 +111,7 @@ def _poster(job):
 
 
 def _make_poster(job_id, src, duration):
+    lower()  # (web/priority.py)
     try:
         pipeline.make_poster(src, JOBS_DIR / job_id / "poster.jpg", duration)
     except Exception:  # noqa: BLE001  (the list just keeps showing a Short's thumbnail)
@@ -160,19 +162,58 @@ def _cant_delete(job):
     return None
 
 
+DELETING = set()  # job ids whose video this process is deleting now
+SETTLE_WAIT = 5.0  # seconds the Delete button's request waits for it (a short vlog's is done by then)
+
+
+def delete_soon(job_ids):
+    """Delete these vlogs' videos in the background (remove_video, one after the other, at the background priority):
+    first a clean clip for every draft Short, which on a long 4K vlog takes minutes on a small server, too long for
+    the creator to wait on a button. They're "deleted" for the page at once (deleting_video, store.video_gone): nothing
+    new starts from them, and the drafts' editor keeps working from the vlog until their clips are there. Waits up to
+    SETTLE_WAIT for them to finish. A deletion cut short (the app restarted) is finished by web/retention.py."""
+    if not job_ids:
+        return
+    for job_id in job_ids:
+        update(job_id, deleting_video=True)
+
+    def work():
+        lower()
+        for job_id in job_ids:
+            with LOCK:
+                if job_id in DELETING:
+                    continue
+                DELETING.add(job_id)
+            try:
+                remove_video(job_id)
+            except Exception:  # noqa: BLE001  (finished by web/retention.py later)
+                traceback.print_exc()
+            finally:
+                with LOCK:
+                    DELETING.discard(job_id)
+
+    t = threading.Thread(target=work, daemon=True, name="delete-videos")
+    t.start()
+    t.join(SETTLE_WAIT)
+
+
 @app.post("/api/vlogs/<job_id>/delete-video")
 def delete_video(job_id):
-    """Delete the vlog's video (and the small copy for choosing scenes). Everything made from it stays: Shorts,
+    """Delete the vlog's video (and the small copies made from it). Everything made from it stays: Shorts,
     thumbnails, transcript, posts. Making new Shorts from it then needs the vlog uploaded again (its transcript is
     remembered, so that skips transcribing)."""
     with LOCK:
         job = load_job(job_id)
         if not job:
             abort(404)
+        if job.get("deleting_video") and not job.get("video_deleted_at"):
+            return jsonify(ok=True)  # pressed twice
         why = _cant_delete(job)
+        if not why:
+            job["deleting_video"] = True  # (before the lock goes: a second press or a Make Shorts sees it)
     if why:
         return jsonify(error=why), 400
-    remove_video(job_id)
+    delete_soon([job_id])
     return jsonify(ok=True)
 
 
@@ -189,18 +230,30 @@ def delete_videos():
             if not job or job.get("owner") != g.user["id"]:
                 continue
             empty_stop = _empty_stop(job)
-            why = _cant_delete(job) or (None if empty_stop or not job.get("video_deleted_at") else "already deleted")
+            why = _cant_delete(job) or (None if empty_stop or not video_gone(job) else "already deleted")
             if not why and empty_stop:
                 JOBS.pop(job_id, None)
+            elif not why:
+                job["deleting_video"] = True
         if why:
             skipped.append(job_id)
         elif empty_stop:
             shutil.rmtree(JOBS_DIR / job_id, ignore_errors=True)
             removed.append(job_id)
         else:
-            remove_video(job_id)
             deleted.append(job_id)
+    delete_soon(deleted)
     return jsonify(ok=True, deleted=deleted + removed, removed=removed, skipped=skipped)
+
+
+def _remakes_done(job_id, limit=900):
+    end = time.time() + limit
+    while time.time() < end:
+        with LOCK:
+            job = load_job(job_id) or {}
+            if not any(s.get("retrying") for s in job.get("shorts") or []):
+                return
+        time.sleep(1)
 
 
 def remove_video(job_id):
@@ -216,7 +269,8 @@ def remove_video(job_id):
     if src:
         remember_transcript(src, job_dir / "transcript.json")
         make_clips(job_id)  # the drafts' clean clips first: their editing carries on without the vlog
-    for f in (src, job_dir / "preview.mp4", job_dir / "preview.part.mp4"):
+        _remakes_done(job_id)  # (one started meanwhile still reads the vlog)
+    for f in (src, job_dir / "preview.mp4", job_dir / "preview.part.mp4", *job_dir.glob("look_*")):  # (look_: Reframe's copies)
         if f:
             f.unlink(missing_ok=True)
-    update(job_id, video_deleted_at=time.time(), created_at=uploaded)
+    update(job_id, video_deleted_at=time.time(), created_at=uploaded, deleting_video=False)

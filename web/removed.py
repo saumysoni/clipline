@@ -21,7 +21,7 @@ from settings import JOBS_DIR
 from web.instagram_posting import _mutate
 from web.retention import _remove, _short_files
 from web.server import app
-from web.store import JOBS, LOCK, load_job, update_short
+from web.store import JOBS, LOCK, load_job, update_short, video_gone
 from web.vlogs import user_jobs
 
 
@@ -101,7 +101,7 @@ def vlog_removed_action(job_id):
         post = job.get("vpost") or {}
         if post.get("state") != "removed":
             return jsonify(error="That video isn't marked as removed any more. Refresh the page."), 400
-        if action == "draft" and (job.get("video_deleted_at") or not next((JOBS_DIR / job_id).glob("source.*"), None)):
+        if action == "draft" and (video_gone(job) or not next((JOBS_DIR / job_id).glob("source.*"), None)):
             return jsonify(error="Pit Crew no longer keeps this video's file, so it can't go back to Drafts. Upload the original file again."), 400
         job["vpost"] = None if action == "draft" else {"state": "cleared", "removed_at": post.get("removed_at")}
         if action == "draft":

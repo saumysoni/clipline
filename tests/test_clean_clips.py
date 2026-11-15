@@ -1,7 +1,8 @@
 """Clean clips (pipeline/clean_clip.py, web/clean_clips.py): deleting a vlog's video first keeps each draft's moment and
 30 s either side; after that Captions, Reframe, the hook and AI Edit / Trim (inside that reach) remake the Short from
 its clip, at the right offset and face position; posted Shorts get none; Try again still needs the vlog; the clip goes
-with its Short."""
+with its Short. Deleting a long vlog's video doesn't keep the button waiting: it's deleted for the page at once, the
+clips are cut in the background meanwhile editing carries on, and a deletion cut short by a restart is finished."""
 from tests import fakes as F
 
 import unittest
@@ -103,6 +104,76 @@ class CleanClips(unittest.TestCase):
         self.gone()
         me = self.short()
         self.assertIn(self.dir / me["clip"]["file"], _short_files(self.dir, me))
+
+
+class SlowDeletion(unittest.TestCase):
+    """A long 4K vlog's clips take minutes: the button answers within SETTLE_WAIT, the rest happens behind it."""
+
+    def setUp(self):
+        import pipeline
+        from web import vlogs
+        F.install()
+        F.reset()
+        self.c = F.client(F.new_user())
+        self.jid, st = F.make_shorts(self.c, 150, 2)
+        self.idx = st["shorts"][0]["idx"]
+        self.dir = JOBS_DIR / self.jid
+        self.release = __import__("threading").Event()
+        real = pipeline.make_clean_clip
+
+        def slow(*a, **kw):
+            self.release.wait(20)
+            return real(*a, **kw)
+        self._real, pipeline.make_clean_clip = real, slow
+        self._wait, vlogs.SETTLE_WAIT = vlogs.SETTLE_WAIT, 0.3
+
+    def tearDown(self):
+        import pipeline
+        from web import vlogs
+        self.release.set()
+        F.wait(lambda: not vlogs.DELETING, what="deletion finished")
+        pipeline.make_clean_clip, vlogs.SETTLE_WAIT = self._real, self._wait
+
+    def item(self):
+        return next(v for v in self.c.get("/api/vlogs").json["items"] if v["id"] == self.jid)
+
+    def test_deleted_for_the_page_at_once_finished_behind(self):
+        import time
+        t = time.time()
+        self.assertEqual(self.c.post(f"/api/vlogs/{self.jid}/delete-video").json, {"ok": True})
+        self.assertLess(time.time() - t, 3)
+        self.assertTrue(self.item()["video_deleted"])  # the page shows it deleted
+        self.assertTrue(list(self.dir.glob("source.*")))  # (still there while the clips are cut)
+        self.assertEqual(self.c.post(f"/api/vlogs/{self.jid}/delete-video").json, {"ok": True})  # pressed twice: fine
+        r = self.c.post("/api/vlogs/delete-videos", json={"ids": [self.jid]}).json
+        self.assertEqual((r["deleted"], r["skipped"]), ([], [self.jid]))  # already going
+        # nothing new starts from it, but its drafts can still be edited (from the vlog, until their clip is there)
+        r = self.c.post(f"/api/retry/{self.jid}/{self.idx}", json={})  # Try again needs other moments of the vlog
+        me = F.wait(lambda: (x := next(y for y in F.job_json(self.jid)["shorts"] if y["idx"] == self.idx))
+                    and not x.get("retrying") and x, what="Try again refused")
+        self.assertTrue(r.status_code != 200 or me.get("retry_error"))
+        self.assertTrue(list(self.dir.glob("source.*")))
+        self.assertTrue(self.c.get(f"/api/captions/{self.jid}/{self.idx}").json["can_apply"])
+        # the editor's player never gets the video that's about to go: nothing until the Short's clip is cut
+        self.assertEqual(self.c.post(f"/api/preview/{self.jid}", json={"idx": self.idx}).json["status"], "building")
+        self.release.set()
+        j = F.wait(lambda: (j := F.job_json(self.jid)).get("video_deleted_at") and j, what="deleted")
+        self.assertFalse(j.get("deleting_video"))
+        self.assertEqual(list(self.dir.glob("source.*")), [])
+        self.assertTrue(all(s.get("clip") for s in j["shorts"]))
+        self.assertTrue(self.item()["video_deleted"])
+        self.assertTrue(self.c.get(f"/api/captions/{self.jid}/{self.idx}").json["can_apply"])  # from its clip now
+        self.assertEqual(self.c.post(f"/api/preview/{self.jid}", json={"idx": self.idx}).json["status"], "clip")
+
+    def test_a_deletion_cut_short_is_finished_by_the_sweep(self):
+        from web import retention
+        from web.store import update
+        self.release.set()
+        update(self.jid, deleting_video=True)  # as if the app restarted halfway
+        self.assertIn("video deleted", retention.sweep_job(self.jid))
+        j = F.job_json(self.jid)
+        self.assertTrue(j.get("video_deleted_at") and not j.get("deleting_video"))
+        self.assertEqual(list(self.dir.glob("source.*")), [])
 
 
 if __name__ == "__main__":

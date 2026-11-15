@@ -20,7 +20,7 @@ from flask import abort, g, jsonify
 from pipeline.ffmpeg import watching
 from web.server import app
 from web.stop_and_retry import Stopped, stop_point
-from web.store import JOBS, LOCK, load_job, update
+from web.store import JOBS, LOCK, load_job, update, video_gone
 
 
 PAUSING = set()  # job ids whose Pause was pressed and whose run hasn't left yet
@@ -138,7 +138,7 @@ def resume_vlog(job_id):
             return jsonify(ok=True)
         if job.get("status") != "paused":
             return jsonify(error="This isn't paused."), 400
-        if job.get("video_deleted_at") or not job.get("link") and not _has_video(job_id):
+        if video_gone(job) or not job.get("link") and not _has_video(job_id):
             return jsonify(error="Pit Crew no longer has this video's file (it's deleted a while after it was paused, "
                                  "to keep storage free). Upload it again."), 400
         job.update(pausing=False, recoveries=0)

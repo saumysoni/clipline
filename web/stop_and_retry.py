@@ -18,7 +18,7 @@ from flask import jsonify
 from settings import JOBS_DIR
 
 from web.server import app
-from web.store import JOBS, LOCK, load_job
+from web.store import JOBS, LOCK, load_job, video_gone
 
 
 STOPPING = set()  # job ids whose Stop was pressed and whose thread hasn't finished yet
@@ -90,7 +90,7 @@ def vlog_again(job_id):
         if job.get("status") != "error":
             return jsonify(error="This video isn't stopped, so there's nothing to try again."), 400
         src = next((JOBS_DIR / job_id).glob("source.*"), None)
-        if job.get("video_deleted_at") or not src:
+        if video_gone(job) or not src:
             return jsonify(error="Pit Crew no longer has this video's file (it's deleted a while after it stopped, "
                                  "to keep storage free). Upload it again."), 400
         prep = job.get("kind") == "vlog" and not job.get("count")
