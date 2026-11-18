@@ -52,7 +52,7 @@ Most clipping tools cut a video into pieces and stop there. Pit Crew carries eac
 
 ## How It Works
 
-1. **Send the vlog.** Upload the file (sent in pieces, so a dropped connection carries on) or paste a Google Drive link. Optionally add the vlog's YouTube link, a note ("include the summit, skip the drive") and must-have moments by time.
+1. **Send the vlog.** Upload the file (sent in pieces, so a dropped connection carries on) or paste a link to it: Google Drive, Dropbox, OneDrive / SharePoint, or a direct https link to the file (never YouTube). Optionally add the vlog's YouTube link, a note ("include the summit, skip the drive") and must-have moments by time.
 2. **Transcribe.** faster-whisper writes down every word with exact timings. It uses an NVIDIA GPU when there is one, the processor otherwise.
 3. **Find moments.** Gemini (or OpenAI) reads the full transcript and picks the strongest stand-alone moments, with a hook, title, thumbnail text and hashtags for each.
 4. **Edit.** FFmpeg cuts each moment, crops to 9:16 around the face, burns in captions in the chosen style. Output is 1080×1920 at CRF 18.
@@ -446,7 +446,7 @@ None of them touch the internet, real accounts, real vlogs or API quota: YouTube
 ## Key Engineering Decisions
 
 **1. Never download from YouTube.**
-YouTube's API rules forbid apps from downloading or storing YouTube videos, even the creator's own, and breaking that risks the API access posting depends on. Pit Crew reads only the public text of a YouTube link. The video always comes from an upload or a Drive link.
+YouTube's API rules forbid apps from downloading or storing YouTube videos, even the creator's own, and breaking that risks the API access posting depends on. Pit Crew reads only the public text of a YouTube link. The video always comes from an upload or a link to the file (Drive, Dropbox, OneDrive, a direct link).
 
 **2. Hooks must be true.**
 An on-screen hook that promises something the clip doesn't deliver costs the creator trust. Every prompt carries the same rule (no invented facts), and any hook quoting a number that isn't said in the moment is dropped before the creator sees it.
@@ -501,7 +501,7 @@ The people using Pit Crew are creators, not developers. Every error they can see
 |---|---|
 | "Pit Crew's AI isn't available right now" | Check the terminal: the key is missing or refused (`GEMINI_API_KEY` / `OPENAI_API_KEY`), or no current model is available (`GEMINI_MODEL`). |
 | "Pit Crew's video editor isn't working right now" | FFmpeg isn't installed or not on PATH (step 1). Reopen the window after installing. |
-| Drive link fails | Set sharing to "Anyone with the link", or upload the file instead. |
+| Video link fails | Set sharing to "Anyone with the link" (no sign-in), paste the video's own link (not a folder), or upload the file instead. |
 | Captions use a plain font | Put the font file in `fonts` and make `CAPTION_FONT` match its name. |
 | The AI service was too busy | Google's servers are busy. Pit Crew retries and tries other models by itself; if it still fails, press **Try again** in a few minutes. The transcript is saved. |
 | The AI has reached its limit for now | Wait a while and press **Try again**; the transcript is reused. |

@@ -12,6 +12,7 @@ import pipeline
 from settings import JOBS_DIR
 
 from web import edit_queue
+from web.game_feedback import note_rejected
 from web.server import app
 from web.store import JOBS, LOCK, RETRY_LOCKS, editable_job, next_file_number, update, update_short, video_gone
 from web.times import read_times
@@ -58,6 +59,7 @@ def remake_short(job_id, idx, note, times=None):
         with LOCK:
             job = JOBS[job_id]
             job["last_edit_at"] = time.time()
+            note_rejected(job, me, "tried_again")  # (a Game Mode Short: web/game_feedback.py)
             job["shorts"] = [{**m, "idx": idx, "video": video, "thumb": thumb, "keep": True, "tried": rejected, "cx": cx,
                               "edited_at": job["last_edit_at"]} if s["idx"] == idx else s for s in job["shorts"]]
             (job_dir / "job.json").write_text(json.dumps(job, default=str), encoding="utf-8")

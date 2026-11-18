@@ -20,6 +20,7 @@ async function followAccount(){
 }
 // The accounts' details arrive after the page may already be drawn (signing in, connecting one): draw it again for them.
 function afRepaint(){
+  if(ytNeedAsked && yt.signed_in){ ytNeedAsked=false; followAccount(); return; }  // connected from the Connect YouTube card
   if(!$("s9").hidden && clMode==="out") paintClips();
   else if(!$("s7").hidden && vlData) paintVlogs();
 }

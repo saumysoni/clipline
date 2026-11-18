@@ -27,8 +27,8 @@ function renderCount(){
 function paintPlan(){
   if(!$("sumCount")) return;
   const f=$("file").files[0], link=$("link").value.trim();
-  const linkOk = link && linkKind(link)==="drive_file";
-  $("sumVlog").textContent = f ? f.name : linkOk ? "Google Drive link" : link ? "Check the link" : "Not added yet";
+  const linkOk = link && VIDEO_LINK_KINDS.includes(linkKind(link));
+  $("sumVlog").textContent = f ? f.name : linkOk ? "Video link" : link ? "Check the link" : "Not added yet";
   $("sumVlog").classList.toggle("todo",!f&&!linkOk);
   $("sumCount").textContent = count;
   const k=typeof mustRows==="function" ? mustRows().length : 0;

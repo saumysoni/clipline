@@ -107,7 +107,7 @@ class Start(unittest.TestCase):
     def test_checks_before_starting(self):
         r = self.c.post("/api/start", data={"count": "3"})
         self.assertEqual(r.status_code, 400)
-        r = self.c.post("/api/start", data={"link": "https://example.com/video.mp4"})
+        r = self.c.post("/api/start", data={"link": "https://www.dropbox.com/scl/fo/abc/x"})  # a folder, not a video
         self.assertEqual(r.json["field"], "link")
         up = F.upload(self.c, F.test_video(60))
         r = self.c.post("/api/start", data={"upload": up, "must": json.dumps([{"start": "1:00", "end": "0:30"}])})

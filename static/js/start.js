@@ -2,7 +2,7 @@
 $("make").onclick=async()=>{
   $("err1").textContent="";
   const f=$("file").files[0], link=$("link").value.trim();
-  if(!f && !link){ $("err1").textContent="Choose your video file or paste a Google Drive link."; return; }
+  if(!f && !link){ $("err1").textContent="Choose your video file or paste a link to it."; return; }
   const okVideo=checkVideoLink(), okYt=checkYtLink(), okMust=checkMust();
   if(!okVideo||!okYt){ $("err1").textContent="Fix the link marked in red above."; (okVideo?$("ytUrl"):$("link")).focus(); return; }
   if(!okMust){ $("err1").textContent="Fix the must-have moment marked in red above."; $("mustRows").querySelector("input.bad").focus(); return; }
@@ -15,6 +15,7 @@ $("make").onclick=async()=>{
   fd.append("must",JSON.stringify(mustRows().map(r=>({start:r.start,end:r.end}))));
   fd.append("count",count);
   fd.append("style",document.querySelector("input[name=style]:checked").value);
+  if(gameChoice()) fd.append("game",gameChoice());  // a gameplay stream (js/game-mode.js)
   try{ fd.append("tz",Intl.DateTimeFormat().resolvedOptions().timeZone||""); }catch(e){}
   if(!await stillSignedIn($("err1"))) return;
   $("make").disabled=true; $("upBar").hidden=false;
@@ -38,5 +39,6 @@ $("make").onclick=async()=>{
     $("err1").textContent=j.error||"Something went wrong starting the job."; return;
   }
   if(f) upRemember(f,null);
+  resetGameChoice();  // the next video starts as a vlog again (js/game-mode.js)
   openDrafts("shorts",j.id);  // its loading cards, with only this video's Shorts showing
 };

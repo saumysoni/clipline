@@ -48,7 +48,7 @@ $("vuDrop").addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ e.
 $("vuGo").onclick=async()=>{
   $("vuErr1").textContent="";
   const f=$("vuFile").files[0], link=$("vuLink").value.trim();
-  if(!f && !link){ $("vuErr1").textContent="Choose your video file or paste a Google Drive link."; return; }
+  if(!f && !link){ $("vuErr1").textContent="Choose your video file or paste a link to it."; return; }
   const fd=new FormData();
   if(!f) fd.append("link",link);
   fd.append("note",$("vuNote").value.trim());

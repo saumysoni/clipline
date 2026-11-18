@@ -64,6 +64,8 @@ def _view(v, default):
             "z": round(_num(v.get("z"), 1, ZOOM_MAX, default["z"]), 3)}
 
 
+WIDE_MAX = 1.0  # "wide": the widest view shape (width / height) a Fill frame may show, across the Short
+
 SPLIT_TOP, SPLIT_BOTTOM = {"x": 0.3, "y": 0.5, "z": 1.0}, {"x": 0.7, "y": 0.5, "z": 1.0}
 
 
@@ -100,7 +102,10 @@ def clean_reframe(r, duration=None):
         at = sorted({round(_num(t, 0, top, -1), 2) for t in (p.get("at") if isinstance(p.get("at"), list) else [])[:MAX_PUNCH * 2]} - {-1})
         if amount > 0 and at:
             out["punch"] = {"amount": amount, "at": at[:MAX_PUNCH]}
-        if not moves and "shots" not in out and "punch" not in out:
+        wide = _num(r.get("wide"), 0, WIDE_MAX, 0)
+        if wide > 9 / 16 + 0.01:  # a wider view (Game Mode): that shape across the Short, over a blurred copy
+            out["wide"] = round(wide, 3)
+        if not moves and "shots" not in out and "punch" not in out and "wide" not in out:
             return None
     return out
 
@@ -236,10 +241,14 @@ def reframe_filter(meta, cx, r, pieces, job_dir):
     moves = r["moves"] or [{"t": 0.0, "x": (cx if isinstance(cx, (int, float)) else meta["width"] / 2) / meta["width"],
                             "y": 0.5, "z": 1.0}]
     punch = r.get("punch")
+    aspect = r.get("wide") or 9 / 16
+    oh = OUT_H if aspect == 9 / 16 else _even(OUT_W / aspect)
     if len(moves) == 1 and not punch:
-        fill, name = _crop(meta, moves[0], 9 / 16, OUT_W, OUT_H), None
+        fill, name = _crop(meta, moves[0], aspect, OUT_W, oh), None
     else:
-        fill, name = _moving(meta, moves, r["cut"], pieces, Path(job_dir), punch)
+        fill, name = _moving(meta, moves, r["cut"], pieces, Path(job_dir), punch, aspect, oh)
+    if oh != OUT_H:  # wide: the view across the middle, over a blurred, darker copy of the whole picture
+        fill = f"split[rfwa][rfwb];[rfwa]{_blurred()}[rfwg];[rfwb]{fill}[rfwv];[rfwg][rfwv]overlay=0:(H-h)/2,setsar=1"
     fits = fit_ranges(r.get("shots"), pieces)
     if not fits:
         return fill, name
@@ -247,36 +256,41 @@ def reframe_filter(meta, cx, r, pieces, job_dir):
     return f"split[rfm][rfn];[rfm]{fill}[rff];[rfn]{_fit()}[rft];[rff][rft]overlay=enable='{on}',setsar=1", name
 
 
+def _blurred():
+    """The picture filling the Short, blurred and darker (blurred small: cheaper): behind Fit and wide views."""
+    return (f"scale={OUT_W // 4}:{OUT_H // 4}:force_original_aspect_ratio=increase,"
+            f"crop={OUT_W // 4}:{OUT_H // 4},boxblur=8:2,eq=brightness=-0.08,scale={OUT_W}:{OUT_H}")
+
+
 def _fit():
-    """The whole picture across the Short, over a blurred, darker copy filling the rest (blurred small: cheaper)."""
-    return (f"split[rfx][rfy];[rfx]scale={OUT_W // 4}:{OUT_H // 4}:force_original_aspect_ratio=increase,"
-            f"crop={OUT_W // 4}:{OUT_H // 4},boxblur=8:2,eq=brightness=-0.08,scale={OUT_W}:{OUT_H}[rfbg];"
+    """The whole picture across the Short, over a blurred, darker copy filling the rest."""
+    return (f"split[rfx][rfy];[rfx]{_blurred()}[rfbg];"
             f"[rfy]scale={OUT_W}:-2:flags=lanczos[rffg];[rfbg][rffg]overlay=(W-w)/2:(H-h)/2,setsar=1")
 
 
-def _moving(meta, moves, cut, pieces, job_dir, punch=None):
+def _moving(meta, moves, cut, pieces, job_dir, punch=None, aspect=9 / 16, oh=OUT_H):
     w, h = meta["width"], meta["height"]
     total = sum(b - a for a, b in pieces)
     zmin = min(m["z"] for m in moves)
     zoom = bool(punch) or any(abs(m["z"] - zmin) > 1e-3 for m in moves)  # (a punch-in only ever zooms further in)
     # the widest frame: a fixed crop that every frame fits inside (moved along); with a zoom, scaled and cropped again
-    _, _, ww, wh = window(meta, 0.5, 0.5, zmin)
+    _, _, ww, wh = window(meta, 0.5, 0.5, zmin, aspect)
     ww, wh = min(_even(ww), w // 2 * 2), min(_even(wh), h // 2 * 2)
     lines, last, n = [], None, 0
     while n * STEP <= total + STEP:
         t = n * STEP
         tv = to_vlog(pieces, min(t, total))
         x, y, z = framing_at(moves, tv, cut)
-        left, top, cw, ch = window(meta, x, y, min(ZOOM_MAX * (1 + PUNCH_MAX), z * punch_at(punch, tv)))
+        left, top, cw, ch = window(meta, x, y, min(ZOOM_MAX * (1 + PUNCH_MAX), z * punch_at(punch, tv)), aspect)
         ax = min(max(left + cw / 2 - ww / 2, 0), w - ww)  # the widest frame around this one
         ay = min(max(top + ch / 2 - wh / 2, 0), h - wh)
         if zoom:
             # the scaled size rounded up (never under 1080x1920: on 640x360 or 1280x720 rounding down left it 2 px short),
             # the crop inside it
-            s = OUT_H / ch
-            sw, sh = max(OUT_W, _up(ww * s)), max(OUT_H, _up(wh * s))
+            s = oh / ch
+            sw, sh = max(OUT_W, _up(ww * s)), max(oh, _up(wh * s))
             vals = (_even(ax), _even(ay), sw, sh,
-                    min(max(0, _even((left - _even(ax)) * s)), sw - OUT_W), min(max(0, _even((top - _even(ay)) * s)), sh - OUT_H))
+                    min(max(0, _even((left - _even(ax)) * s)), sw - OUT_W), min(max(0, _even((top - _even(ay)) * s)), sh - oh))
         else:
             vals = (_even(ax), _even(ay))
         if vals != last:
@@ -290,9 +304,9 @@ def _moving(meta, moves, cut, pieces, job_dir, punch=None):
     name = f"reframe_{uuid.uuid4().hex[:10]}.cmd"
     (job_dir / name).write_text("\n".join(lines) + "\n", encoding="utf-8")
     if zoom:
-        return (f"sendcmd=f={name},crop@rfa={ww}:{wh}:0:0,scale@rfz=w={OUT_W}:h={OUT_H}:flags=bicubic,"
-                f"crop@rf={OUT_W}:{OUT_H}:0:0,setsar=1"), name
-    return f"sendcmd=f={name},crop@rfa={ww}:{wh}:0:0,scale={OUT_W}:{OUT_H}:flags=lanczos", name
+        return (f"sendcmd=f={name},crop@rfa={ww}:{wh}:0:0,scale@rfz=w={OUT_W}:h={oh}:flags=bicubic,"
+                f"crop@rf={OUT_W}:{oh}:0:0,setsar=1"), name
+    return f"sendcmd=f={name},crop@rfa={ww}:{wh}:0:0,scale={OUT_W}:{oh}:flags=lanczos", name
 
 
 def drop_commands(job_dir, name):

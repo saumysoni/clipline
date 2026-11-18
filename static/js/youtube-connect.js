@@ -1,10 +1,19 @@
 // Connect YouTube: the sign-in window and the account line.
 // ---- YouTube sign-in: the creator signs in once, then every post goes to that channel
 let yt = {configured:false, signed_in:false, channel:null, channels:[]}, ytWin = null;
+// ytKnown: the account state has arrived (until then Videos and Shorts & Reels draw nothing rather than guess).
+let ytKnown=false;
 async function loadAccount(){
   try{ const r=await fetch("/api/youtube/me"); yt=await r.json(); }catch(e){}
-  paintAccount();
+  ytKnown=true; paintAccount();
 }
+// Not connected to YouTube: Videos and Shorts & Reels ask for it instead of listing anything (ytNeedHTML, wireYtNeed).
+function ytNeedHTML(cls, what){
+  return '<div class="card '+cls+' yt-need"><span class="ms" aria-hidden="true">smart_display</span><b>Connect your YouTube account</b>'+
+    '<span>'+what+'</span><button type="button" class="primary yt-need-btn"><span class="ms" aria-hidden="true">link</span>Connect YouTube</button></div>';
+}
+let ytNeedAsked=false;  // connected from that card: the page reloads its lists once the channel is in (afRepaint)
+function wireYtNeed(box){ box.querySelectorAll(".yt-need-btn").forEach(b=>b.onclick=()=>{ ytNeedAsked=true; signIn(); }); }  // (signIn straight from the click)
 function paintAccount(){
   const name = yt.channel ? yt.channel.title : "your channel";
   $("ytDot").classList.toggle("on", yt.signed_in);

@@ -85,19 +85,27 @@ def youtube_data_ok(provider=None):
 
 
 def ai_json(contents, progress=lambda pct, msg: None, temperature=0.4, busy_hint="", provider=None,
-            timeout=TIMEOUT, busy_waits=None):
+            timeout=TIMEOUT, busy_waits=None, usage=None):
     """Ask the AI for JSON: `provider` if given ("gemini" or "openai"), else AI_PROVIDER in .env.
 
     `contents` is a string, or a list of strings and image_part()s. Returns the parsed JSON.
     timeout: seconds per request (a timed-out request counts as busy). busy_waits: the waits between
     rounds when every model is busy (default BUSY_WAITS; [] = one round, for callers in a hurry).
+    usage: a dict to fill with what the answer cost: provider, model, input / output tokens (0 when not told).
     """
     provider = (provider or ai_provider()).strip().lower()
     if provider == "openai":
-        return openai_json(contents, progress, temperature, busy_hint, timeout, busy_waits)
+        return openai_json(contents, progress, temperature, busy_hint, timeout, busy_waits, usage)
     if provider != "gemini":
         raise setup_problem(f"AI_PROVIDER is '{provider}', which Pit Crew doesn't know. Set it to gemini or openai.")
-    return gemini_json(contents, progress, temperature, busy_hint, timeout, busy_waits)
+    return gemini_json(contents, progress, temperature, busy_hint, timeout, busy_waits, usage)
+
+
+def _count(v):
+    try:
+        return int(v or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def setup_problem(detail):
@@ -166,7 +174,7 @@ def candidate_models(env_name, fallbacks):
 
 
 def gemini_json(contents, progress=lambda pct, msg: None, temperature=0.4, busy_hint="", timeout=TIMEOUT,
-                busy_waits=None):
+                busy_waits=None, usage=None):
     """Ask Gemini for JSON, trying the model from .env first and then the other current models.
 
     Gemini sometimes answers "busy" (503) or "limit reached" (429): busy models are retried in rounds
@@ -196,11 +204,16 @@ def gemini_json(contents, progress=lambda pct, msg: None, temperature=0.4, busy_
         limit_msg="The AI has reached its limit for now. Try again in an hour or so. ",
         none_msg="None of the Gemini models are available to this API key. "
                  "Put a current Flash model name in GEMINI_MODEL in .env.", busy_waits=busy_waits)
+    if usage is not None:
+        meta = getattr(resp, "usage_metadata", None)
+        usage.update(provider="gemini", model=str(getattr(resp, "model_version", "") or ""),
+                     input_tokens=_count(getattr(meta, "prompt_token_count", 0)),
+                     output_tokens=_count(getattr(meta, "candidates_token_count", 0)))
     return parse_ai_json(resp.text, "Gemini")
 
 
 def openai_json(contents, progress=lambda pct, msg: None, temperature=0.4, busy_hint="", timeout=TIMEOUT,
-                busy_waits=None):
+                busy_waits=None, usage=None):
     """Ask OpenAI for JSON, trying OPENAI_MODEL first and then the other current models (same retry
     rules as gemini_json()). OpenAI's JSON mode only returns objects, so a requested list comes back
     wrapped in an object; callers already accept that.
@@ -252,4 +265,9 @@ def openai_json(contents, progress=lambda pct, msg: None, temperature=0.4, busy_
         limit_msg="OpenAI's rate limit was reached. Wait a minute and try again. ",
         none_msg="None of the OpenAI models are available to this API key. "
                  "Put a current model name in OPENAI_MODEL in .env.", busy_waits=busy_waits)
+    if usage is not None:
+        u = getattr(resp, "usage", None)
+        usage.update(provider="openai", model=str(getattr(resp, "model", "") or ""),
+                     input_tokens=_count(getattr(u, "prompt_tokens", 0)),
+                     output_tokens=_count(getattr(u, "completion_tokens", 0)))
     return parse_ai_json(resp.choices[0].message.content, "OpenAI")

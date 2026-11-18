@@ -77,11 +77,14 @@ class FakeAI:
             if self.failures:
                 code, msg = self.failures.pop(0)
                 raise _GeminiError(code, msg)
-        return SimpleNamespace(text=json.dumps(getattr(self, "_" + kind)(text)))
+        out = json.dumps(getattr(self, "_" + kind)(text))
+        return SimpleNamespace(text=out, model_version=model,  # (token counts as Gemini reports them)
+                               usage_metadata=SimpleNamespace(prompt_token_count=len(text) // 4,
+                                                              candidates_token_count=len(out) // 4))
 
     @staticmethod
     def kind(text):
-        for key, kind in (("Return ONLY a JSON array of exactly", "moments"), ("The creator chose this moment", "manual"),
+        for key, kind in (("You check gameplay highlights", "game"), ("Return ONLY a JSON array of exactly", "moments"), ("The creator chose this moment", "manual"),
                           ("Decide what they want", "again"), ("You write on-screen hooks", "hooks"),
                           ("thumbnail for a YouTube Short", "thumb"), ("full YouTube vlog (landscape", "vthumb"),
                           ("You improve one detail of a creator's full YouTube video", "vdetail"), ("helping a YouTube vlogger upload a full vlog", "meta"), ("analytics coach", "coach")):
@@ -121,6 +124,15 @@ class FakeAI:
 
     def _manual(self, text):
         return self._text()
+
+    def _game(self, text):
+        """Game Mode's check (pipeline/game_check.py): keeps every moment but the last, in the detector's order."""
+        n = len(re.findall(r"^Moment \d+: ", text, flags=re.M))
+        return {"items": [{"id": k, "keep": k < n or n == 1, "rank": k, "label": f"police chase number {k}",
+                           "title": f"Chase {k} goes wrong", "hooks": {"curiosity": "Watch the cops", "bold": "No way out",
+                                                                        "story": "It started so well"},
+                           "hook_pick": "bold", "thumb_line1": "", "thumb_line2": "CHASE", "hashtags": ["gta5", "chase"]}
+                          for k in range(1, n + 1)]}
 
     def _again(self, text):
         """A 30-second moment clear of every span the prompt mentions (the other Shorts, ones already tried)."""
