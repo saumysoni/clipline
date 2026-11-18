@@ -22,11 +22,13 @@ const clShowing=()=>$("clBrowse").offsetParent!==null;
 // It also counts only on the channel / account chosen in the sidebar (onActive in js/core.js): one posted with another
 // shows when that one is chosen. Drafts belong to no account yet.
 const clAcct=(c,plat)=>c[plat] && (plat==="youtube" ? c[plat].channel : c[plat].ig_id);
-const clOnPlat=(c,plat)=>!!c[plat] && (clMode!=="out" || (c[plat].state!=="scheduled" && onActive(plat, clAcct(c,plat))));
+// Without a YouTube connection, nothing of YouTube's shows here (the page asks to connect it instead: ytNeedHTML).
+const clOnPlat=(c,plat)=>!!c[plat] && (clMode!=="out" || (c[plat].state!=="scheduled" && onActive(plat, clAcct(c,plat))
+  && (plat!=="youtube" || !!yt.signed_in)));
 // On Shorts & Reels: out on at least one platform with the chosen account.
 const clVisible=c=>clInMode(c) && (clMode!=="out" || clOnPlat(c,"youtube") || clOnPlat(c,"instagram"));
 // Made outside Pit Crew, on the chosen channel / account.
-const clOutsideMine=()=>clOutside.filter(x=>onActive(x.platform||"youtube", x.account));
+const clOutsideMine=()=>clOutside.filter(x=>onActive(x.platform||"youtube", x.account) && (x.platform==="instagram" || !!yt.signed_in));
 async function openClips(vlog){
   clearInterval(poll); clVlog=vlog||""; location.hash="clips"+(clVlog?"/"+clVlog:"");
   show(9); await clOpen("out", $("s9").querySelector(".work"), clVlog);
@@ -223,8 +225,13 @@ function paintClips(){
     : clData.some(isOutClip)||clOutside.length ? ["Nothing on this account", "Your other clips went out on another YouTube channel or Instagram account: switch to it under Channels in the sidebar."]
     : ["Nothing posted yet", clData.length?"Your clips are under Drafts and Scheduled. They show up here once they go out.":"Upload a video and Pit Crew turns it into Shorts and Reels."];
   const making=clMode==="drafts" ? dfMaking().filter(v=>!clVlog||v.id===clVlog) : [];
-  setHTML($("clGrid"), list.length||making.length||outside.length ? (clMode==="drafts" ? clGroupsHTML(list,making) : list.map(clCard).join("")+outside.map(clOutsideCard).join(""))
-    : '<div class="card cl-empty"><span class="ms" aria-hidden="true">movie</span><b>'+emptyB+'</b><span>'+emptyT+'</span></div>');
+  if(clMode==="out" && !ytKnown){ setHTML($("clGrid"), ""); return; }  // the accounts aren't known yet (afRepaint draws it)
+  // No YouTube connection: a card asking for it first (Instagram's Reels, if connected, still show after it)
+  const need=clMode==="out" && !yt.signed_in && clPlat!=="instagram"
+    ? ytNeedHTML("cl-empty","Your YouTube Shorts show here once your channel is connected: the ones posted with Pit Crew and the rest of your channel.") : "";
+  setHTML($("clGrid"), need + (list.length||making.length||outside.length ? (clMode==="drafts" ? clGroupsHTML(list,making) : list.map(clCard).join("")+outside.map(clOutsideCard).join(""))
+    : need ? "" : '<div class="card cl-empty"><span class="ms" aria-hidden="true">movie</span><b>'+emptyB+'</b><span>'+emptyT+'</span></div>'));
+  wireYtNeed($("clGrid"));
   if(clMode==="drafts") clWireGroups(making);
   $("clGrid").querySelectorAll(".cl-x img").forEach(i=>i.onerror=()=>{ i.outerHTML=CL_NO_PIC; });
   $("clGrid").querySelectorAll(".cl-x-clear").forEach(b=>b.onclick=async()=>{

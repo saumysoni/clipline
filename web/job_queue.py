@@ -203,7 +203,7 @@ def run_job(job_id):
     else:
         must = tuple((m["start"], m["end"]) for m in job.get("must") or [])
         make_shorts(job_id, src, link, job.get("count") or 5, job.get("style", "bold"), job.get("vlog"),
-                    job.get("note", ""), must)
+                    job.get("note", ""), must, game=job.get("game"))
 
 
 def _run(job_id):

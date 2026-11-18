@@ -112,6 +112,13 @@ Format: **feature**: work | routes | page — notes.
   `pipeline/vlog_suggest.py` | `web/vlog_suggest.py` | `js/vlog-suggest.js`. What to make: `js/make-choice.js`.
 - **Vlog info from a YouTube link** (API key, else the creator's connection, else oEmbed title):
   `youtube/vlog_info.py`, `pipeline/vlog_context.py` | `web/vlog_info.py` | `js/links.js`.
+- **Game Mode v1** (gaming.md; GTA V gameplay streams: the setup form's "What's in this video?" = `job["game"]`, an
+  ordinary Shorts run whose moments come from the screen and the sound): `pipeline/games/gta5.json`,
+  `pipeline/game_signals.py`, `game_moments.py`, `game_check.py`, `game_frame.py` | `web/game_mode.py` (called from
+  `web/make_shorts.py`) | `js/game-mode.js`, `sections/setup.html`, `css/setup.css` — gotcha 39.
+- **The video from a link** (Google Drive, Dropbox, OneDrive / SharePoint, any https link to the file; never YouTube or
+  its video servers): `pipeline/source_link.py` (`download_video`), `youtube/links.py` (`link_kind`) | both start
+  routes, `web/video_upload.py` (`room_for_link`) | `js/links.js` (`linkKind`, `VIDEO_LINK_KINDS`) — gotcha 38.
 - **Videos page** (home: vlogs posted with Pit Crew or going up, `isPostedVlog`; drafts / scheduled have their own
   pages; Shorts-only uploads aren't vlogs here; cards `vlRow`, `vlShortsActs`; picture = YouTube thumbnail, else
   `poster.jpg`, else a Short's; delete videos (their Shorts stay); stopped ones show `web/errors.py`'s reason):
@@ -124,7 +131,10 @@ Format: **feature**: work | routes | page — notes.
   running is in memory): `web/first_import.py` | `js/first-import.js`.
 - **One account at a time** (Shorts & Reels and Videos show the sidebar's chosen channel / IG account: `onActive(plat,
   id)` against `channel`, `ig_id`, `vpost.channel`, `account`; nothing recorded = shown; Drafts unfiltered):
-  `js/account-follow.js` (`followAccount`), `clOnPlat`, `clVisible`, `vlBase`.
+  `js/account-follow.js` (`followAccount`), `clOnPlat`, `clVisible`, `vlBase`. **No YouTube connected (Nov 2026):**
+  Videos shows only a Connect YouTube card, and Shorts & Reels shows it first with nothing of YouTube's (Instagram's
+  Reels still show); nothing is drawn until the account state is in (`ytKnown`), so there's no flash
+  (`ytNeedHTML`, `wireYtNeed` in `js/youtube-connect.js`; connecting from the card reloads the page, `ytNeedAsked`).
 - **Removed / deleted cards** (gone from YouTube / Instagram: grey card, Back to Drafts / Remove; checked once a day,
   pages never ask): `web/removed.py`, `web/youtube_sync.py`, `web/youtube_upkeep.py` | `clGoneCard`, `vlGoneHTML`.
 - **Drafts** (screen 11; Vlogs tab = `isDraftVlog` + `dfPrepping`; Shorts & Reels tab = the clip browser in "drafts"
@@ -421,7 +431,8 @@ Format: **feature**: work | routes | page — notes.
     without Bold (`BOLD`). Preview = one frame of the vlog framed like the Short with the same .ass (`caption_frame()`,
     ≤ 2 at once, `PREVIEWS`) or 2.5 s silent video (`caption_clip()`). Pop / Punch scale **every word** (a line-wide tag
     is undone by each word's `\fscx`); Pop / Word by word hide later words with `\1a\3a\4a` (`POP_STEP`) so the line
-    never shifts; Slide up = `\move` to the line's own place. Effects < 0.2 s aren't visible at 30 fps.
+    never shifts; Slide up = `\move` to the line's own place. Effects < 0.2 s aren't visible at 30 fps. **Swear words are starred** (`censor`, on by default: `SWEARS`, "Fuck" →
+    "F***"; the sound is untouched; a word the creator typed in the editor shows as typed).
 34. **Reframe = the Short's `reframe` settings** (`pipeline/smart_reframe.py`). None = `crop_filter(meta, cx)` **exactly**
     (`tests/test_reframe.py`); a vertical vlog is padded as before. Times are vlog seconds, positions fractions; the render
     walks the Short's clock every 1/30 s, maps back through pieces (`to_vlog`), asks `framing_at`. **A moving frame is
@@ -492,6 +503,42 @@ Format: **feature**: work | routes | page — notes.
        `SLOTS`. Nothing learned yet (or a length unknown) = only the place, never a made-up time. Video lengths are
        probed outside the lock (`_lengths`); the dispatcher repaints every 5 s. Keep the text short: the sidebar card
        cuts it on a laptop.
+38. **A video link is fetched by the server, so it's guarded** (`pipeline/source_link.py`): https only, and every name
+    must resolve to public addresses only (never this server, the local network or 169.254.169.254, the cloud's
+    metadata service), checked on every redirect and on the very address connected to (`_SafeHTTPS`). YouTube and
+    `googlevideo.com` links are refused (gotcha 10). Downloads stream in 1 MB pieces with `check()` (Pause / Stop),
+    `MAX_UPLOAD_GB` and the free room (`room_for_link`); Drive goes through gdown, checked only after it finishes. The
+    half file is `.download.part`, never `source.*.part`: the pages find a vlog's video with `glob("source.*")`. A
+    sign-in or "request access" page (HTML) is refused with the sharing message.
+39. **Game Mode is an ordinary Shorts run** (`job["game"] = "gta5"`, never a new `kind`: many places branch on
+    `kind`). Only the moment picking differs (`web/game_mode.py` `game_moments`, from `make_shorts`): signals read in
+    `CHUNK`-second pieces through `run.doing()` (Pause / Stop, gotcha 36), from keyframes when they're <= 2.6 s apart,
+    else one picture a second, saved in `game_signals.json` (Resume doesn't read it again); scored per stream (a flat
+    or always-on signal is left out, never counted as zero, so a silent stream scores on pictures); the AI sees a few
+    middle-third pictures of the best ~15 (`pipeline/game_check.py`, `ai_json()`, `HOOK_RULE` + `hook_fields()`), and
+    a failed AI = the detector's order with plain labels. Game moments don't go through `clean_moments` (it drops
+    moments where nobody speaks) and the run sets no `little_speech`. Each Short gets `cx` (passed to `render_short`:
+    the vlog face finder would lock on the facecam) and ordinary Reframe settings: Split (game on top, facecam below,
+    the bottom view capped at `ZOOM_MAX` 2.5) or Fill that changes through the Short (`auto_frame`: a new
+    frame at each scene change, follows the person in a shot, two people too far apart = that shot Fit, nobody = the
+    motion; a frame per part on the motion if the video can't be read). Montages are Shorts with
+    several pieces, kept to one stretch (`montage.max_span`, 5 min): a montage's clean clip, thumbnail frames and Trim
+    strip reach from its first part to its last (gotcha 35). First real stream (GTA Online, Nov 17): the minimap
+    region must stop above the health / armour bars (their blue read as police); WASTED is white there, so a death =
+    a grey picture that isn't the pause map (`edges` ≥ `map_edges`) or black (`bright`); wanted stars count only near
+    the police (city lights); gold = fire as often as MISSION PASSED (named so for the AI); a montage never repeats
+    another Short's moment. The wanted corner and centre regions are still estimates. Game Fill Shorts use `wide` (Reframe setting: a square view
+    across the middle over a blurred copy, `game_frame.WIDE`; none = 9:16 as before), and single moments grow to whole
+    sentences (`with_context`: the setup ≤ 8 s before, the sentence's end ≤ 4 s after, never into a neighbour). The
+    minimap is laid over a game Short only while it's really in its corner (`game_signals` "map", `hud["on"]`)
+    (`moment["hud"]`, `pipeline/game_hud.py` `with_hud()` around the reframe chain in `render_short`; bottom-left
+    under the captions, or top-left in a wide view; none = the render exactly as before). Graphics an editor laid
+    over the video's corners (a scoreboard) are found by `game_signals.find_overlays` (outlines shared by pictures of
+    different scenes, kept only if fully on or off: a camera the video cuts back to isn't one) and laid whole, smaller
+    (`EXTRA_W`), on their side of the view's top row while on screen (`hud["extras"]`). Try again on a game Short still
+    picks from the transcript (stage 2 of gaming.md). The detector's details are on the Short as `s["game"]`. What the AI check cost (pictures, provider, model, tokens) is `job["game_ai"]`
+    (`ai_json(usage=)`); a game Short the creator deletes or replaces with Try again goes into `job["game_log"]`
+    (`web/game_feedback.py`, `game_verdicts()`: posted / draft / deleted / tried_again), to tune `gta5.json` later.
 
 ## Conventions
 

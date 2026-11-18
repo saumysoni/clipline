@@ -6,6 +6,11 @@ Each feature has its own file; this file only lets other code write pipeline.ren
 Inside pipeline/, import from the feature file directly (from pipeline.hooks import ...), not from here.
 """
 from pipeline.ffmpeg import probe  # noqa: F401
+from pipeline.source_link import download_video  # noqa: F401
+from pipeline.game_signals import CHUNK as GAME_CHUNK, games, keyword_hits, load_game, loudness as game_loudness, per_second as game_per_second, scan_pictures as game_scan  # noqa: F401,E501
+from pipeline.game_moments import plan as game_plan, all_with_context as game_with_context  # noqa: F401
+from pipeline.game_check import check as check_game, plain as game_plain  # noqa: F401
+from pipeline.game_frame import auto_frame as game_auto_frame, find_facecam, framing as game_framing  # noqa: F401
 from pipeline.text import parse_time  # noqa: F401
 from pipeline.fonts import prepare_job_fonts  # noqa: F401
 from pipeline.transcribe import transcribe  # noqa: F401

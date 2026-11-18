@@ -98,6 +98,13 @@ def _clean_stale():
             LOCKS.pop(d.name, None)
 
 
+def room_for_link():
+    """Bytes a video fetched from a link (web/make_shorts.py, web/vlog_upload.py) may take now: the free space, less
+    what unfinished uploads will still write and SPARE_GB."""
+    UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+    return max(0, shutil.disk_usage(UPLOADS_DIR).free - _still_needed() - SPARE_GB * 1e9)
+
+
 def _still_needed():
     """Bytes that unfinished uploads will still write (so ten big uploads can't all be let in at once)."""
     total = 0

@@ -24,6 +24,7 @@ async function loadVlogs(){
 let vlOutsideT=null;
 async function vlLoadOutside(){
   clearTimeout(vlOutsideT);
+  if(!yt.signed_in) return;  // (no channel to read)
   try{ const r=await fetch("/api/channel-videos"); if(!r.ok) return; const j=await r.json();
     vlOutsideAll=(j.items||[]).filter(x=>!x.short); vlChecked=j.checked_at; vlChecking=!!j.pending; }catch(e){ return; }
   if($("s7").hidden) return;
@@ -193,6 +194,11 @@ function vlBase(){ return vlData.filter(v=>isPostedVlog(v) && onActive("youtube"
 const vlOutsideMine=()=>vlOutsideAll.filter(x=>onActive("youtube", x.account));
 function paintVlogs(){
   const g=$("vlGrid");
+  if(!ytKnown || !yt.signed_in){  // nothing to show without a channel: ask for it (drawn again when it's connected, afRepaint)
+    $("vlBar").hidden=true; $("vlChecked").hidden=true;
+    g.innerHTML = ytKnown ? ytNeedHTML("vl-empty","Your videos show here once your YouTube channel is connected: the ones you post with Pit Crew and the rest of your channel.") : "";
+    wireYtNeed(g); vlBar(); return;
+  }
   vlData.forEach(v=>{ if(!vlDeletable(v)) vlPicked.delete(v.id); });
   for(const id of [...vlPicked]) if(!vlData.some(v=>v.id===id)) vlPicked.delete(id);
   $("vlBar").hidden=!vlBase().length && !vlOutsideMine().length;

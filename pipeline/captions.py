@@ -50,7 +50,7 @@ FONTS = {
 
 BOLD = {"default", "poppins"}
 _BASE = {"on": True, "font": "default", "color": "#FFFFFF", "hi": "#FFD60A", "line": "#000000", "box": False,
-         "upper": False, "highlight": "color", "anim": "none", "bottom": 560, "words": 3, "shift": 0.0}
+         "upper": False, "highlight": "color", "anim": "none", "bottom": 560, "words": 3, "shift": 0.0, "censor": True}
 # The first three are the job styles chosen when making Shorts (CAPTION_STYLES before October 2026).
 PRESETS = {
     "bold": ("Bold", {"size": 92, "outline": 7, "shadow": 2, "upper": True}),
@@ -80,7 +80,7 @@ def preset(name):
 
 def _look(out, k, v):
     """Sets out[k] when v is a good value for that look key; True if k is a look key."""
-    if k in ("on", "box", "upper"):
+    if k in ("on", "box", "upper", "censor"):
         out[k] = bool(v)
     elif k == "font":
         if v in FONTS:
@@ -158,13 +158,24 @@ def caption_font(key, job_fonts):
     return caption_font_name(job_fonts)
 
 
+# Swear words shown as their first letter and stars ("Fuck" -> "F***", "fucking" -> "f***ing") while `censor` is on
+# (the default): the sound stays as it is. A word the creator typed in the editor is shown as typed.
+SWEARS = re.compile(r"motherfuck|fuck|shit|\b(?:bitch|cunt|asshole|bastard|dickhead|nigga|nigger|wank|twat|bollocks|pussy)",
+                    re.I)  # (fuck / shit also inside words: "bullshit"; the rest only at a word's start: "Scunthorpe")
+
+
+def censored(word):
+    return SWEARS.sub(lambda m: m.group(0)[0] + "*" * (len(m.group(0)) - 1), word)
+
+
 def lines_of(words, caps):
     """The caption lines: the words shown (edited text; "" = left out), `words` to a line, a new line at each br."""
     edits, br, n = caps["edits"], set(caps["br"]), caps["words"]
+    mask = censored if caps.get("censor", True) else (lambda w: w)
     shown = []
     for w in words:
         i = w.get("i")
-        text = edits.get(str(i), w["w"]) if i is not None else w["w"]
+        text = edits[str(i)] if i is not None and str(i) in edits else mask(w["w"])
         if text.strip():
             shown.append({**w, "w": text})
     lines = []

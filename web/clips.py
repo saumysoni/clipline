@@ -15,6 +15,7 @@ import instagram as ig
 import pipeline
 import youtube as yt
 
+from web.game_feedback import note_rejected
 from web.instagram_posting import DUE, _WAKE, _mutate
 from web.posting import POSTING, do_upload
 from web.retention import _remove, _short_files, draft_expires, is_draft
@@ -240,6 +241,7 @@ def clips_delete():
                 kept.append({"job": jid, "idx": idx, "title": s.get("title", "")})
                 continue
             live = JOBS.get(jid) or job
+            note_rejected(live, s, "deleted")  # (a Game Mode Short: web/game_feedback.py)
             live["shorts"] = [x for x in live["shorts"] if x["idx"] != idx]
             (JOBS_DIR / jid / "job.json").write_text(json.dumps(live, default=str), encoding="utf-8")
         _remove(_short_files(JOBS_DIR / jid, s))

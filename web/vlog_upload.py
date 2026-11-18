@@ -35,7 +35,7 @@ from web.server import app
 from web.stop_and_retry import Stopped, finish_stop, settle, stop_point
 from web.allowance import charge, upload_problem
 from web.job_queue import enqueue_locked
-from web.video_upload import take_upload
+from web.video_upload import max_bytes, room_for_link, take_upload
 from web.store import JOBS, LOCK, STAGES, load_job, update, video_gone
 
 VLOG_STAGES = ["Getting your video", "Transcribing", "Writing the title, description and chapters", "Designing the thumbnail"]
@@ -56,13 +56,10 @@ def prepare_vlog(job_id, src, link):
 
     try:
         next_stage(stage=0, pct=0, msg="Getting your video")
-        if link:
-            import gdown
+        if link:  # Drive, Dropbox, OneDrive or a direct link (pipeline/source_link.py); never YouTube (gotcha 10)
             src = job_dir / "source.mp4"
-            run.doing(gdown.download, url=link, output=str(src), quiet=True, fuzzy=True)
-            if not src.exists() or src.stat().st_size < 1000:
-                raise RuntimeError("Couldn't download that link. Make sure sharing is set to "
-                                   "'Anyone with the link', or upload the file instead.")
+            run.doing(pipeline.download_video, link, src, max_bytes=max_bytes(), room=room_for_link(),
+                      check=run.check)
         meta = pipeline.probe(src)
         step(duration=meta["duration"], width=meta["width"], height=meta["height"])
         charge(job_id, meta["duration"])  # this creator's monthly minutes (web/allowance.py), once per vlog
@@ -134,7 +131,7 @@ def vlog_start():
     if link and not upload and yt.video_link_problem(link):
         return jsonify(error=yt.video_link_problem(link), field="link"), 400
     if not upload and not link:
-        return jsonify(error="Add a video file or a Google Drive link."), 400
+        return jsonify(error="Add a video file or a link to it."), 400
     bad = upload and upload_problem(upload, g.user["id"])  # not a video, too long, or over this month's minutes
     if bad:
         return jsonify(error=bad[0], upload_gone=bad[1]), 400

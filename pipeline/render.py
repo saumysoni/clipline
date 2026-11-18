@@ -6,7 +6,7 @@ pieces are cut out and joined in one FFmpeg run, each with a 20 ms fade of its s
 captions follow the joined clock (pieces.timeline), in the Short's own caption settings (moment["captions"],
 pipeline/captions.py; none = the job's style), framed by its reframe settings (moment["reframe"],
 pipeline/smart_reframe.py; none = the crop around the face), with its text on screen (moment["overlays"],
-pipeline/overlays.py).
+pipeline/overlays.py), and a game Short's minimap (moment["hud"], pipeline/game_hud.py).
 
 The same FFmpeg run also writes look_<n>.mp4: the part of the vlog it read, small (LOOK_WIDTH wide), for Reframe's smart
 buttons (web/reframe_look.py). A second output of a run that's decoding the vlog anyway costs ~5 % more; the Short is
@@ -18,6 +18,7 @@ from pathlib import Path
 
 from pipeline.captions import build_ass
 from pipeline.ffmpeg import ffmpeg_exe, run
+from pipeline.game_hud import with_hud
 from pipeline.pieces import kept, timeline
 from pipeline.reframe import face_center_x
 from pipeline.smart_reframe import drop_commands, reframe_filter
@@ -69,6 +70,7 @@ def render_short(video_path, meta, moment, words, idx, style, job_dir, cx="find"
               overlays=moment.get("overlays"), pieces=pieces)
     out_name = f"short_{idx}.mp4"
     frame, cmds = reframe_filter(meta, cx, moment.get("reframe"), pieces, job_dir)
+    frame = with_hud(frame, moment.get("hud"), pieces, meta["width"] / meta["height"])  # a game's minimap (pipeline/game_hud.py); none = as before
     after = f"{frame},subtitles={ass_name}:fontsdir=fonts"
     enc = ["-c:v", "libx264", "-preset", os.getenv("X264_PRESET", "veryfast"), "-crf", "18",
            "-pix_fmt", "yuv420p", "-r", "30", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", out_name]

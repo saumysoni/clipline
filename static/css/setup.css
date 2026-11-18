@@ -63,3 +63,10 @@
 .yt1 b{color:var(--ink);font-weight:600}
 .yt1 .ghost{width:100%}
 .yt1 .acts{display:flex;gap:12px}
+
+/* Game Mode: what's in the video (js/game-mode.js) */
+.gm-lab{margin-top:16px}
+.gm-kinds{grid-template-columns:repeat(2,minmax(0,1fr))}
+.gm-kinds .chip>.ms{font-size:26px;color:var(--muted)}
+.gm-kinds input:checked+.chip>.ms{color:var(--primary)}
+.gm-hint{margin-top:10px}

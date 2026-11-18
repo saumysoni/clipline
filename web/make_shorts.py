@@ -27,12 +27,13 @@ from web.pause import PAUSING, Paused, Run, paused_now
 from web.stop_and_retry import Stopped, finish_stop, settle, stop_point
 from web.allowance import charge, upload_problem
 from web.job_queue import enqueue_locked
-from web.video_upload import take_upload
+from web.game_mode import game_moments
+from web.video_upload import max_bytes, room_for_link, take_upload
 from web.store import JOBS, LOCK, STAGES, update
 from web.times import read_times
 
 
-def make_shorts(job_id, src, link, count, style, vlog=None, note="", must=()):
+def make_shorts(job_id, src, link, count, style, vlog=None, note="", must=(), game=None):
     job_dir = JOBS_DIR / job_id
 
     run = Run(job_id)
@@ -45,13 +46,10 @@ def make_shorts(job_id, src, link, count, style, vlog=None, note="", must=()):
         done = json.loads(json.dumps({k: JOBS[job_id].get(k) for k in ("plan", "made", "shorts")}, default=str))
     try:
         step(stage=0, pct=0, msg="Getting your video")
-        if link:
-            import gdown
+        if link:  # Drive, Dropbox, OneDrive or a direct link (pipeline/source_link.py); never YouTube (gotcha 10)
             src = job_dir / "source.mp4"
-            run.doing(gdown.download, url=link, output=str(src), quiet=True, fuzzy=True)
-            if not src.exists() or src.stat().st_size < 1000:
-                raise RuntimeError("Couldn't download that link. Make sure sharing is set to "
-                                   "'Anyone with the link', or upload the file instead.")
+            run.doing(pipeline.download_video, link, src, max_bytes=max_bytes(), room=room_for_link(),
+                      check=run.check)
         meta = pipeline.probe(src)
         step(duration=meta["duration"], width=meta["width"], height=meta["height"])
         charge(job_id, meta["duration"])  # this creator's monthly minutes (web/allowance.py), once per vlog
@@ -64,8 +62,10 @@ def make_shorts(job_id, src, link, count, style, vlog=None, note="", must=()):
             step(pct=100, msg="Using the transcript saved from last time")
         tr = run.doing(pipeline.transcribe, src, job_tr, lambda p, m: step(pct=p, msg=m))
         remember_transcript(src, job_tr)
-        # Under ~60 words a minute, there's little speech to pick moments from (the page says so).
-        step(little_speech=len(tr["words"]) < 60 * tr["duration"] / 60)
+        # Under ~60 words a minute, there's little speech to pick moments from (the page says so). Not for a gameplay
+        # stream: its moments come from the screen and the sound (web/game_mode.py).
+        if not game:
+            step(little_speech=len(tr["words"]) < 60 * tr["duration"] / 60)
 
         step(stage=2, pct=0, msg="Finding the best moments")
         # The copy for "Choose on the video" starts now (the AI's turn is mostly waiting), so it's ready by Review.
@@ -93,7 +93,11 @@ def make_shorts(job_id, src, link, count, style, vlog=None, note="", must=()):
                     mine.append(run.doing(pipeline.manual_moment, tr, a, b, note, say, context=vlog))
                 except RuntimeError as e:
                     raise RuntimeError(f"Must-have moment {k}: {e}") from e
-            moments = mine + run.doing(pipeline.pick_moments, tr, count - len(mine), say, context=vlog, note=note, taken=mine)
+            if game:  # a gameplay stream: moments from what happens on screen and in the sound (web/game_mode.py)
+                moments = mine + game_moments(job_id, src, meta, tr, count - len(mine), game, run, step, taken=mine)
+            else:
+                moments = mine + run.doing(pipeline.pick_moments, tr, count - len(mine), say, context=vlog, note=note,
+                                           taken=mine)
         step(moments_found=[{"start": m["start"], "end": m["end"]} for m in moments], plan=moments)
 
         pipeline.prepare_job_fonts(job_dir)
@@ -112,7 +116,8 @@ def make_shorts(job_id, src, link, count, style, vlog=None, note="", must=()):
                 if i in made:
                     video, cx = made[i]["video"], made[i]["cx"]
                 else:
-                    video, cx = run.doing(pipeline.render_short, src, meta, m, tr["words"], i, style, job_dir)
+                    video, cx = run.doing(pipeline.render_short, src, meta, m, tr["words"], i, style, job_dir,
+                                          m.get("cx", "find"))  # (Game Mode sets cx: never the facecam's face)
                     made[i] = {"i": i, "video": video, "cx": cx}
                     step(made=list(made.values()))
                 rendered.append((video, cx))
@@ -188,12 +193,16 @@ def start():
         "tags": [],
     }
     upload = (request.form.get("upload") or "").strip()  # the video, sent in pieces first (web/video_upload.py)
+    game = (request.form.get("game") or "").strip()  # "gta5": a gameplay stream (web/game_mode.py), else a vlog
+    if game and game not in pipeline.games():
+        return jsonify(error="Pit Crew doesn't know that game yet. Choose GTA V, or make Shorts as a normal video.",
+                       field="game"), 400
     if link and not upload and yt.video_link_problem(link):
         return jsonify(error=yt.video_link_problem(link), field="link"), 400
     if vlog["youtube_url"] and yt.youtube_link_problem(vlog["youtube_url"]):
         return jsonify(error=yt.youtube_link_problem(vlog["youtube_url"]), field="yt_url"), 400
     if not upload and not link:
-        return jsonify(error="Add a video file or a Google Drive link."), 400
+        return jsonify(error="Add a video file or a link to it."), 400
     bad = upload and upload_problem(upload, g.user["id"])  # not a video, too long, or over this month's minutes
     if bad:
         return jsonify(error=bad[0], upload_gone=bad[1]), 400
@@ -213,7 +222,7 @@ def start():
                         "status": "working", "stage": 0, "pct": 0, "msg": "",
                         "count": count, "style": style, "schedule": schedule, "name": name,
                         "stages": STAGES, "shorts": [], "vlog": vlog, "note": note,
-                        "must": [{"start": a, "end": b} for a, b in must],
+                        "must": [{"start": a, "end": b} for a, b in must], **({"game": game} if game else {}),
                         "tz": (request.form.get("tz") or "")[:64]}  # the creator's time zone, for emails
         enqueue_locked(JOBS[job_id])  # web/job_queue.py starts it when there's a free spot
     return jsonify(id=job_id)

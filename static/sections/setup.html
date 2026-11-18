@@ -20,10 +20,17 @@
           </label>
           <p class="hint vlog-limits"></p>
           <div class="or">OR</div>
-          <label class="lab" for="link">Google Drive link</label>
-          <div class="with-ic"><span class="ms" aria-hidden="true">add_to_drive</span><input type="text" id="link" placeholder="https://drive.google.com/file/d/..." autocomplete="off" aria-describedby="linkHint"></div>
+          <label class="lab" for="link">Video link</label>
+          <div class="with-ic"><span class="ms" aria-hidden="true">link</span><input type="text" id="link" placeholder="Drive, Dropbox or OneDrive link" autocomplete="off" aria-describedby="linkHint"></div>
           <div class="hint" id="linkHint" aria-live="polite"></div>
-          <div class="hint">Sharing set to "Anyone with the link". Use the original export, not a YouTube download, for the sharpest Shorts.</div>
+          <div class="hint">Sharing set to "Anyone with the link". Clipping someone else's video? Ask them for the original file's link: it's sharper than any YouTube copy.</div>
+          <!-- Game Mode (web/game_mode.py, js/game-mode.js): a gameplay stream's moments come from the screen and the sound -->
+          <div class="lab gm-lab" id="kindLab">What's in this video?</div>
+          <div class="styles gm-kinds" role="radiogroup" aria-labelledby="kindLab">
+            <label><input type="radio" name="kind" value="" checked><span class="chip"><span class="ms" aria-hidden="true">videocam</span><small>A vlog or talk</small></span></label>
+            <label><input type="radio" name="kind" value="gta5"><span class="chip"><span class="ms" aria-hidden="true">sports_esports</span><small>GTA V gameplay</small></span></label>
+          </div>
+          <p class="hint gm-hint" id="gmHint" hidden>Pit Crew finds the chases, crashes, WASTED and MISSION PASSED moments from the game itself, even when nobody talks, and makes a montage of the best bits. Up to 3 hours: trim longer streams into parts. A facecam goes below the game.</p>
         </div>
 
         <div class="card">
@@ -77,6 +84,7 @@
         <h3><span class="ms" aria-hidden="true">tune</span>Your plan</h3>
         <dl class="plan">
           <div><dt>Video</dt><dd id="sumVlog" class="todo">Not added yet</dd></div>
+          <div><dt>Kind</dt><dd id="sumKind">Vlog or talk</dd></div>
           <div><dt>Shorts</dt><dd id="sumCount">5</dd></div>
           <div><dt>Must-have moments</dt><dd id="sumMust">None</dd></div>
           <div><dt>Captions</dt><dd id="sumStyle">Bold yellow</dd></div>

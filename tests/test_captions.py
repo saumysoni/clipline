@@ -42,6 +42,24 @@ class Build(unittest.TestCase):
                 C.build_ass(GOLDEN["words"], 0.0, 8.0, hook, style, d / "c.ass", caps)
                 self.assertEqual((d / "c.ass").read_text(encoding="utf-8"), want, key)
 
+    def test_swear_words_are_starred_unless_turned_off(self):
+        words = [{"w": w, "s": k * 0.5, "e": k * 0.5 + 0.4, "i": k}
+                 for k, w in enumerate(["What", "the", "Fuck,", "bullshit", "Scunthorpe", "fucking", "car"])]
+
+        def text(caps):
+            d = Path(tempfile.mkdtemp())
+            C.build_ass(words, 0.0, 4.0, "", "bold", d / "c.ass", caps)
+            return (d / "c.ass").read_text(encoding="utf-8")
+        on = text(C.preset("clean"))
+        self.assertIn("F***,", on)
+        self.assertIn("bulls***", on)
+        self.assertIn("Scunthorpe", on)
+        self.assertNotIn("Fuck", on)
+        self.assertIn("Fuck,", text({**C.preset("clean"), "censor": False}))
+        self.assertIn("fudging", text({**C.preset("clean"), "edits": {"5": "fudging"}}))  # the creator's own word
+        self.assertFalse(C.clean_captions({"censor": 0})["censor"])
+        self.assertTrue(C.clean_captions({})["censor"])
+
     def test_colours_are_blue_green_red(self):
         self.assertEqual(C.ass_color("#FFD60A"), "&H000AD6FF")
         self.assertEqual(C.ass_color("#112233", 0x40), "&H40332211")
